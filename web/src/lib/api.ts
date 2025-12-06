@@ -1,0 +1,421 @@
+import axios from 'axios';
+
+// 动态确定后端 API 地址：
+// 1) 优先读取 NEXT_PUBLIC_API_BASE_URL（适用于自定义反代）
+// 2) 浏览器端统一走相对路径 /api（由 Next.js 反代到后端）
+// 3) SSR 环境使用本机 4000 端口直接访问后端
+const API_BASE_URL =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) ||
+  (typeof window !== 'undefined' ? '/api' : 'http://127.0.0.1:4000');
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+});
+
+// 带上用户ID，用于后端权限校验
+api.interceptors.request.use((config) => {
+  try {
+    const uid = typeof window !== 'undefined' ? (localStorage.getItem('userId') || '') : '';
+    if (uid) {
+      (config.headers as any)['x-user-id'] = uid;
+    }
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('sessionToken') || '') : '';
+    if (token) {
+      (config.headers as any)['Authorization'] = `Bearer ${token}`;
+    }
+  } catch { }
+  return config;
+});
+
+// 标签模板接口
+export interface LabelTemplate {
+  id: number;
+  name: string;
+  content: string;
+  contentTspl?: string;
+  isDefault: boolean;
+  productCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateDto {
+  name: string;
+  content: string;
+  contentTspl?: string;
+  isDefault?: boolean;
+  productCode?: string;
+}
+
+export interface UpdateTemplateDto {
+  name?: string;
+  content?: string;
+  contentTspl?: string;
+  isDefault?: boolean;
+  productCode?: string;
+}
+
+// 商品接口
+export interface ProductSalesSpec {
+  id: number;
+  productCode: string;  // 商品条码
+  skuCode: string;      // SKU编码
+  productName: string;  // 商品名称
+  spec?: string;        // 规格
+  unit?: string;        // 单位
+  price?: number;       // 价格
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductLabel {
+  id: number;
+  productCode: string;  // 商品条码
+  labelName: string;    // 标签名称
+  labelContent: string; // 标签内容HTML
+  isActive: boolean;    // 是否启用
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductWithLabels {
+  product: ProductSalesSpec;
+  labels: ProductLabel[];
+}
+
+// 收货单接口
+export interface ReceiptDetail {
+  id: number;
+  receiptNo: string;     // 收货单号
+  sku: string;           // SKU编码
+  productName: string;   // 商品名称
+  quantity: number;      // 数量
+  price?: number;        // 价格
+  totalAmount?: number;  // 总金额
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReceiptDetailWithProduct {
+  receiptDetail: ReceiptDetail;
+  productInfo?: ProductSalesSpec;
+}
+
+export interface ReceiptSummary {
+  receiptNo: string;
+  totalItems: number;
+  totalQuantity: number;
+  totalAmount: number;
+  details: ReceiptDetailWithProduct[];
+}
+
+// 新增：商品标签资料接口类型
+export interface LabelDataItem {
+  skuCode: string;
+  spuCode?: string;
+  productName?: string;
+  spec?: string;
+  productCode?: string;
+  printBarcode?: string;
+  labelRaw: Record<string, any>;
+}
+
+export interface LabelPrintItem {
+  templateName: string;
+  spuCode: string;
+  productName: string;
+  skuCode: string;
+  spec: string;
+  productCode: string;
+  barcodeTail: string;
+  factoryName?: string;
+  headerInfo?: string;
+  productSpec?: string;
+  executeStandard?: string;
+  addressInfo?: string;
+  material?: string;
+  otherInfo?: string;
+}
+
+// 模板API
+export const templateApi = {
+  // 获取所有模板
+  getAll: (): Promise<LabelTemplate[]> => api.get('/templates').then(res => res.data),
+
+  // 获取默认模板
+  getDefault: (): Promise<LabelTemplate> => api.get('/templates/default').then(res => res.data),
+
+  // 根据商品编码获取模板
+  getByProductCode: (productCode: string): Promise<LabelTemplate> =>
+    api.get(`/templates/by-product?productCode=${productCode}`).then(res => res.data),
+
+  // 根据ID获取模板
+  getById: (id: number): Promise<LabelTemplate> => api.get(`/templates/${id}`).then(res => res.data),
+
+  // 创建模板
+  create: (data: CreateTemplateDto): Promise<LabelTemplate> =>
+    api.post('/templates', data).then(res => res.data),
+
+  // 更新模板
+  update: (id: number, data: UpdateTemplateDto): Promise<LabelTemplate> =>
+    api.patch(`/templates/${id}`, data).then(res => res.data),
+
+  // 删除模板（已禁用，保留占位返回拒绝）
+  delete: async (_id: number): Promise<LabelTemplate> => { throw new Error('标签模板禁止删除'); },
+
+  // 渲染模板为HTML (用于web端打印预览)
+  renderHtml: (id: number, data: any): Promise<{ rendered: string }> =>
+    api.post(`/templates/${id}/render-html`, data).then(res => res.data),
+
+  // 渲染模板为打印指令 (TSPL/CPCL)
+  render: (id: number, data: any): Promise<{ rendered: string }> =>
+    api.post(`/templates/${id}/render`, data).then(res => res.data),
+
+  // 批量生成TSPL指令 - 用于app标签机批量打印优化
+  generateBatchTspl: (items: Array<{ templateId: number; data: any; copies: number }>): Promise<{
+    success: boolean;
+    tspl: string;
+    totalLabels: number;
+    message: string;
+  }> => api.post('/templates/batch-tspl', { items }).then(res => res.data),
+};
+
+// 商品API
+export const productApi = {
+  // 获取所有商品
+  getAll: (): Promise<ProductSalesSpec[]> => api.get('/products').then(res => res.data),
+
+  // 获取所有商品及其标签信息
+  getAllWithLabels: (): Promise<ProductWithLabels[]> => api.get('/products/with-labels').then(res => res.data),
+
+  // 搜索商品
+  search: (keyword: string): Promise<ProductSalesSpec[]> =>
+    api.get(`/products/search?keyword=${encodeURIComponent(keyword)}`).then(res => res.data),
+
+  // 根据条码获取商品
+  getByBarcode: (barcode: string): Promise<ProductSalesSpec | null> =>
+    api.get(`/products/barcode/${barcode}`).then(res => res.data),
+
+  // 根据SKU获取商品
+  getBySku: (skuCode: string): Promise<ProductSalesSpec | null> =>
+    api.get(`/products/sku/${skuCode}`).then(res => res.data),
+
+  // 根据ID获取商品
+  getById: (id: number): Promise<ProductSalesSpec> => api.get(`/products/${id}`).then(res => res.data),
+
+  // 更新商品信息
+  update: (id: number, updateData: Partial<ProductSalesSpec>): Promise<ProductSalesSpec> =>
+    api.put(`/products/${id}`, updateData).then(res => res.data),
+
+  // 根据商品条码获取标签
+  getLabelsByProductCode: (productCode: string): Promise<ProductLabel[]> =>
+    api.get(`/products/${productCode}/labels`).then(res => res.data),
+
+  // 创建商品标签
+  createLabel: (labelData: Omit<ProductLabel, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProductLabel> =>
+    api.post('/products/labels', labelData).then(res => res.data),
+
+  // 更新商品标签
+  updateLabel: (id: number, updateData: Partial<ProductLabel>): Promise<ProductLabel> =>
+    api.put(`/products/labels/${id}`, updateData).then(res => res.data),
+
+  // 删除商品标签
+  deleteLabel: (id: number): Promise<ProductLabel> =>
+    api.delete(`/products/labels/${id}`).then(res => res.data),
+};
+
+// 收货单API
+export const receiptApi = {
+  // 获取所有收货单号
+  getReceiptNumbers: (): Promise<string[]> => api.get('/receipts/numbers').then(res => res.data),
+
+  // 搜索收货单号
+  searchReceiptNumbers: (keyword: string): Promise<string[]> =>
+    api.get(`/receipts/numbers/search?keyword=${encodeURIComponent(keyword)}`).then(res => res.data),
+
+  // 根据收货单号获取明细
+  getDetailsByReceiptNo: (receiptNo: string): Promise<ReceiptDetailWithProduct[]> =>
+    api.get(`/receipts/${receiptNo}/details`).then(res => res.data),
+
+  // 获取收货单汇总信息
+  getSummary: (receiptNo: string): Promise<ReceiptSummary> =>
+    api.get(`/receipts/${receiptNo}/summary`).then(res => res.data),
+};
+
+// 新的标签资料管理接口类型
+export interface LabelDataRecord {
+  sku: string;
+  supplierName: string;
+  headerInfo?: string | null;
+  productSpec?: string | null; // 只读字段，从sm_shangping库自动获取
+  executionStandard?: string | null;
+  productName?: string | null;
+  manufacturerName?: string | null;
+  addressInfo?: string | null;
+  material?: string | null;
+  otherInfo?: string | null;
+  action?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LabelDataStatistics {
+  totalRecords: number;
+  totalSuppliers: number;
+  totalSkus: number;
+}
+
+// 商品标签资料API
+export const labelDataApi = {
+  // 新的API方法
+  getAll: (params?: {
+    sku?: string;
+    supplierName?: string;
+    limit?: number;
+    offset?: number
+  }): Promise<{ data: LabelDataRecord[]; total: number }> =>
+    api.get('/label-data/all', { params }).then(res => res.data),
+
+  getStatistics: (): Promise<LabelDataStatistics> =>
+    api.get('/label-data/statistics').then(res => res.data),
+
+  getSuppliers: (): Promise<string[]> =>
+    api.get('/label-data/suppliers').then(res => res.data),
+
+  create: (data: {
+    sku: string;
+    supplierName: string;
+    headerInfo?: string;
+    // productSpec 已移除，现在从sm_shangping库自动获取
+    executionStandard?: string;
+    productName?: string;
+    manufacturerName?: string;
+    addressInfo?: string;
+    material?: string;
+    otherInfo?: string;
+    userId?: number;
+    userName?: string;
+  }): Promise<{ success: boolean }> =>
+    api.post('/label-data/create-or-update', data).then(res => res.data),
+
+  getLogs: (sku: string, supplierName?: string): Promise<any[]> =>
+    api.get('/label-data/logs', { params: { sku, supplierName } }).then(res => res.data),
+
+  getOne: (sku: string, supplierName: string): Promise<LabelDataRecord | null> =>
+    api.get(`/label-data/${encodeURIComponent(sku)}/${encodeURIComponent(supplierName)}`).then(res => res.data),
+
+  delete: (sku: string, supplierName: string): Promise<boolean> =>
+    api.delete(`/label-data/delete/${encodeURIComponent(sku)}/${encodeURIComponent(supplierName)}`).then(res => res.data),
+
+  batchDelete: (items: { sku: string; supplierName: string }[]): Promise<number> =>
+    api.post('/label-data/batch-delete', { items }).then(res => res.data),
+
+  // 兼容旧API的方法
+  list: (params?: { sku?: string; q?: string; limit?: number }): Promise<LabelDataItem[]> =>
+    api.get('/label-data', { params }).then(res => res.data),
+  columns: (): Promise<{ name: string; type?: string }[]> =>
+    api.get('/label-data/columns').then(res => res.data),
+  bySku: (sku: string): Promise<LabelDataItem[]> =>
+    api.get('/label-data/by-sku', { params: { sku } }).then(res => res.data),
+  bySkuAndSupplier: (sku: string, supplierName: string): Promise<Record<string, any> | null> =>
+    api.get('/label-data/by-sku-supplier', { params: { sku, supplierName } }).then(res => res.data),
+  upsert: (sku: string, values: Record<string, any>): Promise<{ success: boolean }> =>
+    api.post('/label-data/upsert', { sku, values }).then(res => res.data),
+  remove: (sku: string, supplier: string): Promise<{ success: boolean }> =>
+    api.delete(`/label-data/delete/${encodeURIComponent(sku)}/${encodeURIComponent(supplier)}`).then(res => res.data),
+};
+
+// 商品主档 API
+export const productMasterApi = {
+  columns: (): Promise<{ name: string; type?: string }[]> =>
+    api.get('/product-master/columns').then(res => res.data),
+  list: (params?: { q?: string; limit?: number }): Promise<Array<{ spuCode: string; productName: string; spec: string; skuCode: string; productCode: string; pickingStandard?: string | null }>> =>
+    api.get('/product-master', { params }).then(res => res.data),
+  detail: (sku: string): Promise<Record<string, any>> =>
+    api.get(`/product-master/${sku}`).then(res => res.data),
+};
+
+// 商品标签打印 API
+export const labelPrintApi = {
+  search: (q: string): Promise<LabelPrintItem[]> => api.get('/label-print/search', { params: { q } }).then(res => res.data),
+};
+
+// 运营组管理 - 排除活动商品
+export interface OpsExclusionItem {
+  视图名称: string;
+  门店编码: string;
+  SKU编码: string;
+  SPU编码: string;
+}
+
+export const opsExclusionApi = {
+  list: (q?: string): Promise<OpsExclusionItem[]> =>
+    api.get('/ops-exclusion', { params: q ? { q } : {} }).then(res => res.data),
+  create: (data: OpsExclusionItem): Promise<{ success: boolean }> =>
+    api.post('/ops-exclusion', data).then(res => res.data),
+  update: (
+    original: OpsExclusionItem,
+    data: OpsExclusionItem
+  ): Promise<{ success: boolean }> =>
+    api.patch('/ops-exclusion', { original, data }).then(res => res.data),
+  remove: (data: OpsExclusionItem): Promise<{ success: boolean }> =>
+    api.delete('/ops-exclusion', { data }).then(res => res.data),
+};
+
+// ACL 类型
+export interface SysPermission { id: number; code: string; name: string; path: string }
+export interface SysRole { id: number; name: string; remark?: string }
+export interface SysUser {
+  id: number;
+  username: string;
+  display_name?: string;
+  status: number;
+  roles?: SysRole[]; // 用户关联的角色列表
+}
+
+// 钉钉API
+export const dingTalkApi = {
+  getAuthUrl: (state?: string): Promise<{ url: string }> => api.get('/dingtalk/auth-url', { params: { state } }).then(res => res.data),
+  callback: (code: string): Promise<any> => api.post('/dingtalk/callback', { code }).then(res => res.data),
+  verifyMember: (userId: string): Promise<{ isMember: boolean; message: string }> => api.post('/dingtalk/verify-member', { userId }).then(res => res.data),
+};
+
+// ACL API
+export const aclApi = {
+  init: (): Promise<any> => api.post('/acl/init').then(res => res.data),
+  login: (username: string, password: string, dingTalkCode?: string): Promise<{ id: number; username: string; display_name?: string; token: string }> => api.post('/acl/login', { username, password, dingTalkCode }).then(res => res.data),
+  logout: (userId: number, token: string): Promise<{ success: boolean }> => api.post('/acl/logout', { userId, token }).then(res => res.data),
+  // 会话校验（用于单点登录心跳）
+  validateToken: (userId: number, token: string): Promise<boolean> => api.post('/acl/validate-token', { userId, token }).then(res => res.data),
+
+  // permissions
+  listPermissions: (): Promise<SysPermission[]> => api.get('/acl/permissions').then(res => res.data),
+  createPermission: (p: Partial<SysPermission>) => api.post('/acl/permissions/create', p).then(res => res.data),
+  updatePermission: (id: number, p: Partial<SysPermission>) => api.post('/acl/permissions/update', { id, ...p }).then(res => res.data),
+  deletePermission: (id: number) => api.post('/acl/permissions/delete', { id }).then(res => res.data),
+
+  // roles
+  listRoles: (): Promise<SysRole[]> => api.get('/acl/roles').then(res => res.data),
+  createRole: (r: Partial<SysRole>) => api.post('/acl/roles/create', r).then(res => res.data),
+  updateRole: (id: number, r: Partial<SysRole>) => api.post('/acl/roles/update', { id, ...r }).then(res => res.data),
+  deleteRole: (id: number) => api.post('/acl/roles/delete', { id }).then(res => res.data),
+  grantRole: (roleId: number, permissionIds: number[]) => api.post('/acl/roles/grant', { roleId, permissionIds }).then(res => res.data),
+  roleGranted: (roleId: number): Promise<number[]> => api.get('/acl/roles/granted', { params: { roleId } }).then(res => res.data),
+
+  // users
+  listUsers: (q?: string): Promise<SysUser[]> => api.get('/acl/users', { params: { q } }).then(res => res.data),
+  createUser: (u: Partial<SysUser>) => api.post('/acl/users/create', u).then(res => res.data),
+  updateUser: (id: number, u: Partial<SysUser>) => api.post('/acl/users/update', { id, ...u }).then(res => res.data),
+  deleteUser: (id: number) => api.post('/acl/users/delete', { id }).then(res => res.data),
+  assignUserRoles: (userId: number, roleIds: number[]) => api.post('/acl/users/assign', { userId, roleIds }).then(res => res.data),
+
+  // user assigned role ids (用于列表展示与弹窗预勾选)
+  userAssignedRoleIds: (userId: number): Promise<number[]> =>
+    api.get('/acl/users/assigned', { params: { userId } }).then(res => res.data),
+
+  // user permissions
+  userPermissions: (userId: number): Promise<SysPermission[]> => api.get('/acl/user-permissions', { params: { userId } }).then(res => res.data),
+};
+
+export default api;
