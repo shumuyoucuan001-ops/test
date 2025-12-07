@@ -1,0 +1,62 @@
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-alibaba), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 全局强制：所有元素默认使用普惠体 */
+html, body, body * { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif; }
+
+/* 表格与表头、分页、按钮、菜单等 AntD 组件统一字体 */
+.ant-table, .ant-table *,
+.ant-pagination, .ant-pagination *,
+.ant-btn, .ant-btn *,
+.ant-menu, .ant-menu *,
+.ant-select, .ant-select *,
+.ant-input, .ant-input *,
+.ant-statistic, .ant-statistic * { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif; }
+
+/* 商品明细中特定列：条码与核对条码尾号（确保等宽表现但保留普惠体） */
+.barcode-cell, .barcode-tail-cell { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif !important; }
+
+/* 让打印窗口也继承同样的字体 */
+@media print {
+  body { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif; }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}

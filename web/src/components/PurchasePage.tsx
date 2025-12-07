@@ -1,0 +1,756 @@
+"use client";
+
+import { LabelTemplate, ReceiptDetailWithProduct, ReceiptSummary, receiptApi, templateApi } from '@/lib/api';
+import { PrinterOutlined } from '@ant-design/icons';
+import {
+    Button,
+    Card,
+    Checkbox,
+    Col,
+    Input,
+    Row,
+    Select,
+    Space,
+    Table,
+    Tabs,
+    Tag,
+    message
+} from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+const { TabPane } = Tabs;
+const { Option } = Select;
+
+// 添加样式
+const styles = `
+  .selected-row {
+    background-color: #e6f7ff !important;
+  }
+  .unselected-row {
+    background-color: #ffffff !important;
+  }
+  .clickable-cell {
+    cursor: pointer;
+  }
+  .non-clickable-cell {
+    cursor: default;
+  }
+  
+  /* 禁用表格行的hover效果，但保留选择列的hover */
+  .ant-table-tbody > tr:hover > td:not(.select-column) {
+    background-color: inherit !important;
+  }
+  
+  /* 选择列允许hover效果 */
+  .ant-table-tbody > tr:hover > td.select-column {
+    background-color: #f5f5f5 !important;
+  }
+  
+  /* 确保选中行的颜色统一 */
+  .ant-table-tbody > tr.selected-row > td {
+    background-color: #e6f7ff !important;
+  }
+  
+  /* 确保未选中行的颜色统一 */
+  .ant-table-tbody > tr.unselected-row > td {
+    background-color: #ffffff !important;
+  }
+  
+  /* 选中行的选择列hover效果 */
+  .ant-table-tbody > tr.selected-row:hover > td.select-column {
+    background-color: #d6f2ff !important;
+  }
+  
+  /* 未选中行的选择列hover效果 */
+  .ant-table-tbody > tr.unselected-row:hover > td.select-column {
+    background-color: #f5f5f5 !important;
+  }
+`;
+
+export default function PurchasePage() {
+  const [receiptNumbers, setReceiptNumbers] = useState<string[]>([]);
+  const [selectedReceiptNo, setSelectedReceiptNo] = useState<string>('');
+  const [receiptSummary, setReceiptSummary] = useState<ReceiptSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  // 移除预览
+  const [batchPrintVisible, setBatchPrintVisible] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [editableQty, setEditableQty] = useState<Record<number, number>>({});
+  
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [searching, setSearching] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchTimer = useRef<any>(null);
+  
+  // 模板缓存
+  const [templatesCache, setTemplatesCache] = useState<LabelTemplate[] | null>(null);
+  const [defaultTemplate, setDefaultTemplate] = useState<LabelTemplate | null>(null);
+  const [qualifiedTemplate, setQualifiedTemplate] = useState<LabelTemplate | null>(null);
+
+  // 预加载模板缓存
+  const loadTemplatesCache = async () => {
+    try {
+      console.log('[性能优化] 开始预加载模板缓存...');
+      const all = await templateApi.getAll();
+      setTemplatesCache(all);
+      
+      // 预解析常用模板
+      const defaultTpl = (all || []).find(t => t.name?.includes('默认')) || all[0];
+      const qualifiedTpl = (all || []).find(t => t.name?.includes('合格证')) || all[0];
+      
+      setDefaultTemplate(defaultTpl);
+      setQualifiedTemplate(qualifiedTpl);
+      
+      console.log('[性能优化] 模板缓存加载完成:', {
+        总数: all?.length || 0,
+        默认模板: defaultTpl?.name,
+        合格证模板: qualifiedTpl?.name
+      });
+    } catch (error) {
+      console.error('[性能优化] 模板缓存加载失败:', error);
+    }
+  };
+
+  // 加载收货单号列表
+  const loadReceiptNumbers = async () => {
+    try {
+      const data = await receiptApi.getReceiptNumbers();
+      setReceiptNumbers(data);
+    } catch (error) {
+      message.error('加载收货单号失败');
+      console.error(error);
+    }
+  };
+
+
+  // 搜索收货单号
+  const handleSearchReceiptNumbers = async (keyword: string) => {
+    try {
+      const data = await receiptApi.searchReceiptNumbers(keyword);
+      setReceiptNumbers((data || []).slice(0, 10));
+      setSearchKeyword(keyword);
+    } catch (error) {
+      message.error('搜索失败');
+      console.error(error);
+    }
+  };
+
+  // 下拉框实时搜索（300ms 防抖）
+  const onRemoteSearch = (value: string) => {
+    setSearchTerm(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      await handleSearchReceiptNumbers(value);
+      setSearching(false);
+    }, 300);
+  };
+
+  // 选择收货单号
+  const handleSelectReceiptNo = async (receiptNo: string) => {
+    if (!receiptNo) {
+      setReceiptSummary(null);
+      setSelectedReceiptNo('');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const summary = await receiptApi.getSummary(receiptNo);
+      setReceiptSummary(summary);
+      setSelectedReceiptNo(receiptNo);
+      setSelectedItems([]); // 清空选中项
+      
+      // 初始化打印数量为计划数量
+      const initQty: Record<number, number> = {};
+      summary.details.forEach(d => { initQty[d.receiptDetail.id] = d.receiptDetail.quantity; });
+      setEditableQty(initQty);
+      
+    } catch (error) {
+      message.error('加载收货单明细失败');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 移除预览功能
+
+  // 打印辅助：用隐藏 iframe 方式触发系统打印，避免被弹窗拦截
+  const printViaIframe = (labels: string[]) => {
+    const html = `<!doctype html><html><head><meta charset=\"utf-8\" />
+      <style>
+        /* 声明阿里巴巴普惠体，保持模板布局不变，仅替换字体 */
+        @font-face { font-family: 'AlibabaPuHuiTi'; src: url('/fonts/AlibabaPuHuiTi--Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'AlibabaPuHuiTi'; src: url('/fonts/AlibabaPuHuiTi--Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'AlibabaPuHuiTi'; src: url('/fonts/AlibabaPuHuiTi--Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+        /* 兼容模板里可能写成 'Alibaba PuHuiTi' 的用法 */
+        @font-face { font-family: 'Alibaba PuHuiTi'; src: url('/fonts/AlibabaPuHuiTi--Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Alibaba PuHuiTi'; src: url('/fonts/AlibabaPuHuiTi--Medium.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Alibaba PuHuiTi'; src: url('/fonts/AlibabaPuHuiTi--Bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+        @page { size: 40mm 30mm; margin: 0; }
+        html, body { margin: 0; padding: 0; }
+        .label { width: 40mm; height: 30mm; overflow: hidden; }
+        .label { page-break-after: always; }
+        .label:last-child { page-break-after: auto; }
+        /* 强制标签内所有文字使用普惠体（覆盖内联 Courier/monospace） */
+        .label, .label * { font-family: 'AlibabaPuHuiTi','Alibaba PuHuiTi', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif !important; }
+        .label [style*="font-family"],
+        .label [style*="Courier"],
+        .label [style*="monospace"] { font-family: 'AlibabaPuHuiTi','Alibaba PuHuiTi', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif !important; }
+      </style>
+    </head><body>${labels.map(l => `<div class=\\\"label\\\">${l}</div>`).join('')}</body></html>`;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (!doc) { message.error('无法创建打印上下文'); return; }
+    doc.open();
+    doc.write(html);
+    doc.close();
+    iframe.onload = () => {
+      setTimeout(() => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } finally { document.body.removeChild(iframe); setPrinting(false); }
+      }, 200);
+    };
+  };
+
+  // 直接打印（热敏标签）：按当前"打印数量"重复输出
+  const handlePrint = async (item: ReceiptDetailWithProduct) => {
+    // 防抖：如果正在打印，则忽略
+    if (printing) {
+      console.log('[性能优化] 正在打印中，忽略重复请求');
+      return;
+    }
+    
+    try {
+      setPrinting(true);
+      console.log('[性能优化] 开始打印渲染...');
+      const startTime = performance.now();
+      
+      const result = await renderLabelHtml(item);
+      const copies = Math.max(1, Number(editableQty[item.receiptDetail.id] ?? item.receiptDetail.quantity) || 1);
+      
+      const endTime = performance.now();
+      console.log(`[性能优化] 渲染完成，耗时: ${(endTime - startTime).toFixed(2)}ms`);
+      
+      printViaIframe(Array.from({ length: copies }, () => result.rendered));
+    } catch (error) {
+      message.error('打印失败');
+      console.error(error);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // 渲染单个明细为 HTML（重新设计的逻辑）
+  const renderLabelHtml = async (item: ReceiptDetailWithProduct): Promise<{ rendered: string }> => {
+    const productInfo = item.productInfo;
+    if (!productInfo) throw new Error('缺少商品信息');
+    
+    const sku = item.receiptDetail.sku;
+    const supplierName = item.receiptDetail.supplierName || '';
+    
+    console.log(`[打印] 开始渲染标签: SKU=${sku}, 供应商=${supplierName}`);
+    console.log(`[打印] productInfo:`, productInfo);
+    
+    // 获取标签资料（后端已经在findByReceiptNo中获取并附加到productInfo.labelData中）
+    const labelData = (productInfo as any).labelData;
+    console.log(`[打印] labelData:`, labelData);
+    
+    // 判断使用哪个模板：有标签资料且厂家名称不为空 -> 合格证模板，否则 -> 默认模板
+    let useQualifiedTemplate = false;
+    if (labelData && labelData.manufacturerName !== undefined) {
+      const manufacturerName = String(labelData.manufacturerName || '').trim();
+      useQualifiedTemplate = manufacturerName !== '';
+      console.log(`[打印] 模板选择逻辑: 厂家名称="${manufacturerName}", 使用合格证模板=${useQualifiedTemplate}`);
+    } else {
+      console.log(`[打印] 无标签资料，使用默认模板`);
+    }
+    
+    // 获取模板（使用缓存）
+    let template: LabelTemplate;
+    
+    if (useQualifiedTemplate) {
+      // 使用合格证标签模板
+      template = qualifiedTemplate || (templatesCache || []).find(t => t.name?.includes('合格证')) || await templateApi.getDefault();
+      console.log(`[打印] 使用合格证模板: ${template.name} (ID: ${template.id})`);
+    } else {
+      // 使用默认标签模板
+      template = defaultTemplate || (templatesCache || []).find(t => t.name?.includes('默认')) || await templateApi.getDefault();
+      console.log(`[打印] 使用默认模板: ${template.name} (ID: ${template.id})`);
+    }
+    
+    // 如果缓存未加载，则异步加载（但不阻塞当前打印）
+    if (!templatesCache) {
+      loadTemplatesCache().catch(console.error);
+    }
+    
+    // 生成上月年月信息 (YYYY.MM格式，两位月份补零)
+    const now = new Date();
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthStr = `${prevMonth.getFullYear()}.${(prevMonth.getMonth() + 1).toString().padStart(2, '0')}`;
+    
+    // 根据模板类型填充不同的数据
+    let renderData: Record<string, any>;
+    
+    if (useQualifiedTemplate && labelData) {
+      // 合格证标签模板数据
+      renderData = {
+        headerInfo: String(labelData.headerInfo || ''),           // header_info -> {{headerInfo}}
+        productSpec: String(productInfo.spec || ''),              // 规格 -> {{productSpec}}
+        productName: String(labelData.productName || ''),         // product_name -> {{productName}}
+        factoryName: String(labelData.manufacturerName || ''),    // manufacturer_name -> {{factoryName}}
+        addressInfo: String(labelData.addressInfo || ''),         // address_info -> {{addressInfo}}
+        material: String(labelData.material || ''),               // material -> {{material}}
+        otherInfo: String(labelData.otherInfo || ''),             // other_info -> {{otherInfo}}
+        executeStandard: String(labelData.executionStandard || ''), // execution_standard -> {{executeStandard}}
+        prevMonth: prevMonthStr,                                  // 上月年月 -> {{prevMonth}}
+        qrDataUrl: sku,                                          // SKU编码 -> {{qrDataUrl}}
+        barcodeTail: (productInfo as any).barcodeTail || '',     // 核对条码尾号 -> {{barcodeTail}}
+      };
+      console.log(`[打印] 合格证标签数据:`, renderData);
+    } else {
+      // 默认标签模板数据
+      renderData = {
+        spec: productInfo.spec || '',                            // 规格 -> {{spec}}
+        qrDataUrl: sku,                                         // SKU编码 -> {{qrDataUrl}}
+        barcodeTail: (productInfo as any).barcodeTail || '',    // 核对条码尾号 -> {{barcodeTail}}
+      };
+      console.log(`[打印] 默认标签数据:`, renderData);
+    }
+    
+    return templateApi.renderHtml(template.id, renderData);
+  };
+
+  const handleBatchPrint = () => {
+    if (selectedItems.length === 0) {
+      message.warning('请选择要打印的商品');
+      return;
+    }
+    // 直接执行批量打印（不再弹出确认框）
+    void executeBatchPrint();
+  };
+
+  const executeBatchPrint = async () => {
+    // 防抖：如果正在打印，则忽略
+    if (printing) {
+      console.log('[性能优化] 正在打印中，忽略批量打印请求');
+      return;
+    }
+    
+    try {
+      setPrinting(true);
+      
+      const selectedDetails = receiptSummary?.details.filter(detail => 
+        selectedItems.includes(detail.receiptDetail.id)
+      );
+      if (!selectedDetails || selectedDetails.length === 0) {
+        message.warning('没有选中的商品');
+        return;
+      }
+      
+      // 使用HTML打印
+      await executeBatchHtmlPrint(selectedDetails);
+      
+    } catch (error) {
+      message.error('批量打印失败');
+      console.error(error);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // 传统HTML批量打印
+  const executeBatchHtmlPrint = async (selectedDetails: ReceiptDetailWithProduct[]) => {
+    console.log('[性能优化] 开始HTML批量打印渲染...');
+    const startTime = performance.now();
+    
+    console.log(`[性能优化] 批量打印 ${selectedDetails.length} 个商品`);
+    
+    // 性能优化：并行渲染所有标签
+    const rendered = await Promise.all(selectedDetails.map(d => renderLabelHtml(d)));
+    
+    const labels: string[] = [];
+    for (let i = 0; i < selectedDetails.length; i++) {
+      const d = selectedDetails[i];
+      const html = rendered[i];
+      const copies = Math.max(1, Number(editableQty[d.receiptDetail.id] ?? d.receiptDetail.quantity) || 1);
+      for (let c = 0; c < copies; c++) labels.push(html.rendered);
+    }
+    
+    const endTime = performance.now();
+    console.log(`[性能优化] HTML批量渲染完成，耗时: ${(endTime - startTime).toFixed(2)}ms，共${labels.length}个标签`);
+    
+    if (labels.length === 0) { 
+      message.warning('无可打印标签'); 
+      return; 
+    }
+    
+    printViaIframe(labels);
+  };
+
+  // TSPL批量打印 - 合并为单个打印指令
+  const executeBatchTsplPrint = async (selectedDetails: ReceiptDetailWithProduct[]) => {
+    console.log('[TSPL批量] 开始TSPL批量打印...');
+    const startTime = performance.now();
+    
+    console.log(`[TSPL批量] 批量打印 ${selectedDetails.length} 个商品`);
+    
+    // 准备批量TSPL数据
+    const batchItems: Array<{ templateId: number; data: any; copies: number }> = [];
+    
+    for (const detail of selectedDetails) {
+      const productInfo = detail.productInfo;
+      const labelData = productInfo?.labelData;
+      
+      // 确定使用的模板
+      let templateId: number;
+      const useQualifiedTemplate = labelData && labelData.manufacturerName && labelData.manufacturerName.trim() !== '';
+      
+      if (useQualifiedTemplate && qualifiedTemplate) {
+        templateId = qualifiedTemplate.id;
+      } else if (defaultTemplate) {
+        templateId = defaultTemplate.id;
+      } else {
+        console.warn('[TSPL批量] 没有可用的模板，跳过商品:', detail.receiptDetail.sku);
+        continue;
+      }
+      
+      // 准备渲染数据
+      const renderData: any = {
+        spec: productInfo?.spec || '',
+        qrDataUrl: productInfo?.skuCode || detail.receiptDetail.sku,
+        barcodeTail: productInfo?.barcodeTail || '',
+        prevMonth: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7).replace('-', '.'),
+      };
+      
+      if (useQualifiedTemplate && labelData) {
+        // 合格证标签数据
+        Object.assign(renderData, {
+          headerInfo: labelData.headerInfo || '',
+          productSpec: productInfo?.spec || '',
+          productName: labelData.productName || productInfo?.productName || '',
+          factoryName: labelData.manufacturerName || '',
+          addressInfo: labelData.addressInfo || '',
+          material: labelData.material || '',
+          otherInfo: labelData.otherInfo || '',
+          executeStandard: labelData.executionStandard || '',
+        });
+      }
+      
+      const copies = Math.max(1, Number(editableQty[detail.receiptDetail.id] ?? detail.receiptDetail.quantity) || 1);
+      
+      batchItems.push({
+        templateId,
+        data: renderData,
+        copies
+      });
+    }
+    
+    if (batchItems.length === 0) {
+      message.warning('没有可打印的标签');
+      return;
+    }
+    
+    try {
+      // 调用批量TSPL生成API
+      const result = await templateApi.generateBatchTspl(batchItems);
+      
+      const endTime = performance.now();
+      console.log(`[TSPL批量] TSPL批量生成完成，耗时: ${(endTime - startTime).toFixed(2)}ms，共${result.totalLabels}个标签`);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'TSPL生成失败');
+      }
+      
+      // 显示TSPL指令（用于调试）
+      console.log('[TSPL批量] 生成的TSPL指令:', result.tspl);
+      
+      // 这里可以通过app接口发送TSPL指令到打印机
+      // 暂时显示成功消息和TSPL内容
+      message.success(`TSPL批量打印指令生成成功！共${result.totalLabels}个标签`);
+      
+      // TODO: 集成app打印接口
+      // await sendTsplToPrinter(result.tspl);
+      
+    } catch (error) {
+      console.error('[TSPL批量] TSPL生成失败:', error);
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    // 并行加载收货单号和模板缓存
+    Promise.all([
+      loadReceiptNumbers(),
+      loadTemplatesCache()
+    ]).catch(console.error);
+  }, []);
+
+  // tailBarcode函数已移除，现在使用后端计算的barcodeTail
+
+  // 处理行点击选择
+  const handleRowClick = (record: ReceiptDetailWithProduct) => {
+    if (selectedItems.includes(record.receiptDetail.id)) {
+      setSelectedItems(selectedItems.filter(id => id !== record.receiptDetail.id));
+    } else {
+      setSelectedItems([...selectedItems, record.receiptDetail.id]);
+    }
+  };
+
+  const columns = [
+    { 
+      title: 'SKU编码', 
+      dataIndex: ['receiptDetail', 'sku'], 
+      key: 'sku', 
+      width: 220,
+      ellipsis: true,
+      className: 'clickable-cell'
+    },
+    { 
+      title: '商品名称', 
+      key: 'productName',
+      className: 'clickable-cell',
+      render: (_: any, record: ReceiptDetailWithProduct) => (
+        record.productInfo?.productName || record.receiptDetail.productName || '-'
+      )
+    },
+    {
+      title: '商品条码',
+      key: 'productCode',
+      width: 180,
+      ellipsis: true,
+      className: 'barcode-cell clickable-cell',
+      render: (_: any, record: ReceiptDetailWithProduct) => (
+        record.productInfo?.productCode ? (
+          <span className="barcode-cell">{record.productInfo.productCode}</span>
+        ) : (
+          <Tag color="orange">缺少条码信息</Tag>
+        )
+      ),
+    },
+    { 
+      title: '规格', 
+      key: 'spec', 
+      width: 180,
+      ellipsis: true,
+      className: 'clickable-cell',
+      render: (_: any, record: ReceiptDetailWithProduct) => (
+        record.productInfo?.spec || '-'
+      )
+    },
+    {
+      title: '核对条码尾号',
+      key: 'barcodeTail',
+      width: 140,
+      className: 'barcode-tail-cell clickable-cell',
+      render: (_: any, record: ReceiptDetailWithProduct) => (
+        record.productInfo?.barcodeTail ? (
+          <span className="barcode-tail-cell">{record.productInfo.barcodeTail}</span>
+        ) : (
+          <Tag color="orange">缺少条码信息</Tag>
+        )
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 250,
+      className: 'non-clickable-cell',
+      render: (_: any, record: ReceiptDetailWithProduct) => (
+        <Space size="small">
+          <Input
+            type="number"
+            min={0}
+            style={{ 
+              width: 80, 
+              height: 32, 
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+            value={editableQty[record.receiptDetail.id] ?? record.receiptDetail.quantity}
+            onChange={(e) => setEditableQty({ ...editableQty, [record.receiptDetail.id]: Number(e.target.value || 0) })}
+            placeholder="数量"
+          />
+          <Button 
+            type="primary" 
+            size="small"
+            icon={<PrinterOutlined />} 
+            onClick={(e) => {
+              e.stopPropagation(); // 防止触发行点击
+              handlePrint(record);
+            }} 
+            disabled={!record.productInfo}
+            loading={printing}
+          >
+            {printing ? '打印中...' : '打印'}
+          </Button>
+        </Space>
+      ),
+    },
+    {
+      title: '选择',
+      key: 'select',
+      width: 60,
+      fixed: 'right' as const,
+      className: 'non-clickable-cell select-column',
+      render: (_: any, record: ReceiptDetailWithProduct) => (
+        <Checkbox
+          checked={selectedItems.includes(record.receiptDetail.id)}
+          onChange={(e) => {
+            e.stopPropagation(); // 防止触发行点击
+            if (e.target.checked) {
+              setSelectedItems([...selectedItems, record.receiptDetail.id]);
+            } else {
+              setSelectedItems(selectedItems.filter(id => id !== record.receiptDetail.id));
+            }
+          }}
+        />
+      ),
+    },
+  ];
+
+  // 勾选统计
+  const selectedStat = useMemo(() => {
+    const kinds = selectedItems.length;
+    let qty = 0;
+    if (receiptSummary) {
+      for (const d of receiptSummary.details) {
+        if (selectedItems.includes(d.receiptDetail.id)) {
+          qty += editableQty[d.receiptDetail.id] ?? d.receiptDetail.quantity;
+        }
+      }
+    }
+    return { kinds, qty };
+  }, [selectedItems, editableQty, receiptSummary]);
+
+  return (
+    <div style={{ padding: 24 }}>
+      <style dangerouslySetInnerHTML={{ __html: styles }} />
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
+          <Card 
+            title="收货单查询打印" 
+            bodyStyle={{ padding: 0 }}
+            extra={
+              <Space size={16}>
+                <Select
+                  placeholder="选择关联收货单号"
+                  style={{ 
+                    width: 600, 
+                    height: 48,
+                    fontSize: '20px'
+                  }}
+                  value={selectedReceiptNo}
+                  onChange={handleSelectReceiptNo}
+                  showSearch
+                  filterOption={false}
+                  onSearch={onRemoteSearch}
+                  loading={searching}
+                  allowClear
+                >
+                  {receiptNumbers.slice(0, 10).map(no => (
+                    <Option key={no} value={no}>{no}</Option>
+                  ))}
+                </Select>
+                <Button 
+                  onClick={loadReceiptNumbers}
+                  style={{
+                    height: 48,
+                    fontSize: '16px',
+                    padding: '0 20px'
+                  }}
+                >
+                  刷新列表
+                </Button>
+              </Space>
+            }
+          />
+        </Col>
+
+        {receiptSummary && (
+          <>
+            <Col span={24}>
+              <Card 
+                title={`收货单概况 - ${receiptSummary.receiptNo}    ${receiptSummary.totalItems} 种商品    ${receiptSummary.totalQuantity} 件`}
+                extra={
+                  <Space size={16}>
+                    <Tag color="blue">已勾选：{selectedStat.kinds} 种</Tag>
+                    <Tag color="green">待打印：{selectedStat.qty} 张</Tag>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Button 
+                        type="primary" 
+                        icon={<PrinterOutlined />} 
+                        onClick={handleBatchPrint} 
+                        disabled={selectedItems.length === 0}
+                        style={{ fontSize: '14px' }}
+                      >
+                        批量打印
+                      </Button>
+                    </div>
+                    <Checkbox
+                      indeterminate={selectedItems.length > 0 && selectedItems.length < receiptSummary.details.length}
+                      checked={selectedItems.length === receiptSummary.details.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedItems(receiptSummary.details.map(d => d.receiptDetail.id));
+                        } else {
+                          setSelectedItems([]);
+                        }
+                      }}
+                      style={{ fontSize: '14px' }}
+                    >
+                      全选
+                    </Checkbox>
+                  </Space>
+                }
+              >
+                <Table
+                  columns={columns}
+                  dataSource={receiptSummary.details}
+                  rowKey={(record) => record.receiptDetail.id}
+                  rowClassName={(record) => 
+                    selectedItems.includes(record.receiptDetail.id) ? 'selected-row' : 'unselected-row'
+                  }
+                  onRow={(record) => ({
+                    onClick: (e) => {
+                      // 只有点击可点击的列时才触发选择
+                      const target = e.target as HTMLElement;
+                      const cell = target.closest('td');
+                      if (cell && (cell.classList.contains('clickable-cell') || 
+                          cell.querySelector('.clickable-cell') || 
+                          target.classList.contains('clickable-cell'))) {
+                        handleRowClick(record);
+                      }
+                    }
+                  })}
+                  loading={loading || printing}
+                  pagination={{
+                    pageSize,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['50', '100', '200'],
+                    showTotal: (total) => `共 ${total} 个商品`,
+                    onChange: (_p, size) => {
+                      if (size && size !== pageSize) setPageSize(size);
+                    },
+                    onShowSizeChange: (_c, size) => setPageSize(size)
+                  }}
+                />
+              </Card>
+            </Col>
+          </>
+        )}
+      </Row>
+
+      {/* 批量打印确认弹窗已取消，直接执行批量打印 */}
+    </div>
+  );
+}

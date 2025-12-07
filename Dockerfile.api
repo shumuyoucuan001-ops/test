@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+# 使用官方的 Playwright 镜像，包含 Chromium 和所有依赖
+FROM mcr.microsoft.com/playwright:v1.55.1-noble
+
+# 设置工作目录
+WORKDIR /app/server
+
+# 设置环境变量
+ENV NODE_ENV=production
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV PORT=5000
+
+# 安装中文字体
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    fonts-wqy-microhei \
+    fonts-wqy-zenhei \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制 package 文件和 prisma schema
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# 安装依赖（包括 playwright）
+RUN npm ci --include=dev && \
+    npx playwright install chromium
+
+# 生成 Prisma Client（关键步骤，必须在 npm prune 之前）
+RUN npx prisma generate
+
+# 删除 dev 依赖以减小镜像体积（但保留 Prisma Client）
+RUN npm prune --production
+
+# 复制编译后的代码
+COPY dist ./dist
+
+# 暴露端口
+EXPOSE 5000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:5000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# 启动命令
+CMD ["node", "dist/main.js"]

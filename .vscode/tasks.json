@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "📦 安装所有依赖",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "安装Web依赖",
+        "安装Expo依赖"
+      ]
+    },
+    {
+      "label": "安装Web依赖",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "build"
+    },
+    {
+      "label": "安装Expo依赖",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/SmLabelAppExpo"
+      },
+      "group": "build"
+    },
+    {
+      "label": "🏗️ 构建后端",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "build"
+    },
+    {
+      "label": "🏗️ 构建前端",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "build"
+    },
+    {
+      "label": "🧪 运行后端测试",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "group": "test"
+    },
+    {
+      "label": "🔍 ESLint检查",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "test"
+    }
+  ]
+}

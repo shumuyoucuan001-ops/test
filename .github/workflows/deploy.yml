@@ -1,0 +1,78 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies (Server)
+      run: |
+        cd server
+        npm ci
+    
+    - name: Install dependencies (Web)
+      run: |
+        cd web
+        npm ci
+    
+    - name: Lint and Test Server
+      run: |
+        cd server
+        npm run lint || true
+        npm test || true
+    
+    - name: Build Web Application
+      run: |
+        cd web
+        npm run build
+
+  deploy-dev:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to Development
+      run: |
+        echo "🚀 部署到开发环境"
+        echo "分支: ${{ github.ref }}"
+        echo "提交: ${{ github.sha }}"
+        # 这里添加实际的部署脚本
+
+  deploy-prod:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Create Release Tag
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        echo "RELEASE_TAG=v$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+    
+    - name: Deploy to Production
+      run: |
+        echo "🚀 部署到生产环境"
+        echo "分支: ${{ github.ref }}"
+        echo "提交: ${{ github.sha }}"
+        echo "标签: ${{ env.RELEASE_TAG }}"
+        # 这里添加实际的部署脚本

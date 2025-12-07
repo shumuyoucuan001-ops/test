@@ -1,0 +1,60 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🌐 启动Web前端",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/web",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ]
+        },
+        {
+            "name": "🔧 启动后端API",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/server",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "start"
+            ]
+        },
+        {
+            "name": "📱 启动Expo应用",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/SmLabelAppExpo",
+            "runtimeExecutable": "npx",
+            "runtimeArgs": [
+                "expo",
+                "start"
+            ]
+        },
+        {
+            "name": "🚀 调试后端API",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/dist/main.js",
+            "cwd": "${workspaceFolder}/server",
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/server/dist/**/*.js"
+            ]
+        }
+    ],
+    "compounds": [
+        {
+            "name": "🚀 启动全栈开发环境",
+            "configurations": [
+                "🔧 启动后端API",
+                "🌐 启动Web前端"
+            ]
+        }
+    ]
+}

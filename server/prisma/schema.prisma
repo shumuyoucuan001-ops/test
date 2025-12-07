@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://xitongquanju:b4FFS6kVGKV4jV@guishumu999666.rwlb.rds.aliyuncs.com:3306/sm_xitongkaifa"
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model label_data_audit {
+  sku                String   @db.VarChar(128)
+  supplier_name      String   @db.VarChar(255)
+  header_info        String?  @db.VarChar(15)
+  execution_standard String?  @db.VarChar(30)
+  product_name       String?  @db.VarChar(13)
+  manufacturer_name  String?  @db.VarChar(26)
+  address_info       String?  @db.VarChar(26)
+  material           String?  @db.VarChar(13)
+  other_info         String?  @db.VarChar(12)
+  action             String?  @db.VarChar(20)
+  payload            Json?
+  created_at         DateTime @default(now()) @db.Timestamp(0)
+  updated_at         DateTime @default(now()) @db.Timestamp(0)
+
+  @@id([sku, supplier_name])
+  @@index([created_at], map: "idx_created_at")
+  @@index([sku], map: "idx_sku")
+  @@index([supplier_name], map: "idx_supplier")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model label_data_audit_backup_20250921132232 {
+  id                 BigInt   @default(0)
+  action             String?  @db.VarChar(20)
+  sku                String?  @db.VarChar(128)
+  payload            Json?
+  created_at         DateTime @default(now()) @db.Timestamp(0)
+  supplier_name      String?  @db.VarChar(255)
+  header_info        String?  @db.Text
+  product_spec       String?  @db.Text
+  execution_standard String?  @db.VarChar(500)
+  product_name       String?  @db.VarChar(500)
+  manufacturer_name  String?  @db.VarChar(500)
+  address_info       String?  @db.Text
+  material           String?  @db.VarChar(500)
+  other_info         String?  @db.Text
+
+  @@ignore
+}
+
+model label_templates {
+  id           BigInt   @id @default(autoincrement())
+  name         String   @db.VarChar(128)
+  content      String   @db.MediumText
+  content_tspl String?  @db.LongText
+  is_default   Boolean  @default(false)
+  product_code String?  @db.VarChar(128)
+  created_at   DateTime @default(now()) @db.Timestamp(0)
+  updated_at   DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([name], map: "idx_label_templates_name")
+  @@index([product_code], map: "idx_label_templates_product")
+}
+
+model sys_permissions {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique(map: "code") @db.VarChar(128)
+  name       String   @db.VarChar(128)
+  path       String   @db.VarChar(255)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+}
+
+model sys_permissions_bk09241350 {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique(map: "code") @db.VarChar(128)
+  name       String   @db.VarChar(128)
+  path       String   @db.VarChar(255)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+}
+
+model sys_role_permissions {
+  role_id       Int
+  permission_id Int
+
+  @@id([role_id, permission_id])
+}
+
+model sys_roles {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique(map: "name") @db.VarChar(64)
+  remark     String?  @db.VarChar(255)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+}
+
+model sys_user_roles {
+  user_id Int
+  role_id Int
+
+  @@id([user_id, role_id])
+}
+
+model sys_users {
+  id            Int      @id @default(autoincrement())
+  username      String   @unique(map: "username") @db.VarChar(64)
+  password      String?  @db.VarChar(128)
+  display_name  String?  @db.VarChar(64)
+  status        Int?     @default(1) @db.TinyInt
+  created_at    DateTime @default(now()) @db.Timestamp(0)
+  code          String?  @db.VarChar(64)
+  session_token String?  @db.VarChar(128)
+}

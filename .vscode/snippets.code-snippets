@@ -1,0 +1,116 @@
+{
+  "React Function Component": {
+    "prefix": "rfc",
+    "body": [
+      "import React from 'react';",
+      "",
+      "interface ${1:ComponentName}Props {",
+      "  $2",
+      "}",
+      "",
+      "const ${1:ComponentName}: React.FC<${1:ComponentName}Props> = ({ $3 }) => {",
+      "  return (",
+      "    <div>",
+      "      $4",
+      "    </div>",
+      "  );",
+      "};",
+      "",
+      "export default ${1:ComponentName};"
+    ],
+    "description": "创建React函数组件"
+  },
+  "NestJS Controller": {
+    "prefix": "nestcontroller",
+    "body": [
+      "import { Controller, Get, Post, Body, Param } from '@nestjs/common';",
+      "import { ${1:Service}Service } from './${2:service}.service';",
+      "",
+      "@Controller('${3:route}')",
+      "export class ${1:Service}Controller {",
+      "  constructor(private readonly ${2:service}Service: ${1:Service}Service) {}",
+      "",
+      "  @Get()",
+      "  async findAll() {",
+      "    return this.${2:service}Service.findAll();",
+      "  }",
+      "",
+      "  @Get(':id')",
+      "  async findOne(@Param('id') id: string) {",
+      "    return this.${2:service}Service.findOne(+id);",
+      "  }",
+      "",
+      "  @Post()",
+      "  async create(@Body() createDto: any) {",
+      "    return this.${2:service}Service.create(createDto);",
+      "  }",
+      "}"
+    ],
+    "description": "创建NestJS控制器"
+  },
+  "NestJS Service": {
+    "prefix": "nestservice",
+    "body": [
+      "import { Injectable } from '@nestjs/common';",
+      "import { PrismaService } from '../prisma/prisma.service';",
+      "",
+      "@Injectable()",
+      "export class ${1:Service}Service {",
+      "  constructor(private prisma: PrismaService) {}",
+      "",
+      "  async findAll() {",
+      "    return this.prisma.${2:model}.findMany();",
+      "  }",
+      "",
+      "  async findOne(id: number) {",
+      "    return this.prisma.${2:model}.findUnique({",
+      "      where: { id }",
+      "    });",
+      "  }",
+      "",
+      "  async create(data: any) {",
+      "    return this.prisma.${2:model}.create({",
+      "      data",
+      "    });",
+      "  }",
+      "",
+      "  async update(id: number, data: any) {",
+      "    return this.prisma.${2:model}.update({",
+      "      where: { id },",
+      "      data",
+      "    });",
+      "  }",
+      "",
+      "  async remove(id: number) {",
+      "    return this.prisma.${2:model}.delete({",
+      "      where: { id }",
+      "    });",
+      "  }",
+      "}"
+    ],
+    "description": "创建NestJS服务"
+  },
+  "Ant Design Table Column": {
+    "prefix": "antdcolumn",
+    "body": [
+      "{",
+      "  title: '${1:列标题}',",
+      "  dataIndex: '${2:fieldName}',",
+      "  key: '${2:fieldName}',",
+      "  render: (value: any, record: any) => {",
+      "    return $3;",
+      "  },",
+      "},"
+    ],
+    "description": "Ant Design表格列配置"
+  },
+  "Permission Guard": {
+    "prefix": "permguard",
+    "body": [
+      "<PermissionGuard requiredPath=\"${1:permission-path}\">",
+      "  $2",
+      "</PermissionGuard>"
+    ],
+    "description": "权限守卫组件"
+  }
+}

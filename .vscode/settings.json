@@ -1,0 +1,65 @@
+{
+    "typescript.preferences.includePackageJsonAutoImports": "on",
+    "typescript.suggest.autoImports": true,
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "javascript.preferences.importModuleSpecifier": "relative",
+    "files.associations": {
+        "*.tsx": "typescriptreact",
+        "*.ts": "typescript",
+        "*.prisma": "prisma"
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/dist": true,
+        "**/build": true,
+        "**/.next": true,
+        "**/.expo": true,
+        "**/android/build": true,
+        "**/ios/build": true,
+        "**/*.log": true
+    },
+    "files.exclude": {
+        "**/node_modules": false,
+        "**/dist": true,
+        "**/build": true,
+        "**/.DS_Store": true
+    },
+    "emmet.includeLanguages": {
+        "typescript": "html",
+        "typescriptreact": "html"
+    },
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit",
+        "source.organizeImports": "explicit"
+    },
+    "eslint.workingDirectories": [
+        "web",
+        "server",
+        "SmLabelApp",
+        "SmLabelAppExpo"
+    ],
+    "typescript.preferences.includePackageJsonAutoImports": "on",
+    "path-intellisense.mappings": {
+        "@": "${workspaceRoot}/web/src",
+        "~": "${workspaceRoot}/server/src"
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/dist/**": true,
+        "**/build/**": true,
+        "**/.next/**": true,
+        "**/.expo/**": true
+    },
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.patterns": {
+        "package.json": "package-lock.json,yarn.lock,pnpm-lock.yaml",
+        "tsconfig.json": "tsconfig.*.json",
+        ".env": ".env.*",
+        "docker-compose.yml": "docker-compose.*.yml,Dockerfile*",
+        "README.md": "*.md"
+    },
+    "java.configuration.updateBuildConfiguration": "interactive"
+}

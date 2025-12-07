@@ -1,0 +1,39 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AclModule } from './acl/acl.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { DingTalkModule } from './dingtalk/dingtalk.module';
+import { HealthController } from './health/health.controller';
+import { LabelDataModule } from './label-data/label-data.module';
+import { LabelPrintModule } from './label-print/label-print.module';
+import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { ProductModule } from './product/product.module';
+import { ReceiptModule } from './receipt/receipt.module';
+import { SupplierManagementModule } from './supplier-management/supplier-management.module';
+import { SupplierModule } from './supplier/supplier.module';
+import { TemplateModule } from './template/template.module';
+import { VersionModule } from './version/version.module';
+// 暂时关闭后端接口权限拦截
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    TemplateModule,
+    ProductModule,
+    ReceiptModule,
+    LabelDataModule,
+    LabelPrintModule,
+    SupplierManagementModule,
+    AclModule,
+    SupplierModule,
+    VersionModule,
+    DingTalkModule,
+    OpsExclusionModule,
+  ],
+  controllers: [AppController, HealthController],
+  providers: [AppService],
+})
+export class AppModule { }
