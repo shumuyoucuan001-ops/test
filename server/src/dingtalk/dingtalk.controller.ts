@@ -95,5 +95,25 @@ export class DingTalkController {
             throw new BadRequestException(error.message);
         }
     }
+
+    /**
+     * 检查钉钉配置
+     * 用于诊断配置问题
+     */
+    @Get('check-config')
+    checkConfig() {
+        try {
+            const result = this.dingTalkService.checkConfig();
+            return {
+                ...result,
+                message: result.isValid
+                    ? '钉钉配置检查通过'
+                    : '钉钉配置存在问题，请查看 issues 和 recommendations',
+            };
+        } catch (error: any) {
+            console.error('[DingTalkController] 配置检查失败:', error);
+            throw new BadRequestException(`配置检查失败: ${error.message}`);
+        }
+    }
 }
 

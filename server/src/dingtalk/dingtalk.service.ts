@@ -267,6 +267,107 @@ export class DingTalkService {
             return false;
         }
     }
+
+    /**
+     * 检查钉钉配置并返回诊断信息
+     * 用于排查配置问题
+     */
+    checkConfig(): {
+        isValid: boolean;
+        config: {
+            appKey: { configured: boolean; value: string };
+            appSecret: { configured: boolean; value: string };
+            corpId: { configured: boolean; value: string };
+            redirectUri: { configured: boolean; value: string; hostname?: string };
+        };
+        issues: string[];
+        recommendations: string[];
+    } {
+        const issues: string[] = [];
+        const recommendations: string[] = [];
+
+        // 检查配置项
+        const appKeyConfigured = !!this.appKey;
+        const appSecretConfigured = !!this.appSecret;
+        const corpIdConfigured = !!this.corpId;
+        const redirectUriConfigured = !!this.redirectUri;
+
+        if (!appKeyConfigured) {
+            issues.push('DINGTALK_APP_KEY 未配置');
+            recommendations.push('请在 server/.env 文件中设置 DINGTALK_APP_KEY');
+        }
+
+        if (!appSecretConfigured) {
+            issues.push('DINGTALK_APP_SECRET 未配置');
+            recommendations.push('请在 server/.env 文件中设置 DINGTALK_APP_SECRET');
+        }
+
+        if (!corpIdConfigured) {
+            issues.push('DINGTALK_CORP_ID 未配置');
+            recommendations.push('请在 server/.env 文件中设置 DINGTALK_CORP_ID');
+        }
+
+        if (!redirectUriConfigured) {
+            issues.push('DINGTALK_REDIRECT_URI 未配置');
+            recommendations.push('请在 server/.env 文件中设置 DINGTALK_REDIRECT_URI，格式：http://your-domain.com/login');
+        } else {
+            // 验证回调地址格式
+            try {
+                const url = new URL(this.redirectUri);
+                const hostname = url.hostname;
+
+                // 检查是否是有效的URL格式
+                if (!url.protocol || !hostname) {
+                    issues.push('DINGTALK_REDIRECT_URI 格式不正确');
+                    recommendations.push('回调地址必须是完整的URL，格式：http://your-domain.com/login 或 https://your-domain.com/login');
+                } else {
+                    // 提供安全域名配置建议
+                    recommendations.push(`请在钉钉开放平台添加安全域名：${hostname}`);
+                    recommendations.push(`请确保钉钉开放平台配置的回调地址与 DINGTALK_REDIRECT_URI 完全一致：${this.redirectUri}`);
+                }
+            } catch (error) {
+                issues.push('DINGTALK_REDIRECT_URI 格式不正确，无法解析为有效URL');
+                recommendations.push('回调地址必须是完整的URL，格式：http://your-domain.com/login 或 https://your-domain.com/login');
+            }
+        }
+
+        // 检查所有必要配置是否都已配置
+        const isValid = appKeyConfigured && appSecretConfigured && corpIdConfigured && redirectUriConfigured;
+
+        let hostname: string | undefined;
+        try {
+            if (this.redirectUri) {
+                hostname = new URL(this.redirectUri).hostname;
+            }
+        } catch {
+            // 忽略解析错误
+        }
+
+        return {
+            isValid,
+            config: {
+                appKey: {
+                    configured: appKeyConfigured,
+                    value: appKeyConfigured ? `${this.appKey.substring(0, 10)}...` : '未配置',
+                },
+                appSecret: {
+                    configured: appSecretConfigured,
+                    value: appSecretConfigured ? '已配置（已隐藏）' : '未配置',
+                },
+                corpId: {
+                    configured: corpIdConfigured,
+                    value: corpIdConfigured ? `${this.corpId.substring(0, 10)}...` : '未配置',
+                },
+                redirectUri: {
+                    configured: redirectUriConfigured,
+                    value: redirectUriConfigured ? this.redirectUri : '未配置',
+                    hostname,
+                },
+            },
+            issues,
+            recommendations,
+        };
+    }
 }
 
 /**

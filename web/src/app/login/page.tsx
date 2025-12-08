@@ -16,6 +16,35 @@ export default function LoginPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
+    const error = urlParams.get('error');
+    const errorDescription = urlParams.get('error_description');
+
+    // 检查是否有错误参数（钉钉回调时可能返回的错误）
+    if (error || errorDescription) {
+      let errorMsg = '钉钉登录失败';
+      if (errorDescription) {
+        errorMsg = decodeURIComponent(errorDescription);
+      } else if (error) {
+        errorMsg = `钉钉登录失败: ${error}`;
+      }
+
+      // 针对常见错误提供更友好的提示
+      if (errorMsg.includes('无权限') || errorMsg.includes('url参数不合法')) {
+        errorMsg = '钉钉登录失败：url参数不合法\n\n可能的原因：\n1. 钉钉开放平台未配置安全域名\n2. 回调地址配置不匹配\n3. 应用未发布或权限未授权\n\n请检查钉钉开放平台配置，确保：\n- 已添加安全域名\n- 回调地址与配置一致\n- 应用已发布并授权';
+      }
+
+      msgApi.error({
+        content: errorMsg,
+        duration: 8,
+      });
+
+      // 清除URL中的错误参数
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('error');
+      newUrl.searchParams.delete('error_description');
+      window.history.replaceState({}, '', newUrl.toString());
+      return;
+    }
 
     if (code) {
       // 处理钉钉回调
@@ -56,7 +85,10 @@ export default function LoginPage() {
       // 检查响应格式
       if (!result || !result.url) {
         console.error('[LoginPage] 响应格式错误，缺少 url 字段:', result);
-        msgApi.error('获取钉钉授权地址失败：响应格式错误');
+        msgApi.error({
+          content: '获取钉钉授权地址失败：响应格式错误。请检查后端服务配置。',
+          duration: 5,
+        });
         setDingTalkLoading(false);
         return;
       }
@@ -72,8 +104,21 @@ export default function LoginPage() {
         responseData: e?.response?.data,
         status: e?.response?.status,
       });
-      const msg = e?.response?.data?.message || e?.message || '获取钉钉授权地址失败';
-      msgApi.error(msg);
+
+      const errorMsg = e?.response?.data?.message || e?.message || '获取钉钉授权地址失败';
+
+      // 提供更详细的错误提示
+      let detailedMsg = errorMsg;
+      if (errorMsg.includes('配置不完整') || errorMsg.includes('未配置')) {
+        detailedMsg = `${errorMsg}\n\n请检查 server/.env 文件中的钉钉配置项。`;
+      } else if (errorMsg.includes('回调地址')) {
+        detailedMsg = `${errorMsg}\n\n请确保 DINGTALK_REDIRECT_URI 与钉钉开放平台配置的回调地址完全一致。`;
+      }
+
+      msgApi.error({
+        content: detailedMsg,
+        duration: 6,
+      });
       setDingTalkLoading(false);
     }
   };
