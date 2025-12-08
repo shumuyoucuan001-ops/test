@@ -116,7 +116,7 @@ export default function LoginPage() {
                 borderColor: '#1C82FF'
               }}
             >
-              🔵 钉钉企业登录
+              钉钉企业登录
             </Button>
           </Form.Item>
 
