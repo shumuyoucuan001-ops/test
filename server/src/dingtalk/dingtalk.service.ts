@@ -47,28 +47,49 @@ export class DingTalkService {
             throw new BadRequestException('未配置回调地址，请在 server/.env 中设置 DINGTALK_REDIRECT_URI');
         }
 
+        // 验证并清理 redirectUri（去除末尾的斜杠，确保格式一致）
+        let cleanRedirectUri = this.redirectUri.trim();
+        if (cleanRedirectUri.endsWith('/')) {
+            cleanRedirectUri = cleanRedirectUri.slice(0, -1);
+        }
+
+        // 验证 redirectUri 格式
+        try {
+            const url = new URL(cleanRedirectUri);
+            if (!url.protocol || !url.hostname) {
+                throw new BadRequestException(`回调地址格式不正确: ${cleanRedirectUri}`);
+            }
+        } catch (error) {
+            throw new BadRequestException(`回调地址格式不正确: ${cleanRedirectUri}`);
+        }
+
         // 钉钉企业内应用OAuth2.0授权URL
         // 注意：redirect_uri 必须是完整URL，且必须与钉钉开放平台配置的回调地址完全一致
-        const params = new URLSearchParams({
-            appid: this.appKey,
-            response_type: 'code',
-            scope: 'snsapi_base', // 企业内应用使用snsapi_base获取用户基本信息
-            redirect_uri: this.redirectUri, // 注意：这里不进行encodeURIComponent，因为URLSearchParams会自动编码
-            state: state || 'default',
-        });
+        // 使用 URLSearchParams 确保参数正确编码
+        const params = new URLSearchParams();
+        params.append('appid', this.appKey.trim()); // 确保去除空格
+        params.append('response_type', 'code');
+        params.append('scope', 'snsapi_base'); // 企业内应用使用snsapi_base获取用户基本信息
+        params.append('redirect_uri', cleanRedirectUri); // URLSearchParams会自动进行URL编码
+        params.append('state', (state || 'default').trim());
 
         const authUrl = `https://oapi.dingtalk.com/connect/oauth2/sns_authorize?${params.toString()}`;
 
-        // 始终打印授权URL和配置信息（便于排查问题）
+        // 详细日志输出（便于排查问题）
+        const hostname = new URL(cleanRedirectUri).hostname;
+        console.log('[DingTalkService] ========== 钉钉授权URL生成 ==========');
         console.log('[DingTalkService] 生成的授权URL:', authUrl);
-        console.log('[DingTalkService] 配置信息:', {
-            appKey: this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置',
-            corpId: this.corpId ? `${this.corpId.substring(0, 10)}...` : '未配置',
-            redirectUri: this.redirectUri || '未配置',
-        });
+        console.log('[DingTalkService] 配置信息:');
+        console.log('[DingTalkService]   - AppKey:', this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置');
+        console.log('[DingTalkService]   - CorpId:', this.corpId ? `${this.corpId.substring(0, 10)}...` : '未配置');
+        console.log('[DingTalkService]   - RedirectUri:', cleanRedirectUri);
+        console.log('[DingTalkService]   - Hostname:', hostname);
         console.log('[DingTalkService] 请确保钉钉开放平台已配置：');
-        console.log('[DingTalkService] 1. 回调地址:', this.redirectUri);
-        console.log('[DingTalkService] 2. 安全域名:', this.redirectUri ? new URL(this.redirectUri).hostname : '未配置');
+        console.log('[DingTalkService]   1. OAuth2.0回调地址:', cleanRedirectUri);
+        console.log('[DingTalkService]   2. 安全域名:', hostname, '(仅域名，不要包含 http:// 或路径)');
+        console.log('[DingTalkService]   3. 应用已发布上线');
+        console.log('[DingTalkService]   4. 权限已申请并授权');
+        console.log('[DingTalkService] ====================================');
 
         return authUrl;
     }
