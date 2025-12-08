@@ -24,6 +24,13 @@ const alibabaPuHuiTi = { variable: "--font-alibaba" } as any;
 export const metadata: Metadata = {
   title: "术木优选",
   description: "术木优选业务管理系统",
+  icons: {
+    icon: [
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
 };
 
 export default function RootLayout({

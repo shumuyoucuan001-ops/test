@@ -124,7 +124,7 @@ export default function OpsExclusionPage() {
                     <Space>
                         <Input
                             allowClear
-                            placeholder="按任意字段模糊搜索"
+                            placeholder="搜索相关信息"
                             value={q}
                             onChange={e => setQ(e.target.value)}
                             onPressEnter={handleSearch}

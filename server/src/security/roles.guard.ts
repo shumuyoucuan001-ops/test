@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 // 简易权限守卫：读取请求头 x-user-id，允许无头访问；如有 userId 则校验是否具备访问路径的权限
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
@@ -25,7 +25,21 @@ export class RolesGuard implements CanActivate {
       const allowed = new Set(rows.map(r => String(r.path)));
       // 只对 /acl /products ... 这些后端接口做路径级校验
       if (allowed.size === 0) return true; // 未配置权限时默认放行
-      return allowed.has(path) || path.startsWith('/templates') || path.startsWith('/products');
+      // 检查是否有完全匹配的权限路径，或者路径前缀匹配
+      const hasExactMatch = allowed.has(path);
+      const hasPrefixMatch = Array.from(allowed).some(p => path.startsWith(p + '/') || path === p);
+      // 特殊路径：/templates 和 /products 始终放行（向后兼容）
+      const isSpecialPath = path.startsWith('/templates') || path.startsWith('/products');
+      // /ops-exclusion 需要权限检查
+      // 支持两种路径格式：/ops-exclusion（后端API）和 /home/ops-exclusion（前端路由）
+      if (path.startsWith('/ops-exclusion')) {
+        // 检查后端路径 /ops-exclusion
+        if (hasExactMatch || hasPrefixMatch) return true;
+        // 检查前端路径 /home/ops-exclusion（路径映射）
+        const frontendPath = '/home' + path;
+        return allowed.has(frontendPath) || Array.from(allowed).some(p => frontendPath.startsWith(p + '/') || frontendPath === p);
+      }
+      return hasExactMatch || hasPrefixMatch || isSpecialPath;
     } catch {
       return true;
     }

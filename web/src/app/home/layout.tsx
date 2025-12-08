@@ -96,8 +96,8 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
   },
 };
 
-// 允许无需权限展示的路径（运营组管理默认开放菜单入口）
-const PUBLIC_PATHS = ['/home/ops-exclusion'];
+// 允许无需权限展示的路径格式['/home/ops-exclusion'];
+const PUBLIC_PATHS: string[] = [];
 
 export default function HomeLayout({
   children,
