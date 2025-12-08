@@ -11,6 +11,29 @@ export default function LoginPage() {
   // React 19 + antd v5: 使用 useMessage，避免静态 message 触发兼容告警
   const [msgApi, contextHolder] = message.useMessage();
 
+  const handleDingTalkCallback = async (code: string) => {
+    try {
+      setDingTalkLoading(true);
+      msgApi.loading('正在验证钉钉身份...');
+
+      // 验证钉钉用户信息
+      const result = await dingTalkApi.callback(code);
+
+      if (result.success) {
+        msgApi.success('钉钉验证成功，请继续输入用户名和密码');
+        // 将钉钉code存储到表单中，登录时一起提交
+        form.setFieldsValue({ dingTalkCode: code });
+      } else {
+        msgApi.error('钉钉验证失败');
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || '钉钉验证失败';
+      msgApi.error(msg);
+    } finally {
+      setDingTalkLoading(false);
+    }
+  };
+
   // 检查URL参数中是否有钉钉回调的code
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -50,30 +73,8 @@ export default function LoginPage() {
       // 处理钉钉回调
       handleDingTalkCallback(code);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleDingTalkCallback = async (code: string) => {
-    try {
-      setDingTalkLoading(true);
-      msgApi.loading('正在验证钉钉身份...');
-
-      // 验证钉钉用户信息
-      const result = await dingTalkApi.callback(code);
-
-      if (result.success) {
-        msgApi.success('钉钉验证成功，请继续输入用户名和密码');
-        // 将钉钉code存储到表单中，登录时一起提交
-        form.setFieldsValue({ dingTalkCode: code });
-      } else {
-        msgApi.error('钉钉验证失败');
-      }
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || '钉钉验证失败';
-      msgApi.error(msg);
-    } finally {
-      setDingTalkLoading(false);
-    }
-  };
 
   const handleDingTalkLogin = async () => {
     try {
