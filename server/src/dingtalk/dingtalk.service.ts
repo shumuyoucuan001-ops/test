@@ -59,11 +59,16 @@ export class DingTalkService {
 
         const authUrl = `https://oapi.dingtalk.com/connect/oauth2/sns_authorize?${params.toString()}`;
 
-        // 开发环境打印授权URL（便于调试）
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[DingTalkService] 生成的授权URL:', authUrl);
-            console.log('[DingTalkService] 回调地址:', this.redirectUri);
-        }
+        // 始终打印授权URL和配置信息（便于排查问题）
+        console.log('[DingTalkService] 生成的授权URL:', authUrl);
+        console.log('[DingTalkService] 配置信息:', {
+            appKey: this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置',
+            corpId: this.corpId ? `${this.corpId.substring(0, 10)}...` : '未配置',
+            redirectUri: this.redirectUri || '未配置',
+        });
+        console.log('[DingTalkService] 请确保钉钉开放平台已配置：');
+        console.log('[DingTalkService] 1. 回调地址:', this.redirectUri);
+        console.log('[DingTalkService] 2. 安全域名:', this.redirectUri ? new URL(this.redirectUri).hostname : '未配置');
 
         return authUrl;
     }
