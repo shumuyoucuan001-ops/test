@@ -49,10 +49,29 @@ export default function LoginPage() {
   const handleDingTalkLogin = async () => {
     try {
       setDingTalkLoading(true);
+      console.log('[LoginPage] 开始获取钉钉授权URL...');
       const result = await dingTalkApi.getAuthUrl('login');
+      console.log('[LoginPage] 获取到的响应:', result);
+
+      // 检查响应格式
+      if (!result || !result.url) {
+        console.error('[LoginPage] 响应格式错误，缺少 url 字段:', result);
+        msgApi.error('获取钉钉授权地址失败：响应格式错误');
+        setDingTalkLoading(false);
+        return;
+      }
+
+      console.log('[LoginPage] 准备跳转到钉钉授权页面:', result.url);
       // 跳转到钉钉授权页面
       window.location.href = result.url;
     } catch (e: any) {
+      console.error('[LoginPage] 获取钉钉授权URL失败:', e);
+      console.error('[LoginPage] 错误详情:', {
+        message: e?.message,
+        response: e?.response,
+        responseData: e?.response?.data,
+        status: e?.response?.status,
+      });
       const msg = e?.response?.data?.message || e?.message || '获取钉钉授权地址失败';
       msgApi.error(msg);
       setDingTalkLoading(false);

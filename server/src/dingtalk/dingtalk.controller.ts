@@ -16,8 +16,9 @@ export class DingTalkController {
     @Get('auth-url')
     getAuthUrl(@Query('state') state?: string) {
         try {
+            console.log('[DingTalkController] 收到获取授权URL请求，state:', state);
             const url = this.dingTalkService.generateAuthUrl(state);
-            return {
+            const response = {
                 url,
                 // 开发环境返回配置信息，便于调试
                 ...(process.env.NODE_ENV !== 'production' ? {
@@ -28,7 +29,14 @@ export class DingTalkController {
                     }
                 } : {})
             };
+            console.log('[DingTalkController] 返回授权URL响应:', {
+                hasUrl: !!response.url,
+                urlLength: response.url?.length,
+                urlPreview: response.url?.substring(0, 100) + '...',
+            });
+            return response;
         } catch (error: any) {
+            console.error('[DingTalkController] 生成授权URL失败:', error);
             throw new BadRequestException(error.message);
         }
     }
