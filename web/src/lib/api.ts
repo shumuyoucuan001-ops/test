@@ -3,10 +3,29 @@ import axios from 'axios';
 // 动态确定后端 API 地址：
 // 1) 优先读取 NEXT_PUBLIC_API_BASE_URL（适用于自定义反代）
 // 2) 浏览器端统一走相对路径 /api（由 Next.js 反代到后端）
-// 3) SSR 环境使用本机 4000 端口直接访问后端
-const API_BASE_URL =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) ||
-  (typeof window !== 'undefined' ? '/api' : 'http://127.0.0.1:4000');
+// 3) SSR 环境：Docker 环境使用容器名称，本地开发使用 5002 端口
+const getApiBaseUrl = () => {
+  // 环境变量优先
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  // 浏览器端使用相对路径（由 Next.js rewrites 反代）
+  if (typeof window !== 'undefined') {
+    return '/api';
+  }
+
+  // SSR 环境：根据环境选择后端地址
+  if (process.env.NODE_ENV === 'production') {
+    // Docker 生产环境：通过容器名称访问
+    return process.env.API_URL || 'http://api:5000';
+  } else {
+    // 本地开发环境
+    return 'http://127.0.0.1:5002';
+  }
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

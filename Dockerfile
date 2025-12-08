@@ -16,5 +16,10 @@ ENV NODE_ENV=production
 COPY --from=builder /app/web/.next/standalone ./
 COPY --from=builder /app/web/.next/static ./.next/static
 COPY --from=builder /app/web/public ./public
+# 备份原始 server.js 并复制监控模块和启动包装脚本
+RUN if [ -f server.js ]; then mv server.js server-original.js; fi
+COPY web/event-loop-monitor.js ./event-loop-monitor.js
+COPY web/start-with-monitor.js ./start-with-monitor.js
+RUN chmod +x ./start-with-monitor.js
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "start-with-monitor.js"]

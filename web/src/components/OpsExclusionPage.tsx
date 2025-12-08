@@ -119,7 +119,7 @@ export default function OpsExclusionPage() {
     return (
         <div style={{ padding: 24 }}>
             <Card
-                title="运营组管理 - 排除活动商品"
+                title="运营组管理(功能测试) - 排除活动商品"
                 extra={
                     <Space>
                         <Input

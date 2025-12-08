@@ -4,7 +4,7 @@ services:
     build:
       context: ./server
       dockerfile: ../Dockerfile.api
-    env_file: ../.env
+    env_file: ./server/.env
     ports:
       - "5000:5000"
     restart: always
@@ -38,6 +38,12 @@ services:
     ports:
       - "3000:3000"
     restart: always
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3000" ] # 检测3000端口根路径
+      interval: 30s # 和api保持一致的检查频率
+      timeout: 10s # 超时时间对齐
+      retries: 5 # 重试次数和api一致（更宽松，避免误判）
+      start_period: 60s
     networks:
       - shumu-network
 

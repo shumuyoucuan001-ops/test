@@ -75,7 +75,7 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     url: '/home/print',
   },
   'ops-exclusion': {
-    title: '运营组管理',
+    title: '运营组管理(测试)',
     icon: <SettingOutlined />,
     url: '/home/ops-exclusion',
   },
@@ -319,7 +319,7 @@ export default function HomeLayout({
       {
         key: 'ops',
         icon: <SettingOutlined />,
-        label: '运营组管理',
+        label: '运营组管理(测试)',
         children: [
           {
             key: 'ops-exclusion',
@@ -436,42 +436,52 @@ export default function HomeLayout({
             padding: '0 16px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
             height: 36,
+            position: 'relative',
           }}>
-            <Tabs
-              type="editable-card"
-              size="small"
-              activeKey={activeTab}
-              onChange={handleTabChange}
-              onEdit={(targetKey, action) => {
-                if (action === 'remove') {
-                  handleTabClose(targetKey as string);
-                }
-              }}
-              items={tabItems}
-              style={{
-                flex: 1,
-                marginBottom: 0,
-                height: 36,
-              }}
-              tabBarStyle={{
-                marginBottom: 0,
-                borderBottom: 'none',
-              }}
-            />
-
-            <Space size="small">
-              <Button
+            <div style={{
+              flex: 1,
+              overflow: 'hidden',
+              minWidth: 0,
+            }}>
+              <Tabs
+                type="editable-card"
                 size="small"
-                icon={<ClearOutlined />}
-                onClick={handleClearOtherTabs}
-                disabled={openTabs.length <= 1}
-                title="关闭其他标签页"
-              >
-                清除其他
-              </Button>
-            </Space>
+                activeKey={activeTab}
+                onChange={handleTabChange}
+                onEdit={(targetKey, action) => {
+                  if (action === 'remove') {
+                    handleTabClose(targetKey as string);
+                  }
+                }}
+                items={tabItems}
+                style={{
+                  marginBottom: 0,
+                  height: 36,
+                }}
+                tabBarStyle={{
+                  marginBottom: 0,
+                  borderBottom: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{
+              flexShrink: 0,
+              marginLeft: 8,
+            }}>
+              <Space size="small">
+                <Button
+                  size="small"
+                  icon={<ClearOutlined />}
+                  onClick={handleClearOtherTabs}
+                  disabled={openTabs.length <= 1}
+                  title="关闭其他标签页"
+                >
+                  清除其他
+                </Button>
+              </Space>
+            </div>
           </div>
 
           <Content style={{
