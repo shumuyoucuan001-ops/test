@@ -74,7 +74,10 @@ async function proxyRequest(
     const queryString = searchParams.toString();
     const fullUrl = queryString ? `${url}?${queryString}` : url;
 
-    console.log(`[API Proxy] ${method} ${fullUrl}`);
+    // 减少日志输出，只在开发环境或慢请求时记录
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[API Proxy] ${method} ${fullUrl}`);
+    }
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -111,8 +114,8 @@ async function proxyRequest(
     const data = await response.text();
     const duration = Date.now() - startTime;
 
-    // 记录慢请求
-    if (duration > 5000) {
+    // 记录慢请求（降低日志频率）
+    if (duration > 3000) {
       console.warn(`[API Proxy] 慢请求: ${method} ${fullUrl} 耗时 ${duration}ms`);
     }
 
