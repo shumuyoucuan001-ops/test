@@ -15,31 +15,49 @@ export class OpsExclusionService {
 
     private table = '`sm_cuxiaohuodong`.`活动视图排除规则`';
 
-    async list(q?: string): Promise<OpsExclusionItem[]> {
+    async list(q?: string, page: number = 1, limit: number = 20): Promise<{ data: OpsExclusionItem[]; total: number }> {
         const keyword = (q || '').trim();
         let sql: string;
+        let countSql: string;
+        let countParams: any[] = [];
         let params: any[] = [];
+
+        const offset = (page - 1) * limit;
+        const orderBy = `ORDER BY \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\``;
 
         if (keyword) {
             const like = `%${keyword}%`;
+            const whereCondition = `WHERE \`视图名称\` LIKE ? OR \`门店编码\` LIKE ? OR \`SKU编码\` LIKE ? OR \`SPU编码\` LIKE ?`;
+            countParams = [like, like, like, like];
+
+            countSql = `SELECT COUNT(*) as total FROM ${this.table} ${whereCondition}`;
             sql = `SELECT \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`
          FROM ${this.table}
-         WHERE \`视图名称\` LIKE ? OR \`门店编码\` LIKE ? OR \`SKU编码\` LIKE ? OR \`SPU编码\` LIKE ?
-         ORDER BY \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\``;
-            params = [like, like, like, like];
+         ${whereCondition}
+         ${orderBy}
+         LIMIT ${limit} OFFSET ${offset}`;
+            params = countParams;
         } else {
+            countSql = `SELECT COUNT(*) as total FROM ${this.table}`;
             sql = `SELECT \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`
          FROM ${this.table}
-         ORDER BY \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\``;
+         ${orderBy}
+         LIMIT ${limit} OFFSET ${offset}`;
+            params = [];
         }
 
+        const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...countParams);
+        const total = Number(countRows?.total || 0);
+
         const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
-        return (rows || []).map(r => ({
+        const data = (rows || []).map(r => ({
             '视图名称': String(r['视图名称'] || ''),
             '门店编码': String(r['门店编码'] || ''),
             'SKU编码': String(r['SKU编码'] || ''),
             'SPU编码': String(r['SPU编码'] || ''),
         }));
+
+        return { data, total };
     }
 
     async create(item: OpsExclusionItem): Promise<void> {

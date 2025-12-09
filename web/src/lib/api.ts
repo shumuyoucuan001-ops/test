@@ -369,8 +369,13 @@ export interface OpsExclusionItem {
 }
 
 export const opsExclusionApi = {
-  list: (q?: string): Promise<OpsExclusionItem[]> =>
-    api.get('/ops-exclusion', { params: q ? { q } : {} }).then(res => res.data),
+  list: (q?: string, page?: number, limit?: number): Promise<{ data: OpsExclusionItem[]; total: number }> => {
+    const params: any = {};
+    if (q) params.q = q;
+    params.page = page || 1;
+    params.limit = limit || 20;
+    return api.get('/ops-exclusion', { params }).then(res => res.data);
+  },
   create: (data: OpsExclusionItem): Promise<{ success: boolean }> =>
     api.post('/ops-exclusion', data).then(res => res.data),
   update: (
@@ -380,6 +385,28 @@ export const opsExclusionApi = {
     api.patch('/ops-exclusion', { original, data }).then(res => res.data),
   remove: (data: OpsExclusionItem): Promise<{ success: boolean }> =>
     api.delete('/ops-exclusion', { data }).then(res => res.data),
+};
+
+// 门店管理 - 驳回差异单
+export interface StoreRejectionItem {
+  '门店/仓': string;
+  '商品名称': string;
+  'sku_id': string;
+  'upc': string;
+  '采购单号': string;
+  '关联收货单号': string;
+}
+
+export const storeRejectionApi = {
+  list: (q?: string, page?: number, limit?: number): Promise<{ data: StoreRejectionItem[]; total: number }> => {
+    const params: any = {};
+    if (q) params.q = q;
+    params.page = page || 1;
+    params.limit = limit || 20;
+    return api.get('/store-rejection', { params }).then(res => res.data);
+  },
+  sendRejectionEmail: (item: StoreRejectionItem, email?: string): Promise<{ success: boolean; message: string }> =>
+    api.post('/store-rejection/send-rejection-email', { item, email }).then(res => res.data),
 };
 
 // ACL 类型

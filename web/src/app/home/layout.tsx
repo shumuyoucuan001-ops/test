@@ -79,6 +79,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <SettingOutlined />,
     url: '/home/ops-exclusion',
   },
+  'store-rejection': {
+    title: '门店管理(测试)',
+    icon: <ShopOutlined />,
+    url: '/home/store-rejection',
+  },
   'admin-permissions': {
     title: '权限管理',
     icon: <SafetyOutlined />,
@@ -325,6 +330,18 @@ export default function HomeLayout({
             key: 'ops-exclusion',
             icon: <SettingOutlined />,
             label: '排除活动商品',
+          },
+        ],
+      },
+      {
+        key: 'store-management',
+        icon: <ShopOutlined />,
+        label: '门店管理(测试)',
+        children: [
+          {
+            key: 'store-rejection',
+            icon: <ShopOutlined />,
+            label: '驳回差异单',
           },
         ],
       },

@@ -11,6 +11,7 @@ import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
 import { ReceiptModule } from './receipt/receipt.module';
+import { StoreRejectionModule } from './store-rejection/store-rejection.module';
 import { SupplierManagementModule } from './supplier-management/supplier-management.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
@@ -32,6 +33,7 @@ import { VersionModule } from './version/version.module';
     VersionModule,
     DingTalkModule,
     OpsExclusionModule,
+    StoreRejectionModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

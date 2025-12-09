@@ -7,8 +7,14 @@ export class OpsExclusionController {
     constructor(private service: OpsExclusionService) { }
 
     @Get()
-    async list(@Query('q') q?: string): Promise<OpsExclusionItem[]> {
-        return this.service.list(q);
+    async list(
+        @Query('q') q?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ): Promise<{ data: OpsExclusionItem[]; total: number }> {
+        const pageNum = Math.max(1, parseInt(page || '1', 10));
+        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        return this.service.list(q, pageNum, limitNum);
     }
 
     @Post()

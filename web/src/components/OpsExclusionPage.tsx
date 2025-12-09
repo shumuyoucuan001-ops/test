@@ -14,18 +14,31 @@ const fieldLabels: Record<keyof OpsExclusionItem, string> = {
 
 export default function OpsExclusionPage() {
     const [data, setData] = useState<OpsExclusionItem[]>([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
     const [q, setQ] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<OpsExclusionItem | null>(null);
     const [form] = Form.useForm<OpsExclusionItem>();
 
-    const load = async (keyword?: string) => {
+    const load = async (keyword?: string, page: number = currentPage, limit: number = pageSize) => {
         setLoading(true);
         try {
             const searchKeyword = keyword?.trim() || undefined;
-            const res = await opsExclusionApi.list(searchKeyword);
-            setData(res || []);
+            const res = await opsExclusionApi.list(searchKeyword, page, limit);
+            // 处理返回格式：可能是 { data, total } 或直接是数组
+            if (Array.isArray(res)) {
+                setData(res || []);
+                setTotal(res?.length || 0);
+            } else if (res && typeof res === 'object') {
+                setData(res?.data || []);
+                setTotal(res?.total || 0);
+            } else {
+                setData([]);
+                setTotal(0);
+            }
         } catch (e) {
             message.error("加载失败");
             console.error(e);
@@ -35,11 +48,12 @@ export default function OpsExclusionPage() {
     };
 
     useEffect(() => {
-        load();
-    }, []);
+        load(q, currentPage, pageSize);
+    }, [currentPage, pageSize]);
 
     const handleSearch = () => {
-        load(q.trim());
+        setCurrentPage(1);
+        load(q.trim(), 1, pageSize);
     };
 
     const openCreate = () => {
@@ -72,7 +86,7 @@ export default function OpsExclusionPage() {
                 message.success("新增成功");
             }
             setModalOpen(false);
-            load(q.trim() || undefined);
+            load(q.trim() || undefined, currentPage, pageSize);
         } catch (e: any) {
             if (e?.errorFields) return;
             message.error(e?.message || "保存失败");
@@ -84,7 +98,7 @@ export default function OpsExclusionPage() {
         try {
             await opsExclusionApi.remove(record);
             message.success("删除成功");
-            load();
+            load(q.trim() || undefined, currentPage, pageSize);
         } catch (e) {
             message.error("删除失败");
             console.error(e);
@@ -132,7 +146,7 @@ export default function OpsExclusionPage() {
                             prefix={<SearchOutlined />}
                         />
                         <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
-                        <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); load(); }}>刷新</Button>
+                        <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }}>刷新</Button>
                         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
                     </Space>
                 }
@@ -142,7 +156,24 @@ export default function OpsExclusionPage() {
                     dataSource={data}
                     rowKey={(r) => `${r["视图名称"]}_${r["门店编码"]}_${r["SKU编码"]}_${r["SPU编码"]}`}
                     loading={loading}
-                    pagination={false}
+                    pagination={{
+                        current: currentPage,
+                        pageSize: pageSize,
+                        total: total,
+                        showSizeChanger: true,
+                        pageSizeOptions: ['20', '50'],
+                        showTotal: (total) => `共 ${total} 条记录`,
+                        onChange: (page, size) => {
+                            setCurrentPage(page);
+                            if (size && size !== pageSize) {
+                                setPageSize(size);
+                            }
+                        },
+                        onShowSizeChange: (_current, size) => {
+                            setPageSize(size);
+                            setCurrentPage(1);
+                        },
+                    }}
                 />
             </Card>
 
