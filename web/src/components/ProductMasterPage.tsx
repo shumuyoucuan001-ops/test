@@ -1,32 +1,32 @@
 "use client";
 
 import {
-    LabelDataItem,
-    labelDataApi,
-    productMasterApi,
+  LabelDataItem,
+  labelDataApi,
+  productMasterApi,
 } from "@/lib/api";
 import {
-    EditOutlined,
-    PlusOutlined,
-    SaveOutlined,
-    SearchOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SaveOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import {
-    App,
-    Button,
-    Card,
-    Col,
-    Descriptions,
-    Drawer,
-    Form,
-    Input,
-    Modal,
-    Row,
-    Space,
-    Table,
-    Tabs,
-    Typography,
-    message,
+  App,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Drawer,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Space,
+  Table,
+  Tabs,
+  Typography,
+  message,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
@@ -75,23 +75,23 @@ export default function ProductMasterPage() {
   const openDrawer = async (row: MasterListItem) => {
     setCurrentSku(row.skuCode);
     setOpen(true);
-    
+
     // 载入左侧主档全部字段
     const detail = await productMasterApi.detail(row.skuCode);
     setMasterDetail(detail || {});
-    
+
     // 获取标签列定义（用于表单字段）
     const cols = await labelDataApi.columns();
     setLabelColumns(cols || []);
-    
+
     // 从 label_data_audit 表获取标签补充信息
     try {
       console.log('[ProductMaster] Loading label data for SKU:', row.skuCode);
       const result = await labelDataApi.getAll({ sku: row.skuCode, limit: 100 });
       const labelRecords = result?.data || [];
-      
+
       console.log('[ProductMaster] Label data loaded:', labelRecords);
-      
+
       // 转换为旧格式以兼容现有表格显示
       const formatted = labelRecords.map((record: any) => ({
         skuCode: record.sku,
@@ -109,7 +109,7 @@ export default function ProductMasterPage() {
           '产品规格': record.productSpec,
         }
       }));
-      
+
       setLabelList(formatted);
     } catch (error) {
       console.error('[ProductMaster] Failed to load label data:', error);
@@ -134,13 +134,13 @@ export default function ProductMasterPage() {
   const handleSaveLabel = async () => {
     try {
       const values = await labelForm.validateFields();
-      
+
       // 必填校验：供应商名称
       if (!values["供应商名称"]) {
         message.error("供应商名称为必填");
         return;
       }
-      
+
       // 字段名映射：中文 -> 英文
       const fieldMapping: Record<string, string> = {
         '供应商名称': 'supplierName',
@@ -152,30 +152,41 @@ export default function ProductMasterPage() {
         '材质': 'material',
         '其他信息': 'otherInfo',
       };
-      
-      // 转换字段名
-      const data: Record<string, any> = {
+
+      // 转换字段名，确保类型符合 API 要求
+      const data: {
+        sku: string;
+        supplierName: string;
+        headerInfo?: string;
+        executionStandard?: string;
+        productName?: string;
+        manufacturerName?: string;
+        addressInfo?: string;
+        material?: string;
+        otherInfo?: string;
+      } = {
         sku: currentSku,
+        supplierName: values['供应商名称'] || '', // 前面已经验证过，这里确保有值
       };
-      
+
       for (const [chineseName, englishName] of Object.entries(fieldMapping)) {
-        if (values[chineseName] !== undefined && values[chineseName] !== null) {
-          data[englishName] = values[chineseName];
+        if (chineseName !== '供应商名称' && values[chineseName] !== undefined && values[chineseName] !== null) {
+          (data as any)[englishName] = values[chineseName];
         }
       }
-      
+
       console.log('[ProductMaster] Saving label data:', data);
-      
+
       // 使用新的 create-or-update API
       await labelDataApi.create(data);
-      
+
       message.success("保存成功");
       setEditLabelModalOpen(false);
-      
+
       // 重新加载标签列表
       const result = await labelDataApi.getAll({ sku: currentSku, limit: 100 });
       const labelRecords = result?.data || [];
-      
+
       // 转换为旧格式以兼容现有表格显示
       const formatted = labelRecords.map((record: any) => ({
         skuCode: record.sku,
@@ -193,7 +204,7 @@ export default function ProductMasterPage() {
           '产品规格': record.productSpec,
         }
       }));
-      
+
       setLabelList(formatted);
     } catch (error) {
       console.error('[ProductMaster] Save failed:', error);
@@ -251,12 +262,12 @@ export default function ProductMasterPage() {
                 console.log('[ProductMaster] Delete button clicked, record:', r);
                 const supplier = r.labelRaw?.["供应商名称"];
                 console.log('[ProductMaster] Supplier name:', supplier);
-                
-                if (!supplier) { 
-                  message.error('缺少供应商名称'); 
-                  return; 
+
+                if (!supplier) {
+                  message.error('缺少供应商名称');
+                  return;
                 }
-                
+
                 console.log('[ProductMaster] Showing confirm dialog');
                 modal.confirm({
                   title: '确认删除',
@@ -268,11 +279,11 @@ export default function ProductMasterPage() {
                       console.log('[ProductMaster] Deleting label:', { sku: currentSku, supplier });
                       await labelDataApi.remove(currentSku, String(supplier));
                       message.success('已删除');
-                      
+
                       // 重新加载标签列表
                       const result = await labelDataApi.getAll({ sku: currentSku, limit: 100 });
                       const labelRecords = result?.data || [];
-                      
+
                       // 转换为旧格式以兼容现有表格显示
                       const formatted = labelRecords.map((record: any) => ({
                         skuCode: record.sku,
@@ -290,7 +301,7 @@ export default function ProductMasterPage() {
                           '产品规格': record.productSpec,
                         }
                       }));
-                      
+
                       setLabelList(formatted);
                     } catch (error) {
                       console.error('[ProductMaster] Delete failed:', error);

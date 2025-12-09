@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Card, Table, Button, Space, Modal, Form, Input, message, Checkbox, Select, Tag, Divider } from "antd";
 import Can from "@/components/Can";
-import { aclApi, SysUser, SysRole } from "@/lib/api";
+import { aclApi, SysRole, SysUser } from "@/lib/api";
+import { Button, Card, Checkbox, Divider, Form, Input, message, Modal, Select, Space, Table, Tag } from "antd";
+import { useEffect, useState } from "react";
 
 export default function UserPage() {
   const [loading, setLoading] = useState(false);
@@ -19,16 +19,16 @@ export default function UserPage() {
 
   const load = async () => {
     setLoading(true);
-    try { 
+    try {
       const users = await aclApi.listUsers(q);
       console.log('获取到的用户数据:', users);
-      setData(users); 
-      setRoles(await aclApi.listRoles()); 
-    } catch (error) { 
+      setData(users);
+      setRoles(await aclApi.listRoles());
+    } catch (error) {
       console.error('加载用户数据失败:', error);
-      message.error("加载失败"); 
-    } finally { 
-      setLoading(false); 
+      message.error("加载失败");
+    } finally {
+      setLoading(false);
     }
   };
   useEffect(() => { load(); }, []);
@@ -55,11 +55,11 @@ export default function UserPage() {
     }
   };
 
-  const onAssign = async (r: SysUser) => { 
+  const onAssign = async (r: SysUser) => {
     console.log('分配角色给用户:', r);
-    setEditing(r); 
-    setAssignOpen(true); 
-    
+    setEditing(r);
+    setAssignOpen(true);
+
     // 首先尝试从用户数据中获取角色ID
     if (r.roles && r.roles.length > 0) {
       const roleIds = r.roles.map(role => role.id);
@@ -78,24 +78,24 @@ export default function UserPage() {
       }
     }
   };
-  const saveAssign = async () => { 
-    try { 
-      await aclApi.assignUserRoles(editing!.id, checked); 
-      setAssignOpen(false); 
+  const saveAssign = async () => {
+    try {
+      await aclApi.assignUserRoles(editing!.id, checked);
+      setAssignOpen(false);
       await load(); // 重新加载用户列表以更新角色显示
-      message.success("角色分配成功"); 
-    } catch { 
-      message.error("角色分配失败"); 
-    } 
+      message.success("角色分配成功");
+    } catch {
+      message.error("角色分配失败");
+    }
   };
 
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '用户名', dataIndex: 'username', width: 120 },
     { title: '显示名', dataIndex: 'display_name', width: 120 },
-    { 
-      title: '角色', 
-      key: 'roles', 
+    {
+      title: '角色',
+      key: 'roles',
       width: 200,
       render: (_: any, r: SysUser) => {
         console.log('渲染用户角色:', r.id, r.username, r.roles);
@@ -114,9 +114,9 @@ export default function UserPage() {
         );
       }
     },
-    { 
-      title: '状态', 
-      dataIndex: 'status', 
+    {
+      title: '状态',
+      dataIndex: 'status',
       width: 80,
       render: (status: number) => (
         <Tag color={status === 1 ? 'green' : 'red'}>
@@ -124,36 +124,38 @@ export default function UserPage() {
         </Tag>
       )
     },
-    { title: '操作', key: 'action', width: 220, render: (_: any, r: SysUser) => (
-      <Space>
-        <Can code="button:user:update"><Button type="link" onClick={()=>onEdit(r)}>编辑</Button></Can>
-        <Can code="button:user:assign"><Button type="link" onClick={()=>onAssign(r)}>分配角色</Button></Can>
-        <Can code="button:user:delete"><Button type="link" danger onClick={async ()=>{ await aclApi.deleteUser(r.id); load(); }}>删除</Button></Can>
-      </Space>
-    )}
+    {
+      title: '操作', key: 'action', width: 220, render: (_: any, r: SysUser) => (
+        <Space>
+          <Can code="button:user:update"><Button type="link" onClick={() => onEdit(r)}>编辑</Button></Can>
+          <Can code="button:user:assign"><Button type="link" onClick={() => onAssign(r)}>分配角色</Button></Can>
+          <Can code="button:user:delete"><Button type="link" danger onClick={async () => { await aclApi.deleteUser(r.id); load(); }}>删除</Button></Can>
+        </Space>
+      )
+    }
   ];
 
   return (
     <div style={{ padding: 24 }}>
-      <Card title="账号管理" extra={<Space><Input placeholder="按用户名/显示名搜索" value={q} onChange={(e)=>setQ(e.target.value)} onPressEnter={load} style={{width:240}} /><Button onClick={load}>搜索</Button><Can code="button:user:create"><Button type="primary" onClick={()=>onEdit()}>新增账号</Button></Can></Space>}>
+      <Card title="账号管理" extra={<Space><Input placeholder="按用户名/显示名搜索" value={q} onChange={(e) => setQ(e.target.value)} onPressEnter={load} style={{ width: 240 }} /><Button onClick={load}>搜索</Button><Can code="button:user:create"><Button type="primary" onClick={() => onEdit()}>新增账号</Button></Can></Space>}>
         <Table rowKey="id" columns={columns as any} dataSource={data} loading={loading} pagination={false} />
       </Card>
 
-      <Modal open={open} onOk={onOk} onCancel={()=>setOpen(false)} confirmLoading={loading} title={editing? '编辑账号':'新增账号'} destroyOnClose>
+      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} confirmLoading={loading} title={editing ? '编辑账号' : '新增账号'} destroyOnClose>
         <Form form={form} layout="vertical">
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }, { min: 3, max: 64, message: '3-64个字符' }]}><Input /></Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: !editing, message: '请输入密码' }, { min: 6, max: 128, message: '6-128个字符' }]}><Input.Password /></Form.Item>
           <Form.Item name="display_name" label="显示名" rules={[{ required: true, message: '请输入显示名' }, { max: 64, message: '不超过64个字符' }]}><Input /></Form.Item>
           <Form.Item name="code" label="编码" rules={[{ max: 64, message: '不超过64个字符' }]}><Input /></Form.Item>
-          <Form.Item name="status" label="状态" initialValue={1}><Select options={[{value:1,label:'启用'},{value:0,label:'禁用'}]} /></Form.Item>
+          <Form.Item name="status" label="状态" initialValue={1}><Select options={[{ value: 1, label: '启用' }, { value: 0, label: '禁用' }]} /></Form.Item>
         </Form>
       </Modal>
 
-      <Modal 
-        open={assignOpen} 
-        onOk={saveAssign} 
-        onCancel={()=>setAssignOpen(false)} 
-        title={`分配角色 - ${editing?.username || ''}`} 
+      <Modal
+        open={assignOpen}
+        onOk={saveAssign}
+        onCancel={() => setAssignOpen(false)}
+        title={`分配角色 - ${editing?.username || ''}`}
         destroyOnClose
         width={600}
       >
@@ -173,12 +175,12 @@ export default function UserPage() {
           )}
           <Divider />
         </div>
-        
+
         <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-          <Checkbox.Group 
-            style={{ width: '100%' }} 
-            value={checked} 
-            onChange={(vals)=>setChecked(vals as number[])}
+          <Checkbox.Group
+            style={{ width: '100%' }}
+            value={checked}
+            onChange={(vals) => setChecked(vals as number[])}
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
               {roles.map(r => (
@@ -188,7 +190,7 @@ export default function UserPage() {
                       {r.name}
                     </span>
                     {checked.includes(r.id) && (
-                      <Tag color="green" size="small" style={{ marginLeft: 8 }}>
+                      <Tag color="green" style={{ marginLeft: 8, fontSize: '12px' }}>
                         已选择
                       </Tag>
                     )}
@@ -203,7 +205,7 @@ export default function UserPage() {
             </div>
           </Checkbox.Group>
         </div>
-        
+
         <div style={{ marginTop: 16, padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '4px' }}>
           <div style={{ fontSize: '14px', color: '#666' }}>
             <strong>已选择角色数量：</strong> {checked.length} / {roles.length}

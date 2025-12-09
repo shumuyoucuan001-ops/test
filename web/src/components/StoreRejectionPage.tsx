@@ -19,16 +19,37 @@ export default function StoreRejectionPage() {
     const [data, setData] = useState<StoreRejectionItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [q, setQ] = useState("");
+    const [filters, setFilters] = useState<{
+        store?: string;
+        productName?: string;
+        skuId?: string;
+        upc?: string;
+        purchaseOrderNo?: string;
+        receiptNo?: string;
+    }>({});
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
 
-    const load = async (keyword?: string, page: number = currentPage, limit: number = pageSize) => {
+    const load = async (
+        searchFilters?: {
+            store?: string;
+            productName?: string;
+            skuId?: string;
+            upc?: string;
+            purchaseOrderNo?: string;
+            receiptNo?: string;
+        },
+        page: number = currentPage,
+        limit: number = pageSize
+    ) => {
         setLoading(true);
         try {
-            const searchKeyword = keyword?.trim() || undefined;
-            console.log('Loading data with params:', { searchKeyword, page, limit });
-            const res = await storeRejectionApi.list(searchKeyword, page, limit);
+            // 过滤掉空值
+            const activeFilters = searchFilters ? Object.fromEntries(
+                Object.entries(searchFilters).filter(([_, v]) => v && v.trim())
+            ) : undefined;
+            console.log('Loading data with params:', { filters: activeFilters, page, limit });
+            const res = await storeRejectionApi.list(activeFilters, page, limit);
             console.log('API response:', res);
             console.log('API response type:', typeof res, 'isArray:', Array.isArray(res));
             // 处理返回格式：可能是 { data, total } 或直接是数组
@@ -57,12 +78,25 @@ export default function StoreRejectionPage() {
     };
 
     useEffect(() => {
-        load(q, currentPage, pageSize);
+        load(filters, currentPage, pageSize);
     }, [currentPage, pageSize]);
 
     const handleSearch = () => {
         setCurrentPage(1);
-        load(q.trim(), 1, pageSize);
+        load(filters, 1, pageSize);
+    };
+
+    const handleReset = () => {
+        setFilters({});
+        setCurrentPage(1);
+        load(undefined, 1, pageSize);
+    };
+
+    const updateFilter = (key: keyof typeof filters, value: string) => {
+        setFilters(prev => ({
+            ...prev,
+            [key]: value,
+        }));
     };
 
     const handleSendRejectionEmail = useCallback(async (item: StoreRejectionItem) => {
@@ -134,20 +168,71 @@ export default function StoreRejectionPage() {
                 title="门店管理(测试) - 驳回差异单"
                 extra={
                     <Space>
-                        <Input
-                            allowClear
-                            placeholder="搜索相关信息"
-                            value={q}
-                            onChange={e => setQ(e.target.value)}
-                            onPressEnter={handleSearch}
-                            style={{ width: 240 }}
-                            prefix={<SearchOutlined />}
-                        />
                         <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
-                        <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }}>刷新</Button>
+                        <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
                     </Space>
                 }
             >
+                <div style={{ marginBottom: 16, padding: '16px', background: '#f5f5f5', borderRadius: '4px' }}>
+                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                        <Space wrap>
+                            <Input
+                                allowClear
+                                placeholder="门店/仓"
+                                value={filters.store || ''}
+                                onChange={e => updateFilter('store', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="商品名称"
+                                value={filters.productName || ''}
+                                onChange={e => updateFilter('productName', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="SKU编码"
+                                value={filters.skuId || ''}
+                                onChange={e => updateFilter('skuId', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="UPC"
+                                value={filters.upc || ''}
+                                onChange={e => updateFilter('upc', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="采购单号"
+                                value={filters.purchaseOrderNo || ''}
+                                onChange={e => updateFilter('purchaseOrderNo', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="关联收货单号"
+                                value={filters.receiptNo || ''}
+                                onChange={e => updateFilter('receiptNo', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                        </Space>
+                    </Space>
+                </div>
                 <Table
                     columns={columns as any}
                     dataSource={data}

@@ -143,3 +143,4 @@ STORE_REJECTION_EMAIL=recipient@example.com
 3. 尝试使用其他邮箱服务商（如163邮箱）进行测试
 4. 检查网络连接是否正常
 
+

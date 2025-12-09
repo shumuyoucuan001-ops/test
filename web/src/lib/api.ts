@@ -84,6 +84,8 @@ export interface ProductSalesSpec {
   spec?: string;        // 规格
   unit?: string;        // 单位
   price?: number;       // 价格
+  barcodeTail?: string; // 条码尾号
+  labelData?: any;      // 标签资料（动态数据）
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +114,7 @@ export interface ReceiptDetail {
   quantity: number;      // 数量
   price?: number;        // 价格
   totalAmount?: number;  // 总金额
+  supplierName?: string; // 供应商名称
   createdAt: string;
   updatedAt: string;
 }
@@ -398,9 +401,27 @@ export interface StoreRejectionItem {
 }
 
 export const storeRejectionApi = {
-  list: (q?: string, page?: number, limit?: number): Promise<{ data: StoreRejectionItem[]; total: number }> => {
+  list: (
+    filters?: {
+      store?: string;
+      productName?: string;
+      skuId?: string;
+      upc?: string;
+      purchaseOrderNo?: string;
+      receiptNo?: string;
+    },
+    page?: number,
+    limit?: number
+  ): Promise<{ data: StoreRejectionItem[]; total: number }> => {
     const params: any = {};
-    if (q) params.q = q;
+    if (filters) {
+      if (filters.store) params.store = filters.store;
+      if (filters.productName) params.productName = filters.productName;
+      if (filters.skuId) params.skuId = filters.skuId;
+      if (filters.upc) params.upc = filters.upc;
+      if (filters.purchaseOrderNo) params.purchaseOrderNo = filters.purchaseOrderNo;
+      if (filters.receiptNo) params.receiptNo = filters.receiptNo;
+    }
     params.page = page || 1;
     params.limit = limit || 20;
     return api.get('/store-rejection', { params }).then(res => res.data);

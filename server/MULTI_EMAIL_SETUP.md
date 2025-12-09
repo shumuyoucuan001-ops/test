@@ -177,3 +177,4 @@ STORE_REJECTION_EMAIL=recipient@example.com
 
 配置完成后，重启服务即可使用多账号交替发送功能！
 
+

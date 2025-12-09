@@ -8,13 +8,32 @@ export class StoreRejectionController {
 
     @Get()
     async list(
-        @Query('q') q?: string,
+        @Query('store') store?: string,
+        @Query('productName') productName?: string,
+        @Query('skuId') skuId?: string,
+        @Query('upc') upc?: string,
+        @Query('purchaseOrderNo') purchaseOrderNo?: string,
+        @Query('receiptNo') receiptNo?: string,
+        @Query('q') keyword?: string, // 兼容旧的 q 查询
         @Query('page') page?: string,
         @Query('limit') limit?: string,
     ): Promise<{ data: StoreRejectionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
-        return this.service.list(q, pageNum, limitNum);
+        const filters: any = {};
+        if (store) filters.store = store;
+        if (productName) filters.productName = productName;
+        if (skuId) filters.skuId = skuId;
+        if (upc) filters.upc = upc;
+        if (purchaseOrderNo) filters.purchaseOrderNo = purchaseOrderNo;
+        if (receiptNo) filters.receiptNo = receiptNo;
+        if (keyword) filters.keyword = keyword;
+
+        console.log('[StoreRejectionController] list query:', {
+            store, productName, skuId, upc, purchaseOrderNo, receiptNo, keyword, page: pageNum, limit: limitNum,
+        });
+
+        return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum);
     }
 
     @Post('send-rejection-email')

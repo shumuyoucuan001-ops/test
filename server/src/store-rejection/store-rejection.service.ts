@@ -19,11 +19,21 @@ export class StoreRejectionService {
         private emailService: EmailService,
     ) { }
 
-    async list(q?: string, page: number = 1, limit: number = 20): Promise<{ data: StoreRejectionItem[]; total: number }> {
-        const keyword = (q || '').trim();
+    async list(
+        filters?: {
+            store?: string;
+            productName?: string;
+            skuId?: string;
+            upc?: string;
+            purchaseOrderNo?: string;
+            receiptNo?: string;
+            keyword?: string; // 兼容 keyword/q 的模糊搜索
+        },
+        page: number = 1,
+        limit: number = 20
+    ): Promise<{ data: StoreRejectionItem[]; total: number }> {
         let sql: string;
         let countSql: string;
-        let countParams: any[] = [];
         let params: any[] = [];
 
         const baseFrom = `FROM \`sm_chaigou\`.\`采购单商品明细\` mx
@@ -33,50 +43,69 @@ export class StoreRejectionService {
 
         const offset = (page - 1) * limit;
 
-        if (keyword) {
-            const like = `%${keyword}%`;
-            const searchCondition = `AND (
-                    mx.\`门店/仓\` LIKE ? OR
-                    mx.\`商品名称\` LIKE ? OR
-                    mx.\`sku_id\` LIKE ? OR
-                    mx.\`upc\` LIKE ? OR
-                    mx.\`采购单号\` LIKE ? OR
-                    xx.\`关联收货单号\` LIKE ?
-                )`;
-            countParams = [like, like, like, like, like, like];
+        // 构建搜索条件：支持 keyword 模糊（OR），以及按字段精确（AND）
+        const clauses: string[] = [];
+        const buildLike = (v?: string) => `%${(v || '').trim()}%`;
 
-            countSql = `SELECT COUNT(*) as total ${baseFrom} ${baseWhere} ${searchCondition}`;
-            sql = `SELECT 
-                mx.\`门店/仓\`,
-                mx.\`商品名称\`,
-                mx.\`sku_id\`,
-                mx.\`upc\`,
-                mx.\`采购单号\`,
-                xx.\`关联收货单号\`
-            ${baseFrom}
-            ${baseWhere}
-            ${searchCondition}
-            LIMIT ${limit} OFFSET ${offset}`;
-            params = countParams;
-        } else {
-            countSql = `SELECT COUNT(*) as total ${baseFrom} ${baseWhere}`;
-            sql = `SELECT 
-                mx.\`门店/仓\`,
-                mx.\`商品名称\`,
-                mx.\`sku_id\`,
-                mx.\`upc\`,
-                mx.\`采购单号\`,
-                xx.\`关联收货单号\`
-            ${baseFrom}
-            ${baseWhere}
-            LIMIT ${limit} OFFSET ${offset}`;
-            params = [];
+        // keyword/q 模糊匹配（OR across all columns）
+        if (filters?.keyword?.trim()) {
+            const like = buildLike(filters.keyword);
+            clauses.push(`(
+                mx.\`门店/仓\` LIKE ? OR
+                mx.\`商品名称\` LIKE ? OR
+                mx.\`sku_id\` LIKE ? OR
+                mx.\`upc\` LIKE ? OR
+                mx.\`采购单号\` LIKE ? OR
+                xx.\`关联收货单号\` LIKE ?
+            )`);
+            params.push(like, like, like, like, like, like);
         }
+
+        // 按字段匹配（AND）
+        if (filters?.store?.trim()) {
+            clauses.push(`mx.\`门店/仓\` LIKE ?`);
+            params.push(buildLike(filters.store));
+        }
+        if (filters?.productName?.trim()) {
+            clauses.push(`mx.\`商品名称\` LIKE ?`);
+            params.push(buildLike(filters.productName));
+        }
+        if (filters?.skuId?.trim()) {
+            clauses.push(`mx.\`sku_id\` LIKE ?`);
+            params.push(buildLike(filters.skuId));
+        }
+        if (filters?.upc?.trim()) {
+            clauses.push(`mx.\`upc\` LIKE ?`);
+            params.push(buildLike(filters.upc));
+        }
+        if (filters?.purchaseOrderNo?.trim()) {
+            clauses.push(`mx.\`采购单号\` LIKE ?`);
+            params.push(buildLike(filters.purchaseOrderNo));
+        }
+        if (filters?.receiptNo?.trim()) {
+            clauses.push(`xx.\`关联收货单号\` LIKE ?`);
+            params.push(buildLike(filters.receiptNo));
+        }
+
+        const searchCondition = clauses.length > 0 ? `AND (${clauses.join(' AND ')})` : '';
+
+        countSql = `SELECT COUNT(*) as total ${baseFrom} ${baseWhere} ${searchCondition}`;
+        sql = `SELECT 
+            mx.\`门店/仓\`,
+            mx.\`商品名称\`,
+            mx.\`sku_id\`,
+            mx.\`upc\`,
+            mx.\`采购单号\`,
+            xx.\`关联收货单号\`
+        ${baseFrom}
+        ${baseWhere}
+        ${searchCondition}
+        LIMIT ${limit} OFFSET ${offset}`;
 
         try {
             console.log('[StoreRejectionService] Executing count SQL:', countSql);
-            console.log('[StoreRejectionService] Count params:', countParams);
-            const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...countParams);
+            console.log('[StoreRejectionService] Count params:', params);
+            const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
             const total = Number(countRows?.total || 0);
             console.log('[StoreRejectionService] Total count:', total);
 
