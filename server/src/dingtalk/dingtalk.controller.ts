@@ -18,21 +18,29 @@ export class DingTalkController {
         try {
             console.log('[DingTalkController] 收到获取授权URL请求，state:', state);
             const url = this.dingTalkService.generateAuthUrl(state);
+
+            // 始终返回配置信息，便于调试（生产环境也需要）
             const response = {
                 url,
-                // 开发环境返回配置信息，便于调试
-                ...(process.env.NODE_ENV !== 'production' ? {
-                    config: {
-                        redirectUri: process.env.DINGTALK_REDIRECT_URI || '未配置',
-                        appKey: process.env.DINGTALK_APP_KEY ? '已配置' : '未配置',
-                        corpId: process.env.DINGTALK_CORP_ID ? '已配置' : '未配置',
-                    }
-                } : {})
+                config: {
+                    redirectUri: process.env.DINGTALK_REDIRECT_URI || '未配置',
+                    appKey: process.env.DINGTALK_APP_KEY ? `${process.env.DINGTALK_APP_KEY.substring(0, 10)}...` : '未配置',
+                    corpId: process.env.DINGTALK_CORP_ID ? `${process.env.DINGTALK_CORP_ID.substring(0, 10)}...` : '未配置',
+                    hostname: process.env.DINGTALK_REDIRECT_URI ? new URL(process.env.DINGTALK_REDIRECT_URI).hostname : '未配置',
+                },
+                tips: [
+                    '请确保钉钉开放平台配置：',
+                    `1. OAuth2.0回调地址: ${process.env.DINGTALK_REDIRECT_URI || '未配置'}`,
+                    `2. 安全域名: ${process.env.DINGTALK_REDIRECT_URI ? new URL(process.env.DINGTALK_REDIRECT_URI).hostname : '未配置'} (仅域名，不要包含 http:// 或路径)`,
+                    '3. 应用已发布上线',
+                    '4. 权限已申请并授权',
+                ]
             };
+
             console.log('[DingTalkController] 返回授权URL响应:', {
                 hasUrl: !!response.url,
                 urlLength: response.url?.length,
-                urlPreview: response.url?.substring(0, 100) + '...',
+                redirectUri: process.env.DINGTALK_REDIRECT_URI,
             });
             return response;
         } catch (error: any) {
