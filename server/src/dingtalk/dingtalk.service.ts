@@ -73,11 +73,6 @@ export class DingTalkService {
         params.append('redirect_uri', cleanRedirectUri); // URLSearchParams会自动进行URL编码
         params.append('state', (state || 'default').trim());
 
-        // 对于企业内部应用，尝试添加corpId参数（某些情况下可能需要）
-        // 注意：根据钉钉文档，sns_authorize端点通常不需要corpId，但如果出现"url参数不合法"错误，可以尝试添加
-        // 如果添加后仍然失败，可以注释掉这一行
-        params.append('corpId', this.corpId.trim());
-
         const authUrl = `https://oapi.dingtalk.com/connect/oauth2/sns_authorize?${params.toString()}`;
 
         // 调试：打印完整的授权URL和参数
