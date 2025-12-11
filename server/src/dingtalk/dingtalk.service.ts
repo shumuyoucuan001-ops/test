@@ -33,10 +33,10 @@ export class DingTalkService {
     }
 
     /**
-     * 生成钉钉授权URL（企业内应用OAuth2.0）
+     * 生成钉钉授权URL（免登扫码地址）
      * 类似Java方法：public String generateAuthUrl()
      * 
-     * 注意：钉钉企业内应用的OAuth2.0授权URL格式
+     * 注意：使用钉钉免登扫码地址 qrconnect
      */
     generateAuthUrl(state?: string): string {
         if (!this.appKey || !this.corpId) {
@@ -63,26 +63,26 @@ export class DingTalkService {
             throw new BadRequestException(`回调地址格式不正确: ${cleanRedirectUri}`);
         }
 
-        // 钉钉企业内应用OAuth2.0授权URL
-        // 注意：redirect_uri 必须是完整URL，且必须与钉钉开放平台配置的回调地址完全一致
+        // 钉钉免登扫码地址
+        // 注意：redirect_uri 必须是完整URL，且必须进行URL编码
         // 使用 URLSearchParams 确保参数正确编码
         const params = new URLSearchParams();
         params.append('appid', this.appKey.trim()); // 确保去除空格
         params.append('response_type', 'code');
-        params.append('scope', 'snsapi_base'); // 企业内应用使用snsapi_base获取用户基本信息
+        params.append('scope', 'openid'); // 免登扫码使用openid
         params.append('redirect_uri', cleanRedirectUri); // URLSearchParams会自动进行URL编码
-        params.append('state', (state || 'default').trim());
+        params.append('state', (state || 'login').trim());
 
-        const authUrl = `https://oapi.dingtalk.com/connect/oauth2/sns_authorize?${params.toString()}`;
+        const authUrl = `https://oapi.dingtalk.com/connect/qrconnect?${params.toString()}`;
 
         // 调试：打印完整的授权URL和参数
         console.log('[DingTalkService] 授权URL参数详情:', {
             appid: this.appKey.trim(),
             response_type: 'code',
-            scope: 'snsapi_base',
+            scope: 'openid',
             redirect_uri: cleanRedirectUri,
             redirect_uri_encoded: encodeURIComponent(cleanRedirectUri),
-            state: (state || 'default').trim(),
+            state: (state || 'login').trim(),
             corpId: this.corpId.trim(),
         });
 
