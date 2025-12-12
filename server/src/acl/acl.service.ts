@@ -23,6 +23,7 @@ export class AclService {
         last_login_time DATETIME,
         last_login_device VARCHAR(255),
         status TINYINT DEFAULT 1,
+        department_id INT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
@@ -44,6 +45,9 @@ export class AclService {
     }
     if (!(await hasCol('status'))) {
       try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN status TINYINT NULL DEFAULT 1`); } catch { }
+    }
+    if (!(await hasCol('department_id'))) {
+      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`); } catch { }
     }
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS sm_xitongkaifa.sys_roles (
@@ -98,6 +102,9 @@ export class AclService {
     }
     if (!(await hasCol('code'))) {
       try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN code VARCHAR(64) NULL`); } catch { }
+    }
+    if (!(await hasCol('department_id'))) {
+      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`); } catch { }
     }
     if (!(await hasCol('session_token'))) {
       try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN session_token VARCHAR(128) NULL`); } catch { }
@@ -193,13 +200,14 @@ export class AclService {
 
     return users;
   }
-  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number }) {
+  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: number }) {
     await this.ensureSysUsersSchema();
     const username = (u.username || '').trim();
     const password = (u.password || '').trim();
     const displayName = (u.display_name || '').trim();
     const code = (u.code || '').trim();
     const status = u.status ?? 1;
+    const departmentId = u.department_id ?? null;
 
     if (username.length < 3 || username.length > 64) throw new BadRequestException('用户名长度需 3-64 个字符');
     if (password.length < 6 || password.length > 128) throw new BadRequestException('密码长度需 6-128 个字符');
@@ -212,24 +220,25 @@ export class AclService {
 
     try {
       return await this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status) VALUES(?,?,?,?,?)`,
-        username, password, displayName, code || null, status
+        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id) VALUES(?,?,?,?,?,?)`,
+        username, password, displayName, code || null, status, departmentId
       );
     } catch (e: any) {
       // 兜底：若仍提示列不存在，再次尝试修复一次
       await this.ensureSysUsersSchema();
       return this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status) VALUES(?,?,?,?,?)`,
-        username, password, displayName, code || null, status
+        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id) VALUES(?,?,?,?,?,?)`,
+        username, password, displayName, code || null, status, departmentId
       );
     }
   }
-  updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string }) {
+  updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: number }) {
     const sets: string[] = []; const vals: any[] = [];
     if (u.display_name !== undefined) { sets.push('display_name=?'); vals.push(u.display_name); }
     if (u.status !== undefined) { sets.push('status=?'); vals.push(u.status); }
     if (u.password !== undefined) { sets.push('password=?'); vals.push(u.password); }
     if (u.code !== undefined) { sets.push('code=?'); vals.push(u.code); }
+    if (u.department_id !== undefined) { sets.push('department_id=?'); vals.push(u.department_id); }
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
     return this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_users SET ${sets.join(',')} WHERE id=?`, ...vals);
@@ -335,7 +344,14 @@ export class AclService {
       name: name,
       mobile: mobile,
       email: dingTalkUserInfo.email,
+      deptIdList: dingTalkUserInfo.deptIdList,
+      deptNames: dingTalkUserInfo.deptNames,
     });
+
+    // 获取主部门ID（取第一个部门ID，如果存在多个部门）
+    const departmentId = dingTalkUserInfo.deptIdList && dingTalkUserInfo.deptIdList.length > 0
+      ? dingTalkUserInfo.deptIdList[0]
+      : null;
 
     // 优先通过手机号查找用户（如果手机号存在）
     let user: any = null;
@@ -406,12 +422,13 @@ export class AclService {
 
         // 使用备用用户名创建（密码设为NULL，因为钉钉登录不需要密码）
         await this.prisma.$executeRawUnsafe(
-          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status) VALUES(?, ?, ?, ?, ?)`,
+          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
           altUsername,
           null, // 钉钉登录不需要密码，设为NULL
           displayName,
           `dingtalk_${dingTalkUserId}`,
-          1
+          1,
+          departmentId
         );
 
         const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
@@ -440,12 +457,13 @@ export class AclService {
       } else {
         // 使用原用户名创建（密码设为NULL，因为钉钉登录不需要密码）
         await this.prisma.$executeRawUnsafe(
-          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status) VALUES(?, ?, ?, ?, ?)`,
+          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
           username,
           null, // 钉钉登录不需要密码，设为NULL
           displayName,
           `dingtalk_${dingTalkUserId}`,
-          1
+          1,
+          departmentId
         );
 
         const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
@@ -484,13 +502,14 @@ export class AclService {
     const loginTime = new Date();
     const device = deviceInfo || 'dingtalk_web';
 
-    // 更新用户的session_token (单点登录：覆盖旧token)
+    // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
     await this.prisma.$executeRawUnsafe(
-      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=? WHERE id=?`,
+      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=? WHERE id=?`,
       token,
       loginTime,
       device,
       `dingtalk_${dingTalkUserId}`,
+      departmentId,
       Number(user.id)
     );
 

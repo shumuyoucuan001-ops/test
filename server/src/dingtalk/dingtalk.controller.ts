@@ -80,6 +80,8 @@ export class DingTalkController {
                 mobile: userInfo.mobile,
                 email: userInfo.email,
                 active: userInfo.active,
+                deptIdList: userInfo.deptIdList,
+                deptNames: userInfo.deptNames,
             });
 
             return {
@@ -126,6 +128,8 @@ export class DingTalkController {
                 userId: dingTalkUserInfo.userId,
                 name: dingTalkUserInfo.name,
                 mobile: dingTalkUserInfo.mobile,
+                deptIdList: dingTalkUserInfo.deptIdList,
+                deptNames: dingTalkUserInfo.deptNames,
             });
 
             // 2. 自动登录（根据钉钉用户信息查找或创建系统用户）

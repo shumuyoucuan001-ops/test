@@ -300,6 +300,11 @@ export class DingTalkService {
                                                 throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
                                             }
 
+                                            // 提取部门ID列表
+                                            const deptIdList = userDetail.dept_id_list || [];
+                                            // 获取部门名称
+                                            const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
+
                                             return {
                                                 userId: userId,
                                                 name: userDetail.name || userInfo.nick || userInfo.name || '',
@@ -309,6 +314,8 @@ export class DingTalkService {
                                                 active: userDetail.active || false,
                                                 isAdmin: userDetail.is_admin || false,
                                                 isBoss: userDetail.is_boss || false,
+                                                deptIdList: Array.isArray(deptIdList) ? deptIdList : [],
+                                                deptNames: deptNames,
                                             };
                                         }
                                     }
@@ -324,6 +331,8 @@ export class DingTalkService {
                                     active: true,
                                     isAdmin: false,
                                     isBoss: false,
+                                    deptIdList: [],
+                                    deptNames: [],
                                 };
                             }
                         } catch (meError: any) {
@@ -406,6 +415,11 @@ export class DingTalkService {
                                         throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
                                     }
 
+                                    // 提取部门ID列表
+                                    const deptIdList = userDetail.dept_id_list || [];
+                                    // 获取部门名称
+                                    const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
+
                                     return {
                                         userId: userId,
                                         name: userDetail.name || userInfo.nick || '',
@@ -415,6 +429,8 @@ export class DingTalkService {
                                         active: userDetail.active || false,
                                         isAdmin: userDetail.is_admin || false,
                                         isBoss: userDetail.is_boss || false,
+                                        deptIdList: Array.isArray(deptIdList) ? deptIdList : [],
+                                        deptNames: deptNames,
                                     };
                                 }
                             }
@@ -430,6 +446,8 @@ export class DingTalkService {
                             active: true,
                             isAdmin: false,
                             isBoss: false,
+                            deptIdList: [],
+                            deptNames: [],
                         };
                     }
                 } else {
@@ -584,6 +602,11 @@ export class DingTalkService {
                 throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
             }
 
+            // 提取部门ID列表
+            const deptIdList = userDetail.dept_id_list || [];
+            // 获取部门名称
+            const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
+
             return {
                 userId: userInfo.userid,
                 name: userDetail.name || '',
@@ -593,12 +616,74 @@ export class DingTalkService {
                 active: userDetail.active || false,
                 isAdmin: userDetail.is_admin || false,
                 isBoss: userDetail.is_boss || false,
+                deptIdList: Array.isArray(deptIdList) ? deptIdList : [],
+                deptNames: deptNames,
             };
         } catch (error: any) {
             if (error instanceof BadRequestException) {
                 throw error;
             }
             throw new BadRequestException(`钉钉认证失败: ${error.message}`);
+        }
+    }
+
+    /**
+     * 获取部门详情（根据部门ID列表获取部门名称）
+     * 类似Java方法：public List<String> getDeptNames(List<Long> deptIds)
+     */
+    async getDeptNames(deptIds: number[]): Promise<string[]> {
+        if (!deptIds || deptIds.length === 0) {
+            return [];
+        }
+
+        if (!this.appKey || !this.appSecret) {
+            return [];
+        }
+
+        try {
+            // 获取企业应用access_token
+            const tokenResponse = await axios.get('https://oapi.dingtalk.com/gettoken', {
+                params: {
+                    appkey: this.appKey,
+                    appsecret: this.appSecret,
+                },
+            });
+
+            if (tokenResponse.data.errcode !== 0) {
+                console.warn('[DingTalkService] 获取access_token失败，无法获取部门信息');
+                return [];
+            }
+
+            const accessToken = tokenResponse.data.access_token;
+            const deptNames: string[] = [];
+
+            // 批量获取部门信息
+            for (const deptId of deptIds) {
+                try {
+                    const deptResponse = await axios.post(
+                        'https://oapi.dingtalk.com/topapi/v2/department/get',
+                        {
+                            dept_id: deptId,
+                        },
+                        {
+                            params: {
+                                access_token: accessToken,
+                            },
+                        }
+                    );
+
+                    if (deptResponse.data.errcode === 0 && deptResponse.data.result) {
+                        deptNames.push(deptResponse.data.result.name || `部门${deptId}`);
+                    }
+                } catch (error) {
+                    console.warn(`[DingTalkService] 获取部门${deptId}信息失败:`, error);
+                }
+            }
+
+            return deptNames;
+        } catch (error) {
+            console.warn('[DingTalkService] 获取部门信息失败:', error);
+            return [];
         }
     }
 
@@ -759,5 +844,7 @@ export interface DingTalkUserInfo {
     active: boolean; // 是否激活
     isAdmin: boolean; // 是否管理员
     isBoss: boolean; // 是否老板
+    deptIdList?: number[]; // 用户所在部门的ID列表
+    deptNames?: string[]; // 用户所在部门的名称列表（可选，需要额外调用API获取）
 }
 
