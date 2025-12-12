@@ -445,6 +445,8 @@ export interface SysUser {
 export const dingTalkApi = {
   getAuthUrl: (state?: string): Promise<{ url: string }> => api.get('/dingtalk/auth-url', { params: { state } }).then(res => res.data),
   callback: (code: string): Promise<any> => api.post('/dingtalk/callback', { code }).then(res => res.data),
+  autoLogin: (code: string, deviceInfo?: string): Promise<{ success: boolean; id: number; username: string; display_name?: string; token: string; message: string }> =>
+    api.post('/dingtalk/auto-login', { code }, { params: { deviceInfo } }).then(res => res.data),
   verifyMember: (userId: string): Promise<{ isMember: boolean; message: string }> => api.post('/dingtalk/verify-member', { userId }).then(res => res.data),
 };
 

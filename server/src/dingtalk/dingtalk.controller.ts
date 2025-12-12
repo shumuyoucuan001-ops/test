@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { AclService } from '../acl/acl.service';
 import { DingTalkService } from './dingtalk.service';
 
 /**
@@ -7,7 +8,10 @@ import { DingTalkService } from './dingtalk.service';
  */
 @Controller('dingtalk')
 export class DingTalkController {
-    constructor(private readonly dingTalkService: DingTalkService) { }
+    constructor(
+        private readonly dingTalkService: DingTalkService,
+        private readonly aclService: AclService,
+    ) { }
 
     /**
      * 获取钉钉授权URL
@@ -98,6 +102,47 @@ export class DingTalkController {
 
             console.error('[DingTalkController] ===========================================');
             throw new BadRequestException(error.message || '钉钉验证失败');
+        }
+    }
+
+    /**
+     * 钉钉自动登录 - 验证成功后自动登录并返回用户信息
+     * 类似Java的 @PostMapping("/auto-login")
+     */
+    @Post('auto-login')
+    async autoLogin(@Body() body: { code: string }, @Query('deviceInfo') deviceInfo?: string) {
+        try {
+            console.log('[DingTalkController] ========== 收到钉钉自动登录请求 ==========');
+            console.log('[DingTalkController] code存在:', !!body.code);
+            console.log('[DingTalkController] deviceInfo:', deviceInfo);
+
+            if (!body.code) {
+                throw new BadRequestException('缺少授权码');
+            }
+
+            // 1. 获取钉钉用户信息
+            const dingTalkUserInfo = await this.dingTalkService.getUserInfoByCode(body.code);
+            console.log('[DingTalkController] 钉钉用户信息:', {
+                userId: dingTalkUserInfo.userId,
+                name: dingTalkUserInfo.name,
+                mobile: dingTalkUserInfo.mobile,
+            });
+
+            // 2. 自动登录（根据钉钉用户信息查找或创建系统用户）
+            const loginResult = await this.aclService.dingTalkAutoLogin(dingTalkUserInfo, deviceInfo);
+            console.log('[DingTalkController] ✓ 自动登录成功');
+
+            return {
+                success: true,
+                ...loginResult,
+                message: '钉钉登录成功',
+            };
+        } catch (error: any) {
+            console.error('[DingTalkController] ========== 钉钉自动登录失败 ==========');
+            console.error('[DingTalkController] 错误类型:', error.constructor.name);
+            console.error('[DingTalkController] 错误消息:', error.message);
+            console.error('[DingTalkController] 错误堆栈:', error.stack);
+            throw new BadRequestException(error.message || '钉钉自动登录失败');
         }
     }
 

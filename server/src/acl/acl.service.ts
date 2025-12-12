@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { DingTalkService } from '../dingtalk/dingtalk.service';
+import { DingTalkService, DingTalkUserInfo } from '../dingtalk/dingtalk.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -319,6 +319,115 @@ export class AclService {
     }
 
     return { id: Number(u.id), username: u.username, display_name: u.display_name, token };
+  }
+
+  // 钉钉自动登录：根据钉钉用户信息自动登录
+  async dingTalkAutoLogin(dingTalkUserInfo: DingTalkUserInfo, deviceInfo?: string) {
+    await this.ensureSysUsersSchema();
+
+    const dingTalkUserId = dingTalkUserInfo.userId;
+    const mobile = dingTalkUserInfo.mobile;
+    const name = dingTalkUserInfo.name || '';
+
+    console.log('[AclService] 开始钉钉自动登录，钉钉userId:', dingTalkUserId, '手机号:', mobile);
+
+    // 优先通过手机号查找用户（如果手机号存在）
+    let user: any = null;
+    if (mobile) {
+      // 尝试通过手机号查找用户（假设手机号存储在某个字段，这里先尝试通过username匹配）
+      // 如果系统中有手机号字段，可以修改查询条件
+      const rows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id, username, display_name, status, session_token FROM sm_xitongkaifa.sys_users WHERE username=? OR display_name=? LIMIT 1`,
+        mobile,
+        name
+      );
+      if (rows.length > 0) {
+        user = rows[0];
+        console.log('[AclService] 通过手机号/姓名找到用户:', user.username);
+      }
+    }
+
+    // 如果找不到，尝试通过钉钉userId查找（假设存储在code字段）
+    if (!user && dingTalkUserId) {
+      const rows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id, username, display_name, status, session_token FROM sm_xitongkaifa.sys_users WHERE code=? LIMIT 1`,
+        `dingtalk_${dingTalkUserId}`
+      );
+      if (rows.length > 0) {
+        user = rows[0];
+        console.log('[AclService] 通过钉钉userId找到用户:', user.username);
+      }
+    }
+
+    // 如果还是找不到，创建新用户（可选，根据业务需求决定）
+    if (!user) {
+      // 方案1：如果找不到用户，返回错误，提示需要先创建账号
+      throw new BadRequestException(`未找到对应的系统用户，请先联系管理员创建账号。钉钉用户: ${name} (${mobile || dingTalkUserId})`);
+
+      // 方案2：自动创建用户（如果需要，取消注释下面的代码）
+      /*
+      const username = mobile || `dingtalk_${dingTalkUserId}`;
+      const displayName = name || username;
+      
+      console.log('[AclService] 未找到用户，自动创建新用户:', username);
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO sm_xitongkaifa.sys_users(username, display_name, code, status) VALUES(?, ?, ?, ?)`,
+        username,
+        displayName,
+        `dingtalk_${dingTalkUserId}`,
+        1
+      );
+      
+      const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+        username
+      );
+      user = newUserRows[0];
+      */
+    }
+
+    // 检查用户状态
+    if (Number(user.status) !== 1) {
+      throw new BadRequestException('账号已禁用');
+    }
+
+    // 生成新token
+    const token = randomBytes(24).toString('hex');
+    const loginTime = new Date();
+    const device = deviceInfo || 'dingtalk_web';
+
+    // 更新用户的session_token (单点登录：覆盖旧token)
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=? WHERE id=?`,
+      token,
+      loginTime,
+      device,
+      `dingtalk_${dingTalkUserId}`,
+      Number(user.id)
+    );
+
+    // 记录登录历史
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO sm_xitongkaifa.login_records (user_id, username, device_info, login_time, token) VALUES (?, ?, ?, ?, ?)`,
+        Number(user.id),
+        user.username,
+        device,
+        loginTime,
+        token
+      );
+    } catch (e) {
+      console.log('[AclService] 登录记录表不存在，跳过记录');
+    }
+
+    console.log('[AclService] 钉钉自动登录成功，用户:', user.username);
+
+    return {
+      id: Number(user.id),
+      username: user.username,
+      display_name: user.display_name || name,
+      token,
+    };
   }
 
   async validateToken(userId: number, token: string) {

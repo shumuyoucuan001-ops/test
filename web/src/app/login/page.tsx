@@ -14,22 +14,30 @@ export default function LoginPage() {
   const handleDingTalkCallback = async (code: string) => {
     try {
       setDingTalkLoading(true);
-      msgApi.loading('正在验证钉钉身份...');
+      msgApi.loading('正在验证钉钉身份并登录...', 0); // 0表示不自动关闭
 
-      // 验证钉钉用户信息
-      const result = await dingTalkApi.callback(code);
+      // 调用自动登录接口
+      const result = await dingTalkApi.autoLogin(code, 'dingtalk_web');
 
       if (result.success) {
-        msgApi.success('钉钉验证成功，请继续输入用户名和密码');
-        // 将钉钉code存储到表单中，登录时一起提交
-        form.setFieldsValue({ dingTalkCode: code });
+        // 保存用户信息和token
+        localStorage.setItem('userId', String(result.id));
+        localStorage.setItem('displayName', result.display_name || '');
+        localStorage.setItem('sessionToken', result.token || '');
+
+        msgApi.success('钉钉登录成功，正在跳转...');
+
+        // 延迟一下让用户看到成功消息，然后跳转
+        setTimeout(() => {
+          window.location.href = '/home';
+        }, 500);
       } else {
-        msgApi.error('钉钉验证失败');
+        msgApi.error('钉钉登录失败');
+        setDingTalkLoading(false);
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || '钉钉验证失败';
+      const msg = e?.response?.data?.message || e?.message || '钉钉登录失败';
       msgApi.error(msg);
-    } finally {
       setDingTalkLoading(false);
     }
   };
