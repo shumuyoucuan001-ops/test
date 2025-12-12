@@ -212,7 +212,7 @@ export class AclService {
 
     return users;
   }
-  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: number }) {
+  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: string | number }) {
     await this.ensureSysUsersSchema();
     const username = (u.username || '').trim();
     const password = (u.password || '').trim();
@@ -244,7 +244,7 @@ export class AclService {
       );
     }
   }
-  updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: number }) {
+  updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: string | number }) {
     const sets: string[] = []; const vals: any[] = [];
     if (u.display_name !== undefined) { sets.push('display_name=?'); vals.push(u.display_name); }
     if (u.status !== undefined) { sets.push('status=?'); vals.push(u.status); }
@@ -360,18 +360,19 @@ export class AclService {
       deptNames: dingTalkUserInfo.deptNames,
     });
 
-    // 获取主部门ID（取第一个部门ID，如果存在多个部门）
-    // 确保转换为数字类型（钉钉API可能返回字符串）
-    const departmentId = dingTalkUserInfo.deptIdList && dingTalkUserInfo.deptIdList.length > 0
-      ? Number(dingTalkUserInfo.deptIdList[0])
-      : null;
+    // 获取主部门名称（取第一个部门名称，如果存在多个部门）
+    // 存储中文部门名称到 department_id 字段
+    const departmentName = dingTalkUserInfo.deptNames && dingTalkUserInfo.deptNames.length > 0
+      ? dingTalkUserInfo.deptNames[0]
+      : (dingTalkUserInfo.deptIdList && dingTalkUserInfo.deptIdList.length > 0
+        ? `部门${dingTalkUserInfo.deptIdList[0]}` // 如果没有名称，使用部门ID作为后备
+        : null);
 
     console.log('[AclService] 提取的部门信息:', {
       deptIdList: dingTalkUserInfo.deptIdList,
       deptNames: dingTalkUserInfo.deptNames,
-      departmentId: departmentId,
-      departmentIdType: typeof departmentId,
-      isValidNumber: !isNaN(Number(departmentId)),
+      departmentName: departmentName,
+      departmentNameType: typeof departmentName,
     });
 
     // 优先通过手机号查找用户（如果手机号存在）
@@ -442,7 +443,7 @@ export class AclService {
         }
 
         // 使用备用用户名创建（密码设为NULL，因为钉钉登录不需要密码）
-        console.log('[AclService] 创建用户（备用用户名），departmentId:', departmentId);
+        console.log('[AclService] 创建用户（备用用户名），departmentName:', departmentName);
         await this.prisma.$executeRawUnsafe(
           `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
           altUsername,
@@ -450,7 +451,7 @@ export class AclService {
           displayName,
           `dingtalk_${dingTalkUserId}`,
           1,
-          departmentId
+          departmentName
         );
 
         const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
@@ -478,7 +479,7 @@ export class AclService {
         }
       } else {
         // 使用原用户名创建（密码设为NULL，因为钉钉登录不需要密码）
-        console.log('[AclService] 创建用户（原用户名），departmentId:', departmentId);
+        console.log('[AclService] 创建用户（原用户名），departmentName:', departmentName);
         await this.prisma.$executeRawUnsafe(
           `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
           username,
@@ -486,7 +487,7 @@ export class AclService {
           displayName,
           `dingtalk_${dingTalkUserId}`,
           1,
-          departmentId
+          departmentName
         );
 
         const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
@@ -526,14 +527,14 @@ export class AclService {
     const device = deviceInfo || 'dingtalk_web';
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
-    console.log('[AclService] 更新用户信息，userId:', user.id, 'departmentId:', departmentId);
+    console.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName);
     await this.prisma.$executeRawUnsafe(
       `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=? WHERE id=?`,
       token,
       loginTime,
       device,
       `dingtalk_${dingTalkUserId}`,
-      departmentId,
+      departmentName,
       Number(user.id)
     );
 
