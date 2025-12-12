@@ -300,8 +300,11 @@ export class DingTalkService {
                                                 throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
                                             }
 
-                                            // 提取部门ID列表
-                                            const deptIdList = userDetail.dept_id_list || [];
+                                            // 提取部门ID列表，确保转换为数字数组
+                                            const rawDeptIdList = userDetail.dept_id_list || [];
+                                            const deptIdList = Array.isArray(rawDeptIdList)
+                                                ? rawDeptIdList.map(id => Number(id)).filter(id => !isNaN(id))
+                                                : [];
                                             // 获取部门名称
                                             const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
 
@@ -314,7 +317,7 @@ export class DingTalkService {
                                                 active: userDetail.active || false,
                                                 isAdmin: userDetail.is_admin || false,
                                                 isBoss: userDetail.is_boss || false,
-                                                deptIdList: Array.isArray(deptIdList) ? deptIdList : [],
+                                                deptIdList: deptIdList,
                                                 deptNames: deptNames,
                                             };
                                         }
@@ -415,8 +418,11 @@ export class DingTalkService {
                                         throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
                                     }
 
-                                    // 提取部门ID列表
-                                    const deptIdList = userDetail.dept_id_list || [];
+                                    // 提取部门ID列表，确保转换为数字数组
+                                    const rawDeptIdList = userDetail.dept_id_list || [];
+                                    const deptIdList = Array.isArray(rawDeptIdList)
+                                        ? rawDeptIdList.map(id => Number(id)).filter(id => !isNaN(id))
+                                        : [];
                                     // 获取部门名称
                                     const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
 
@@ -429,7 +435,7 @@ export class DingTalkService {
                                         active: userDetail.active || false,
                                         isAdmin: userDetail.is_admin || false,
                                         isBoss: userDetail.is_boss || false,
-                                        deptIdList: Array.isArray(deptIdList) ? deptIdList : [],
+                                        deptIdList: deptIdList,
                                         deptNames: deptNames,
                                     };
                                 }
@@ -602,8 +608,11 @@ export class DingTalkService {
                 throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
             }
 
-            // 提取部门ID列表
-            const deptIdList = userDetail.dept_id_list || [];
+            // 提取部门ID列表，确保转换为数字数组
+            const rawDeptIdList = userDetail.dept_id_list || [];
+            const deptIdList = Array.isArray(rawDeptIdList)
+                ? rawDeptIdList.map(id => Number(id)).filter(id => !isNaN(id))
+                : [];
             // 获取部门名称
             const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
 
@@ -616,7 +625,7 @@ export class DingTalkService {
                 active: userDetail.active || false,
                 isAdmin: userDetail.is_admin || false,
                 isBoss: userDetail.is_boss || false,
-                deptIdList: Array.isArray(deptIdList) ? deptIdList : [],
+                deptIdList: deptIdList,
                 deptNames: deptNames,
             };
         } catch (error: any) {

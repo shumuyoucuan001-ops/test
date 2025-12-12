@@ -47,7 +47,12 @@ export class AclService {
       try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN status TINYINT NULL DEFAULT 1`); } catch { }
     }
     if (!(await hasCol('department_id'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`); } catch { }
+      try {
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`);
+        console.log('[AclService] ✓ 已创建 department_id 字段（initSchema）');
+      } catch (e: any) {
+        console.error('[AclService] ✗ 创建 department_id 字段失败（initSchema）:', e.message);
+      }
     }
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS sm_xitongkaifa.sys_roles (
@@ -349,9 +354,18 @@ export class AclService {
     });
 
     // 获取主部门ID（取第一个部门ID，如果存在多个部门）
+    // 确保转换为数字类型（钉钉API可能返回字符串）
     const departmentId = dingTalkUserInfo.deptIdList && dingTalkUserInfo.deptIdList.length > 0
-      ? dingTalkUserInfo.deptIdList[0]
+      ? Number(dingTalkUserInfo.deptIdList[0])
       : null;
+
+    console.log('[AclService] 提取的部门信息:', {
+      deptIdList: dingTalkUserInfo.deptIdList,
+      deptNames: dingTalkUserInfo.deptNames,
+      departmentId: departmentId,
+      departmentIdType: typeof departmentId,
+      isValidNumber: !isNaN(Number(departmentId)),
+    });
 
     // 优先通过手机号查找用户（如果手机号存在）
     let user: any = null;
@@ -421,6 +435,7 @@ export class AclService {
         }
 
         // 使用备用用户名创建（密码设为NULL，因为钉钉登录不需要密码）
+        console.log('[AclService] 创建用户（备用用户名），departmentId:', departmentId);
         await this.prisma.$executeRawUnsafe(
           `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
           altUsername,
@@ -456,6 +471,7 @@ export class AclService {
         }
       } else {
         // 使用原用户名创建（密码设为NULL，因为钉钉登录不需要密码）
+        console.log('[AclService] 创建用户（原用户名），departmentId:', departmentId);
         await this.prisma.$executeRawUnsafe(
           `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
           username,
@@ -503,6 +519,7 @@ export class AclService {
     const device = deviceInfo || 'dingtalk_web';
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
+    console.log('[AclService] 更新用户信息，userId:', user.id, 'departmentId:', departmentId);
     await this.prisma.$executeRawUnsafe(
       `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=? WHERE id=?`,
       token,
