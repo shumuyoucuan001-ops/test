@@ -211,8 +211,23 @@ export class DingTalkService {
 
                     console.log('[DingTalkService] ✓ 新版OAuth2.0 access_token获取成功');
                     console.log('[DingTalkService] openId:', openId);
-                    console.log('[DingTalkService] corpId:', corpId);
+                    console.log('[DingTalkService] 返回的corpId:', corpId);
+                    console.log('[DingTalkService] 配置的corpId:', this.corpId);
                     console.log('[DingTalkService] accessToken预览:', userAccessToken.substring(0, 20) + '...');
+
+                    // 验证用户选择的企业是否与配置的企业ID一致
+                    if (corpId && this.corpId) {
+                        if (corpId.trim() !== this.corpId.trim()) {
+                            console.error('[DingTalkService] ✗ 企业ID不匹配:', {
+                                返回的企业ID: corpId,
+                                配置的企业ID: this.corpId,
+                            });
+                            throw new BadRequestException(`您选择的企业组织不正确。请选择正确的企业组织进行登录。`);
+                        }
+                        console.log('[DingTalkService] ✓ 企业ID验证通过');
+                    } else if (!corpId) {
+                        console.warn('[DingTalkService] ⚠ 响应中没有corpId，无法验证企业组织');
+                    }
 
                     // 如果没有openId，尝试使用accessToken获取当前用户信息
                     if (!openId) {
@@ -246,6 +261,15 @@ export class DingTalkService {
 
                                 // 如果有userId且是企业内用户，尝试获取详细信息
                                 if (userId && corpId) {
+                                    // 验证企业ID是否匹配
+                                    if (corpId.trim() !== this.corpId.trim()) {
+                                        console.error('[DingTalkService] ✗ 企业ID不匹配:', {
+                                            返回的企业ID: corpId,
+                                            配置的企业ID: this.corpId,
+                                        });
+                                        throw new BadRequestException(`您选择的企业组织不正确。请选择正确的企业组织进行登录。`);
+                                    }
+
                                     // 获取企业应用access_token来查询用户详情
                                     const corpTokenResponse = await axios.get('https://oapi.dingtalk.com/gettoken', {
                                         params: {

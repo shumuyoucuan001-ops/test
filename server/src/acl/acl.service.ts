@@ -424,6 +424,19 @@ export class AclService {
           username: user.username,
           display_name: user.display_name,
         });
+
+        // 自动分配角色 role_id = 2
+        try {
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO sm_xitongkaifa.sys_user_roles(user_id, role_id) VALUES(?, ?)`,
+            Number(user.id),
+            2
+          );
+          console.log('[AclService] ✓ 自动分配角色成功，user_id:', user.id, 'role_id: 2');
+        } catch (roleError: any) {
+          // 如果角色已存在或其他错误，记录日志但不影响登录流程
+          console.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
+        }
       } else {
         // 使用原用户名创建（密码设为NULL，因为钉钉登录不需要密码）
         await this.prisma.$executeRawUnsafe(
@@ -445,6 +458,19 @@ export class AclService {
           username: user.username,
           display_name: user.display_name,
         });
+
+        // 自动分配角色 role_id = 2
+        try {
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO sm_xitongkaifa.sys_user_roles(user_id, role_id) VALUES(?, ?)`,
+            Number(user.id),
+            2
+          );
+          console.log('[AclService] ✓ 自动分配角色成功，user_id:', user.id, 'role_id: 2');
+        } catch (roleError: any) {
+          // 如果角色已存在或其他错误，记录日志但不影响登录流程
+          console.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
+        }
       }
     }
 
