@@ -109,7 +109,14 @@ export class AclService {
       try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN code VARCHAR(64) NULL`); } catch { }
     }
     if (!(await hasCol('department_id'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`); } catch { }
+      try {
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`);
+        console.log('[AclService] ✓ 已创建 department_id 字段（ensureSysUsersSchema）');
+      } catch (e: any) {
+        console.error('[AclService] ✗ 创建 department_id 字段失败（ensureSysUsersSchema）:', e.message);
+      }
+    } else {
+      console.log('[AclService] department_id 字段已存在（ensureSysUsersSchema）');
     }
     if (!(await hasCol('session_token'))) {
       try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN session_token VARCHAR(128) NULL`); } catch { }

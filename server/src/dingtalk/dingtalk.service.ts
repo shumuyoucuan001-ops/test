@@ -281,10 +281,47 @@ export class DingTalkService {
                                     if (corpTokenResponse.data.errcode === 0) {
                                         const corpAccessToken = corpTokenResponse.data.access_token;
 
+                                        // 如果userId是unionId，需要先转换为userid
+                                        let actualUserId = userId;
+                                        if (userId === userInfo.unionId) {
+                                            console.log('[DingTalkService] userId是unionId，尝试转换为userid...');
+                                            try {
+                                                // 通过unionId获取userid
+                                                const unionIdResponse = await axios.post(
+                                                    'https://oapi.dingtalk.com/topapi/user/getbyunionid',
+                                                    {
+                                                        unionid: userId,
+                                                    },
+                                                    {
+                                                        params: {
+                                                            access_token: corpAccessToken,
+                                                        },
+                                                    }
+                                                );
+                                                console.log('[DingTalkService] unionId转userid响应:', {
+                                                    errcode: unionIdResponse.data.errcode,
+                                                    errmsg: unionIdResponse.data.errmsg,
+                                                    userid: unionIdResponse.data.result?.userid,
+                                                });
+                                                if (unionIdResponse.data.errcode === 0 && unionIdResponse.data.result?.userid) {
+                                                    actualUserId = unionIdResponse.data.result.userid;
+                                                    console.log('[DingTalkService] ✓ unionId转换为userid成功:', actualUserId);
+                                                } else {
+                                                    console.warn('[DingTalkService] ⚠ unionId转userid失败，使用原unionId:', userId);
+                                                }
+                                            } catch (unionIdError: any) {
+                                                console.warn('[DingTalkService] ⚠ unionId转userid异常:', unionIdError.message);
+                                            }
+                                        }
+
+                                        console.log('[DingTalkService] 步骤3: 调用企业API获取用户详细信息...');
+                                        console.log('[DingTalkService] 使用的userId:', actualUserId);
+                                        console.log('[DingTalkService] 请求URL: https://oapi.dingtalk.com/topapi/v2/user/get');
+
                                         const detailResponse = await axios.post(
                                             'https://oapi.dingtalk.com/topapi/v2/user/get',
                                             {
-                                                userid: userId,
+                                                userid: actualUserId,
                                             },
                                             {
                                                 params: {
@@ -292,6 +329,14 @@ export class DingTalkService {
                                                 },
                                             }
                                         );
+
+                                        console.log('[DingTalkService] 获取用户详情响应:', {
+                                            errcode: detailResponse.data.errcode,
+                                            errmsg: detailResponse.data.errmsg,
+                                            hasResult: !!detailResponse.data.result,
+                                            hasDeptIdList: !!detailResponse.data.result?.dept_id_list,
+                                            deptIdList: detailResponse.data.result?.dept_id_list,
+                                        });
 
                                         if (detailResponse.data.errcode === 0 && detailResponse.data.result) {
                                             const userDetail = detailResponse.data.result;
