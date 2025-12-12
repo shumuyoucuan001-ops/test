@@ -72,6 +72,14 @@ export default function LoginPage() {
     if (code) {
       // 处理钉钉回调
       handleDingTalkCallback(code);
+
+      // 清除URL中的code和authCode参数（authCode是钉钉自动添加的冗余参数）
+      // 避免刷新页面时重复处理
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('code');
+      newUrl.searchParams.delete('authCode');
+      newUrl.searchParams.delete('state');
+      window.history.replaceState({}, '', newUrl.toString());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
