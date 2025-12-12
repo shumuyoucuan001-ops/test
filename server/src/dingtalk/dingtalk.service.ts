@@ -135,10 +135,14 @@ export class DingTalkService {
      * 通过code获取用户信息（企业内成员验证）
      * 类似Java方法：public DingTalkUserInfo getUserInfo(String code)
      * 
-     * 钉钉企业内应用OAuth2.0流程：
-     * 1. 获取access_token（使用appkey和appsecret）
-     * 2. 通过code获取用户userid（使用access_token和code）
-     * 3. 通过userid获取用户详细信息
+     * 支持两种流程：
+     * 1. OAuth2.0统一登录流程（oauth2/challenge.htm）：
+     *    - 通过code换取OAuth2.0 access_token
+     *    - 通过access_token获取用户信息
+     * 2. 企业内应用流程（兼容旧方式）：
+     *    - 获取企业应用access_token
+     *    - 通过code获取用户userid
+     *    - 通过userid获取用户详细信息
      */
     async getUserInfoByCode(code: string): Promise<DingTalkUserInfo> {
         if (!this.appKey || !this.appSecret) {
@@ -148,6 +152,106 @@ export class DingTalkService {
         try {
             console.log('[DingTalkService] 开始获取用户信息，code:', code.substring(0, 10) + '...');
 
+            // 首先尝试OAuth2.0统一登录流程（适用于oauth2/challenge.htm）
+            // 对于OAuth2.0统一登录，需要通过code获取OAuth2.0 access_token，然后获取用户信息
+            try {
+                console.log('[DingTalkService] 尝试OAuth2.0统一登录流程...');
+
+                // 通过code获取OAuth2.0 access_token
+                const oauthTokenResponse = await axios.post(
+                    'https://oapi.dingtalk.com/oauth2/gettoken',
+                    {
+                        client_id: this.appKey.trim(),
+                        client_secret: this.appSecret.trim(),
+                        code: code,
+                        grant_type: 'authorization_code',
+                    }
+                );
+
+                if (oauthTokenResponse.data.errcode === 0 && oauthTokenResponse.data.access_token) {
+                    const oauthAccessToken = oauthTokenResponse.data.access_token;
+                    console.log('[DingTalkService] OAuth2.0 access_token获取成功');
+
+                    // 通过OAuth2.0 access_token获取用户信息
+                    const oauthUserResponse = await axios.post(
+                        'https://oapi.dingtalk.com/topapi/oauth2/userinfo',
+                        {},
+                        {
+                            params: {
+                                access_token: oauthAccessToken,
+                            },
+                        }
+                    );
+
+                    if (oauthUserResponse.data.errcode === 0 && oauthUserResponse.data.result) {
+                        const oauthUserInfo = oauthUserResponse.data.result;
+                        console.log('[DingTalkService] OAuth2.0获取用户信息成功，userid:', oauthUserInfo.userid);
+
+                        // 如果有userid，获取用户详细信息
+                        if (oauthUserInfo.userid) {
+                            const corpTokenResponse = await axios.get('https://oapi.dingtalk.com/gettoken', {
+                                params: {
+                                    appkey: this.appKey,
+                                    appsecret: this.appSecret,
+                                },
+                            });
+
+                            if (corpTokenResponse.data.errcode === 0) {
+                                const corpAccessToken = corpTokenResponse.data.access_token;
+
+                                const detailResponse = await axios.post(
+                                    'https://oapi.dingtalk.com/topapi/v2/user/get',
+                                    {
+                                        userid: oauthUserInfo.userid,
+                                    },
+                                    {
+                                        params: {
+                                            access_token: corpAccessToken,
+                                        },
+                                    }
+                                );
+
+                                if (detailResponse.data.errcode === 0 && detailResponse.data.result) {
+                                    const userDetail = detailResponse.data.result;
+
+                                    if (!userDetail.active) {
+                                        throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
+                                    }
+
+                                    return {
+                                        userId: oauthUserInfo.userid,
+                                        name: userDetail.name || oauthUserInfo.name || '',
+                                        mobile: userDetail.mobile || oauthUserInfo.mobile || '',
+                                        email: userDetail.email || oauthUserInfo.email || '',
+                                        avatar: userDetail.avatar || oauthUserInfo.avatar || '',
+                                        active: userDetail.active || false,
+                                        isAdmin: userDetail.is_admin || false,
+                                        isBoss: userDetail.is_boss || false,
+                                    };
+                                }
+                            }
+                        }
+
+                        // 如果无法获取详细信息，返回基本信息
+                        return {
+                            userId: oauthUserInfo.userid || oauthUserInfo.unionid || '',
+                            name: oauthUserInfo.name || '',
+                            mobile: oauthUserInfo.mobile || '',
+                            email: oauthUserInfo.email || '',
+                            avatar: oauthUserInfo.avatar || '',
+                            active: true,
+                            isAdmin: false,
+                            isBoss: false,
+                        };
+                    }
+                }
+
+                console.log('[DingTalkService] OAuth2.0流程失败，尝试企业内应用流程...');
+            } catch (oauthError: any) {
+                console.log('[DingTalkService] OAuth2.0流程异常，尝试企业内应用流程:', oauthError.message);
+            }
+
+            // 企业内应用流程（兼容旧方式）
             // 第一步：获取access_token（企业应用的access_token）
             const tokenResponse = await axios.get('https://oapi.dingtalk.com/gettoken', {
                 params: {
