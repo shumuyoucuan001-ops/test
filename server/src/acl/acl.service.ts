@@ -329,61 +329,123 @@ export class AclService {
     const mobile = dingTalkUserInfo.mobile;
     const name = dingTalkUserInfo.name || '';
 
-    console.log('[AclService] 开始钉钉自动登录，钉钉userId:', dingTalkUserId, '手机号:', mobile);
+    console.log('[AclService] ========== 开始钉钉自动登录 ==========');
+    console.log('[AclService] 钉钉用户信息:', {
+      userId: dingTalkUserId,
+      name: name,
+      mobile: mobile,
+      email: dingTalkUserInfo.email,
+    });
 
     // 优先通过手机号查找用户（如果手机号存在）
     let user: any = null;
     if (mobile) {
-      // 尝试通过手机号查找用户（假设手机号存储在某个字段，这里先尝试通过username匹配）
-      // 如果系统中有手机号字段，可以修改查询条件
+      console.log('[AclService] 尝试通过手机号查找用户:', mobile);
+      // 尝试通过手机号查找用户（假设手机号可能存储在username或display_name字段）
       const rows: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT id, username, display_name, status, session_token FROM sm_xitongkaifa.sys_users WHERE username=? OR display_name=? LIMIT 1`,
+        `SELECT id, username, display_name, status, session_token, code FROM sm_xitongkaifa.sys_users WHERE username=? OR display_name=? LIMIT 1`,
         mobile,
-        name
+        name || mobile
       );
+      console.log('[AclService] 通过手机号/姓名查找结果:', rows.length > 0 ? `找到用户: ${rows[0].username}` : '未找到');
       if (rows.length > 0) {
         user = rows[0];
-        console.log('[AclService] 通过手机号/姓名找到用户:', user.username);
+        console.log('[AclService] ✓ 通过手机号/姓名找到用户:', user.username);
       }
     }
 
     // 如果找不到，尝试通过钉钉userId查找（假设存储在code字段）
     if (!user && dingTalkUserId) {
+      const codeValue = `dingtalk_${dingTalkUserId}`;
+      console.log('[AclService] 尝试通过钉钉userId查找用户，code:', codeValue);
       const rows: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT id, username, display_name, status, session_token FROM sm_xitongkaifa.sys_users WHERE code=? LIMIT 1`,
-        `dingtalk_${dingTalkUserId}`
+        `SELECT id, username, display_name, status, session_token, code FROM sm_xitongkaifa.sys_users WHERE code=? LIMIT 1`,
+        codeValue
       );
+      console.log('[AclService] 通过钉钉userId查找结果:', rows.length > 0 ? `找到用户: ${rows[0].username}` : '未找到');
       if (rows.length > 0) {
         user = rows[0];
-        console.log('[AclService] 通过钉钉userId找到用户:', user.username);
+        console.log('[AclService] ✓ 通过钉钉userId找到用户:', user.username);
       }
     }
 
-    // 如果还是找不到，创建新用户（可选，根据业务需求决定）
+    // 如果还是找不到，自动创建用户
     if (!user) {
-      // 方案1：如果找不到用户，返回错误，提示需要先创建账号
-      throw new BadRequestException(`未找到对应的系统用户，请先联系管理员创建账号。钉钉用户: ${name} (${mobile || dingTalkUserId})`);
+      console.log('[AclService] 未找到用户，开始自动创建新用户...');
 
-      // 方案2：自动创建用户（如果需要，取消注释下面的代码）
-      /*
+      // 生成用户名：优先使用手机号，如果没有则使用钉钉userId
       const username = mobile || `dingtalk_${dingTalkUserId}`;
-      const displayName = name || username;
-      
-      console.log('[AclService] 未找到用户，自动创建新用户:', username);
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.sys_users(username, display_name, code, status) VALUES(?, ?, ?, ?)`,
-        username,
-        displayName,
-        `dingtalk_${dingTalkUserId}`,
-        1
-      );
-      
-      const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+      // 使用钉钉用户的真实姓名作为display_name，如果没有姓名则使用用户名
+      const displayName = name.trim() || username;
+
+      console.log('[AclService] 准备创建用户:', {
+        username: username,
+        display_name: displayName,
+        code: `dingtalk_${dingTalkUserId}`,
+      });
+
+      // 检查用户名是否已存在
+      const exists: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
         username
       );
-      user = newUserRows[0];
-      */
+
+      if (exists.length > 0) {
+        // 如果用户名已存在，使用钉钉userId作为用户名
+        const altUsername = `dingtalk_${dingTalkUserId}`;
+        console.log('[AclService] 用户名已存在，使用备用用户名:', altUsername);
+
+        const altExists: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+          altUsername
+        );
+
+        if (altExists.length > 0) {
+          throw new BadRequestException(`无法创建用户：用户名 ${username} 和 ${altUsername} 都已存在`);
+        }
+
+        // 使用备用用户名创建（密码设为NULL，因为钉钉登录不需要密码）
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status) VALUES(?, ?, ?, ?, ?)`,
+          altUsername,
+          null, // 钉钉登录不需要密码，设为NULL
+          displayName,
+          `dingtalk_${dingTalkUserId}`,
+          1
+        );
+
+        const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+          altUsername
+        );
+        user = newUserRows[0];
+        console.log('[AclService] ✓ 自动创建用户成功（使用备用用户名）:', {
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name,
+        });
+      } else {
+        // 使用原用户名创建（密码设为NULL，因为钉钉登录不需要密码）
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status) VALUES(?, ?, ?, ?, ?)`,
+          username,
+          null, // 钉钉登录不需要密码，设为NULL
+          displayName,
+          `dingtalk_${dingTalkUserId}`,
+          1
+        );
+
+        const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+          username
+        );
+        user = newUserRows[0];
+        console.log('[AclService] ✓ 自动创建用户成功:', {
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name,
+        });
+      }
     }
 
     // 检查用户状态
