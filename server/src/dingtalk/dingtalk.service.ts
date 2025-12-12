@@ -156,6 +156,10 @@ export class DingTalkService {
             // 对于OAuth2.0统一登录，需要通过code获取OAuth2.0 access_token，然后获取用户信息
             try {
                 console.log('[DingTalkService] 尝试OAuth2.0统一登录流程...');
+                console.log('[DingTalkService] 使用参数:', {
+                    client_id: this.appKey.trim().substring(0, 10) + '...',
+                    code_length: code.length,
+                });
 
                 // 通过code获取OAuth2.0 access_token
                 const oauthTokenResponse = await axios.post(
@@ -168,27 +172,108 @@ export class DingTalkService {
                     }
                 );
 
-                if (oauthTokenResponse.data.errcode === 0 && oauthTokenResponse.data.access_token) {
-                    const oauthAccessToken = oauthTokenResponse.data.access_token;
-                    console.log('[DingTalkService] OAuth2.0 access_token获取成功');
+                console.log('[DingTalkService] OAuth2.0 gettoken响应:', {
+                    errcode: oauthTokenResponse.data.errcode,
+                    errmsg: oauthTokenResponse.data.errmsg,
+                    hasToken: !!oauthTokenResponse.data.access_token,
+                    hasOpenId: !!oauthTokenResponse.data.openid,
+                    hasUnionId: !!oauthTokenResponse.data.unionid,
+                });
 
-                    // 通过OAuth2.0 access_token获取用户信息
-                    const oauthUserResponse = await axios.post(
-                        'https://oapi.dingtalk.com/topapi/oauth2/userinfo',
-                        {},
-                        {
-                            params: {
-                                access_token: oauthAccessToken,
-                            },
+                if (oauthTokenResponse.data.errcode === 0) {
+                    if (oauthTokenResponse.data.access_token) {
+                        const oauthAccessToken = oauthTokenResponse.data.access_token;
+                        console.log('[DingTalkService] OAuth2.0 access_token获取成功');
+
+                        // 通过OAuth2.0 access_token获取用户信息
+                        const oauthUserResponse = await axios.post(
+                            'https://oapi.dingtalk.com/topapi/oauth2/userinfo',
+                            {},
+                            {
+                                params: {
+                                    access_token: oauthAccessToken,
+                                },
+                            }
+                        );
+
+                        console.log('[DingTalkService] OAuth2.0 userinfo响应:', {
+                            errcode: oauthUserResponse.data.errcode,
+                            errmsg: oauthUserResponse.data.errmsg,
+                            hasResult: !!oauthUserResponse.data.result,
+                            result: oauthUserResponse.data.result,
+                        });
+
+                        if (oauthUserResponse.data.errcode === 0 && oauthUserResponse.data.result) {
+                            const oauthUserInfo = oauthUserResponse.data.result;
+                            console.log('[DingTalkService] OAuth2.0获取用户信息成功，userid:', oauthUserInfo.userid);
+
+                            // 如果有userid，获取用户详细信息
+                            if (oauthUserInfo.userid) {
+                                const corpTokenResponse = await axios.get('https://oapi.dingtalk.com/gettoken', {
+                                    params: {
+                                        appkey: this.appKey,
+                                        appsecret: this.appSecret,
+                                    },
+                                });
+
+                                if (corpTokenResponse.data.errcode === 0) {
+                                    const corpAccessToken = corpTokenResponse.data.access_token;
+
+                                    const detailResponse = await axios.post(
+                                        'https://oapi.dingtalk.com/topapi/v2/user/get',
+                                        {
+                                            userid: oauthUserInfo.userid,
+                                        },
+                                        {
+                                            params: {
+                                                access_token: corpAccessToken,
+                                            },
+                                        }
+                                    );
+
+                                    if (detailResponse.data.errcode === 0 && detailResponse.data.result) {
+                                        const userDetail = detailResponse.data.result;
+
+                                        if (!userDetail.active) {
+                                            throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
+                                        }
+
+                                        return {
+                                            userId: oauthUserInfo.userid,
+                                            name: userDetail.name || oauthUserInfo.name || '',
+                                            mobile: userDetail.mobile || oauthUserInfo.mobile || '',
+                                            email: userDetail.email || oauthUserInfo.email || '',
+                                            avatar: userDetail.avatar || oauthUserInfo.avatar || '',
+                                            active: userDetail.active || false,
+                                            isAdmin: userDetail.is_admin || false,
+                                            isBoss: userDetail.is_boss || false,
+                                        };
+                                    }
+                                }
+                            }
+
+                            // 如果无法获取详细信息，返回基本信息
+                            return {
+                                userId: oauthUserInfo.userid || oauthUserInfo.unionid || '',
+                                name: oauthUserInfo.name || '',
+                                mobile: oauthUserInfo.mobile || '',
+                                email: oauthUserInfo.email || '',
+                                avatar: oauthUserInfo.avatar || '',
+                                active: true,
+                                isAdmin: false,
+                                isBoss: false,
+                            };
                         }
-                    );
+                    } else {
+                        // 如果返回了openid或unionid，但没有access_token，尝试通过unionid获取用户信息
+                        console.log('[DingTalkService] OAuth2.0返回了openid/unionid，但没有access_token');
+                        if (oauthTokenResponse.data.unionid || oauthTokenResponse.data.openid) {
+                            const unionid = oauthTokenResponse.data.unionid;
+                            const openid = oauthTokenResponse.data.openid;
 
-                    if (oauthUserResponse.data.errcode === 0 && oauthUserResponse.data.result) {
-                        const oauthUserInfo = oauthUserResponse.data.result;
-                        console.log('[DingTalkService] OAuth2.0获取用户信息成功，userid:', oauthUserInfo.userid);
+                            console.log('[DingTalkService] 尝试通过unionid获取用户信息，unionid:', unionid);
 
-                        // 如果有userid，获取用户详细信息
-                        if (oauthUserInfo.userid) {
+                            // 获取企业应用access_token
                             const corpTokenResponse = await axios.get('https://oapi.dingtalk.com/gettoken', {
                                 params: {
                                     appkey: this.appKey,
@@ -196,13 +281,14 @@ export class DingTalkService {
                                 },
                             });
 
-                            if (corpTokenResponse.data.errcode === 0) {
+                            if (corpTokenResponse.data.errcode === 0 && unionid) {
                                 const corpAccessToken = corpTokenResponse.data.access_token;
 
-                                const detailResponse = await axios.post(
-                                    'https://oapi.dingtalk.com/topapi/v2/user/get',
+                                // 通过unionid获取用户信息
+                                const unionUserResponse = await axios.post(
+                                    'https://oapi.dingtalk.com/topapi/user/getbyunionid',
                                     {
-                                        userid: oauthUserInfo.userid,
+                                        unionid: unionid,
                                     },
                                     {
                                         params: {
@@ -211,44 +297,63 @@ export class DingTalkService {
                                     }
                                 );
 
-                                if (detailResponse.data.errcode === 0 && detailResponse.data.result) {
-                                    const userDetail = detailResponse.data.result;
+                                console.log('[DingTalkService] getbyunionid响应:', {
+                                    errcode: unionUserResponse.data.errcode,
+                                    errmsg: unionUserResponse.data.errmsg,
+                                    hasResult: !!unionUserResponse.data.result,
+                                });
 
-                                    if (!userDetail.active) {
-                                        throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
+                                if (unionUserResponse.data.errcode === 0 && unionUserResponse.data.result) {
+                                    const unionUser = unionUserResponse.data.result;
+
+                                    // 获取用户详细信息
+                                    const detailResponse = await axios.post(
+                                        'https://oapi.dingtalk.com/topapi/v2/user/get',
+                                        {
+                                            userid: unionUser.userid,
+                                        },
+                                        {
+                                            params: {
+                                                access_token: corpAccessToken,
+                                            },
+                                        }
+                                    );
+
+                                    if (detailResponse.data.errcode === 0 && detailResponse.data.result) {
+                                        const userDetail = detailResponse.data.result;
+
+                                        if (!userDetail.active) {
+                                            throw new BadRequestException('该用户账号未激活，不是有效的企业内成员');
+                                        }
+
+                                        return {
+                                            userId: unionUser.userid,
+                                            name: userDetail.name || '',
+                                            mobile: userDetail.mobile || '',
+                                            email: userDetail.email || '',
+                                            avatar: userDetail.avatar || '',
+                                            active: userDetail.active || false,
+                                            isAdmin: userDetail.is_admin || false,
+                                            isBoss: userDetail.is_boss || false,
+                                        };
                                     }
-
-                                    return {
-                                        userId: oauthUserInfo.userid,
-                                        name: userDetail.name || oauthUserInfo.name || '',
-                                        mobile: userDetail.mobile || oauthUserInfo.mobile || '',
-                                        email: userDetail.email || oauthUserInfo.email || '',
-                                        avatar: userDetail.avatar || oauthUserInfo.avatar || '',
-                                        active: userDetail.active || false,
-                                        isAdmin: userDetail.is_admin || false,
-                                        isBoss: userDetail.is_boss || false,
-                                    };
                                 }
                             }
                         }
-
-                        // 如果无法获取详细信息，返回基本信息
-                        return {
-                            userId: oauthUserInfo.userid || oauthUserInfo.unionid || '',
-                            name: oauthUserInfo.name || '',
-                            mobile: oauthUserInfo.mobile || '',
-                            email: oauthUserInfo.email || '',
-                            avatar: oauthUserInfo.avatar || '',
-                            active: true,
-                            isAdmin: false,
-                            isBoss: false,
-                        };
                     }
+                } else {
+                    console.log('[DingTalkService] OAuth2.0 gettoken失败:', {
+                        errcode: oauthTokenResponse.data.errcode,
+                        errmsg: oauthTokenResponse.data.errmsg,
+                    });
                 }
 
                 console.log('[DingTalkService] OAuth2.0流程失败，尝试企业内应用流程...');
             } catch (oauthError: any) {
-                console.log('[DingTalkService] OAuth2.0流程异常，尝试企业内应用流程:', oauthError.message);
+                console.log('[DingTalkService] OAuth2.0流程异常，尝试企业内应用流程:', {
+                    message: oauthError.message,
+                    response: oauthError.response?.data,
+                });
             }
 
             // 企业内应用流程（兼容旧方式）
@@ -293,10 +398,15 @@ export class DingTalkService {
                 errmsg: userResponse.data.errmsg,
                 hasResult: !!userResponse.data.result,
                 userId: userResponse.data.result?.userid,
+                fullResponse: JSON.stringify(userResponse.data),
             });
 
             if (userResponse.data.errcode !== 0) {
-                console.error('[DingTalkService] 获取用户信息失败:', userResponse.data);
+                console.error('[DingTalkService] 获取用户信息失败:', {
+                    errcode: userResponse.data.errcode,
+                    errmsg: userResponse.data.errmsg,
+                    fullResponse: JSON.stringify(userResponse.data),
+                });
                 throw new BadRequestException(`获取用户信息失败: ${userResponse.data.errmsg || '未知错误'} (错误码: ${userResponse.data.errcode})`);
             }
 
