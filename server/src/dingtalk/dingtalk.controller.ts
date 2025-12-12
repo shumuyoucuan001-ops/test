@@ -56,18 +56,27 @@ export class DingTalkController {
     @Post('callback')
     async handleCallback(@Body() body: { code: string }) {
         try {
-            console.log('[DingTalkController] 收到回调请求，body:', {
-                hasCode: !!body.code,
-                codeLength: body.code?.length
-            });
+            console.log('[DingTalkController] ========== 收到钉钉回调请求 ==========');
+            console.log('[DingTalkController] 请求body:', JSON.stringify(body, null, 2));
+            console.log('[DingTalkController] code存在:', !!body.code);
+            console.log('[DingTalkController] code长度:', body.code?.length);
+            console.log('[DingTalkController] code预览:', body.code ? body.code.substring(0, 20) + '...' : '无');
 
             if (!body.code) {
-                console.error('[DingTalkController] 缺少授权码');
+                console.error('[DingTalkController] ✗ 缺少授权码');
                 throw new BadRequestException('缺少授权码');
             }
 
+            console.log('[DingTalkController] 开始调用 getUserInfoByCode...');
             const userInfo = await this.dingTalkService.getUserInfoByCode(body.code);
-            console.log('[DingTalkController] 钉钉验证成功，用户:', userInfo.name);
+            console.log('[DingTalkController] ✓ 钉钉验证成功');
+            console.log('[DingTalkController] 用户信息:', {
+                userId: userInfo.userId,
+                name: userInfo.name,
+                mobile: userInfo.mobile,
+                email: userInfo.email,
+                active: userInfo.active,
+            });
 
             return {
                 success: true,
@@ -75,10 +84,19 @@ export class DingTalkController {
                 message: '钉钉验证成功，该用户是企业内成员',
             };
         } catch (error: any) {
-            console.error('[DingTalkController] 钉钉回调处理失败:', {
-                message: error.message,
-                stack: error.stack,
-            });
+            console.error('[DingTalkController] ========== 钉钉回调处理失败 ==========');
+            console.error('[DingTalkController] 错误类型:', error.constructor.name);
+            console.error('[DingTalkController] 错误消息:', error.message);
+            console.error('[DingTalkController] 错误堆栈:', error.stack);
+
+            if (error.response) {
+                console.error('[DingTalkController] HTTP响应:', {
+                    status: error.response.status,
+                    data: error.response.data,
+                });
+            }
+
+            console.error('[DingTalkController] ===========================================');
             throw new BadRequestException(error.message || '钉钉验证失败');
         }
     }
