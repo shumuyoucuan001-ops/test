@@ -33,10 +33,10 @@ export class DingTalkService {
     }
 
     /**
-     * 生成钉钉授权URL（免登扫码地址）
+     * 生成钉钉授权URL（企业登录地址）
      * 类似Java方法：public String generateAuthUrl()
      * 
-     * 注意：使用钉钉免登扫码地址 qrconnect
+     * 注意：使用钉钉企业登录地址 oauth2/challenge.htm
      */
     generateAuthUrl(state?: string): string {
         if (!this.appKey || !this.corpId) {
@@ -63,26 +63,26 @@ export class DingTalkService {
             throw new BadRequestException(`回调地址格式不正确: ${cleanRedirectUri}`);
         }
 
-        // 钉钉免登扫码地址
+        // 钉钉企业登录地址
         // 注意：redirect_uri 必须是完整URL，且必须进行URL编码
         // 使用 URLSearchParams 确保参数正确编码
         const params = new URLSearchParams();
-        params.append('appid', this.appKey.trim()); // 确保去除空格
-        params.append('response_type', 'code');
-        params.append('scope', 'openid'); // 免登扫码使用openid
         params.append('redirect_uri', cleanRedirectUri); // URLSearchParams会自动进行URL编码
-        params.append('state', (state || 'login').trim());
+        params.append('response_type', 'code');
+        params.append('client_id', this.appKey.trim()); // 使用client_id替代appid
+        params.append('scope', 'openid corpid'); // 企业登录使用 openid corpid
+        params.append('prompt', 'consent'); // 添加prompt参数
 
-        const authUrl = `https://oapi.dingtalk.com/connect/qrconnect?${params.toString()}`;
+        const authUrl = `https://login.dingtalk.com/oauth2/challenge.htm?${params.toString()}`;
 
         // 调试：打印完整的授权URL和参数
         console.log('[DingTalkService] 授权URL参数详情:', {
-            appid: this.appKey.trim(),
+            client_id: this.appKey.trim(),
             response_type: 'code',
-            scope: 'openid',
+            scope: 'openid corpid',
             redirect_uri: cleanRedirectUri,
             redirect_uri_encoded: encodeURIComponent(cleanRedirectUri),
-            state: (state || 'login').trim(),
+            prompt: 'consent',
             corpId: this.corpId.trim(),
         });
 
@@ -91,7 +91,7 @@ export class DingTalkService {
         console.log('[DingTalkService] ========== 钉钉授权URL生成 ==========');
         console.log('[DingTalkService] 生成的授权URL:', authUrl);
         console.log('[DingTalkService] 配置信息:');
-        console.log('[DingTalkService]   - AppKey:', this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置');
+        console.log('[DingTalkService]   - AppKey (client_id):', this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置');
         console.log('[DingTalkService]   - CorpId:', this.corpId ? `${this.corpId.substring(0, 10)}...` : '未配置');
         console.log('[DingTalkService]   - RedirectUri:', cleanRedirectUri);
         console.log('[DingTalkService]   - Hostname:', hostname);
