@@ -201,7 +201,7 @@ export default function StoreRejectionPage() {
                     >
                         驳回全部
                     </Button>
-                    <span style={{ color: '#999', fontSize: '12px' }}>驳回该单所有差异单</span>
+                    <span style={{ color: '#999', fontSize: '9px' }}>驳回该收获单所有上报商品</span>
                 </Space>
             ),
         };
