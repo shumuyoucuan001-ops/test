@@ -18,8 +18,10 @@ import {
 import {
   App,
   Button,
+  Input,
   Layout,
   Menu,
+  message,
   Space,
   Spin,
   Tabs,
@@ -27,6 +29,7 @@ import {
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { usePermissions } from '../../hooks/usePermissions';
+import { aclApi } from '../../lib/api';
 
 const { Header, Sider, Content } = Layout;
 
@@ -112,7 +115,13 @@ export default function HomeLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [siderVisible, setSiderVisible] = useState(true);
   const [displayName, setDisplayName] = useState('');
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [editInputValue, setEditInputValue] = useState('');
+  const [editCount, setEditCount] = useState(0);
+  const [remainingEdits, setRemainingEdits] = useState(2);
+  const [loadingEdit, setLoadingEdit] = useState(false);
   const [selectedKey, setSelectedKey] = useState('home');
   const [openTabs, setOpenTabs] = useState<string[]>(['home']);
   const [activeTab, setActiveTab] = useState('home');
@@ -147,6 +156,20 @@ export default function HomeLayout({
   useEffect(() => {
     const dn = localStorage.getItem('displayName') || '';
     setDisplayName(dn);
+    setEditInputValue(dn);
+
+    // 获取编辑次数信息
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      aclApi.getUserEditCount(Number(userId))
+        .then((info) => {
+          setEditCount(info.editCount);
+          setRemainingEdits(info.remaining);
+        })
+        .catch((err) => {
+          console.error('获取编辑次数失败:', err);
+        });
+    }
   }, []);
 
   // 单点登录心跳检查：定期验证 token 是否有效
@@ -232,6 +255,63 @@ export default function HomeLayout({
   const handleLogout = () => {
     localStorage.clear();
     router.push('/login');
+  };
+
+  // 开始编辑 display_name
+  const handleStartEdit = () => {
+    if (remainingEdits <= 0) {
+      message.warning('display_name 最多只能编辑2次，已达到上限');
+      return;
+    }
+    setEditingDisplayName(true);
+    setEditInputValue(displayName);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setEditingDisplayName(false);
+    setEditInputValue(displayName);
+  };
+
+  // 保存 display_name
+  const handleSaveDisplayName = async () => {
+    const trimmedValue = editInputValue.trim();
+    if (!trimmedValue) {
+      message.error('显示名不能为空');
+      return;
+    }
+    if (trimmedValue === displayName) {
+      setEditingDisplayName(false);
+      return;
+    }
+
+    setLoadingEdit(true);
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        message.error('用户信息不存在');
+        return;
+      }
+
+      await aclApi.updateUser(Number(userId), { display_name: trimmedValue });
+
+      // 更新本地状态
+      setDisplayName(trimmedValue);
+      localStorage.setItem('displayName', trimmedValue);
+
+      // 更新编辑次数
+      const editInfo = await aclApi.getUserEditCount(Number(userId));
+      setEditCount(editInfo.editCount);
+      setRemainingEdits(editInfo.remaining);
+
+      message.success('显示名更新成功');
+      setEditingDisplayName(false);
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.message || error?.message || '更新失败';
+      message.error(errorMsg);
+    } finally {
+      setLoadingEdit(false);
+    }
   };
 
   // 菜单项配置（根据权限过滤）
@@ -389,32 +469,86 @@ export default function HomeLayout({
   return (
     <App>
       <Layout style={{ minHeight: '100vh' }}>
-        <Sider
-          trigger={null}
-          collapsible
-          collapsed={collapsed}
-          theme="dark"
-        >
-          <div style={{
-            height: 48,
-            margin: 16,
-            color: '#fff',
-            fontSize: collapsed ? 14 : 18,
-            fontWeight: 'bold',
-            textAlign: 'left',
-            overflow: 'hidden'
-          }}>
-            {collapsed ? '术木' : '术木优选'}
-          </div>
-          <Menu
+        {siderVisible && (
+          <Sider
+            trigger={null}
+            collapsible
+            collapsed={collapsed}
             theme="dark"
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={getFilteredMenuItems()}
-            onClick={handleMenuClick}
-            inlineCollapsed={collapsed}
-          />
-        </Sider>
+          >
+            <div style={{
+              height: 48,
+              margin: 16,
+              color: '#fff',
+              fontSize: collapsed ? 14 : 18,
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              overflow: 'hidden'
+            }}>
+              <span style={{
+                flex: 1,
+                textAlign: 'left',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {collapsed ? '术木' : '术木优选'}
+              </span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                flexShrink: 0,
+                marginLeft: 8
+              }}>
+                <Button
+                  type="text"
+                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                  onClick={() => setCollapsed(!collapsed)}
+                  style={{
+                    color: '#fff',
+                    fontSize: '16px',
+                    width: 32,
+                    height: 32,
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title={collapsed ? '展开' : '收缩'}
+                />
+                {!collapsed && (
+                  <Button
+                    type="text"
+                    icon={<MenuFoldOutlined />}
+                    onClick={() => setSiderVisible(false)}
+                    style={{
+                      color: '#fff',
+                      fontSize: '16px',
+                      width: 32,
+                      height: 32,
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title="隐藏侧边栏"
+                  />
+                )}
+              </div>
+            </div>
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              items={getFilteredMenuItems()}
+              onClick={handleMenuClick}
+              inlineCollapsed={collapsed}
+            />
+          </Sider>
+        )}
 
         <Layout>
           <Header style={{
@@ -426,21 +560,95 @@ export default function HomeLayout({
             height: 48,
             lineHeight: '48px'
           }}>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{
-                fontSize: '16px',
-                width: 48,
-                height: 48,
-              }}
-            />
+            {siderVisible ? (
+              <Button
+                type="text"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed(!collapsed)}
+                style={{
+                  fontSize: '16px',
+                  width: 48,
+                  height: 48,
+                }}
+                title={collapsed ? '展开侧边栏' : '收缩侧边栏'}
+              />
+            ) : (
+              <Button
+                type="text"
+                icon={<MenuUnfoldOutlined />}
+                onClick={() => {
+                  setSiderVisible(true);
+                  setCollapsed(false);
+                }}
+                style={{
+                  fontSize: '16px',
+                  width: 48,
+                  height: 48,
+                }}
+                title="显示侧边栏"
+              />
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ color: '#666', fontSize: 14 }}>
-                {displayName}
-              </div>
+              {editingDisplayName ? (
+                <Space size="small">
+                  <Input
+                    value={editInputValue}
+                    onChange={(e) => setEditInputValue(e.target.value)}
+                    onPressEnter={handleSaveDisplayName}
+                    onBlur={handleSaveDisplayName}
+                    autoFocus
+                    maxLength={64}
+                    style={{ width: 150 }}
+                    disabled={loadingEdit}
+                  />
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={handleSaveDisplayName}
+                    loading={loadingEdit}
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={handleCancelEdit}
+                    disabled={loadingEdit}
+                  >
+                    取消
+                  </Button>
+                </Space>
+              ) : (
+                <Space size="small">
+                  <div
+                    style={{
+                      color: '#666',
+                      fontSize: 14,
+                      cursor: remainingEdits > 0 ? 'pointer' : 'default',
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      transition: 'background-color 0.2s',
+                    }}
+                    onClick={handleStartEdit}
+                    onMouseEnter={(e) => {
+                      if (remainingEdits > 0) {
+                        e.currentTarget.style.backgroundColor = '#f5f5f5';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                    title={remainingEdits > 0 ? `点击编辑（剩余 ${remainingEdits} 次）` : '已达到编辑上限'}
+                  >
+                    {displayName}
+                  </div>
+                  {remainingEdits > 0 && (
+                    <span style={{ color: '#999', fontSize: 12 }}>
+                      (可编辑 {remainingEdits} 次)
+                    </span>
+                  )}
+                </Space>
+              )}
               <Button size="small" onClick={handleLogout}>
                 退出登录
               </Button>

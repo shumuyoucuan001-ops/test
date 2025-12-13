@@ -485,6 +485,10 @@ export const aclApi = {
 
   // user permissions
   userPermissions: (userId: number): Promise<SysPermission[]> => api.get('/acl/user-permissions', { params: { userId } }).then(res => res.data),
+
+  // user edit count (用于显示 display_name 编辑次数)
+  getUserEditCount: (userId: number): Promise<{ editCount: number; remaining: number }> =>
+    api.get('/acl/users/edit-count', { params: { userId } }).then(res => res.data),
 };
 
 export default api;

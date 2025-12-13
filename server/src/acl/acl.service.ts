@@ -30,6 +30,7 @@ export class AclService {
       { name: 'session_token', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN session_token VARCHAR(128) NULL` },
       { name: 'last_login_time', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN last_login_time DATETIME NULL` },
       { name: 'last_login_device', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN last_login_device VARCHAR(255) NULL` },
+      { name: 'display_name_edit_count', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN display_name_edit_count INT NULL DEFAULT 0` },
     ];
 
     for (const col of columns) {
@@ -320,9 +321,66 @@ export class AclService {
       );
     }
   }
-  updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: string | number }) {
-    const sets: string[] = []; const vals: any[] = [];
-    if (u.display_name !== undefined) { sets.push('display_name=?'); vals.push(u.display_name); }
+  async updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: string | number }) {
+    await this.ensureSysUsersSchema();
+
+    // 如果要更新 display_name，检查编辑次数
+    if (u.display_name !== undefined) {
+      const userRows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT display_name, display_name_edit_count FROM sm_xitongkaifa.sys_users WHERE id=? LIMIT 1`,
+        id
+      );
+
+      if (userRows.length === 0) {
+        throw new BadRequestException('用户不存在');
+      }
+
+      const currentDisplayName = userRows[0].display_name;
+      const editCount = Number(userRows[0].display_name_edit_count || 0);
+
+      // 如果 display_name 没有变化，不需要更新
+      if (currentDisplayName === u.display_name) {
+        return Promise.resolve(0);
+      }
+
+      // 检查编辑次数是否超过限制（最多2次）
+      if (editCount >= 2) {
+        throw new BadRequestException('display_name 最多只能编辑2次，已达到上限');
+      }
+
+      // 更新 display_name 和编辑次数
+      const newEditCount = editCount + 1;
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE sm_xitongkaifa.sys_users SET display_name=?, display_name_edit_count=? WHERE id=?`,
+        u.display_name,
+        newEditCount,
+        id
+      );
+
+      Logger.log(`[AclService] 用户 ${id} 更新 display_name，编辑次数: ${newEditCount}/2`);
+
+      // 如果还有其他字段需要更新，继续更新（但不包括 display_name，因为已经更新了）
+      const otherSets: string[] = [];
+      const otherVals: any[] = [];
+      if (u.status !== undefined) { otherSets.push('status=?'); otherVals.push(u.status); }
+      if (u.password !== undefined) { otherSets.push('password=?'); otherVals.push(u.password); }
+      if (u.code !== undefined) { otherSets.push('code=?'); otherVals.push(u.code); }
+      if (u.department_id !== undefined) { otherSets.push('department_id=?'); otherVals.push(u.department_id); }
+
+      if (otherSets.length > 0) {
+        otherVals.push(id);
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE sm_xitongkaifa.sys_users SET ${otherSets.join(',')} WHERE id=?`,
+          ...otherVals
+        );
+      }
+
+      return Promise.resolve(1);
+    }
+
+    // 如果不是更新 display_name，使用原来的逻辑
+    const sets: string[] = [];
+    const vals: any[] = [];
     if (u.status !== undefined) { sets.push('status=?'); vals.push(u.status); }
     if (u.password !== undefined) { sets.push('password=?'); vals.push(u.password); }
     if (u.code !== undefined) { sets.push('code=?'); vals.push(u.code); }
@@ -330,6 +388,25 @@ export class AclService {
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
     return this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_users SET ${sets.join(',')} WHERE id=?`, ...vals);
+  }
+
+  // 获取用户的 display_name 编辑次数信息
+  async getUserEditCount(userId: number): Promise<{ editCount: number; remaining: number }> {
+    await this.ensureSysUsersSchema();
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT display_name_edit_count FROM sm_xitongkaifa.sys_users WHERE id=? LIMIT 1`,
+      userId
+    );
+
+    if (rows.length === 0) {
+      throw new BadRequestException('用户不存在');
+    }
+
+    const editCount = Number(rows[0].display_name_edit_count || 0);
+    return {
+      editCount,
+      remaining: Math.max(0, 2 - editCount)
+    };
   }
   deleteUser(id: number) { return this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_users WHERE id=?`, id); }
   setUserRoles(userId: number, roleIds: number[]) {

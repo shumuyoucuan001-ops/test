@@ -42,6 +42,7 @@ export class AclController {
   @Post('users/delete') deleteUser(@Body('id') id: number) { return this.service.deleteUser(Number(id)); }
   @Post('users/assign') setUserRoles(@Body() b: any) { return this.service.setUserRoles(Number(b.userId), (b.roleIds || []).map(Number)); }
   @Get('users/assigned') getUserRoleIds(@Query('userId') userId: string) { return this.service.getUserRoleIds(Number(userId)); }
+  @Get('users/edit-count') getUserEditCount(@Query('userId') userId: string) { return this.service.getUserEditCount(Number(userId)); }
 
   // user permission list
   @Get('user-permissions') getUserPerms(@Query('userId') userId: string) { return this.service.getUserPermissions(Number(userId)); }
