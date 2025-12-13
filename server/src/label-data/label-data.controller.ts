@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
-import { LabelDataService } from './label-data.service';
 import { Logger } from '../utils/logger.util';
+import { LabelDataService } from './label-data.service';
 
 @Controller('label-data')
 export class LabelDataController {
-  constructor(private readonly service: LabelDataService) {}
+  constructor(private readonly service: LabelDataService) { }
 
   @Get()
   list(@Query('sku') sku?: string, @Query('q') q?: string, @Query('limit') limit?: string) {
@@ -35,12 +35,12 @@ export class LabelDataController {
   @Get('suppliers-by-sku')
   async getSuppliersBySku(@Query('sku') sku: string) {
     Logger.log('[LabelDataController] getSuppliersBySku called with:', { sku });
-    
+
     if (!sku) {
       Logger.log('[LabelDataController] Missing SKU parameter');
       return { error: 'Missing sku parameter' };
     }
-    
+
     try {
       const suppliers = await this.service.getSuppliersBySku(sku);
       Logger.log('[LabelDataController] Found suppliers:', suppliers);
@@ -55,12 +55,12 @@ export class LabelDataController {
   @Get('by-sku-supplier')
   async bySkuAndSupplier(@Query('sku') sku: string, @Query('supplierName') supplierName: string) {
     Logger.log('[LabelDataController] bySkuAndSupplier called with:', { sku, supplierName });
-    
+
     if (!sku || !supplierName) {
       Logger.log('[LabelDataController] Missing parameters');
       return { error: 'Missing sku or supplierName parameters' };
     }
-    
+
     try {
       const result = await this.service.getBySkuAndSupplierName(sku, supplierName);
       Logger.log('[LabelDataController] Result:', result);
@@ -125,7 +125,7 @@ export class LabelDataController {
   }) {
     // 字数验证（移除productSpec验证）
     const validationErrors: string[] = [];
-    
+
     if (data.headerInfo && data.headerInfo.length > 15) {
       validationErrors.push('抬头信息不能超过15个字');
     }
@@ -147,7 +147,7 @@ export class LabelDataController {
     if (data.otherInfo && data.otherInfo.length > 12) {
       validationErrors.push('其他信息不能超过12个字');
     }
-    
+
     if (validationErrors.length > 0) {
       return {
         success: false,
@@ -155,14 +155,14 @@ export class LabelDataController {
         errors: validationErrors
       };
     }
-    
+
     return this.service.createOrUpdateLabelData(data);
   }
 
   // 删除标签数据
   @Delete('delete/:sku/:supplierName')
   async deleteLabelData(
-    @Param('sku') sku: string, 
+    @Param('sku') sku: string,
     @Param('supplierName') supplierName: string
   ) {
     return this.service.deleteLabelData(sku, supplierName);
@@ -179,7 +179,7 @@ export class LabelDataController {
     Logger.log('[LabelDataController] getLogs returned:', result.length, 'records');
     return result;
   }
-  
+
   // 测试端点：查看某个SKU的所有日志记录（不过滤supplier）
   @Get('logs/debug/:sku')
   async getLogsDebug(@Param('sku') sku: string) {
@@ -190,7 +190,7 @@ export class LabelDataController {
 // 新增控制器：标签审核数据
 @Controller('label-data-audit')
 export class LabelDataAuditController {
-  constructor(private readonly service: LabelDataService) {}
+  constructor(private readonly service: LabelDataService) { }
 
   // 根据SKU和供应商名称获取审核数据
   @Get('by-sku-supplier')

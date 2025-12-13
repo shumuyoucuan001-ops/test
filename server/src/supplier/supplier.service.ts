@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
-import { SupplierFullInfo, SupplierManagement } from './supplier.controller';
 import { Logger } from '../utils/logger.util';
+import { SupplierFullInfo, SupplierManagement } from './supplier.controller';
 
 @Injectable()
 export class SupplierService {
@@ -40,7 +40,7 @@ export class SupplierService {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='供应商管理变更日志表'
     `;
-    
+
     await connection.execute(createTableQuery);
   }
 
@@ -53,16 +53,16 @@ export class SupplierService {
     userName?: string;
   }): Promise<void> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       await this.ensureLogTableExists(connection);
-      
+
       const insertLogQuery = `
         INSERT INTO supplier_management_change_log 
         (supplier_code, action, changes, user_id, user_name, created_at)
         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
-      
+
       await connection.execute(insertLogQuery, [
         data.supplierCode,
         data.action,
@@ -70,7 +70,7 @@ export class SupplierService {
         data.userId || null,
         data.userName || null,
       ]);
-      
+
       // 删除超过30条的旧记录
       const deleteOldLogsQuery = `
         DELETE FROM supplier_management_change_log
@@ -85,12 +85,12 @@ export class SupplierService {
         )
         AND supplier_code = ?
       `;
-      
+
       await connection.execute(deleteOldLogsQuery, [
         data.supplierCode,
         data.supplierCode,
       ]);
-      
+
       Logger.log('[SupplierService] Old logs cleaned up (keeping max 30 records)');
     } catch (error) {
       Logger.error('[SupplierService] Failed to insert log:', error);
@@ -105,14 +105,14 @@ export class SupplierService {
     search?: string,
   ): Promise<{ data: SupplierFullInfo[]; total: number }> {
     const connection = await this.getConnection();
-    
+
     try {
       const offset = (page - 1) * limit;
-      
+
       // 构建搜索条件
       let whereClause = '1=1';
       const queryParams: any[] = [];
-      
+
       if (search) {
         whereClause += ' AND (sb.供应商编码 LIKE ? OR sb.供应商名称 LIKE ?)';
         queryParams.push(`%${search}%`, `%${search}%`);
@@ -145,9 +145,9 @@ export class SupplierService {
         ORDER BY sb.供应商编码
         LIMIT ? OFFSET ?
       `;
-      
+
       const [data]: any = await connection.execute(
-        dataQuery, 
+        dataQuery,
         [...queryParams, limit, offset]
       );
 
@@ -172,7 +172,7 @@ export class SupplierService {
 
   async getSupplierByCode(supplierCode: string): Promise<SupplierFullInfo | null> {
     const connection = await this.getConnection();
-    
+
     try {
       const query = `
         SELECT 
@@ -189,9 +189,9 @@ export class SupplierService {
         LEFT JOIN \`供应商管理\` sm ON sb.供应商编码 = sm.供应商编码
         WHERE sb.供应商编码 = ?
       `;
-      
+
       const [result]: any = await connection.execute(query, [supplierCode]);
-      
+
       if (result.length === 0) {
         return null;
       }
@@ -214,8 +214,8 @@ export class SupplierService {
   }
 
   async upsertSupplierManagement(
-    data: SupplierManagement, 
-    userId?: number, 
+    data: SupplierManagement,
+    userId?: number,
     userName?: string
   ): Promise<SupplierManagement> {
     // 验证至少有一个不为空
@@ -224,7 +224,7 @@ export class SupplierService {
     }
 
     const connection = await this.getConnection();
-    
+
     try {
       // 检查供应商编码是否存在于基础资料表
       const basicInfoQuery = `
@@ -233,7 +233,7 @@ export class SupplierService {
         WHERE 供应商编码 = ?
       `;
       const [basicInfoResult]: any = await connection.execute(basicInfoQuery, [data.supplierCode]);
-      
+
       if (basicInfoResult[0].count === 0) {
         throw new Error('供应商编码不存在');
       }
@@ -245,10 +245,10 @@ export class SupplierService {
         WHERE 供应商编码 = ?
       `;
       const [existsResult]: any = await connection.execute(existsQuery, [data.supplierCode]);
-      
+
       const action = existsResult.length > 0 ? 'update' : 'create';
       const changes: Record<string, any> = {};
-      
+
       if (existsResult.length > 0) {
         // 记录变更
         const oldRecord = existsResult[0];
@@ -265,7 +265,7 @@ export class SupplierService {
             changes[key] = { old: oldValue, new: newValue };
           }
         }
-        
+
         // 更新
         const updateQuery = `
           UPDATE \`供应商管理\` 
@@ -319,13 +319,13 @@ export class SupplierService {
 
   async deleteSupplierManagement(supplierCode: string): Promise<boolean> {
     const connection = await this.getConnection();
-    
+
     try {
       const deleteQuery = `
         DELETE FROM \`供应商管理\` 
         WHERE 供应商编码 = ?
       `;
-      
+
       await connection.execute(deleteQuery, [supplierCode]);
       return true;
     } finally {
@@ -339,16 +339,16 @@ export class SupplierService {
     averageDeliveryDays: number;
   }> {
     const connection = await this.getConnection();
-    
+
     try {
       // 总供应商数
       const totalQuery = `SELECT COUNT(*) as count FROM \`供应商基础资料\``;
       const [totalResult]: any = await connection.execute(totalQuery);
-      
+
       // 已管理供应商数
       const managedQuery = `SELECT COUNT(*) as count FROM \`供应商管理\``;
       const [managedResult]: any = await connection.execute(managedQuery);
-      
+
       // 平均到货天数
       const avgQuery = `SELECT AVG(CAST(到货天数 as UNSIGNED)) as avg FROM \`供应商基础资料\``;
       const [avgResult]: any = await connection.execute(avgQuery);
@@ -366,7 +366,7 @@ export class SupplierService {
   // 获取供应商管理变更日志
   async getSupplierManagementLogs(supplierCode: string): Promise<any[]> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       await this.ensureLogTableExists(connection);
 
@@ -384,14 +384,14 @@ export class SupplierService {
         ORDER BY created_at DESC
         LIMIT 100
       `;
-      
+
       const [rows]: any = await connection.execute(query, [supplierCode]);
-      
+
       // 对于有 user_id 的记录，从 sys_users 表查询 username 并组合显示
       const userIds = rows
         .filter((row: any) => row.userId)
         .map((row: any) => row.userId);
-      
+
       const userNameMap: Record<number, string> = {};
       if (userIds.length > 0) {
         try {
@@ -409,7 +409,7 @@ export class SupplierService {
           Logger.error('[SupplierService] Failed to query sys_users:', error);
         }
       }
-      
+
       return (rows || []).map((row: any) => ({
         ...row,
         changes: typeof row.changes === 'string' ? JSON.parse(row.changes) : (row.changes || {}),
@@ -417,7 +417,7 @@ export class SupplierService {
         userName: (() => {
           const displayName = row.userName;
           const username = row.userId ? userNameMap[row.userId] : null;
-          
+
           if (displayName && username) {
             return `${displayName}（${username}）`;
           } else if (displayName) {

@@ -21,7 +21,7 @@ export interface LabelPrintItem {
 
 @Injectable()
 export class LabelPrintService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   private tailBarcode(code?: string): string {
     if (!code) return '';
@@ -45,7 +45,7 @@ export class LabelPrintService {
         sku.trim(), firstBarcode, like
       );
       if (rows && rows.length) return String(rows[0]?.name || '');
-    } catch (_) {}
+    } catch (_) { }
     return undefined;
   }
 
@@ -68,11 +68,11 @@ export class LabelPrintService {
             sku, sku, sku,
           );
           if (rows && rows.length) nameFromLabel = String(rows[0]['产品名称'] || '').trim() || undefined;
-        } catch {}
+        } catch { }
         const nameFromMaster = nameFromLabel === undefined && sku
           ? await this.fetchProductNameBySkuOrBarcode(sku, String(r['商品条码'] ?? ''))
           : nameFromLabel;
-        
+
         // 从商品主档销售规格表获取规格名称
         let spec = '';
         if (sku) {
@@ -93,7 +93,7 @@ export class LabelPrintService {
         if (!spec) {
           spec = String(r['规格'] ?? '');
         }
-        
+
         return {
           templateName: String(r['标签模板'] ?? ''),
           spuCode: String(r['SPU编码'] ?? ''),

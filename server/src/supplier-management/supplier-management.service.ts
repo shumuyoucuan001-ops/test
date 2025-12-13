@@ -29,7 +29,7 @@ export class SupplierManagementService {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='供应商管理变更日志表'
     `;
-    
+
     await connection.execute(createTableQuery);
   }
 
@@ -47,7 +47,7 @@ export class SupplierManagementService {
         (supplier_code, action, changes, user_id, user_name, created_at)
         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
-      
+
       await connection.execute(insertLogQuery, [
         data.supplierCode,
         data.action,
@@ -71,7 +71,7 @@ export class SupplierManagementService {
     userName?: string;
   }): Promise<any> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       await this.ensureLogTableExists(connection);
 
@@ -82,7 +82,7 @@ export class SupplierManagementService {
         WHERE supplier_code = ?
       `;
       const [existsResult]: any = await connection.execute(existsQuery, [data.supplierCode]);
-      
+
       const action = existsResult.length > 0 ? 'update' : 'create';
       const changes: Record<string, any> = {};
 
@@ -151,7 +151,7 @@ export class SupplierManagementService {
   // 获取供应商管理变更日志
   async getSupplierManagementLogs(supplierCode: string): Promise<any[]> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       await this.ensureLogTableExists(connection);
 
@@ -169,14 +169,14 @@ export class SupplierManagementService {
         ORDER BY created_at DESC
         LIMIT 100
       `;
-      
+
       const [rows]: any = await connection.execute(query, [supplierCode]);
-      
+
       // 对于有 user_id 的记录，从 sys_users 表查询 username 并组合显示
       const userIds = rows
         .filter((row: any) => row.userId)
         .map((row: any) => row.userId);
-      
+
       const userNameMap: Record<number, string> = {};
       if (userIds.length > 0) {
         try {
@@ -194,7 +194,7 @@ export class SupplierManagementService {
           Logger.error('[SupplierManagementService] Failed to query sys_users:', error);
         }
       }
-      
+
       return (rows || []).map((row: any) => ({
         ...row,
         changes: typeof row.changes === 'string' ? JSON.parse(row.changes) : (row.changes || {}),
@@ -202,7 +202,7 @@ export class SupplierManagementService {
         userName: (() => {
           const displayName = row.userName;
           const username = row.userId ? userNameMap[row.userId] : null;
-          
+
           if (displayName && username) {
             return `${displayName}（${username}）`;
           } else if (displayName) {

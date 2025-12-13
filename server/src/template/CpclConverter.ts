@@ -11,7 +11,7 @@ export interface CpclLabelData {
 }
 
 export class CpclConverter {
-  
+
   /**
    * 将位图数据转换为CPCL位图指令
    * @param bitmapData 1bpp位图数据（十六进制字符串）
@@ -22,7 +22,7 @@ export class CpclConverter {
    */
   static convertBitmapToCpcl(bitmapData: string, widthDots: number = 320, heightDots: number = 240, copies: number = 1): string {
     const cpcl: string[] = [];
-    
+
     // 处理位图数据格式
     // TSPL格式: 0xFF,0xFF,0xFF... -> CPCL格式: FFFFFF...
     let cpclBitmapData = bitmapData;
@@ -33,41 +33,41 @@ export class CpclConverter {
         .map(hex => hex.replace('0x', '').replace('0X', ''))
         .join('');
     }
-    
+
     // CPCL需要反转黑白逻辑 (1=黑, 0=白 vs 0=黑, 1=白)
     Logger.log('[CPCL] Inverting bitmap colors for CPCL compatibility');
     cpclBitmapData = cpclBitmapData.replace(/./g, (char) => {
       const nibble = parseInt(char, 16);
       return (15 - nibble).toString(16).toUpperCase();
     });
-    
+
     // CPCL头部设置和内容
     // ! offset dpi_horizontal dpi_vertical height quantity
     cpcl.push(`! 0 203 203 240 ${copies}`); // 偏移量, DPI水平, DPI垂直, 高度, 数量
     cpcl.push('PAGE-WIDTH 320'); // 页面宽度
-    
+
     // 标签设置 - 确保正确的标签尺寸和间距
     cpcl.push('LABEL'); // 使用标签模式
     cpcl.push('GAP-SENSE'); // 启用间隙检测
     cpcl.push('SPEED 2'); // 设置打印速度
     cpcl.push('TONE 0'); // 设置打印浓度
     cpcl.push('JOURNAL'); // 启用日志模式，确保正确的标签定位
-    
+
     // 位图指令
     // EG 命令：EG widthBytes heightDots x y data
     const widthBytes = Math.ceil(widthDots / 8);
     const xOffset = 0; // 默认位置，无偏移
     Logger.log(`[CPCL] Converting bitmap: ${widthBytes} bytes x ${heightDots} dots, X offset: ${xOffset}, data length: ${cpclBitmapData.length}`);
     cpcl.push(`EG ${widthBytes} ${heightDots} ${xOffset} 0 ${cpclBitmapData}`);
-    
+
     // CPCL结束指令
     cpcl.push('FORM'); // 结束表单定义
     cpcl.push('PRINT'); // 打印指令
-    
+
     return cpcl.join('\r\n') + '\r\n';
   }
 
-  
+
   /**
    * 将HTML模板数据转换为CPCL指令（简单文本版本，已废弃）
    * @param data 标签数据
@@ -80,19 +80,19 @@ export class CpclConverter {
     const dotsPerMm = 8;
     const widthDots = Math.round(widthMm * dotsPerMm); // 320 dots
     const heightDots = Math.round(heightMm * dotsPerMm); // 240 dots
-    
+
     const cpcl: string[] = [];
-    
+
     // CPCL头部设置
     cpcl.push('! 0 200 200 240 1'); // 偏移量, DPI水平, DPI垂直, 高度, 数量
     cpcl.push('PAGE-WIDTH 320'); // 页面宽度
     cpcl.push('ENCODING UTF-8'); // 字符编码
-    
+
     // 规格文字 (顶部居中)
     if (data.spec) {
       cpcl.push(`TEXT 4 0 160 12 ${data.spec}`); // 字体4, 旋转0, X居中, Y位置, 文本
     }
-    
+
     // 二维码 (中间位置)
     if (data.qrDataUrl && !data.qrDataUrl.startsWith('data:image/')) {
       // 使用SKU代码生成二维码
@@ -101,18 +101,18 @@ export class CpclConverter {
       cpcl.push(`MA,${qrData}`); // 二维码数据
       cpcl.push('ENDQR'); // 结束二维码
     }
-    
+
     // 条码尾号 (底部居中)
     if (data.barcodeTail) {
       cpcl.push(`TEXT 4 0 160 180 ${data.barcodeTail}`); // 底部文字
     }
-    
+
     // CPCL结束指令
     cpcl.push('PRINT'); // 打印指令
-    
+
     return cpcl.join('\r\n') + '\r\n';
   }
-  
+
   /**
    * 从HTML模板渲染CPCL指令（简化版本）
    * 解析HTML中的变量并转换为CPCL
@@ -129,7 +129,7 @@ export class CpclConverter {
     if (data.barcodeTail) {
       processedHtml = processedHtml.replace(/\{\{barcodeTail\}\}/g, data.barcodeTail);
     }
-    
+
     // 提取文本内容（简化处理）
     const extractedData: CpclLabelData = {
       spec: data.spec,
@@ -138,10 +138,10 @@ export class CpclConverter {
       skuCode: data.skuCode,
       productName: data.productName
     };
-    
+
     return this.convertToCpcl(extractedData);
   }
-  
+
   /**
    * 生成测试CPCL指令
    */
@@ -151,7 +151,7 @@ export class CpclConverter {
       qrDataUrl: 'TEST123',
       barcodeTail: '12345678'
     };
-    
+
     return this.convertToCpcl(testData);
   }
 }

@@ -15,7 +15,7 @@ export interface LabelDataItem {
 
 @Injectable()
 export class LabelDataService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   private async getXitongkaifaConnection() {
     return await mysql.createConnection({
@@ -36,7 +36,7 @@ export class LabelDataService {
           sku,
         );
         if (rows && rows.length > 0) return rows;
-      } catch (_) {}
+      } catch (_) { }
     }
     return null;
   }
@@ -58,7 +58,7 @@ export class LabelDataService {
 
   async testDatabaseConnection(): Promise<any> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       const [rows]: any = await connection.execute('SELECT COUNT(*) as count FROM label_data_audit LIMIT 1');
       return { count: rows[0].count, message: 'Database connection successful' };
@@ -71,10 +71,10 @@ export class LabelDataService {
 
   async getSuppliersBySku(sku: string): Promise<string[]> {
     if (!sku) return [];
-    
+
     Logger.log('[LabelDataService] Getting suppliers for SKU:', sku);
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       // 查询该SKU的所有供应商
       const query = `
@@ -83,13 +83,13 @@ export class LabelDataService {
         WHERE sku = ?
         ORDER BY supplier_name
       `;
-      
+
       const [rows]: any = await connection.execute(query, [sku]);
       Logger.log('[LabelDataService] Suppliers query result:', rows);
-      
+
       const suppliers = rows.map((row: any) => row.supplierName).filter((s: string) => s);
       Logger.log('[LabelDataService] Found suppliers:', suppliers);
-      
+
       return suppliers;
     } catch (error) {
       Logger.error('[LabelDataService] 查询供应商列表失败:', error);
@@ -101,13 +101,13 @@ export class LabelDataService {
 
   async getBySkuAndSupplierName(sku: string, supplierName: string): Promise<Record<string, any> | null> {
     if (!sku || !supplierName) return null;
-    
+
     Logger.log('[LabelDataService] Connecting to database...');
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       Logger.log('[LabelDataService] Executing query with params:', { sku, supplierName });
-      
+
       // 从 sm_xitongkaifa.label_data_audit 表查询数据
       const query = `
         SELECT 
@@ -126,10 +126,10 @@ export class LabelDataService {
         WHERE sku = ? AND supplier_name = ?
         LIMIT 1
       `;
-      
+
       const [rows]: any = await connection.execute(query, [sku, supplierName]);
       Logger.log('[LabelDataService] Query result:', rows);
-      
+
       if (rows && rows.length > 0) {
         const result = rows[0];
         // 添加从sm_shangping库获取的规格信息
@@ -140,7 +140,7 @@ export class LabelDataService {
         Logger.log('[LabelDataService] Final result:', result);
         return result;
       }
-      
+
       Logger.log('[LabelDataService] No data found');
       return null;
     } catch (error) {
@@ -166,7 +166,7 @@ export class LabelDataService {
         sku,
       );
       if (rows && rows.length > 0) return rows[0];
-    } catch (_) {}
+    } catch (_) { }
     return undefined;
   }
 
@@ -328,7 +328,7 @@ export class LabelDataService {
         input.sku,
         JSON.stringify(body)
       );
-    } catch (_) {}
+    } catch (_) { }
 
     return { success: true };
   }
@@ -361,7 +361,7 @@ export class LabelDataService {
         input.sku,
         JSON.stringify({ supplier: input.supplier })
       );
-    } catch (_) {}
+    } catch (_) { }
 
     return { success: true };
   }
@@ -374,17 +374,17 @@ export class LabelDataService {
     supplierName?: string;
   }): Promise<{ data: any[]; total: number }> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       // 构建搜索条件
       let whereClause = '1=1';
       const queryParams: any[] = [];
-      
+
       if (params.sku) {
         whereClause += ' AND sku LIKE ?';
         queryParams.push(`%${params.sku}%`);
       }
-      
+
       if (params.supplierName) {
         whereClause += ' AND supplier_name LIKE ?';
         queryParams.push(`%${params.supplierName}%`);
@@ -414,9 +414,9 @@ export class LabelDataService {
         ORDER BY updated_at DESC
         LIMIT ? OFFSET ?
       `;
-      
+
       const [data]: any = await connection.execute(
-        dataQuery, 
+        dataQuery,
         [...queryParams, params.limit, params.offset]
       );
 
@@ -447,16 +447,16 @@ export class LabelDataService {
     totalSkus: number;
   }> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       // 总记录数
       const totalQuery = `SELECT COUNT(*) as count FROM label_data_audit`;
       const [totalResult]: any = await connection.execute(totalQuery);
-      
+
       // 供应商数量
       const supplierQuery = `SELECT COUNT(DISTINCT supplier_name) as count FROM label_data_audit WHERE supplier_name IS NOT NULL`;
       const [supplierResult]: any = await connection.execute(supplierQuery);
-      
+
       // SKU数量
       const skuQuery = `SELECT COUNT(DISTINCT sku) as count FROM label_data_audit WHERE sku IS NOT NULL`;
       const [skuResult]: any = await connection.execute(skuQuery);
@@ -474,7 +474,7 @@ export class LabelDataService {
   // 新增方法：获取供应商列表
   async getSuppliers(): Promise<string[]> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       const query = `
         SELECT DISTINCT supplier_name as supplierName 
@@ -482,7 +482,7 @@ export class LabelDataService {
         WHERE supplier_name IS NOT NULL AND supplier_name != ''
         ORDER BY supplier_name
       `;
-      
+
       const [result]: any = await connection.execute(query);
       return result.map((row: any) => row.supplierName);
     } finally {
@@ -505,7 +505,7 @@ export class LabelDataService {
     userName?: string;
   }): Promise<any> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       // 确保日志表存在
       await this.ensureLabelDataLogTableExists(connection);
@@ -517,7 +517,7 @@ export class LabelDataService {
         WHERE sku = ? AND supplier_name = ?
       `;
       const [existsResult]: any = await connection.execute(existsQuery, [data.sku, data.supplierName]);
-      
+
       const action = existsResult[0]?.count > 0 ? 'update' : 'create';
       const changes: Record<string, any> = {};
 
@@ -596,7 +596,7 @@ export class LabelDataService {
         changeCount: Object.keys(changes).length,
         changes
       });
-      
+
       await this.logLabelDataChange(connection, {
         sku: data.sku,
         supplierName: data.supplierName,
@@ -617,13 +617,13 @@ export class LabelDataService {
   // 新增方法：删除标签数据
   async deleteLabelData(sku: string, supplierName: string): Promise<any> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       const deleteQuery = `
         DELETE FROM label_data_audit 
         WHERE sku = ? AND supplier_name = ?
       `;
-      
+
       await connection.execute(deleteQuery, [sku, supplierName]);
       return { success: true };
     } finally {
@@ -634,7 +634,7 @@ export class LabelDataService {
   // 根据SKU和供应商名称获取审核数据
   async getAuditDataBySkuAndSupplier(sku: string, supplierName: string): Promise<any> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       const query = `
         SELECT 
@@ -651,13 +651,13 @@ export class LabelDataService {
         WHERE sku = ? AND supplier_name = ?
         LIMIT 1
       `;
-      
+
       const [rows]: any = await connection.execute(query, [sku, supplierName]);
-      
+
       if (rows && rows.length > 0) {
         return rows[0];
       }
-      
+
       return null;
     } catch (error) {
       Logger.error('[LabelDataService] 获取审核数据失败:', error);
@@ -683,7 +683,7 @@ export class LabelDataService {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='标签资料变更日志表'
     `;
-    
+
     await connection.execute(createTableQuery);
   }
 
@@ -702,7 +702,7 @@ export class LabelDataService {
         (sku, supplier_name, action, changes, user_id, user_name, created_at)
         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
-      
+
       const changesJson = JSON.stringify(data.changes);
       Logger.log('[LabelDataService] Inserting log:', {
         sku: data.sku,
@@ -712,7 +712,7 @@ export class LabelDataService {
         userId: data.userId || null,
         userName: data.userName || null,
       });
-      
+
       await connection.execute(insertLogQuery, [
         data.sku,
         data.supplierName,
@@ -721,9 +721,9 @@ export class LabelDataService {
         data.userId || null,
         data.userName || null,
       ]);
-      
+
       Logger.log('[LabelDataService] Log inserted successfully');
-      
+
       // 删除超过30条的旧记录
       const deleteOldLogsQuery = `
         DELETE FROM label_data_change_log
@@ -738,14 +738,14 @@ export class LabelDataService {
         )
         AND sku = ? AND supplier_name = ?
       `;
-      
+
       await connection.execute(deleteOldLogsQuery, [
         data.sku,
         data.supplierName,
         data.sku,
         data.supplierName,
       ]);
-      
+
       Logger.log('[LabelDataService] Old logs cleaned up (keeping max 30 records)');
     } catch (error) {
       Logger.error('[LabelDataService] Failed to insert log:', error);
@@ -756,7 +756,7 @@ export class LabelDataService {
   // 获取标签数据变更日志
   async getLabelDataLogs(sku: string, supplierName: string): Promise<any[]> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       // 确保日志表存在
       await this.ensureLabelDataLogTableExists(connection);
@@ -772,7 +772,7 @@ export class LabelDataService {
       // 如果没有提供supplierName，查询该SKU的所有记录
       let query: string;
       let queryParams: any[];
-      
+
       if (!supplierName) {
         Logger.log('[LabelDataService] No supplier name provided, querying all logs for SKU');
         query = `
@@ -809,14 +809,14 @@ export class LabelDataService {
         `;
         queryParams = [sku, supplierName];
       }
-      
+
       Logger.log('[LabelDataService] Executing query with values:', queryParams);
       Logger.log('[LabelDataService] Full query:', query.replace(/\s+/g, ' ').trim());
-      
+
       const [rows]: any = await connection.execute(query, queryParams);
-      
+
       Logger.log('[LabelDataService] Log query result:', rows.length, 'records');
-      
+
       // 如果没有结果，尝试查询该SKU的所有记录看看实际数据
       if (rows.length === 0 && sku) {
         const [allRows]: any = await connection.execute(
@@ -825,12 +825,12 @@ export class LabelDataService {
         );
         Logger.log('[LabelDataService] Available suppliers for this SKU:', allRows);
       }
-      
+
       // 对于有 user_id 的记录，从 sys_users 表查询 username 并组合显示
       const userIds = rows
         .filter((row: any) => row.userId)
         .map((row: any) => row.userId);
-      
+
       const userNameMap: Record<number, string> = {};
       if (userIds.length > 0) {
         try {
@@ -848,7 +848,7 @@ export class LabelDataService {
           Logger.error('[LabelDataService] Failed to query sys_users:', error);
         }
       }
-      
+
       return (rows || []).map((row: any) => ({
         ...row,
         // MySQL会自动将JSON列解析为对象，如果已经是对象就不需要再parse
@@ -857,7 +857,7 @@ export class LabelDataService {
         userName: (() => {
           const displayName = row.userName;
           const username = row.userId ? userNameMap[row.userId] : null;
-          
+
           if (displayName && username) {
             return `${displayName}（${username}）`;
           } else if (displayName) {
@@ -876,14 +876,14 @@ export class LabelDataService {
       await connection.end();
     }
   }
-  
+
   // 调试方法：获取某个SKU的所有日志（不过滤supplier）
   async getLogsDebug(sku: string): Promise<any[]> {
     const connection = await this.getXitongkaifaConnection();
-    
+
     try {
       await this.ensureLabelDataLogTableExists(connection);
-      
+
       const query = `
         SELECT 
           id,
@@ -900,10 +900,10 @@ export class LabelDataService {
         ORDER BY created_at DESC
         LIMIT 10
       `;
-      
+
       const [rows]: any = await connection.execute(query, [sku]);
       Logger.log('[LabelDataService] Debug query for SKU', sku, ':', rows.length, 'records');
-      
+
       return rows || [];
     } catch (error) {
       Logger.error('[LabelDataService] Debug query failed:', error);
