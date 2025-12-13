@@ -10,6 +10,143 @@ export class AclService {
     private dingTalkService: DingTalkService,
   ) { }
 
+  // 私有方法：检查列是否存在
+  private async hasCol(columnName: string): Promise<boolean> {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='sm_xitongkaifa' AND TABLE_NAME='sys_users' AND COLUMN_NAME=? LIMIT 1`,
+      columnName
+    );
+    return rows.length > 0;
+  }
+
+  // 私有方法：确保必要的列存在
+  private async ensureColumns() {
+    const columns = [
+      { name: 'password', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN password VARCHAR(128) NULL AFTER username` },
+      { name: 'display_name', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN display_name VARCHAR(64) NULL` },
+      { name: 'status', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN status TINYINT NULL DEFAULT 1` },
+      { name: 'code', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN code VARCHAR(64) NULL` },
+      { name: 'session_token', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN session_token VARCHAR(128) NULL` },
+      { name: 'last_login_time', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN last_login_time DATETIME NULL` },
+      { name: 'last_login_device', sql: `ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN last_login_device VARCHAR(255) NULL` },
+    ];
+
+    for (const col of columns) {
+      if (!(await this.hasCol(col.name))) {
+        try {
+          await this.prisma.$executeRawUnsafe(col.sql);
+        } catch { }
+      }
+    }
+
+    // department_id 需要特殊处理（有日志输出）
+    if (!(await this.hasCol('department_id'))) {
+      try {
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`);
+        console.log('[AclService] ✓ 已创建 department_id 字段');
+      } catch (e: any) {
+        console.error('[AclService] ✗ 创建 department_id 字段失败:', e.message);
+      }
+    }
+
+    // 放宽 code 可空
+    try {
+      await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users MODIFY code VARCHAR(64) NULL`);
+    } catch { }
+  }
+
+  // 私有方法：记录登录历史
+  private async logLogin(userId: number, username: string, device: string, loginTime: Date, token: string) {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO sm_xitongkaifa.login_records (user_id, username, device_info, login_time, token) VALUES (?, ?, ?, ?, ?)`,
+        userId,
+        username,
+        device,
+        loginTime,
+        token
+      );
+    } catch (e) {
+      // 如果login_records表不存在，忽略错误
+      console.log('[AclService] 登录记录表不存在，跳过记录');
+    }
+  }
+
+  // 私有方法：自动分配角色
+  private async assignDefaultRole(userId: number, roleId: number = 2) {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO sm_xitongkaifa.sys_user_roles(user_id, role_id) VALUES(?, ?)`,
+        userId,
+        roleId
+      );
+      console.log('[AclService] ✓ 自动分配角色成功，user_id:', userId, `role_id: ${roleId}`);
+    } catch (roleError: any) {
+      // 如果角色已存在或其他错误，记录日志但不影响登录流程
+      console.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
+    }
+  }
+
+  // 私有方法：创建钉钉用户（处理用户名冲突）
+  private async createDingTalkUser(
+    username: string,
+    displayName: string,
+    dingTalkUserId: string,
+    departmentName: string | null
+  ): Promise<any> {
+    // 检查用户名是否已存在
+    const exists: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+      username
+    );
+
+    let finalUsername = username;
+    if (exists.length > 0) {
+      // 如果用户名已存在，使用钉钉userId作为用户名
+      finalUsername = `dingtalk_${dingTalkUserId}`;
+      console.log('[AclService] 用户名已存在，使用备用用户名:', finalUsername);
+
+      const altExists: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+        finalUsername
+      );
+
+      if (altExists.length > 0) {
+        throw new BadRequestException(`无法创建用户：用户名 ${username} 和 ${finalUsername} 都已存在`);
+      }
+    }
+
+    // 创建用户
+    console.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
+      finalUsername,
+      null, // 钉钉登录不需要密码，设为NULL
+      displayName,
+      `dingtalk_${dingTalkUserId}`,
+      1,
+      departmentName
+    );
+
+    // 查询新创建的用户
+    const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
+      finalUsername
+    );
+    const user = newUserRows[0];
+
+    console.log('[AclService] ✓ 自动创建用户成功:', {
+      id: user.id,
+      username: user.username,
+      display_name: user.display_name,
+    });
+
+    // 自动分配角色
+    await this.assignDefaultRole(Number(user.id), 2);
+
+    return user;
+  }
+
   async initSchema() {
     // 在系统库创建所需表（若不存在）
     await this.prisma.$executeRawUnsafe(`
@@ -30,30 +167,7 @@ export class AclService {
     // 若已有历史表且 code 为 NOT NULL，则放宽为可空
     try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users MODIFY code VARCHAR(64) NULL`); } catch { }
     // 兼容历史表缺少列/索引：通过 information_schema 判断
-    const hasCol = async (name: string) => {
-      const rows: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='sm_xitongkaifa' AND TABLE_NAME='sys_users' AND COLUMN_NAME=? LIMIT 1`,
-        name
-      );
-      return rows.length > 0;
-    };
-    if (!(await hasCol('password'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN password VARCHAR(128) NULL AFTER username`); } catch { }
-    }
-    if (!(await hasCol('display_name'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN display_name VARCHAR(64) NULL`); } catch { }
-    }
-    if (!(await hasCol('status'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN status TINYINT NULL DEFAULT 1`); } catch { }
-    }
-    if (!(await hasCol('department_id'))) {
-      try {
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`);
-        console.log('[AclService] ✓ 已创建 department_id 字段（initSchema）');
-      } catch (e: any) {
-        console.error('[AclService] ✗ 创建 department_id 字段失败（initSchema）:', e.message);
-      }
-    }
+    await this.ensureColumns();
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS sm_xitongkaifa.sys_roles (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,46 +203,10 @@ export class AclService {
 
   private async ensureSysUsersSchema() {
     // 动态校验并补齐列
-    const hasCol = async (name: string) => {
-      const rows: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='sm_xitongkaifa' AND TABLE_NAME='sys_users' AND COLUMN_NAME=? LIMIT 1`,
-        name
-      );
-      return rows.length > 0;
-    };
-    if (!(await hasCol('password'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN password VARCHAR(128) NULL AFTER username`); } catch { }
+    await this.ensureColumns();
+    if (await this.hasCol('department_id')) {
+      console.log('[AclService] department_id 字段已存在');
     }
-    if (!(await hasCol('display_name'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN display_name VARCHAR(64) NULL`); } catch { }
-    }
-    if (!(await hasCol('status'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN status TINYINT NULL DEFAULT 1`); } catch { }
-    }
-    if (!(await hasCol('code'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN code VARCHAR(64) NULL`); } catch { }
-    }
-    if (!(await hasCol('department_id'))) {
-      try {
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`);
-        console.log('[AclService] ✓ 已创建 department_id 字段（ensureSysUsersSchema）');
-      } catch (e: any) {
-        console.error('[AclService] ✗ 创建 department_id 字段失败（ensureSysUsersSchema）:', e.message);
-      }
-    } else {
-      console.log('[AclService] department_id 字段已存在（ensureSysUsersSchema）');
-    }
-    if (!(await hasCol('session_token'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN session_token VARCHAR(128) NULL`); } catch { }
-    }
-    if (!(await hasCol('last_login_time'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN last_login_time DATETIME NULL`); } catch { }
-    }
-    if (!(await hasCol('last_login_device'))) {
-      try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN last_login_device VARCHAR(255) NULL`); } catch { }
-    }
-    // 放宽 code 可空
-    try { await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users MODIFY code VARCHAR(64) NULL`); } catch { }
   }
 
   // 权限CRUD
@@ -238,7 +316,7 @@ export class AclService {
     } catch (e: any) {
       // 兜底：若仍提示列不存在，再次尝试修复一次
       await this.ensureSysUsersSchema();
-      return this.prisma.$executeRawUnsafe(
+      return await this.prisma.$executeRawUnsafe(
         `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id) VALUES(?,?,?,?,?,?)`,
         username, password, displayName, code || null, status, departmentId
       );
@@ -325,19 +403,7 @@ export class AclService {
     );
 
     // 记录登录历史
-    try {
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.login_records (user_id, username, device_info, login_time, token) VALUES (?, ?, ?, ?, ?)`,
-        Number(u.id),
-        u.username,
-        device,
-        loginTime,
-        token
-      );
-    } catch (e) {
-      // 如果login_records表不存在，忽略错误
-      console.log('[AclService] 登录记录表不存在，跳过记录');
-    }
+    await this.logLogin(Number(u.id), u.username, device, loginTime, token);
 
     return { id: Number(u.id), username: u.username, display_name: u.display_name, token };
   }
@@ -422,98 +488,8 @@ export class AclService {
         code: `dingtalk_${dingTalkUserId}`,
       });
 
-      // 检查用户名是否已存在
-      const exists: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
-        username
-      );
-
-      if (exists.length > 0) {
-        // 如果用户名已存在，使用钉钉userId作为用户名
-        const altUsername = `dingtalk_${dingTalkUserId}`;
-        console.log('[AclService] 用户名已存在，使用备用用户名:', altUsername);
-
-        const altExists: any[] = await this.prisma.$queryRawUnsafe(
-          `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
-          altUsername
-        );
-
-        if (altExists.length > 0) {
-          throw new BadRequestException(`无法创建用户：用户名 ${username} 和 ${altUsername} 都已存在`);
-        }
-
-        // 使用备用用户名创建（密码设为NULL，因为钉钉登录不需要密码）
-        console.log('[AclService] 创建用户（备用用户名），departmentName:', departmentName);
-        await this.prisma.$executeRawUnsafe(
-          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
-          altUsername,
-          null, // 钉钉登录不需要密码，设为NULL
-          displayName,
-          `dingtalk_${dingTalkUserId}`,
-          1,
-          departmentName
-        );
-
-        const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
-          `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
-          altUsername
-        );
-        user = newUserRows[0];
-        console.log('[AclService] ✓ 自动创建用户成功（使用备用用户名）:', {
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-        });
-
-        // 自动分配角色 role_id = 2
-        try {
-          await this.prisma.$executeRawUnsafe(
-            `INSERT INTO sm_xitongkaifa.sys_user_roles(user_id, role_id) VALUES(?, ?)`,
-            Number(user.id),
-            2
-          );
-          console.log('[AclService] ✓ 自动分配角色成功，user_id:', user.id, 'role_id: 2');
-        } catch (roleError: any) {
-          // 如果角色已存在或其他错误，记录日志但不影响登录流程
-          console.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
-        }
-      } else {
-        // 使用原用户名创建（密码设为NULL，因为钉钉登录不需要密码）
-        console.log('[AclService] 创建用户（原用户名），departmentName:', departmentName);
-        await this.prisma.$executeRawUnsafe(
-          `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
-          username,
-          null, // 钉钉登录不需要密码，设为NULL
-          displayName,
-          `dingtalk_${dingTalkUserId}`,
-          1,
-          departmentName
-        );
-
-        const newUserRows: any[] = await this.prisma.$queryRawUnsafe(
-          `SELECT id, username, display_name, status FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
-          username
-        );
-        user = newUserRows[0];
-        console.log('[AclService] ✓ 自动创建用户成功:', {
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-        });
-
-        // 自动分配角色 role_id = 2
-        try {
-          await this.prisma.$executeRawUnsafe(
-            `INSERT INTO sm_xitongkaifa.sys_user_roles(user_id, role_id) VALUES(?, ?)`,
-            Number(user.id),
-            2
-          );
-          console.log('[AclService] ✓ 自动分配角色成功，user_id:', user.id, 'role_id: 2');
-        } catch (roleError: any) {
-          // 如果角色已存在或其他错误，记录日志但不影响登录流程
-          console.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
-        }
-      }
+      // 使用统一的方法创建用户（自动处理用户名冲突）
+      user = await this.createDingTalkUser(username, displayName, dingTalkUserId, departmentName);
     }
 
     // 检查用户状态
@@ -539,18 +515,7 @@ export class AclService {
     );
 
     // 记录登录历史
-    try {
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.login_records (user_id, username, device_info, login_time, token) VALUES (?, ?, ?, ?, ?)`,
-        Number(user.id),
-        user.username,
-        device,
-        loginTime,
-        token
-      );
-    } catch (e) {
-      console.log('[AclService] 登录记录表不存在，跳过记录');
-    }
+    await this.logLogin(Number(user.id), user.username, device, loginTime, token);
 
     console.log('[AclService] 钉钉自动登录成功，用户:', user.username);
 
