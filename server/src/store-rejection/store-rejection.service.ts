@@ -135,8 +135,9 @@ export class StoreRejectionService {
      * 发送驳回差异单邮件
      * @param item 要发送的数据项
      * @param email 收件人邮箱（如果未提供，从环境变量读取）
+     * @param userId 操作者用户ID（从请求头获取）
      */
-    async sendRejectionEmail(item: StoreRejectionItem, email?: string): Promise<void> {
+    async sendRejectionEmail(item: StoreRejectionItem, email?: string, userId?: number): Promise<void> {
         const recipientEmail = email || process.env.STORE_REJECTION_EMAIL || '';
 
         if (!recipientEmail) {
@@ -146,11 +147,27 @@ export class StoreRejectionService {
         const subject = '驳回差异单';
 
         // 只发送门店/仓、sku_id、关联收货单号三个字段
-        const emailData = {
+        const emailData: any = {
             '门店/仓': item['门店/仓'],
             'sku_id': item['sku_id'],
             '关联收货单号': item['关联收货单号'],
         };
+
+        // 如果提供了userId，查询sys_users表中的user_id字段并添加到邮件中
+        if (userId) {
+            try {
+                const userRows: any[] = await this.prisma.$queryRawUnsafe(
+                    `SELECT user_id FROM sm_xitongkaifa.sys_users WHERE id = ? LIMIT 1`,
+                    userId
+                );
+                if (userRows.length > 0 && userRows[0].user_id) {
+                    emailData['操作者user_id'] = userRows[0].user_id;
+                }
+            } catch (error) {
+                Logger.warn('[StoreRejectionService] 查询用户user_id失败:', error);
+                // 查询失败不影响邮件发送，只记录警告
+            }
+        }
 
         await this.emailService.sendJsonEmail(recipientEmail, subject, emailData);
     }
@@ -159,8 +176,9 @@ export class StoreRejectionService {
      * 发送驳回全部差异单邮件
      * @param item 要发送的数据项
      * @param email 收件人邮箱（如果未提供，从环境变量读取）
+     * @param userId 操作者用户ID（从请求头获取）
      */
-    async sendRejectionAllEmail(item: StoreRejectionItem, email?: string): Promise<void> {
+    async sendRejectionAllEmail(item: StoreRejectionItem, email?: string, userId?: number): Promise<void> {
         const recipientEmail = email || process.env.STORE_REJECTION_EMAIL || '';
 
         if (!recipientEmail) {
@@ -170,11 +188,27 @@ export class StoreRejectionService {
         const subject = '驳回差异单';
 
         // 只发送门店/仓、sku_id（空值）、关联收货单号三个字段
-        const emailData = {
+        const emailData: any = {
             '门店/仓': item['门店/仓'],
             'sku_id': '', // sku_id设为空值
             '关联收货单号': item['关联收货单号'],
         };
+
+        // 如果提供了userId，查询sys_users表中的user_id字段并添加到邮件中
+        if (userId) {
+            try {
+                const userRows: any[] = await this.prisma.$queryRawUnsafe(
+                    `SELECT user_id FROM sm_xitongkaifa.sys_users WHERE id = ? LIMIT 1`,
+                    userId
+                );
+                if (userRows.length > 0 && userRows[0].user_id) {
+                    emailData['操作者user_id'] = userRows[0].user_id;
+                }
+            } catch (error) {
+                Logger.warn('[StoreRejectionService] 查询用户user_id失败:', error);
+                // 查询失败不影响邮件发送，只记录警告
+            }
+        }
 
         await this.emailService.sendJsonEmail(recipientEmail, subject, emailData);
     }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { Logger } from '../utils/logger.util';
 import type { StoreRejectionItem } from './store-rejection.service';
 import { StoreRejectionService } from './store-rejection.service';
@@ -40,15 +40,18 @@ export class StoreRejectionController {
     @Post('send-rejection-email')
     async sendRejectionEmail(
         @Body() body: { item: StoreRejectionItem; email?: string },
+        @Headers('x-user-id') userId?: string,
     ): Promise<{ success: boolean; message: string }> {
+        const userIdNum = userId ? Number(userId) : undefined;
         Logger.log('[StoreRejectionController] 收到发送邮件请求:', {
             item: body.item,
             email: body.email || '使用环境变量配置的邮箱',
+            userId: userIdNum,
             timestamp: new Date().toISOString(),
         });
 
         try {
-            await this.service.sendRejectionEmail(body.item, body.email);
+            await this.service.sendRejectionEmail(body.item, body.email, userIdNum);
             Logger.log('[StoreRejectionController] 邮件发送成功');
             return { success: true, message: '邮件发送成功' };
         } catch (error: any) {
@@ -69,15 +72,18 @@ export class StoreRejectionController {
     @Post('send-rejection-all-email')
     async sendRejectionAllEmail(
         @Body() body: { item: StoreRejectionItem; email?: string },
+        @Headers('x-user-id') userId?: string,
     ): Promise<{ success: boolean; message: string }> {
+        const userIdNum = userId ? Number(userId) : undefined;
         Logger.log('[StoreRejectionController] 收到发送驳回全部邮件请求:', {
             item: body.item,
             email: body.email || '使用环境变量配置的邮箱',
+            userId: userIdNum,
             timestamp: new Date().toISOString(),
         });
 
         try {
-            await this.service.sendRejectionAllEmail(body.item, body.email);
+            await this.service.sendRejectionAllEmail(body.item, body.email, userIdNum);
             Logger.log('[StoreRejectionController] 驳回全部邮件发送成功');
             return { success: true, message: '邮件发送成功' };
         } catch (error: any) {
