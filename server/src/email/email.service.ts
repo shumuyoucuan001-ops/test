@@ -245,13 +245,21 @@ export class EmailService {
         subject: string,
         data: any,
     ): Promise<void> {
-        const jsonString = JSON.stringify(data, null, 2);
-        const text = `数据内容（JSON格式）：\n\n${jsonString}`;
+        // 将对象转换为键值对格式，去掉大括号
+        const formatData = (obj: any): string => {
+            const lines: string[] = [];
+            Object.keys(obj).forEach(key => {
+                lines.push(`${key}: ${obj[key]}`);
+            });
+            return lines.join('\n');
+        };
+
+        const textContent = formatData(data);
+        const text = textContent;
         const html = `
             <div style="font-family: Arial, sans-serif; padding: 20px;">
                 <h2 style="color: #333;">${subject}</h2>
-                <p>数据内容（JSON格式）：</p>
-                <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px;">${jsonString}</pre>
+                <pre style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; white-space: pre-wrap;">${textContent.replace(/\n/g, '<br>')}</pre>
             </div>
         `;
 
