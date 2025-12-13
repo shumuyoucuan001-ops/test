@@ -354,8 +354,14 @@ export class DingTalkService {
                                             // 获取部门名称
                                             const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
 
+                                            // 使用从 topapi/v2/user/get 接口获取的真实员工 userid（qyapi_get_member 权限点返回的 userID）
+                                            // actualUserId 是真正的钉钉员工ID，通常由数字组成
+                                            const realUserId = actualUserId || userDetail.userid || userId;
+
+                                            Logger.log('[DingTalkService] 使用真实的钉钉员工 userID:', realUserId);
+
                                             return {
-                                                userId: userId,
+                                                userId: realUserId,
                                                 name: userDetail.name || userInfo.nick || userInfo.name || '',
                                                 mobile: userDetail.mobile || userInfo.mobile || '',
                                                 email: userDetail.email || userInfo.email || '',
@@ -370,19 +376,9 @@ export class DingTalkService {
                                     }
                                 }
 
-                                // 如果无法获取企业内详细信息，返回新版API返回的基本信息
-                                return {
-                                    userId: userId || 'unknown',
-                                    name: userInfo.nick || userInfo.name || '',
-                                    mobile: userInfo.mobile || '',
-                                    email: userInfo.email || '',
-                                    avatar: userInfo.avatar || '',
-                                    active: true,
-                                    isAdmin: false,
-                                    isBoss: false,
-                                    deptIdList: [],
-                                    deptNames: [],
-                                };
+                                // 如果无法获取企业内详细信息，无法获取真实的员工 userID，抛出错误
+                                Logger.error('[DingTalkService] ✗ 无法通过 topapi/v2/user/get 接口获取员工详细信息，无法获取真实的员工 userID');
+                                throw new BadRequestException('无法获取企业内成员信息，请确保应用已申请 qyapi_get_member 权限点');
                             }
                         } catch (meError: any) {
                             Logger.error('[DingTalkService] 获取当前用户信息失败:', {
@@ -472,8 +468,14 @@ export class DingTalkService {
                                     // 获取部门名称
                                     const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
 
+                                    // 使用从 topapi/v2/user/get 接口获取的真实员工 userid（qyapi_get_member 权限点返回的 userID）
+                                    // userId 参数传入的就是真正的钉钉员工ID，通常由数字组成
+                                    const realUserId = userDetail.userid || userId;
+
+                                    Logger.log('[DingTalkService] 使用真实的钉钉员工 userID:', realUserId);
+
                                     return {
-                                        userId: userId,
+                                        userId: realUserId,
                                         name: userDetail.name || userInfo.nick || '',
                                         mobile: userDetail.mobile || userInfo.mobile || '',
                                         email: userDetail.email || userInfo.email || '',
@@ -488,19 +490,9 @@ export class DingTalkService {
                             }
                         }
 
-                        // 如果无法获取企业内详细信息，返回新版API返回的基本信息
-                        return {
-                            userId: userId || openId,
-                            name: userInfo.nick || userInfo.name || '',
-                            mobile: userInfo.mobile || '',
-                            email: userInfo.email || '',
-                            avatar: userInfo.avatar || '',
-                            active: true,
-                            isAdmin: false,
-                            isBoss: false,
-                            deptIdList: [],
-                            deptNames: [],
-                        };
+                        // 如果无法获取企业内详细信息，无法获取真实的员工 userID，抛出错误
+                        Logger.error('[DingTalkService] ✗ 无法通过 topapi/v2/user/get 接口获取员工详细信息，无法获取真实的员工 userID');
+                        throw new BadRequestException('无法获取企业内成员信息，请确保应用已申请 qyapi_get_member 权限点');
                     }
                 } else {
                     Logger.error('[DingTalkService] ✗ 新版OAuth2.0 userAccessToken失败 - 响应中没有accessToken');
@@ -662,8 +654,14 @@ export class DingTalkService {
             // 获取部门名称
             const deptNames = deptIdList.length > 0 ? await this.getDeptNames(deptIdList) : [];
 
+            // 使用从 topapi/v2/user/get 接口获取的真实员工 userid（qyapi_get_member 权限点返回的 userID）
+            // userInfo.userid 是真正的钉钉员工ID，通常由数字组成
+            const realUserId = userInfo.userid || userDetail.userid;
+
+            Logger.log('[DingTalkService] 使用真实的钉钉员工 userID:', realUserId);
+
             return {
-                userId: userInfo.userid,
+                userId: realUserId,
                 name: userDetail.name || '',
                 mobile: userDetail.mobile || '',
                 email: userDetail.email || '',

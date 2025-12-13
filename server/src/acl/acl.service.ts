@@ -129,7 +129,8 @@ export class AclService {
     }
 
     // 创建用户
-    Logger.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName, 'dingTalkUserId:', dingTalkUserId);
+    // dingTalkUserId 是从 qyapi_get_member 权限点获取的真实员工 userID，将保存到 user_id 字段
+    Logger.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName, 'dingTalkUserId (qyapi_get_member):', dingTalkUserId);
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id, user_id) VALUES(?, ?, ?, ?, ?, ?, ?)`,
       finalUsername,
@@ -138,7 +139,7 @@ export class AclService {
       `dingtalk_${dingTalkUserId}`,
       1,
       departmentName,
-      dingTalkUserId // 保存钉钉员工USERID
+      dingTalkUserId // 保存钉钉员工 userID（来自 qyapi_get_member 权限点，通常由数字组成）
     );
 
     // 查询新创建的用户
@@ -500,12 +501,14 @@ export class AclService {
   async dingTalkAutoLogin(dingTalkUserInfo: DingTalkUserInfo, deviceInfo?: string) {
     await this.ensureSysUsersSchema();
 
+    // dingTalkUserId 是从 qyapi_get_member 权限点（topapi/v2/user/get 接口）获取的真实员工 userID
+    // 这个 userID 通常由数字组成，是钉钉员工的唯一标识
     const dingTalkUserId = dingTalkUserInfo.userId;
     const mobile = dingTalkUserInfo.mobile;
     const name = dingTalkUserInfo.name || '';
 
     Logger.log('[AclService] ========== 开始钉钉自动登录 ==========');
-    Logger.log('[AclService] 钉钉用户信息:', {
+    Logger.log('[AclService] 钉钉用户信息（来自 qyapi_get_member 权限点）:', {
       userId: dingTalkUserId,
       name: name,
       mobile: mobile,
@@ -513,6 +516,7 @@ export class AclService {
       deptIdList: dingTalkUserInfo.deptIdList,
       deptNames: dingTalkUserInfo.deptNames,
     });
+    Logger.log('[AclService] 钉钉员工 userID（将保存到 sys_users.user_id 字段）:', dingTalkUserId);
 
     // 获取主部门名称（取第一个部门名称，如果存在多个部门）
     // 存储中文部门名称到 department_id 字段
@@ -591,7 +595,8 @@ export class AclService {
     const device = deviceInfo || 'dingtalk_web';
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
-    Logger.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName, 'dingTalkUserId:', dingTalkUserId);
+    // dingTalkUserId 是从 qyapi_get_member 权限点获取的真实员工 userID，将保存到 user_id 字段
+    Logger.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName, 'dingTalkUserId (qyapi_get_member):', dingTalkUserId);
     await this.prisma.$executeRawUnsafe(
       `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=?, user_id=? WHERE id=?`,
       token,
@@ -599,7 +604,7 @@ export class AclService {
       device,
       `dingtalk_${dingTalkUserId}`,
       departmentName,
-      dingTalkUserId, // 更新钉钉员工USERID
+      dingTalkUserId, // 保存钉钉员工 userID（来自 qyapi_get_member 权限点，通常由数字组成）
       Number(user.id)
     );
 
