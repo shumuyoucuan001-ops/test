@@ -78,12 +78,12 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     url: '/home/print',
   },
   'ops-exclusion': {
-    title: '运营组管理(测试)',
+    title: '排除活动商品',
     icon: <SettingOutlined />,
     url: '/home/ops-exclusion',
   },
   'store-rejection': {
-    title: '门店管理(测试)',
+    title: '驳回差异单',
     icon: <ShopOutlined />,
     url: '/home/store-rejection',
   },
@@ -404,7 +404,7 @@ export default function HomeLayout({
       {
         key: 'ops',
         icon: <SettingOutlined />,
-        label: '运营组管理(测试)',
+        label: '运营组管理',
         children: [
           {
             key: 'ops-exclusion',
@@ -416,7 +416,7 @@ export default function HomeLayout({
       {
         key: 'store-management',
         icon: <ShopOutlined />,
-        label: '门店管理(测试)',
+        label: '门店管理',
         children: [
           {
             key: 'store-rejection',

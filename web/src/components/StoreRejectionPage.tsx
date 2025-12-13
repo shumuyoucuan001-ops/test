@@ -165,7 +165,7 @@ export default function StoreRejectionPage() {
     return (
         <div style={{ padding: 24 }}>
             <Card
-                title="门店管理(测试) - 驳回差异单"
+                title="门店管理 - 驳回差异单"
                 extra={
                     <Space>
                         <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>

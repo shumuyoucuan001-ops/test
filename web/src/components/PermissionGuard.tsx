@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import { Button, Result, Spin } from 'antd';
 import { useRouter } from 'next/navigation';
-import { Result, Button, Spin } from 'antd';
+import React, { useEffect } from 'react';
 import { usePermissions } from '../hooks/usePermissions';
 
 interface PermissionGuardProps {
@@ -26,11 +26,11 @@ export default function PermissionGuard({ requiredPath, children }: PermissionGu
   // 加载中显示
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: 300 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: 300
       }}>
         <Spin size="large" />
       </div>
