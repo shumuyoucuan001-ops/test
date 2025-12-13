@@ -51,6 +51,16 @@ export class AclService {
       }
     }
 
+    // user_id 字段用于存储钉钉员工USERID（有日志输出）
+    if (!(await this.hasCol('user_id'))) {
+      try {
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN user_id VARCHAR(128) NULL`);
+        Logger.log('[AclService] ✓ 已创建 user_id 字段');
+      } catch (e: any) {
+        Logger.error('[AclService] ✗ 创建 user_id 字段失败:', e.message);
+      }
+    }
+
     // 放宽 code 可空
     try {
       await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users MODIFY code VARCHAR(64) NULL`);
@@ -119,15 +129,16 @@ export class AclService {
     }
 
     // 创建用户
-    Logger.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName);
+    Logger.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName, 'dingTalkUserId:', dingTalkUserId);
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id, user_id) VALUES(?, ?, ?, ?, ?, ?, ?)`,
       finalUsername,
       null, // 钉钉登录不需要密码，设为NULL
       displayName,
       `dingtalk_${dingTalkUserId}`,
       1,
-      departmentName
+      departmentName,
+      dingTalkUserId // 保存钉钉员工USERID
     );
 
     // 查询新创建的用户
@@ -289,7 +300,7 @@ export class AclService {
 
     return users;
   }
-  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: string | number }) {
+  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: string | number; user_id?: string }) {
     await this.ensureSysUsersSchema();
     const username = (u.username || '').trim();
     const password = (u.password || '').trim();
@@ -297,11 +308,13 @@ export class AclService {
     const code = (u.code || '').trim();
     const status = u.status ?? 1;
     const departmentId = u.department_id ?? null;
+    const userId = (u.user_id || '').trim() || null; // 钉钉员工USERID
 
     if (username.length < 3 || username.length > 64) throw new BadRequestException('用户名长度需 3-64 个字符');
     if (password.length < 6 || password.length > 128) throw new BadRequestException('密码长度需 6-128 个字符');
     if (displayName.length < 1 || displayName.length > 64) throw new BadRequestException('显示名长度需 1-64 个字符');
     if (code && code.length > 64) throw new BadRequestException('编码长度不能超过 64 个字符');
+    if (userId && userId.length > 128) throw new BadRequestException('员工USERID长度不能超过 128 个字符');
     if (![0, 1].includes(Number(status))) throw new BadRequestException('状态仅支持 0 或 1');
 
     const exists: any[] = await this.prisma.$queryRawUnsafe(`SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`, username);
@@ -309,15 +322,15 @@ export class AclService {
 
     try {
       return await this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id) VALUES(?,?,?,?,?,?)`,
-        username, password, displayName, code || null, status, departmentId
+        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id,user_id) VALUES(?,?,?,?,?,?,?)`,
+        username, password, displayName, code || null, status, departmentId, userId
       );
     } catch (e: any) {
       // 兜底：若仍提示列不存在，再次尝试修复一次
       await this.ensureSysUsersSchema();
       return await this.prisma.$executeRawUnsafe(
-        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id) VALUES(?,?,?,?,?,?)`,
-        username, password, displayName, code || null, status, departmentId
+        `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id,user_id) VALUES(?,?,?,?,?,?,?)`,
+        username, password, displayName, code || null, status, departmentId, userId
       );
     }
   }
@@ -578,14 +591,15 @@ export class AclService {
     const device = deviceInfo || 'dingtalk_web';
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
-    Logger.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName);
+    Logger.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName, 'dingTalkUserId:', dingTalkUserId);
     await this.prisma.$executeRawUnsafe(
-      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=? WHERE id=?`,
+      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=?, user_id=? WHERE id=?`,
       token,
       loginTime,
       device,
       `dingtalk_${dingTalkUserId}`,
       departmentName,
+      dingTalkUserId, // 更新钉钉员工USERID
       Number(user.id)
     );
 
