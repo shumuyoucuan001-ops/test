@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductSalesSpec, ProductService } from '../product/product.service';
+import { Logger } from '../utils/logger.util';
 
 // 临时内存存储，模拟收货单数据
 export interface ReceiptDetail {
@@ -133,8 +134,8 @@ export class ReceiptService {
   // 根据关联收货单号搜索采购明细（重新设计的数据获取逻辑）
   async findByReceiptNo(receiptNo: string): Promise<ReceiptDetailWithProduct[]> {
     try {
-      console.log(`[ReceiptService] 查询收货单: ${receiptNo}`);
-      
+      Logger.log(`[ReceiptService] 查询收货单: ${receiptNo}`);
+
       // 第一步：通过收货单号获取采购单商品明细
       let rows: any[] = await this.prisma.$queryRawUnsafe(
         `SELECT d.\`sku_id\`, d.\`计划采购数量(基础单位)\`, d.\`供应商名称\`, d.\`采购单号\`
@@ -144,7 +145,7 @@ export class ReceiptService {
          WHERE TRIM(v.\`待收货单号\`) = TRIM(?)`,
         receiptNo,
       );
-      
+
       // 若视图没有匹配，回退到"采购单信息.关联收货单号"方式
       if (!rows || rows.length === 0) {
         rows = await this.prisma.$queryRawUnsafe(
@@ -159,16 +160,16 @@ export class ReceiptService {
 
       const details: ReceiptDetailWithProduct[] = [];
       let idx = 1;
-      
+
       for (const r of rows) {
         const skuId = String(r.sku_id || '');
         const quantity = Number(r['计划采购数量(基础单位)'] || 0);
         const supplierName = String(r['供应商名称'] || '');
-        
-        console.log(`[ReceiptService] 处理商品: SKU=${skuId}, 数量=${quantity}, 供应商=${supplierName}`);
-        
+
+        Logger.log(`[ReceiptService] 处理商品: SKU=${skuId}, 数量=${quantity}, 供应商=${supplierName}`);
+
         if (!skuId) {
-          console.log(`[ReceiptService] 跳过空SKU的记录`);
+          Logger.log(`[ReceiptService] 跳过空SKU的记录`);
           continue;
         }
 
@@ -181,7 +182,7 @@ export class ReceiptService {
              WHERE \`SKU编码\` = ?`,
             skuId,
           );
-          
+
           if (productRows && productRows.length > 0) {
             const p = productRows[0];
             productInfo = {
@@ -190,7 +191,7 @@ export class ReceiptService {
               productCode: String(p['商品条码'] || ''),
               spec: String(p['规格名称'] || ''),
             };
-            
+
             // 计算核对条码尾号
             const productCode = productInfo.productCode;
             let barcodeTail = '';
@@ -205,11 +206,11 @@ export class ReceiptService {
               }
             }
             productInfo.barcodeTail = barcodeTail;
-            
-            console.log(`[ReceiptService] 获取到商品信息:`, productInfo);
+
+            Logger.log(`[ReceiptService] 获取到商品信息:`, productInfo);
           }
         } catch (error) {
-          console.error(`[ReceiptService] 获取商品信息失败:`, error);
+          Logger.error(`[ReceiptService] 获取商品信息失败:`, error);
         }
 
         // 第三步：通过sku_id和供应商名称连接label_data_audit表获取标签资料
@@ -223,7 +224,7 @@ export class ReceiptService {
             skuId,
             supplierName,
           );
-          
+
           if (labelRows && labelRows.length > 0) {
             const l = labelRows[0];
             labelData = {
@@ -235,10 +236,10 @@ export class ReceiptService {
               material: String(l.material || ''),
               otherInfo: String(l.other_info || ''),
             };
-            console.log(`[ReceiptService] 获取到标签资料:`, labelData);
+            Logger.log(`[ReceiptService] 获取到标签资料:`, labelData);
           }
         } catch (error) {
-          console.error(`[ReceiptService] 获取标签资料失败:`, error);
+          Logger.error(`[ReceiptService] 获取标签资料失败:`, error);
         }
 
         const detail: ReceiptDetail = {
@@ -260,20 +261,20 @@ export class ReceiptService {
           labelData: labelData,
         };
 
-        details.push({ 
-          receiptDetail: detail, 
-          productInfo: enrichedProductInfo || undefined 
+        details.push({
+          receiptDetail: detail,
+          productInfo: enrichedProductInfo || undefined
         });
       }
-      
-      console.log(`[ReceiptService] 返回${details.length}条记录`);
+
+      Logger.log(`[ReceiptService] 返回${details.length}条记录`);
       if (details.length > 0) return details;
     } catch (error) {
-      console.error(`[ReceiptService] 查询收货单明细失败:`, error);
+      Logger.error(`[ReceiptService] 查询收货单明细失败:`, error);
     }
 
     // fallback to in-memory
-    console.log(`[ReceiptService] 回退到内存数据`);
+    Logger.log(`[ReceiptService] 回退到内存数据`);
     const mem = this.receiptDetails.filter(r => r.receiptNo === receiptNo);
     const detailsWithProduct: ReceiptDetailWithProduct[] = [];
     for (const detail of mem) {
@@ -300,9 +301,9 @@ export class ReceiptService {
           const val = String(r.no);
           if (val && !list.includes(val)) list.push(val);
         }
-      } catch {}
+      } catch { }
       if (list.length > 0) return list;
-    } catch (e) {}
+    } catch (e) { }
     const receiptNumbers = [...new Set(this.receiptDetails.map(r => r.receiptNo))];
     return receiptNumbers.sort();
   }
@@ -329,9 +330,9 @@ export class ReceiptService {
           const val = String(r.no);
           if (val && !list.includes(val)) list.push(val);
         }
-      } catch {}
+      } catch { }
       if (list.length > 0) return list;
-    } catch (e) {}
+    } catch (e) { }
     const allNumbers = await this.getAllReceiptNumbers();
     return allNumbers.filter(no => no.toLowerCase().includes((keyword || '').toLowerCase()));
   }

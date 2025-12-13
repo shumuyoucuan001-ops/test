@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { DingTalkService, DingTalkUserInfo } from '../dingtalk/dingtalk.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '../utils/logger.util';
 
 @Injectable()
 export class AclService {
@@ -43,9 +44,9 @@ export class AclService {
     if (!(await this.hasCol('department_id'))) {
       try {
         await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN department_id INT NULL`);
-        console.log('[AclService] ✓ 已创建 department_id 字段');
+        Logger.log('[AclService] ✓ 已创建 department_id 字段');
       } catch (e: any) {
-        console.error('[AclService] ✗ 创建 department_id 字段失败:', e.message);
+        Logger.error('[AclService] ✗ 创建 department_id 字段失败:', e.message);
       }
     }
 
@@ -68,7 +69,7 @@ export class AclService {
       );
     } catch (e) {
       // 如果login_records表不存在，忽略错误
-      console.log('[AclService] 登录记录表不存在，跳过记录');
+      Logger.log('[AclService] 登录记录表不存在，跳过记录');
     }
   }
 
@@ -80,10 +81,10 @@ export class AclService {
         userId,
         roleId
       );
-      console.log('[AclService] ✓ 自动分配角色成功，user_id:', userId, `role_id: ${roleId}`);
+      Logger.log('[AclService] ✓ 自动分配角色成功，user_id:', userId, `role_id: ${roleId}`);
     } catch (roleError: any) {
       // 如果角色已存在或其他错误，记录日志但不影响登录流程
-      console.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
+      Logger.warn('[AclService] 分配角色失败（可能已存在）:', roleError.message);
     }
   }
 
@@ -104,7 +105,7 @@ export class AclService {
     if (exists.length > 0) {
       // 如果用户名已存在，使用钉钉userId作为用户名
       finalUsername = `dingtalk_${dingTalkUserId}`;
-      console.log('[AclService] 用户名已存在，使用备用用户名:', finalUsername);
+      Logger.log('[AclService] 用户名已存在，使用备用用户名:', finalUsername);
 
       const altExists: any[] = await this.prisma.$queryRawUnsafe(
         `SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`,
@@ -117,7 +118,7 @@ export class AclService {
     }
 
     // 创建用户
-    console.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName);
+    Logger.log('[AclService] 创建用户，username:', finalUsername, 'departmentName:', departmentName);
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO sm_xitongkaifa.sys_users(username, password, display_name, code, status, department_id) VALUES(?, ?, ?, ?, ?, ?)`,
       finalUsername,
@@ -135,7 +136,7 @@ export class AclService {
     );
     const user = newUserRows[0];
 
-    console.log('[AclService] ✓ 自动创建用户成功:', {
+    Logger.log('[AclService] ✓ 自动创建用户成功:', {
       id: user.id,
       username: user.username,
       display_name: user.display_name,
@@ -204,9 +205,6 @@ export class AclService {
   private async ensureSysUsersSchema() {
     // 动态校验并补齐列
     await this.ensureColumns();
-    if (await this.hasCol('department_id')) {
-      console.log('[AclService] department_id 字段已存在');
-    }
   }
 
   // 权限CRUD
@@ -370,7 +368,7 @@ export class AclService {
       try {
         const dingTalkUserInfo = await this.dingTalkService.getUserInfoByCode(dingTalkCode);
         // 验证成功，继续后续流程
-        console.log(`[AclService] 钉钉验证成功，用户: ${dingTalkUserInfo.name} (${dingTalkUserInfo.userId})`);
+        Logger.log(`[AclService] 钉钉验证成功，用户: ${dingTalkUserInfo.name} (${dingTalkUserInfo.userId})`);
       } catch (error: any) {
         throw new BadRequestException(`钉钉验证失败: ${error.message}`);
       }
@@ -416,8 +414,8 @@ export class AclService {
     const mobile = dingTalkUserInfo.mobile;
     const name = dingTalkUserInfo.name || '';
 
-    console.log('[AclService] ========== 开始钉钉自动登录 ==========');
-    console.log('[AclService] 钉钉用户信息:', {
+    Logger.log('[AclService] ========== 开始钉钉自动登录 ==========');
+    Logger.log('[AclService] 钉钉用户信息:', {
       userId: dingTalkUserId,
       name: name,
       mobile: mobile,
@@ -434,7 +432,7 @@ export class AclService {
         ? `部门${dingTalkUserInfo.deptIdList[0]}` // 如果没有名称，使用部门ID作为后备
         : null);
 
-    console.log('[AclService] 提取的部门信息:', {
+    Logger.log('[AclService] 提取的部门信息:', {
       deptIdList: dingTalkUserInfo.deptIdList,
       deptNames: dingTalkUserInfo.deptNames,
       departmentName: departmentName,
@@ -444,45 +442,45 @@ export class AclService {
     // 优先通过手机号查找用户（如果手机号存在）
     let user: any = null;
     if (mobile) {
-      console.log('[AclService] 尝试通过手机号查找用户:', mobile);
+      Logger.log('[AclService] 尝试通过手机号查找用户:', mobile);
       // 尝试通过手机号查找用户（假设手机号可能存储在username或display_name字段）
       const rows: any[] = await this.prisma.$queryRawUnsafe(
         `SELECT id, username, display_name, status, session_token, code FROM sm_xitongkaifa.sys_users WHERE username=? OR display_name=? LIMIT 1`,
         mobile,
         name || mobile
       );
-      console.log('[AclService] 通过手机号/姓名查找结果:', rows.length > 0 ? `找到用户: ${rows[0].username}` : '未找到');
+      Logger.log('[AclService] 通过手机号/姓名查找结果:', rows.length > 0 ? `找到用户: ${rows[0].username}` : '未找到');
       if (rows.length > 0) {
         user = rows[0];
-        console.log('[AclService] ✓ 通过手机号/姓名找到用户:', user.username);
+        Logger.log('[AclService] ✓ 通过手机号/姓名找到用户:', user.username);
       }
     }
 
     // 如果找不到，尝试通过钉钉userId查找（假设存储在code字段）
     if (!user && dingTalkUserId) {
       const codeValue = `dingtalk_${dingTalkUserId}`;
-      console.log('[AclService] 尝试通过钉钉userId查找用户，code:', codeValue);
+      Logger.log('[AclService] 尝试通过钉钉userId查找用户，code:', codeValue);
       const rows: any[] = await this.prisma.$queryRawUnsafe(
         `SELECT id, username, display_name, status, session_token, code FROM sm_xitongkaifa.sys_users WHERE code=? LIMIT 1`,
         codeValue
       );
-      console.log('[AclService] 通过钉钉userId查找结果:', rows.length > 0 ? `找到用户: ${rows[0].username}` : '未找到');
+      Logger.log('[AclService] 通过钉钉userId查找结果:', rows.length > 0 ? `找到用户: ${rows[0].username}` : '未找到');
       if (rows.length > 0) {
         user = rows[0];
-        console.log('[AclService] ✓ 通过钉钉userId找到用户:', user.username);
+        Logger.log('[AclService] ✓ 通过钉钉userId找到用户:', user.username);
       }
     }
 
     // 如果还是找不到，自动创建用户
     if (!user) {
-      console.log('[AclService] 未找到用户，开始自动创建新用户...');
+      Logger.log('[AclService] 未找到用户，开始自动创建新用户...');
 
       // 生成用户名：优先使用手机号，如果没有则使用钉钉userId
       const username = mobile || `dingtalk_${dingTalkUserId}`;
       // 使用钉钉用户的真实姓名作为display_name，如果没有姓名则使用用户名
       const displayName = name.trim() || username;
 
-      console.log('[AclService] 准备创建用户:', {
+      Logger.log('[AclService] 准备创建用户:', {
         username: username,
         display_name: displayName,
         code: `dingtalk_${dingTalkUserId}`,
@@ -503,7 +501,7 @@ export class AclService {
     const device = deviceInfo || 'dingtalk_web';
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
-    console.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName);
+    Logger.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName);
     await this.prisma.$executeRawUnsafe(
       `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=? WHERE id=?`,
       token,
@@ -517,7 +515,7 @@ export class AclService {
     // 记录登录历史
     await this.logLogin(Number(user.id), user.username, device, loginTime, token);
 
-    console.log('[AclService] 钉钉自动登录成功，用户:', user.username);
+    Logger.log('[AclService] 钉钉自动登录成功，用户:', user.username);
 
     return {
       id: Number(user.id),

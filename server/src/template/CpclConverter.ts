@@ -1,5 +1,6 @@
 // CPCL (Common Printing Command Language) 转换器
 // 用于便携打印机的指令生成
+import { Logger } from '../utils/logger.util';
 
 export interface CpclLabelData {
   spec?: string;
@@ -34,7 +35,7 @@ export class CpclConverter {
     }
     
     // CPCL需要反转黑白逻辑 (1=黑, 0=白 vs 0=黑, 1=白)
-    console.log('[CPCL] Inverting bitmap colors for CPCL compatibility');
+    Logger.log('[CPCL] Inverting bitmap colors for CPCL compatibility');
     cpclBitmapData = cpclBitmapData.replace(/./g, (char) => {
       const nibble = parseInt(char, 16);
       return (15 - nibble).toString(16).toUpperCase();
@@ -56,7 +57,7 @@ export class CpclConverter {
     // EG 命令：EG widthBytes heightDots x y data
     const widthBytes = Math.ceil(widthDots / 8);
     const xOffset = 0; // 默认位置，无偏移
-    console.log(`[CPCL] Converting bitmap: ${widthBytes} bytes x ${heightDots} dots, X offset: ${xOffset}, data length: ${cpclBitmapData.length}`);
+    Logger.log(`[CPCL] Converting bitmap: ${widthBytes} bytes x ${heightDots} dots, X offset: ${xOffset}, data length: ${cpclBitmapData.length}`);
     cpcl.push(`EG ${widthBytes} ${heightDots} ${xOffset} 0 ${cpclBitmapData}`);
     
     // CPCL结束指令

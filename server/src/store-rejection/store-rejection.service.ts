@@ -2,6 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '../utils/logger.util';
 
 export interface StoreRejectionItem {
     '门店/仓': string;
@@ -103,16 +104,16 @@ export class StoreRejectionService {
         LIMIT ${limit} OFFSET ${offset}`;
 
         try {
-            console.log('[StoreRejectionService] Executing count SQL:', countSql);
-            console.log('[StoreRejectionService] Count params:', params);
+            Logger.log('[StoreRejectionService] Executing count SQL:', countSql);
+            Logger.log('[StoreRejectionService] Count params:', params);
             const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
             const total = Number(countRows?.total || 0);
-            console.log('[StoreRejectionService] Total count:', total);
+            Logger.log('[StoreRejectionService] Total count:', total);
 
-            console.log('[StoreRejectionService] Executing data SQL:', sql);
-            console.log('[StoreRejectionService] Data params:', params);
+            Logger.log('[StoreRejectionService] Executing data SQL:', sql);
+            Logger.log('[StoreRejectionService] Data params:', params);
             const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
-            console.log('[StoreRejectionService] Rows returned:', rows?.length || 0);
+            Logger.log('[StoreRejectionService] Rows returned:', rows?.length || 0);
 
             const data = (rows || []).map(r => ({
                 '门店/仓': String(r['门店/仓'] || ''),
@@ -125,7 +126,7 @@ export class StoreRejectionService {
 
             return { data, total };
         } catch (error) {
-            console.error('[StoreRejectionService] Query error:', error);
+            Logger.error('[StoreRejectionService] Query error:', error);
             throw error;
         }
     }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '../utils/logger.util';
 
 export interface LabelPrintItem {
   templateName: string; // 标签模板
@@ -85,7 +86,7 @@ export class LabelPrintService {
             }
           } catch (err) {
             // 查询失败时记录错误但不中断流程
-            console.error(`[label-print] Error querying spec for SKU=${sku}:`, err);
+            Logger.error(`[label-print] Error querying spec for SKU=${sku}:`, err);
           }
         }
         // 如果从主表查不到，fallback到视图数据

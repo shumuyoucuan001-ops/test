@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { Logger } from '../utils/logger.util';
 
 interface SmtpAccount {
     host: string;
@@ -40,12 +41,12 @@ export class EmailService {
                 smtpAccounts = JSON.parse(process.env.SMTP_ACCOUNTS);
             }
         } catch (e) {
-            console.warn('[EmailService] SMTP_ACCOUNTS 解析失败，使用单个账号配置');
+            Logger.warn('[EmailService] SMTP_ACCOUNTS 解析失败，使用单个账号配置');
         }
 
         // 如果配置了多个账号，使用多个账号
         if (smtpAccounts.length > 0) {
-            console.log(`[EmailService] 检测到 ${smtpAccounts.length} 个邮件账号配置`);
+            Logger.log(`[EmailService] 检测到 ${smtpAccounts.length} 个邮件账号配置`);
             smtpAccounts.forEach((account, index) => {
                 if (account.user && account.pass) {
                     const transporter = nodemailer.createTransport({
@@ -65,7 +66,7 @@ export class EmailService {
                         from: account.from || account.user,
                         transporter,
                     });
-                    console.log(`[EmailService] 账号 ${index + 1} 初始化：${account.user}`);
+                    Logger.log(`[EmailService] 账号 ${index + 1} 初始化：${account.user}`);
                 }
             });
         } else if (smtpUser && smtpPass) {
@@ -87,13 +88,13 @@ export class EmailService {
                 from: process.env.SMTP_FROM || smtpUser,
                 transporter,
             });
-            console.log(`[EmailService] 单个账号初始化：${smtpUser}`);
+            Logger.log(`[EmailService] 单个账号初始化：${smtpUser}`);
         }
 
         if (this.accounts.length === 0) {
-            console.warn('[EmailService] 未配置任何邮件账号，邮件发送功能将不可用');
+            Logger.warn('[EmailService] 未配置任何邮件账号，邮件发送功能将不可用');
         } else {
-            console.log(`[EmailService] 邮件服务初始化完成，共 ${this.accounts.length} 个账号`);
+            Logger.log(`[EmailService] 邮件服务初始化完成，共 ${this.accounts.length} 个账号`);
         }
     }
 
@@ -134,13 +135,13 @@ export class EmailService {
             const account = this.getNextAccount();
 
             try {
-                console.log(`[EmailService] 准备发送邮件（尝试 ${attempt + 1}/${maxAttempts}）：从 ${account.from} 发送到 ${to}`);
-                console.log(`[EmailService] 邮件主题: ${subject}`);
-                console.log(`[EmailService] 使用账号: ${account.user}`);
+                Logger.log(`[EmailService] 准备发送邮件（尝试 ${attempt + 1}/${maxAttempts}）：从 ${account.from} 发送到 ${to}`);
+                Logger.log(`[EmailService] 邮件主题: ${subject}`);
+                Logger.log(`[EmailService] 使用账号: ${account.user}`);
 
                 // 配置检查
                 const smtpPass = account.pass || '';
-                console.log(`[EmailService] SMTP配置检查:`, {
+                Logger.log(`[EmailService] SMTP配置检查:`, {
                     host: account.host,
                     port: account.port,
                     user: account.user,
@@ -153,12 +154,12 @@ export class EmailService {
 
                 // 如果授权码长度不是16位，给出警告
                 if (smtpPass && smtpPass.length !== 16) {
-                    console.warn(`[EmailService] ⚠️ 警告：账号 ${account.user} 授权码长度异常（${smtpPass.length}位），QQ邮箱授权码通常是16位`);
+                    Logger.warn(`[EmailService] ⚠️ 警告：账号 ${account.user} 授权码长度异常（${smtpPass.length}位），QQ邮箱授权码通常是16位`);
                 }
 
                 // 如果授权码包含空格，给出警告
                 if (smtpPass && smtpPass.includes(' ')) {
-                    console.warn(`[EmailService] ⚠️ 警告：账号 ${account.user} 授权码包含空格，这可能导致登录失败`);
+                    Logger.warn(`[EmailService] ⚠️ 警告：账号 ${account.user} 授权码包含空格，这可能导致登录失败`);
                 }
 
                 await account.transporter.sendMail({
@@ -169,11 +170,11 @@ export class EmailService {
                     html: html || text,
                 });
 
-                console.log(`[EmailService] 邮件发送成功：${to} (使用账号: ${account.user}, ${new Date().toISOString()})`);
+                Logger.log(`[EmailService] 邮件发送成功：${to} (使用账号: ${account.user}, ${new Date().toISOString()})`);
                 return; // 发送成功，退出循环
             } catch (error: any) {
                 lastError = error;
-                console.warn(`[EmailService] 账号 ${account.user} 发送失败，尝试下一个账号:`, {
+                Logger.warn(`[EmailService] 账号 ${account.user} 发送失败，尝试下一个账号:`, {
                     message: error?.message,
                     code: error?.code,
                     responseCode: error?.responseCode,
@@ -191,7 +192,7 @@ export class EmailService {
 
         // 所有账号都失败了
         const error: any = lastError;
-        console.error('[EmailService] 所有账号发送失败:', {
+        Logger.error('[EmailService] 所有账号发送失败:', {
             message: error?.message,
             code: error?.code,
             responseCode: error?.responseCode,

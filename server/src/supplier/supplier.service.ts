@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { SupplierFullInfo, SupplierManagement } from './supplier.controller';
+import { Logger } from '../utils/logger.util';
 
 @Injectable()
 export class SupplierService {
@@ -90,9 +91,9 @@ export class SupplierService {
         data.supplierCode,
       ]);
       
-      console.log('[SupplierService] Old logs cleaned up (keeping max 30 records)');
+      Logger.log('[SupplierService] Old logs cleaned up (keeping max 30 records)');
     } catch (error) {
-      console.error('[SupplierService] Failed to insert log:', error);
+      Logger.error('[SupplierService] Failed to insert log:', error);
     } finally {
       await connection.end();
     }
@@ -405,7 +406,7 @@ export class SupplierService {
             userNameMap[user.id] = user.username;
           });
         } catch (error) {
-          console.error('[SupplierService] Failed to query sys_users:', error);
+          Logger.error('[SupplierService] Failed to query sys_users:', error);
         }
       }
       
@@ -429,7 +430,7 @@ export class SupplierService {
         })(),
       }));
     } catch (error) {
-      console.error('[SupplierService] 获取变更日志失败:', error);
+      Logger.error('[SupplierService] 获取变更日志失败:', error);
       return [];
     } finally {
       await connection.end();

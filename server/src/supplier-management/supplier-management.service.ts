@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
+import { Logger } from '../utils/logger.util';
 
 @Injectable()
 export class SupplierManagementService {
@@ -55,7 +56,7 @@ export class SupplierManagementService {
         data.userName || null,
       ]);
     } catch (error) {
-      console.error('[SupplierManagementService] Failed to insert log:', error);
+      Logger.error('[SupplierManagementService] Failed to insert log:', error);
       throw error;
     }
   }
@@ -190,7 +191,7 @@ export class SupplierManagementService {
             userNameMap[user.id] = user.username;
           });
         } catch (error) {
-          console.error('[SupplierManagementService] Failed to query sys_users:', error);
+          Logger.error('[SupplierManagementService] Failed to query sys_users:', error);
         }
       }
       
@@ -214,7 +215,7 @@ export class SupplierManagementService {
         })(),
       }));
     } catch (error) {
-      console.error('[SupplierManagementService] 获取变更日志失败:', error);
+      Logger.error('[SupplierManagementService] 获取变更日志失败:', error);
       return [];
     } finally {
       await connection.end();

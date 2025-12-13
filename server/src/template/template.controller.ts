@@ -4,6 +4,7 @@ import { CpclConverter } from './CpclConverter';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { LabelTemplate, TemplateService } from './template.service';
+import { Logger } from '../utils/logger.util';
 
 @Controller('templates')
 export class TemplateController {
@@ -48,13 +49,13 @@ export class TemplateController {
   // 测试二维码生成
   @Post('test-qr')
   async testQr(@Body() data: any) {
-    console.log('[Template] Testing QR code generation');
+    Logger.log('[Template] Testing QR code generation');
     
     try {
       const QRCodeLib = require('qrcode');
       const testData = data.text || 'TEST123';
       
-      console.log('[Template] Generating QR for:', testData);
+      Logger.log('[Template] Generating QR for:', testData);
       
       const qrDataUrl = await QRCodeLib.toDataURL(testData, {
         width: 300,
@@ -68,7 +69,7 @@ export class TemplateController {
         }
       });
       
-      console.log('[Template] QR generated, length:', qrDataUrl.length);
+      Logger.log('[Template] QR generated, length:', qrDataUrl.length);
       
       return { 
         success: true,
@@ -77,7 +78,7 @@ export class TemplateController {
         preview: qrDataUrl.substring(0, 50) + '...'
       };
     } catch (error) {
-      console.error('[Template] QR generation failed:', error);
+      Logger.error('[Template] QR generation failed:', error);
       return { 
         success: false,
         error: error.message 
@@ -88,7 +89,7 @@ export class TemplateController {
   // 测试CPCL指令传输
   @Post('test-cpcl')
   async testCpcl(@Body() data: any) {
-    console.log('[Template] Testing CPCL transmission');
+    Logger.log('[Template] Testing CPCL transmission');
     
     const testCpcl = `! 0 203 203 240 1\r
 PAGE-WIDTH 320\r
@@ -109,7 +110,7 @@ PRINT\r
   // 渲染模板为HTML (用于web端打印预览) - 必须在 :id/render 之前
   @Post(':id/render-html')
   async renderTemplateAsHtml(@Param('id') id: string, @Body() data: any) {
-    console.log('[Template] Rendering template as HTML:', id, 'with data:', JSON.stringify(data, null, 2));
+    Logger.log('[Template] Rendering template as HTML:', id, 'with data:', JSON.stringify(data, null, 2));
     
     try {
       const template = await this.templateService.findOne(+id);
@@ -119,14 +120,14 @@ PRINT\r
 
       // 对于HTML渲染，优先使用mm单位的HTML模板，这样在浏览器中显示更合适
       let html = template.content || template.contentTspl || '';
-      console.log(`[Template] Using ${template.content ? 'HTML (mm)' : 'TSPL (px)'} template for HTML rendering`);
+      Logger.log(`[Template] Using ${template.content ? 'HTML (mm)' : 'TSPL (px)'} template for HTML rendering`);
       
       // 先处理二维码生成，再替换其他模板变量
       if (data.qrDataUrl) {
         let qrImageUrl = data.qrDataUrl;
         
         try {
-          console.log('[Template] Generating QR code for:', data.qrDataUrl);
+          Logger.log('[Template] Generating QR code for:', data.qrDataUrl);
           
           // 强制生成二维码，不检查是否已经是data URL
           const QRCodeLib = require('qrcode');
@@ -143,15 +144,15 @@ PRINT\r
             }
           });
           
-          console.log('[Template] QR code generated successfully!');
-          console.log('[Template] QR code length:', qrImageUrl.length);
-          console.log('[Template] QR code starts with:', qrImageUrl.substring(0, 30));
+          Logger.log('[Template] QR code generated successfully!');
+          Logger.log('[Template] QR code length:', qrImageUrl.length);
+          Logger.log('[Template] QR code starts with:', qrImageUrl.substring(0, 30));
           
         } catch (error) {
-          console.error('[Template] QR code generation failed:', error);
-          console.error('[Template] Error stack:', error.stack);
+          Logger.error('[Template] QR code generation failed:', error);
+          Logger.error('[Template] Error stack:', error.stack);
           // 如果生成失败，保持原始值
-          console.log('[Template] Keeping original value as fallback');
+          Logger.log('[Template] Keeping original value as fallback');
         }
         
         // 替换模板中的二维码占位符
@@ -159,8 +160,8 @@ PRINT\r
         html = html.replace(/\{\{qrDataUrl\}\}/g, qrImageUrl);
         const afterReplace = html.includes('{{qrDataUrl}}');
         
-        console.log('[Template] QR replacement - before:', beforeReplace, 'after:', afterReplace);
-        console.log('[Template] Final QR src preview:', qrImageUrl.substring(0, 50) + '...');
+        Logger.log('[Template] QR replacement - before:', beforeReplace, 'after:', afterReplace);
+        Logger.log('[Template] Final QR src preview:', qrImageUrl.substring(0, 50) + '...');
       }
 
       // 替换其他模板变量（除了qrDataUrl，已经处理过了）
@@ -174,10 +175,10 @@ PRINT\r
         }
       });
 
-      console.log('[Template] HTML rendering completed');
+      Logger.log('[Template] HTML rendering completed');
       return { rendered: html };
     } catch (error) {
-      console.error('[Template] HTML rendering failed:', error);
+      Logger.error('[Template] HTML rendering failed:', error);
       throw new Error(`HTML模板渲染失败: ${error.message}`);
     }
   }
@@ -185,7 +186,7 @@ PRINT\r
   // 渲染模板为打印指令 (TSPL/CPCL)
   @Post(':id/render')
   async renderTemplate(@Param('id') id: string, @Body() data: any) {
-    console.log('[Template] Rendering template:', id, 'with data:', JSON.stringify(data, null, 2));
+    Logger.log('[Template] Rendering template:', id, 'with data:', JSON.stringify(data, null, 2));
     
     try {
       const template = await this.templateService.findOne(+id);
@@ -195,15 +196,15 @@ PRINT\r
 
       // 检查打印机类型
       const printerType = data.printerType || 'desktop'; // 'desktop' | 'portable'
-      console.log(`[Template] Printer type: ${printerType} (from data.printerType: ${data.printerType})`);
+      Logger.log(`[Template] Printer type: ${printerType} (from data.printerType: ${data.printerType})`);
 
       // 固定使用contentTspl字段的模板代码，如果是HTML则转换为TSPL位图
       let html = template.contentTspl || '';
-      console.log(`[Template] Using contentTspl template (length: ${html.length})`);
+      Logger.log(`[Template] Using contentTspl template (length: ${html.length})`);
       
       // 检查contentTspl是否为HTML内容（包含<标签）
       const isHtmlContent = html.includes('<') && html.includes('>');
-      console.log(`[Template] ContentTspl is HTML: ${isHtmlContent}`);
+      Logger.log(`[Template] ContentTspl is HTML: ${isHtmlContent}`);
       
       // 替换模板变量 - 先处理特殊的qrDataUrl(需要生成二维码图片)
       if (data.qrDataUrl) {
@@ -224,7 +225,7 @@ PRINT\r
             }
           });
           } catch (error) {
-            console.error('[Template] QR code generation failed:', error);
+            Logger.error('[Template] QR code generation failed:', error);
             // 使用原始值作为fallback
           }
         }
@@ -238,16 +239,16 @@ PRINT\r
           if (value !== undefined && value !== null) {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
             html = html.replace(regex, String(value));
-            console.log(`[Template] Replaced {{${key}}} with: ${String(value).substring(0, 50)}${String(value).length > 50 ? '...' : ''}`);
+            Logger.log(`[Template] Replaced {{${key}}} with: ${String(value).substring(0, 50)}${String(value).length > 50 ? '...' : ''}`);
           }
         }
       });
 
-      console.log('[Template] Processed HTML:', html.substring(0, 200) + '...');
+      Logger.log('[Template] Processed HTML:', html.substring(0, 200) + '...');
 
       // 检查是否请求测试位图模式（用于诊断）- 重新启用进行BITMAP格式调试
       if (data.testBitmap === true) {
-        console.log('[Template] Generating BITMAP test TSPL for diagnosis');
+        Logger.log('[Template] Generating BITMAP test TSPL for diagnosis');
         const copies = data.copies || 1;
         
         // 使用五种大尺寸明显图案循环打印 (32x32像素)，包括字母A
@@ -257,7 +258,7 @@ PRINT\r
         let testTspl;
         if (patternIndex === 0) {
           // 第一种图案：回到最初有效的8x8格式 - 0x前缀逗号分隔
-          console.log('[Template] Using pattern 1: Back to basic 8x8 with 0x prefix (known working)');
+          Logger.log('[Template] Using pattern 1: Back to basic 8x8 with 0x prefix (known working)');
           testTspl = `SIZE 40 mm,30 mm
 GAP 2 mm,0
 DENSITY 8
@@ -273,7 +274,7 @@ PRINT ${copies},1
 `;
         } else if (patternIndex === 1) {
           // 第二种图案：回到最初有效的8x8格式 - 十进制逗号分隔
-          console.log('[Template] Using pattern 2: Back to basic 8x8 with decimal (known working)');
+          Logger.log('[Template] Using pattern 2: Back to basic 8x8 with decimal (known working)');
           testTspl = `SIZE 40 mm,30 mm
 GAP 2 mm,0
 DENSITY 8
@@ -289,7 +290,7 @@ PRINT ${copies},1
 `;
         } else if (patternIndex === 2) {
           // 第三种图案：简单的16x16全黑 - 0x前缀逗号分隔
-          console.log('[Template] Using pattern 3: Simple 16x16 black square with 0x prefix');
+          Logger.log('[Template] Using pattern 3: Simple 16x16 black square with 0x prefix');
           testTspl = `SIZE 40 mm,30 mm
 GAP 2 mm,0
 DENSITY 8
@@ -305,7 +306,7 @@ PRINT ${copies},1
 `;
         } else if (patternIndex === 3) {
           // 第四种图案：简单的16x16全黑 - 十进制逗号分隔
-          console.log('[Template] Using pattern 4: Simple 16x16 black square with decimal');
+          Logger.log('[Template] Using pattern 4: Simple 16x16 black square with decimal');
           testTspl = `SIZE 40 mm,30 mm
 GAP 2 mm,0
 DENSITY 8
@@ -321,7 +322,7 @@ PRINT ${copies},1
 `;
         } else {
           // 第五种图案：最简单的4x4全黑 - 十进制逗号分隔
-          console.log('[Template] Using pattern 5: Simplest 4x4 black square with decimal');
+          Logger.log('[Template] Using pattern 5: Simplest 4x4 black square with decimal');
           testTspl = `SIZE 40 mm,30 mm
 GAP 2 mm,0
 DENSITY 8
@@ -337,14 +338,14 @@ PRINT ${copies},1
 `;
         }
         
-        console.log('[Template] Generated alternating BITMAP test TSPL');
-        console.log('[Template] TSPL content:', testTspl);
+        Logger.log('[Template] Generated alternating BITMAP test TSPL');
+        Logger.log('[Template] TSPL content:', testTspl);
         return { rendered: testTspl };
       }
       
       // 检查是否请求简单文本模式（用于蓝牙打印机）
       if (data.simpleText === true) {
-        console.log('[Template] Generating simple text TSPL for Bluetooth printer');
+        Logger.log('[Template] Generating simple text TSPL for Bluetooth printer');
         const copies = data.copies || 1;
         const simpleTspl = this.generateSimpleTextTspl(data, copies);
         return { rendered: simpleTspl };
@@ -352,17 +353,17 @@ PRINT ${copies},1
       
       // 强制使用HTML转位图的方式（无论contentTspl是HTML还是其他内容）
       if (data.renderAsBitmap === true || isHtmlContent) {
-        console.log(`[Template] Rendering as bitmap for ${printerType} printer`);
+        Logger.log(`[Template] Rendering as bitmap for ${printerType} printer`);
         try {
           // 恢复使用HTML渲染成位图的方式
-          console.log('[Template] Rendering HTML to bitmap and converting to TSPL');
+          Logger.log('[Template] Rendering HTML to bitmap and converting to TSPL');
           const copies = data.copies || 1;
           // 使用标准尺寸: 40mm x 30mm @ 200dpi
           const bitmapResult = await this.htmlToTsplBitmapViaHeadless(html, 40, 30, copies);
-          console.log('[Template] Bitmap rendering successful');
+          Logger.log('[Template] Bitmap rendering successful');
           return { rendered: bitmapResult };
         } catch (bitmapError) {
-          console.error('[Template] Bitmap rendering failed, falling back to manual rendering:', bitmapError);
+          Logger.error('[Template] Bitmap rendering failed, falling back to manual rendering:', bitmapError);
           // 回退到手工位图渲染
           const copies = data.copies || 1; // 获取打印份数
           const fallbackTspl = await this.htmlToTsplBitmap(html, 40, 30, copies);
@@ -370,7 +371,7 @@ PRINT ${copies},1
         }
       } else {
         // 传统渲染（已废弃，但保留兼容性）
-        console.log(`[Template] Using legacy rendering for ${printerType} printer`);
+        Logger.log(`[Template] Using legacy rendering for ${printerType} printer`);
         if (printerType === 'portable') {
           const cpcl = CpclConverter.htmlToCpcl(html, {
             spec: data.spec,
@@ -386,7 +387,7 @@ PRINT ${copies},1
         }
       }
     } catch (error) {
-      console.error('[Template] Rendering failed:', error);
+      Logger.error('[Template] Rendering failed:', error);
       throw new Error(`模板渲染失败: ${error.message}`);
     }
   }
@@ -434,7 +435,7 @@ PRINT ${copies},1
 
   // 生成简单文本TSPL（用于蓝牙打印机）
   private generateSimpleTextTspl(data: any, copies: number = 1): string {
-    console.log('[Template] Generating simple text TSPL for Bluetooth printer');
+    Logger.log('[Template] Generating simple text TSPL for Bluetooth printer');
     
     const tspl = `SIZE 40 mm,30 mm
 GAP 2 mm,0
@@ -453,13 +454,13 @@ TEXT 20,180,"TSS24.BF2",0,1,1,"Code: ${data.barcodeTail || 'N/A'}"
 PRINT ${copies}
 `;
     
-    console.log('[Template] Generated simple text TSPL:', tspl);
+    Logger.log('[Template] Generated simple text TSPL:', tspl);
     return tspl;
   }
 
   // 生成简单测试图案的BITMAP TSPL（用于诊断）
   private generateTestBitmapTspl(copies: number = 1): string {
-    console.log('[Template] Generating test bitmap pattern for diagnosis');
+    Logger.log('[Template] Generating test bitmap pattern for diagnosis');
     
     // 创建一个更简单的8x8像素测试图案
     const width = 8; // 像素宽度
@@ -481,11 +482,11 @@ PRINT ${copies}
     // 转换为十六进制字符串，每个字节用两位十六进制表示
     const hexData = bitmap.map(byte => byte.toString(16).padStart(2, '0').toUpperCase()).join('');
     
-    console.log(`[Template] Test bitmap: ${width}x${height} pixels, ${bytesPerRow} bytes per row`);
-    console.log(`[Template] Bitmap data (${bitmap.length} bytes):`, hexData);
-    console.log(`[Template] Binary pattern:`);
+    Logger.log(`[Template] Test bitmap: ${width}x${height} pixels, ${bytesPerRow} bytes per row`);
+    Logger.log(`[Template] Bitmap data (${bitmap.length} bytes):`, hexData);
+    Logger.log(`[Template] Binary pattern:`);
     bitmap.forEach((byte, i) => {
-      console.log(`[Template] Row ${i+1}: ${byte.toString(2).padStart(8, '0')} (0x${byte.toString(16).padStart(2, '0').toUpperCase()})`);
+      Logger.log(`[Template] Row ${i+1}: ${byte.toString(2).padStart(8, '0')} (0x${byte.toString(16).padStart(2, '0').toUpperCase()})`);
     });
     
     const tspl = `SIZE 40 mm,30 mm
@@ -503,7 +504,7 @@ BITMAP 50,100,${bytesPerRow},${height},0,${hexData}
 PRINT ${copies}
 `;
     
-    console.log('[Template] Generated test bitmap TSPL with diagonal pattern');
+    Logger.log('[Template] Generated test bitmap TSPL with diagonal pattern');
     return tspl;
   }
 
@@ -550,25 +551,25 @@ PRINT ${copies}
           return match[1].trim(); // 返回位图数据部分
         }
       }
-      console.warn('[Template] No bitmap data found in TSPL');
+      Logger.warn('[Template] No bitmap data found in TSPL');
       return '';
     } catch (error) {
-      console.error('[Template] Failed to extract bitmap data:', error);
+      Logger.error('[Template] Failed to extract bitmap data:', error);
       return '';
     }
   }
 
   // 使用 Playwright 将 HTML 渲染为位图 TSPL
   private async htmlToTsplBitmapViaHeadless(html: string, widthMm: number, heightMm: number, copies: number = 1): Promise<string> {
-    console.log('[Template] Converting HTML to BITMAP via headless browser:', html.substring(0, 200) + '...');
-    console.log(`[Template] Print copies requested: ${copies}`);
+    Logger.log('[Template] Converting HTML to BITMAP via headless browser:', html.substring(0, 200) + '...');
+    Logger.log(`[Template] Print copies requested: ${copies}`);
     
     // 使用200dpi分辨率的固定像素尺寸
     // 40mm = 1.575英寸 * 200dpi = 315px (取320对齐到8的倍数)
     // 30mm = 1.181英寸 * 200dpi = 236px (取240对齐到8的倍数)
     const W = 320; // 40mm @ 200dpi ≈ 315px, 向上对齐到320
     const H = 240; // 30mm @ 200dpi ≈ 236px, 向上对齐到240
-    console.log(`[Template] Using fixed pixel size for 200dpi printer: ${W}x${H}px`);
+    Logger.log(`[Template] Using fixed pixel size for 200dpi printer: ${W}x${H}px`);
     
     try {
       // 保存copies参数到局部变量，避免作用域问题
@@ -605,9 +606,9 @@ PRINT ${copies}
         </style>
       </head><body><div class="label">${html}</div></body></html>`;
       
-      console.log('[Template] Launching Playwright browser...');
-      console.log('[Template] Using px units template for direct pixel rendering');
-      console.log('[Template] Full HTML for browser:', fullHtml.substring(0, 500) + '...');
+      Logger.log('[Template] Launching Playwright browser...');
+      Logger.log('[Template] Using px units template for direct pixel rendering');
+      Logger.log('[Template] Full HTML for browser:', fullHtml.substring(0, 500) + '...');
       
       const browser = await chromium.launch({
         headless: true,
@@ -635,7 +636,7 @@ PRINT ${copies}
         height: H,
         deviceScaleFactor: 1
       });
-      console.log(`[Template] Viewport set to ${W}x${H}px, screen media`);
+      Logger.log(`[Template] Viewport set to ${W}x${H}px, screen media`);
       
       await page.setContent(fullHtml, { waitUntil: 'networkidle' });
       
@@ -647,28 +648,28 @@ PRINT ${copies}
       });
       
       await browser.close();
-      console.log('[Template] Browser screenshot completed, size:', screenshot.length, 'bytes');
+      Logger.log('[Template] Browser screenshot completed, size:', screenshot.length, 'bytes');
 
       // 使用 Jimp 处理截图
       const Jimp = require('jimp');
       let img = await Jimp.read(screenshot);
-      console.log('[Template] Original screenshot size:', img.bitmap.width, 'x', img.bitmap.height);
+      Logger.log('[Template] Original screenshot size:', img.bitmap.width, 'x', img.bitmap.height);
 
       // 第4.5步：调整图片尺寸到目标大小（320x240）
       if (img.bitmap.width !== W || img.bitmap.height !== H) {
-        console.log(`[Template] Resizing image from ${img.bitmap.width}x${img.bitmap.height} to ${W}x${H}`);
+        Logger.log(`[Template] Resizing image from ${img.bitmap.width}x${img.bitmap.height} to ${W}x${H}`);
         img = img.resize(W, H, Jimp.RESIZE_BILINEAR);
-        console.log('[Template] Image resized to target dimensions:', W, 'x', H);
+        Logger.log('[Template] Image resized to target dimensions:', W, 'x', H);
       } else {
-        console.log('[Template] Image already at target size, no resizing needed');
+        Logger.log('[Template] Image already at target size, no resizing needed');
       }
 
-      console.log(`[Template] Final image size: ${img.bitmap.width}x${img.bitmap.height} pixels`);
-      console.log(`[Template] Target physical size: ${widthMm}x${heightMm}mm at 203 DPI`);
+      Logger.log(`[Template] Final image size: ${img.bitmap.width}x${img.bitmap.height} pixels`);
+      Logger.log(`[Template] Target physical size: ${widthMm}x${heightMm}mm at 203 DPI`);
       
       // 验证渲染尺寸是否正确
       if (img.bitmap.width !== W || img.bitmap.height !== H) {
-        console.log(`[Template] WARNING: Rendered size mismatch! Expected ${W}x${H}, got ${img.bitmap.width}x${img.bitmap.height}`);
+        Logger.log(`[Template] WARNING: Rendered size mismatch! Expected ${W}x${H}, got ${img.bitmap.width}x${img.bitmap.height}`);
       }
 
       // 确保图像是黑白的
@@ -678,7 +679,7 @@ PRINT ${copies}
       const tspl = await this.convertJimpToBitmap(img, W, H, copies);
       return tspl;
     } catch (playwrightError) {
-      console.error('[Template] Playwright rendering failed, falling back to manual Jimp rendering:', playwrightError);
+      Logger.error('[Template] Playwright rendering failed, falling back to manual Jimp rendering:', playwrightError);
       // Fallback to manual Jimp rendering if Playwright fails
       return this.htmlToTsplBitmap(html, widthMm, heightMm, copies);
     }
@@ -690,7 +691,7 @@ PRINT ${copies}
     const dpi = 200;
     const dotsPerMm = dpi / 25.4;
     
-    console.log('[Template] Using 200dpi resolution image:', W, 'x', H, 'for printer');
+    Logger.log('[Template] Using 200dpi resolution image:', W, 'x', H, 'for printer');
     
     const finalW = W;
     const finalH = H;
@@ -724,11 +725,11 @@ PRINT ${copies}
       }
     }
     
-    console.log('[Template] Processing bitmap, finalW:', finalW, 'finalH:', finalH, 'bytesPerRow:', bytesPerRow, 'totalBytes:', bitmap.length);
-    console.log('[Template] Total black pixels (approx):', blackPixelCount, 'out of', finalW * finalH);
+    Logger.log('[Template] Processing bitmap, finalW:', finalW, 'finalH:', finalH, 'bytesPerRow:', bytesPerRow, 'totalBytes:', bitmap.length);
+    Logger.log('[Template] Total black pixels (approx):', blackPixelCount, 'out of', finalW * finalH);
     
     // *** 对位图数据进行黑白反转 (按位取反) ***
-    console.log('[Template] Inverting bitmap colors...');
+    Logger.log('[Template] Inverting bitmap colors...');
     for (let i = 0; i < bitmap.length; i++) {
       bitmap[i] = ~bitmap[i] & 0xFF; // 按位取反,并确保保持在字节范围内
     }
@@ -738,17 +739,17 @@ PRINT ${copies}
     
     // 调试：输出第一行的位图数据
     const firstRowHex = hexList.slice(0, bytesPerRow).join('');
-    console.log('[Template] First row bitmap (hex) after inversion:', firstRowHex);
+    Logger.log('[Template] First row bitmap (hex) after inversion:', firstRowHex);
     
-    console.log(`[Template] BITMAP parameters: width=${bytesPerRow} bytes (${finalW} dots), height=${finalH} dots`);
-    console.log(`[Template] Physical size should be: ${(finalW/dotsPerMm).toFixed(1)}mm x ${(finalH/dotsPerMm).toFixed(1)}mm`);
+    Logger.log(`[Template] BITMAP parameters: width=${bytesPerRow} bytes (${finalW} dots), height=${finalH} dots`);
+    Logger.log(`[Template] Physical size should be: ${(finalW/dotsPerMm).toFixed(1)}mm x ${(finalH/dotsPerMm).toFixed(1)}mm`);
     
     // 将位图数据转换为Base64编码,便于JSON传输
     // 前端将Base64解码为原始二进制字节后发送给打印机
     const bitmapDataBase64 = Buffer.from(bitmap).toString('base64');
     
-    console.log(`[Template] Bitmap data: ${bitmap.length} bytes -> ${bitmapDataBase64.length} base64 chars`);
-    console.log(`[Template] First 80 bytes as hex: ${Array.from(bitmap.slice(0, 40)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('')}`);
+    Logger.log(`[Template] Bitmap data: ${bitmap.length} bytes -> ${bitmapDataBase64.length} base64 chars`);
+    Logger.log(`[Template] First 80 bytes as hex: ${Array.from(bitmap.slice(0, 40)).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('')}`);
     
     // 使用特殊格式: TSPL头部 + __BINARY_DATA_BASE64__ + Base64数据 + __END_BINARY__
     // 前端需要解析这个格式,将Base64部分转换为原始字节后插入BITMAP命令
@@ -765,21 +766,21 @@ PRINT ${copies}
     // 返回特殊格式的TSPL命令
     const tspl = `${tsplHeader}__BINARY_DATA_BASE64__${bitmapDataBase64}__END_BINARY__${tsplFooter}`;
     
-    console.log(`[Template] TSPL header length: ${tsplHeader.length}, footer length: ${tsplFooter.length}`);
-    console.log(`[Template] Total TSPL length: ${tspl.length} bytes`);
+    Logger.log(`[Template] TSPL header length: ${tsplHeader.length}, footer length: ${tsplFooter.length}`);
+    Logger.log(`[Template] Total TSPL length: ${tspl.length} bytes`);
     
-    console.log(`[Template] Using test BITMAP: 16x16 arrow at (100,150)`);
+    Logger.log(`[Template] Using test BITMAP: 16x16 arrow at (100,150)`);
     
-    console.log(`[Template] Generated TSPL with PRINT ${copies} command`);
+    Logger.log(`[Template] Generated TSPL with PRINT ${copies} command`);
     
-    console.log(`[Template] BITMAP TSPL: width=${bytesPerRow} bytes (${finalW} dots), height=${finalH} dots, data=${bitmap.length} bytes`);
+    Logger.log(`[Template] BITMAP TSPL: width=${bytesPerRow} bytes (${finalW} dots), height=${finalH} dots, data=${bitmap.length} bytes`);
     return tspl;
   }
 
   // 手工位图渲染（回退方案）
   private async htmlToTsplBitmap(html: string, widthMm: number, heightMm: number, copies: number = 1): Promise<string> {
-    console.log('[Template] Manual bitmap rendering (fallback)...');
-    console.log(`[Template] Fallback print copies requested: ${copies}`);
+    Logger.log('[Template] Manual bitmap rendering (fallback)...');
+    Logger.log(`[Template] Fallback print copies requested: ${copies}`);
     
     // 使用200dpi分辨率计算像素
     const dpi = 200;
@@ -788,7 +789,7 @@ PRINT ${copies}
     // 向上对齐到8的倍数
     const W = Math.ceil((widthMm * dotsPerMm) / 8) * 8;  // 320
     const H = Math.ceil((heightMm * dotsPerMm) / 8) * 8;  // 240
-    console.log(`[Template] Fallback image size: ${W}x${H}px @ ${dpi}dpi`);
+    Logger.log(`[Template] Fallback image size: ${W}x${H}px @ ${dpi}dpi`);
     
     const Jimp = require('jimp');
     const img = new Jimp(W, H, 0xFFFFFFFF); // 白底
@@ -810,7 +811,7 @@ PRINT ${copies}
       img.print(font, 10, H-30, `${W}x${H}`);
       
     } catch (error) {
-      console.error('[Template] Manual rendering error:', error);
+      Logger.error('[Template] Manual rendering error:', error);
     }
     
     return this.convertJimpToBitmap(img, W, H);
@@ -818,7 +819,7 @@ PRINT ${copies}
 
   // 传统 TSPL 渲染（已废弃，保留兼容性）
   private async htmlToTspl(html: string, data: any): Promise<string> {
-    console.log('[Template] Legacy TSPL rendering (deprecated)...');
+    Logger.log('[Template] Legacy TSPL rendering (deprecated)...');
     
     // 简单的 TSPL 生成
     const tspl = [
@@ -846,10 +847,10 @@ PRINT ${copies}
     copies?: number;
   }) {
     try {
-      console.log('[Template] Public API: render-html-to-bitmap called');
-      console.log('[Template] HTML length:', body.html?.length);
-      console.log('[Template] Size:', body.width, 'x', body.height);
-      console.log('[Template] Copies:', body.copies || 1);
+      Logger.log('[Template] Public API: render-html-to-bitmap called');
+      Logger.log('[Template] HTML length:', body.html?.length);
+      Logger.log('[Template] Size:', body.width, 'x', body.height);
+      Logger.log('[Template] Copies:', body.copies || 1);
 
       if (!body.html || !body.width || !body.height) {
         throw new Error('Missing required parameters: html, width, height');
@@ -866,11 +867,11 @@ PRINT ${copies}
         body.copies || 1
       );
 
-      console.log('[Template] TSPL generated, length:', tspl.length);
+      Logger.log('[Template] TSPL generated, length:', tspl.length);
 
       return { rendered: tspl };
     } catch (error) {
-      console.error('[Template] render-html-to-bitmap error:', error);
+      Logger.error('[Template] render-html-to-bitmap error:', error);
       throw error;
     }
   }
@@ -887,7 +888,7 @@ PRINT ${copies}
     }>;
   }) {
     try {
-      console.log(`[Template] 开始批量生成TSPL，共${body.items.length}个标签`);
+      Logger.log(`[Template] 开始批量生成TSPL，共${body.items.length}个标签`);
       
       if (!body.items || body.items.length === 0) {
         throw new Error('没有提供标签数据');
@@ -915,7 +916,7 @@ PRINT ${copies}
       for (const item of body.items) {
         const template = await this.templateService.findOne(item.templateId);
         if (!template) {
-          console.warn(`[Template] 模板ID ${item.templateId} 不存在，跳过`);
+          Logger.warn(`[Template] 模板ID ${item.templateId} 不存在，跳过`);
           continue;
         }
 
@@ -939,7 +940,7 @@ PRINT ${copies}
       
       const batchTspl = tsplCommands.join('\n');
       
-      console.log(`[Template] 批量TSPL生成完成，总计${totalLabels}个标签`);
+      Logger.log(`[Template] 批量TSPL生成完成，总计${totalLabels}个标签`);
       
       return {
         success: true,
@@ -949,7 +950,7 @@ PRINT ${copies}
       };
       
     } catch (error) {
-      console.error('[Template] 批量TSPL生成失败:', error);
+      Logger.error('[Template] 批量TSPL生成失败:', error);
       return {
         success: false,
         error: error.message,
@@ -977,7 +978,7 @@ PRINT ${copies}
       return bitmapLine;
       
     } catch (error) {
-      console.error('[Template] 生成标签内容失败:', error);
+      Logger.error('[Template] 生成标签内容失败:', error);
       throw error;
     }
   }

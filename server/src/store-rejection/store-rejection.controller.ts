@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import type { StoreRejectionItem } from './store-rejection.service';
 import { StoreRejectionService } from './store-rejection.service';
+import { Logger } from '../utils/logger.util';
 
 @Controller('store-rejection')
 export class StoreRejectionController {
@@ -29,7 +30,7 @@ export class StoreRejectionController {
         if (receiptNo) filters.receiptNo = receiptNo;
         if (keyword) filters.keyword = keyword;
 
-        console.log('[StoreRejectionController] list query:', {
+        Logger.log('[StoreRejectionController] list query:', {
             store, productName, skuId, upc, purchaseOrderNo, receiptNo, keyword, page: pageNum, limit: limitNum,
         });
 
@@ -40,7 +41,7 @@ export class StoreRejectionController {
     async sendRejectionEmail(
         @Body() body: { item: StoreRejectionItem; email?: string },
     ): Promise<{ success: boolean; message: string }> {
-        console.log('[StoreRejectionController] 收到发送邮件请求:', {
+        Logger.log('[StoreRejectionController] 收到发送邮件请求:', {
             item: body.item,
             email: body.email || '使用环境变量配置的邮箱',
             timestamp: new Date().toISOString(),
@@ -48,10 +49,10 @@ export class StoreRejectionController {
 
         try {
             await this.service.sendRejectionEmail(body.item, body.email);
-            console.log('[StoreRejectionController] 邮件发送成功');
+            Logger.log('[StoreRejectionController] 邮件发送成功');
             return { success: true, message: '邮件发送成功' };
         } catch (error: any) {
-            console.error('[StoreRejectionController] 发送邮件失败:', {
+            Logger.error('[StoreRejectionController] 发送邮件失败:', {
                 error: error?.message || error,
                 code: error?.code,
                 responseCode: error?.responseCode,

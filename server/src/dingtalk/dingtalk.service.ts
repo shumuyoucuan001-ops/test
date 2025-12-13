@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import axios from 'axios';
+import { Logger } from '../utils/logger.util';
 
 /**
  * 钉钉服务类 - 用于钉钉OAuth验证
@@ -22,13 +23,13 @@ export class DingTalkService {
 
         // 验证必要的配置项是否存在
         if (!this.appKey || !this.appSecret || !this.corpId) {
-            console.warn('[DingTalkService] 钉钉配置不完整，钉钉登录功能可能不可用');
-            console.warn('[DingTalkService] 请检查 server/.env 文件中的配置：DINGTALK_APP_KEY, DINGTALK_APP_SECRET, DINGTALK_CORP_ID');
+            Logger.warn('[DingTalkService] 钉钉配置不完整，钉钉登录功能可能不可用');
+            Logger.warn('[DingTalkService] 请检查 server/.env 文件中的配置：DINGTALK_APP_KEY, DINGTALK_APP_SECRET, DINGTALK_CORP_ID');
         }
 
         // 如果没有配置回调地址，使用默认值（但建议在环境变量中配置）
         if (!this.redirectUri) {
-            console.warn('[DingTalkService] 未配置 DINGTALK_REDIRECT_URI，请确保在 server/.env 中配置回调地址');
+            Logger.warn('[DingTalkService] 未配置 DINGTALK_REDIRECT_URI，请确保在 server/.env 中配置回调地址');
         }
     }
 
@@ -76,7 +77,7 @@ export class DingTalkService {
         const authUrl = `https://login.dingtalk.com/oauth2/challenge.htm?${params.toString()}`;
 
         // 调试：打印完整的授权URL和参数
-        console.log('[DingTalkService] 授权URL参数详情:', {
+        Logger.log('[DingTalkService] 授权URL参数详情:', {
             client_id: this.appKey.trim(),
             response_type: 'code',
             scope: 'openid corpid',
@@ -88,19 +89,19 @@ export class DingTalkService {
 
         // 详细日志输出（便于排查问题）
         const hostname = new URL(cleanRedirectUri).hostname;
-        console.log('[DingTalkService] ========== 钉钉授权URL生成 ==========');
-        console.log('[DingTalkService] 生成的授权URL:', authUrl);
-        console.log('[DingTalkService] 配置信息:');
-        console.log('[DingTalkService]   - AppKey (client_id):', this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置');
-        console.log('[DingTalkService]   - CorpId:', this.corpId ? `${this.corpId.substring(0, 10)}...` : '未配置');
-        console.log('[DingTalkService]   - RedirectUri:', cleanRedirectUri);
-        console.log('[DingTalkService]   - Hostname:', hostname);
-        console.log('[DingTalkService] 请确保钉钉开放平台已配置：');
-        console.log('[DingTalkService]   1. OAuth2.0回调地址:', cleanRedirectUri);
-        console.log('[DingTalkService]   2. 安全域名:', hostname, '(仅域名，不要包含 http:// 或路径)');
-        console.log('[DingTalkService]   3. 应用已发布上线');
-        console.log('[DingTalkService]   4. 权限已申请并授权');
-        console.log('[DingTalkService] ====================================');
+        Logger.log('[DingTalkService] ========== 钉钉授权URL生成 ==========');
+        Logger.log('[DingTalkService] 生成的授权URL:', authUrl);
+        Logger.log('[DingTalkService] 配置信息:');
+        Logger.log('[DingTalkService]   - AppKey (client_id):', this.appKey ? `${this.appKey.substring(0, 10)}...` : '未配置');
+        Logger.log('[DingTalkService]   - CorpId:', this.corpId ? `${this.corpId.substring(0, 10)}...` : '未配置');
+        Logger.log('[DingTalkService]   - RedirectUri:', cleanRedirectUri);
+        Logger.log('[DingTalkService]   - Hostname:', hostname);
+        Logger.log('[DingTalkService] 请确保钉钉开放平台已配置：');
+        Logger.log('[DingTalkService]   1. OAuth2.0回调地址:', cleanRedirectUri);
+        Logger.log('[DingTalkService]   2. 安全域名:', hostname, '(仅域名，不要包含 http:// 或路径)');
+        Logger.log('[DingTalkService]   3. 应用已发布上线');
+        Logger.log('[DingTalkService]   4. 权限已申请并授权');
+        Logger.log('[DingTalkService] ====================================');
 
         return authUrl;
     }
@@ -150,14 +151,14 @@ export class DingTalkService {
         }
 
         try {
-            console.log('[DingTalkService] 开始获取用户信息，code:', code.substring(0, 10) + '...');
+            Logger.log('[DingTalkService] 开始获取用户信息，code:', code.substring(0, 10) + '...');
 
             // 使用钉钉新版API（适用于oauth2/challenge.htm统一登录）
             // 新版API使用 api.dingtalk.com 而不是 oapi.dingtalk.com
             try {
-                console.log('[DingTalkService] ========== 开始新版OAuth2.0统一登录流程 ==========');
-                console.log('[DingTalkService] 接收到的code:', code.substring(0, 20) + '... (长度: ' + code.length + ')');
-                console.log('[DingTalkService] 使用参数:', {
+                Logger.log('[DingTalkService] ========== 开始新版OAuth2.0统一登录流程 ==========');
+                Logger.log('[DingTalkService] 接收到的code:', code.substring(0, 20) + '... (长度: ' + code.length + ')');
+                Logger.log('[DingTalkService] 使用参数:', {
                     clientId: this.appKey.trim().substring(0, 10) + '...',
                     clientSecret: this.appSecret.trim() ? '已配置' : '未配置',
                     code_length: code.length,
@@ -165,8 +166,8 @@ export class DingTalkService {
                 });
 
                 // 第一步：通过code换取用户级access_token（新版API）
-                console.log('[DingTalkService] 步骤1: 调用新版API获取access_token...');
-                console.log('[DingTalkService] 请求URL: https://api.dingtalk.com/v1.0/oauth2/userAccessToken');
+                Logger.log('[DingTalkService] 步骤1: 调用新版API获取access_token...');
+                Logger.log('[DingTalkService] 请求URL: https://api.dingtalk.com/v1.0/oauth2/userAccessToken');
 
                 let oauthTokenResponse;
                 try {
@@ -185,7 +186,7 @@ export class DingTalkService {
                         }
                     );
                 } catch (axiosError: any) {
-                    console.error('[DingTalkService] 新版API请求失败:', {
+                    Logger.error('[DingTalkService] 新版API请求失败:', {
                         message: axiosError.message,
                         status: axiosError.response?.status,
                         statusText: axiosError.response?.statusText,
@@ -195,8 +196,8 @@ export class DingTalkService {
                     throw axiosError;
                 }
 
-                console.log('[DingTalkService] 新版OAuth2.0 userAccessToken响应状态:', oauthTokenResponse.status);
-                console.log('[DingTalkService] 新版OAuth2.0 userAccessToken响应数据:', {
+                Logger.log('[DingTalkService] 新版OAuth2.0 userAccessToken响应状态:', oauthTokenResponse.status);
+                Logger.log('[DingTalkService] 新版OAuth2.0 userAccessToken响应数据:', {
                     hasAccessToken: !!oauthTokenResponse.data?.accessToken,
                     hasExpireIn: !!oauthTokenResponse.data?.expireIn,
                     hasCorpId: !!oauthTokenResponse.data?.corpId,
@@ -209,34 +210,34 @@ export class DingTalkService {
                     const openId = oauthTokenResponse.data.openId;
                     const corpId = oauthTokenResponse.data.corpId;
 
-                    console.log('[DingTalkService] ✓ 新版OAuth2.0 access_token获取成功');
-                    console.log('[DingTalkService] openId:', openId);
-                    console.log('[DingTalkService] 返回的corpId:', corpId);
-                    console.log('[DingTalkService] 配置的corpId:', this.corpId);
-                    console.log('[DingTalkService] accessToken预览:', userAccessToken.substring(0, 20) + '...');
+                    Logger.log('[DingTalkService] ✓ 新版OAuth2.0 access_token获取成功');
+                    Logger.log('[DingTalkService] openId:', openId);
+                    Logger.log('[DingTalkService] 返回的corpId:', corpId);
+                    Logger.log('[DingTalkService] 配置的corpId:', this.corpId);
+                    Logger.log('[DingTalkService] accessToken预览:', userAccessToken.substring(0, 20) + '...');
 
                     // 验证用户选择的企业是否与配置的企业ID一致
                     if (corpId && this.corpId) {
                         if (corpId.trim() !== this.corpId.trim()) {
-                            console.error('[DingTalkService] ✗ 企业ID不匹配:', {
+                            Logger.error('[DingTalkService] ✗ 企业ID不匹配:', {
                                 返回的企业ID: corpId,
                                 配置的企业ID: this.corpId,
                             });
                             throw new BadRequestException(`您选择的企业组织不正确。请选择正确的企业组织进行登录。`);
                         }
-                        console.log('[DingTalkService] ✓ 企业ID验证通过');
+                        Logger.log('[DingTalkService] ✓ 企业ID验证通过');
                     } else if (!corpId) {
-                        console.warn('[DingTalkService] ⚠ 响应中没有corpId，无法验证企业组织');
+                        Logger.warn('[DingTalkService] ⚠ 响应中没有corpId，无法验证企业组织');
                     }
 
                     // 如果没有openId，尝试使用accessToken获取当前用户信息
                     if (!openId) {
-                        console.log('[DingTalkService] 响应中没有openId，尝试使用accessToken获取当前用户信息...');
+                        Logger.log('[DingTalkService] 响应中没有openId，尝试使用accessToken获取当前用户信息...');
 
                         // 使用accessToken获取当前用户信息（新版API）
                         try {
-                            console.log('[DingTalkService] 步骤2: 调用新版API获取当前用户信息...');
-                            console.log('[DingTalkService] 请求URL: https://api.dingtalk.com/v1.0/contact/users/me');
+                            Logger.log('[DingTalkService] 步骤2: 调用新版API获取当前用户信息...');
+                            Logger.log('[DingTalkService] 请求URL: https://api.dingtalk.com/v1.0/contact/users/me');
 
                             const userInfoResponse = await axios.get(
                                 'https://api.dingtalk.com/v1.0/contact/users/me',
@@ -247,8 +248,8 @@ export class DingTalkService {
                                 }
                             );
 
-                            console.log('[DingTalkService] 新版OAuth2.0获取当前用户信息响应状态:', userInfoResponse.status);
-                            console.log('[DingTalkService] 新版OAuth2.0获取当前用户信息响应数据:', {
+                            Logger.log('[DingTalkService] 新版OAuth2.0获取当前用户信息响应状态:', userInfoResponse.status);
+                            Logger.log('[DingTalkService] 新版OAuth2.0获取当前用户信息响应数据:', {
                                 hasBody: !!userInfoResponse.data,
                                 fullResponse: JSON.stringify(userInfoResponse.data),
                             });
@@ -257,13 +258,13 @@ export class DingTalkService {
                                 const userInfo = userInfoResponse.data;
                                 const userId = userInfo.userId || userInfo.unionId || userInfo.openId;
 
-                                console.log('[DingTalkService] 从响应中提取的userId:', userId);
+                                Logger.log('[DingTalkService] 从响应中提取的userId:', userId);
 
                                 // 如果有userId且是企业内用户，尝试获取详细信息
                                 if (userId && corpId) {
                                     // 验证企业ID是否匹配
                                     if (corpId.trim() !== this.corpId.trim()) {
-                                        console.error('[DingTalkService] ✗ 企业ID不匹配:', {
+                                        Logger.error('[DingTalkService] ✗ 企业ID不匹配:', {
                                             返回的企业ID: corpId,
                                             配置的企业ID: this.corpId,
                                         });
@@ -284,7 +285,7 @@ export class DingTalkService {
                                         // 如果userId是unionId，需要先转换为userid
                                         let actualUserId = userId;
                                         if (userId === userInfo.unionId) {
-                                            console.log('[DingTalkService] userId是unionId，尝试转换为userid...');
+                                            Logger.log('[DingTalkService] userId是unionId，尝试转换为userid...');
                                             try {
                                                 // 通过unionId获取userid
                                                 const unionIdResponse = await axios.post(
@@ -298,25 +299,25 @@ export class DingTalkService {
                                                         },
                                                     }
                                                 );
-                                                console.log('[DingTalkService] unionId转userid响应:', {
+                                                Logger.log('[DingTalkService] unionId转userid响应:', {
                                                     errcode: unionIdResponse.data.errcode,
                                                     errmsg: unionIdResponse.data.errmsg,
                                                     userid: unionIdResponse.data.result?.userid,
                                                 });
                                                 if (unionIdResponse.data.errcode === 0 && unionIdResponse.data.result?.userid) {
                                                     actualUserId = unionIdResponse.data.result.userid;
-                                                    console.log('[DingTalkService] ✓ unionId转换为userid成功:', actualUserId);
+                                                    Logger.log('[DingTalkService] ✓ unionId转换为userid成功:', actualUserId);
                                                 } else {
-                                                    console.warn('[DingTalkService] ⚠ unionId转userid失败，使用原unionId:', userId);
+                                                    Logger.warn('[DingTalkService] ⚠ unionId转userid失败，使用原unionId:', userId);
                                                 }
                                             } catch (unionIdError: any) {
-                                                console.warn('[DingTalkService] ⚠ unionId转userid异常:', unionIdError.message);
+                                                Logger.warn('[DingTalkService] ⚠ unionId转userid异常:', unionIdError.message);
                                             }
                                         }
 
-                                        console.log('[DingTalkService] 步骤3: 调用企业API获取用户详细信息...');
-                                        console.log('[DingTalkService] 使用的userId:', actualUserId);
-                                        console.log('[DingTalkService] 请求URL: https://oapi.dingtalk.com/topapi/v2/user/get');
+                                        Logger.log('[DingTalkService] 步骤3: 调用企业API获取用户详细信息...');
+                                        Logger.log('[DingTalkService] 使用的userId:', actualUserId);
+                                        Logger.log('[DingTalkService] 请求URL: https://oapi.dingtalk.com/topapi/v2/user/get');
 
                                         const detailResponse = await axios.post(
                                             'https://oapi.dingtalk.com/topapi/v2/user/get',
@@ -330,7 +331,7 @@ export class DingTalkService {
                                             }
                                         );
 
-                                        console.log('[DingTalkService] 获取用户详情响应:', {
+                                        Logger.log('[DingTalkService] 获取用户详情响应:', {
                                             errcode: detailResponse.data.errcode,
                                             errmsg: detailResponse.data.errmsg,
                                             hasResult: !!detailResponse.data.result,
@@ -384,7 +385,7 @@ export class DingTalkService {
                                 };
                             }
                         } catch (meError: any) {
-                            console.error('[DingTalkService] 获取当前用户信息失败:', {
+                            Logger.error('[DingTalkService] 获取当前用户信息失败:', {
                                 message: meError.message,
                                 status: meError.response?.status,
                                 data: meError.response?.data,
@@ -397,8 +398,8 @@ export class DingTalkService {
                     }
 
                     // 第二步：通过access_token和openId获取用户详细信息（新版API）
-                    console.log('[DingTalkService] 步骤2: 调用新版API获取用户信息...');
-                    console.log('[DingTalkService] 请求URL: https://api.dingtalk.com/v1.0/contact/users/' + openId);
+                    Logger.log('[DingTalkService] 步骤2: 调用新版API获取用户信息...');
+                    Logger.log('[DingTalkService] 请求URL: https://api.dingtalk.com/v1.0/contact/users/' + openId);
 
                     let userInfoResponse;
                     try {
@@ -411,7 +412,7 @@ export class DingTalkService {
                             }
                         );
                     } catch (axiosError: any) {
-                        console.error('[DingTalkService] 获取用户信息请求失败:', {
+                        Logger.error('[DingTalkService] 获取用户信息请求失败:', {
                             message: axiosError.message,
                             status: axiosError.response?.status,
                             statusText: axiosError.response?.statusText,
@@ -421,8 +422,8 @@ export class DingTalkService {
                         throw axiosError;
                     }
 
-                    console.log('[DingTalkService] 新版OAuth2.0获取用户信息响应状态:', userInfoResponse.status);
-                    console.log('[DingTalkService] 新版OAuth2.0获取用户信息响应数据:', {
+                    Logger.log('[DingTalkService] 新版OAuth2.0获取用户信息响应状态:', userInfoResponse.status);
+                    Logger.log('[DingTalkService] 新版OAuth2.0获取用户信息响应数据:', {
                         hasBody: !!userInfoResponse.data,
                         fullResponse: JSON.stringify(userInfoResponse.data),
                     });
@@ -502,37 +503,37 @@ export class DingTalkService {
                         };
                     }
                 } else {
-                    console.error('[DingTalkService] ✗ 新版OAuth2.0 userAccessToken失败 - 响应中没有accessToken');
-                    console.error('[DingTalkService] 完整响应数据:', JSON.stringify(oauthTokenResponse.data, null, 2));
-                    console.error('[DingTalkService] 响应状态码:', oauthTokenResponse.status);
-                    console.error('[DingTalkService] 响应头:', JSON.stringify(oauthTokenResponse.headers));
+                    Logger.error('[DingTalkService] ✗ 新版OAuth2.0 userAccessToken失败 - 响应中没有accessToken');
+                    Logger.error('[DingTalkService] 完整响应数据:', JSON.stringify(oauthTokenResponse.data, null, 2));
+                    Logger.error('[DingTalkService] 响应状态码:', oauthTokenResponse.status);
+                    Logger.error('[DingTalkService] 响应头:', JSON.stringify(oauthTokenResponse.headers));
 
                     const errorMsg = oauthTokenResponse.data?.message || oauthTokenResponse.data?.error || '未知错误';
                     throw new BadRequestException(`获取access_token失败: ${errorMsg} (响应: ${JSON.stringify(oauthTokenResponse.data)})`);
                 }
 
-                console.log('[DingTalkService] 新版OAuth2.0流程失败，尝试企业内应用流程...');
+                Logger.log('[DingTalkService] 新版OAuth2.0流程失败，尝试企业内应用流程...');
             } catch (oauthError: any) {
-                console.error('[DingTalkService] ========== 新版OAuth2.0流程异常 ==========');
-                console.error('[DingTalkService] 错误类型:', oauthError.constructor.name);
-                console.error('[DingTalkService] 错误消息:', oauthError.message);
-                console.error('[DingTalkService] 错误堆栈:', oauthError.stack);
+                Logger.error('[DingTalkService] ========== 新版OAuth2.0流程异常 ==========');
+                Logger.error('[DingTalkService] 错误类型:', oauthError.constructor.name);
+                Logger.error('[DingTalkService] 错误消息:', oauthError.message);
+                Logger.error('[DingTalkService] 错误堆栈:', oauthError.stack);
 
                 if (oauthError.response) {
-                    console.error('[DingTalkService] HTTP响应状态:', oauthError.response.status, oauthError.response.statusText);
-                    console.error('[DingTalkService] HTTP响应数据:', JSON.stringify(oauthError.response.data, null, 2));
-                    console.error('[DingTalkService] HTTP响应头:', JSON.stringify(oauthError.response.headers));
+                    Logger.error('[DingTalkService] HTTP响应状态:', oauthError.response.status, oauthError.response.statusText);
+                    Logger.error('[DingTalkService] HTTP响应数据:', JSON.stringify(oauthError.response.data, null, 2));
+                    Logger.error('[DingTalkService] HTTP响应头:', JSON.stringify(oauthError.response.headers));
                 }
 
                 if (oauthError.request) {
-                    console.error('[DingTalkService] 请求配置:', {
+                    Logger.error('[DingTalkService] 请求配置:', {
                         url: oauthError.config?.url,
                         method: oauthError.config?.method,
                         headers: oauthError.config?.headers,
                     });
                 }
 
-                console.error('[DingTalkService] ===========================================');
+                Logger.error('[DingTalkService] ===========================================');
 
                 // 重要：新版API已经使用了code，不能再用同一个code调用旧版API
                 // 直接抛出错误，不再尝试旧流程
@@ -564,22 +565,22 @@ export class DingTalkService {
                 },
             });
 
-            console.log('[DingTalkService] 获取access_token响应:', {
+            Logger.log('[DingTalkService] 获取access_token响应:', {
                 errcode: tokenResponse.data.errcode,
                 errmsg: tokenResponse.data.errmsg,
                 hasToken: !!tokenResponse.data.access_token,
             });
 
             if (tokenResponse.data.errcode !== 0) {
-                console.error('[DingTalkService] 获取access_token失败:', tokenResponse.data);
+                Logger.error('[DingTalkService] 获取access_token失败:', tokenResponse.data);
                 throw new BadRequestException(`获取access_token失败: ${tokenResponse.data.errmsg || '未知错误'}`);
             }
 
             const accessToken = tokenResponse.data.access_token;
-            console.log('[DingTalkService] access_token获取成功');
+            Logger.log('[DingTalkService] access_token获取成功');
 
             // 第二步：通过code获取用户userid
-            console.log('[DingTalkService] 通过code获取用户信息...');
+            Logger.log('[DingTalkService] 通过code获取用户信息...');
             const userResponse = await axios.post(
                 'https://oapi.dingtalk.com/topapi/v2/user/getuserinfo',
                 {
@@ -592,7 +593,7 @@ export class DingTalkService {
                 }
             );
 
-            console.log('[DingTalkService] 获取用户信息响应:', {
+            Logger.log('[DingTalkService] 获取用户信息响应:', {
                 errcode: userResponse.data.errcode,
                 errmsg: userResponse.data.errmsg,
                 hasResult: !!userResponse.data.result,
@@ -601,7 +602,7 @@ export class DingTalkService {
             });
 
             if (userResponse.data.errcode !== 0) {
-                console.error('[DingTalkService] 获取用户信息失败:', {
+                Logger.error('[DingTalkService] 获取用户信息失败:', {
                     errcode: userResponse.data.errcode,
                     errmsg: userResponse.data.errmsg,
                     fullResponse: JSON.stringify(userResponse.data),
@@ -613,14 +614,14 @@ export class DingTalkService {
 
             // 第三步：验证是否为企业内成员（通过userid是否存在判断）
             if (!userInfo.userid) {
-                console.error('[DingTalkService] 用户信息中没有userid:', userInfo);
+                Logger.error('[DingTalkService] 用户信息中没有userid:', userInfo);
                 throw new BadRequestException('该用户不是企业内成员（未获取到userid）');
             }
 
-            console.log('[DingTalkService] 获取到userid:', userInfo.userid);
+            Logger.log('[DingTalkService] 获取到userid:', userInfo.userid);
 
             // 第四步：获取用户详细信息
-            console.log('[DingTalkService] 获取用户详细信息...');
+            Logger.log('[DingTalkService] 获取用户详细信息...');
             const detailResponse = await axios.post(
                 'https://oapi.dingtalk.com/topapi/v2/user/get',
                 {
@@ -633,7 +634,7 @@ export class DingTalkService {
                 }
             );
 
-            console.log('[DingTalkService] 获取用户详情响应:', {
+            Logger.log('[DingTalkService] 获取用户详情响应:', {
                 errcode: detailResponse.data.errcode,
                 errmsg: detailResponse.data.errmsg,
                 hasResult: !!detailResponse.data.result,
@@ -642,7 +643,7 @@ export class DingTalkService {
             });
 
             if (detailResponse.data.errcode !== 0) {
-                console.error('[DingTalkService] 获取用户详情失败:', detailResponse.data);
+                Logger.error('[DingTalkService] 获取用户详情失败:', detailResponse.data);
                 throw new BadRequestException(`获取用户详情失败: ${detailResponse.data.errmsg || '未知错误'} (错误码: ${detailResponse.data.errcode})`);
             }
 
@@ -704,7 +705,7 @@ export class DingTalkService {
             });
 
             if (tokenResponse.data.errcode !== 0) {
-                console.warn('[DingTalkService] 获取access_token失败，无法获取部门信息');
+                Logger.warn('[DingTalkService] 获取access_token失败，无法获取部门信息');
                 return [];
             }
 
@@ -730,13 +731,13 @@ export class DingTalkService {
                         deptNames.push(deptResponse.data.result.name || `部门${deptId}`);
                     }
                 } catch (error) {
-                    console.warn(`[DingTalkService] 获取部门${deptId}信息失败:`, error);
+                    Logger.warn(`[DingTalkService] 获取部门${deptId}信息失败:`, error);
                 }
             }
 
             return deptNames;
         } catch (error) {
-            console.warn('[DingTalkService] 获取部门信息失败:', error);
+            Logger.warn('[DingTalkService] 获取部门信息失败:', error);
             return [];
         }
     }

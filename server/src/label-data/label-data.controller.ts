@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { LabelDataService } from './label-data.service';
+import { Logger } from '../utils/logger.util';
 
 @Controller('label-data')
 export class LabelDataController {
@@ -33,19 +34,19 @@ export class LabelDataController {
   // 获取某个SKU的所有供应商列表
   @Get('suppliers-by-sku')
   async getSuppliersBySku(@Query('sku') sku: string) {
-    console.log('[LabelDataController] getSuppliersBySku called with:', { sku });
+    Logger.log('[LabelDataController] getSuppliersBySku called with:', { sku });
     
     if (!sku) {
-      console.log('[LabelDataController] Missing SKU parameter');
+      Logger.log('[LabelDataController] Missing SKU parameter');
       return { error: 'Missing sku parameter' };
     }
     
     try {
       const suppliers = await this.service.getSuppliersBySku(sku);
-      console.log('[LabelDataController] Found suppliers:', suppliers);
+      Logger.log('[LabelDataController] Found suppliers:', suppliers);
       return suppliers;
     } catch (error) {
-      console.error('[LabelDataController] Error:', error);
+      Logger.error('[LabelDataController] Error:', error);
       return { error: error.message };
     }
   }
@@ -53,19 +54,19 @@ export class LabelDataController {
   // 通过 SKU 与 供应商名称精确获取一条标签记录
   @Get('by-sku-supplier')
   async bySkuAndSupplier(@Query('sku') sku: string, @Query('supplierName') supplierName: string) {
-    console.log('[LabelDataController] bySkuAndSupplier called with:', { sku, supplierName });
+    Logger.log('[LabelDataController] bySkuAndSupplier called with:', { sku, supplierName });
     
     if (!sku || !supplierName) {
-      console.log('[LabelDataController] Missing parameters');
+      Logger.log('[LabelDataController] Missing parameters');
       return { error: 'Missing sku or supplierName parameters' };
     }
     
     try {
       const result = await this.service.getBySkuAndSupplierName(sku, supplierName);
-      console.log('[LabelDataController] Result:', result);
+      Logger.log('[LabelDataController] Result:', result);
       return result || { error: 'No data found' };
     } catch (error) {
-      console.error('[LabelDataController] Error:', error);
+      Logger.error('[LabelDataController] Error:', error);
       return { error: error.message };
     }
   }
@@ -173,9 +174,9 @@ export class LabelDataController {
     @Query('sku') sku: string,
     @Query('supplierName') supplierName: string,
   ) {
-    console.log('[LabelDataController] getLogs called with:', { sku, supplierName });
+    Logger.log('[LabelDataController] getLogs called with:', { sku, supplierName });
     const result = await this.service.getLabelDataLogs(sku, supplierName);
-    console.log('[LabelDataController] getLogs returned:', result.length, 'records');
+    Logger.log('[LabelDataController] getLogs returned:', result.length, 'records');
     return result;
   }
   
