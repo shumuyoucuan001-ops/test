@@ -135,6 +135,42 @@ export default function StoreRejectionPage() {
         }
     }, [message]);
 
+    const handleSendRejectionAllEmail = useCallback(async (item: StoreRejectionItem) => {
+        try {
+            const result = await storeRejectionApi.sendRejectionAllEmail(item);
+            if (result.success) {
+                message.success('邮件发送成功');
+            } else {
+                // 显示详细的错误信息，支持多行
+                const errorMsg = result.message || '邮件发送失败';
+                if (errorMsg.includes('\n')) {
+                    // 如果是多行错误，使用更详细的显示方式
+                    message.error({
+                        content: errorMsg.split('\n').map((line, idx) => (
+                            <div key={idx}>{line}</div>
+                        )),
+                        duration: 8,
+                    });
+                } else {
+                    message.error(errorMsg);
+                }
+            }
+        } catch (error: any) {
+            const errorMsg = error?.response?.data?.message || error?.message || '未知错误';
+            if (errorMsg.includes('\n')) {
+                message.error({
+                    content: errorMsg.split('\n').map((line: string, idx: number) => (
+                        <div key={idx}>{line}</div>
+                    )),
+                    duration: 8,
+                });
+            } else {
+                message.error('邮件发送失败: ' + errorMsg);
+            }
+            console.error('Send rejection all email error:', error);
+        }
+    }, [message]);
+
     const columns = useMemo(() => {
         const dataColumns = (Object.keys(fieldLabels) as (keyof StoreRejectionItem)[]).map((key) => ({
             title: fieldLabels[key],
@@ -146,21 +182,32 @@ export default function StoreRejectionPage() {
         const actionColumn = {
             title: '操作',
             key: 'action',
-            width: 120,
+            width: 300,
             render: (_: any, record: StoreRejectionItem) => (
-                <Button
-                    type="primary"
-                    size="small"
-                    icon={<MailOutlined />}
-                    onClick={() => handleSendRejectionEmail(record)}
-                >
-                    驳回差异单
-                </Button>
+                <Space>
+                    <Button
+                        type="primary"
+                        size="small"
+                        icon={<MailOutlined />}
+                        onClick={() => handleSendRejectionEmail(record)}
+                    >
+                        驳回差异单
+                    </Button>
+                    <Button
+                        type="default"
+                        size="small"
+                        icon={<MailOutlined />}
+                        onClick={() => handleSendRejectionAllEmail(record)}
+                    >
+                        驳回全部
+                    </Button>
+                    <span style={{ color: '#999', fontSize: '12px' }}>驳回该单所有差异单</span>
+                </Space>
             ),
         };
 
         return [...dataColumns, actionColumn];
-    }, [handleSendRejectionEmail]);
+    }, [handleSendRejectionEmail, handleSendRejectionAllEmail]);
 
     return (
         <div style={{ padding: 24 }}>

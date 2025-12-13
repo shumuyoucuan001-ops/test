@@ -65,5 +65,34 @@ export class StoreRejectionController {
             };
         }
     }
+
+    @Post('send-rejection-all-email')
+    async sendRejectionAllEmail(
+        @Body() body: { item: StoreRejectionItem; email?: string },
+    ): Promise<{ success: boolean; message: string }> {
+        Logger.log('[StoreRejectionController] 收到发送驳回全部邮件请求:', {
+            item: body.item,
+            email: body.email || '使用环境变量配置的邮箱',
+            timestamp: new Date().toISOString(),
+        });
+
+        try {
+            await this.service.sendRejectionAllEmail(body.item, body.email);
+            Logger.log('[StoreRejectionController] 驳回全部邮件发送成功');
+            return { success: true, message: '邮件发送成功' };
+        } catch (error: any) {
+            Logger.error('[StoreRejectionController] 发送驳回全部邮件失败:', {
+                error: error?.message || error,
+                code: error?.code,
+                responseCode: error?.responseCode,
+                stack: error?.stack,
+                timestamp: new Date().toISOString(),
+            });
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : '发送邮件失败',
+            };
+        }
+    }
 }
 

@@ -428,6 +428,8 @@ export const storeRejectionApi = {
   },
   sendRejectionEmail: (item: StoreRejectionItem, email?: string): Promise<{ success: boolean; message: string }> =>
     api.post('/store-rejection/send-rejection-email', { item, email }).then(res => res.data),
+  sendRejectionAllEmail: (item: StoreRejectionItem, email?: string): Promise<{ success: boolean; message: string }> =>
+    api.post('/store-rejection/send-rejection-all-email', { item, email }).then(res => res.data),
 };
 
 // ACL 类型

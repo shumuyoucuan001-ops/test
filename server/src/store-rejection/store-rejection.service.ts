@@ -143,9 +143,40 @@ export class StoreRejectionService {
             throw new Error('未配置收件人邮箱，请设置环境变量 STORE_REJECTION_EMAIL 或在请求中提供邮箱地址');
         }
 
-        const subject = `驳回差异单 - ${item['采购单号']} - ${item['商品名称']}`;
+        const subject = '驳回差异单';
 
-        await this.emailService.sendJsonEmail(recipientEmail, subject, item);
+        // 只发送门店/仓、sku_id、关联收货单号三个字段
+        const emailData = {
+            '门店/仓': item['门店/仓'],
+            'sku_id': item['sku_id'],
+            '关联收货单号': item['关联收货单号'],
+        };
+
+        await this.emailService.sendJsonEmail(recipientEmail, subject, emailData);
+    }
+
+    /**
+     * 发送驳回全部差异单邮件
+     * @param item 要发送的数据项
+     * @param email 收件人邮箱（如果未提供，从环境变量读取）
+     */
+    async sendRejectionAllEmail(item: StoreRejectionItem, email?: string): Promise<void> {
+        const recipientEmail = email || process.env.STORE_REJECTION_EMAIL || '';
+
+        if (!recipientEmail) {
+            throw new Error('未配置收件人邮箱，请设置环境变量 STORE_REJECTION_EMAIL 或在请求中提供邮箱地址');
+        }
+
+        const subject = '驳回差异单';
+
+        // 只发送门店/仓、sku_id（空值）、关联收货单号三个字段
+        const emailData = {
+            '门店/仓': item['门店/仓'],
+            'sku_id': '', // sku_id设为空值
+            '关联收货单号': item['关联收货单号'],
+        };
+
+        await this.emailService.sendJsonEmail(recipientEmail, subject, emailData);
     }
 }
 
