@@ -432,6 +432,69 @@ export const storeRejectionApi = {
     api.post('/store-rejection/send-rejection-all-email', { item, email }).then(res => res.data),
 };
 
+// 门店管理 - 单次最高采购量
+export interface MaxPurchaseQuantityItem {
+  '仓店名称': string;
+  'SKU': string;
+  '单次最高采购量(基本单位)': number;
+  '修改人': string;
+}
+
+export const maxPurchaseQuantityApi = {
+  getStoreNames: (): Promise<string[]> =>
+    api.get('/max-purchase-quantity/store-names').then(res => res.data),
+
+  list: (
+    filters?: {
+      storeName?: string;
+      sku?: string;
+      maxQuantity?: string;
+      modifier?: string;
+    },
+    page?: number,
+    limit?: number
+  ): Promise<{ data: MaxPurchaseQuantityItem[]; total: number }> => {
+    const params: any = {};
+    if (filters) {
+      if (filters.storeName) params.storeName = filters.storeName;
+      if (filters.sku) params.sku = filters.sku;
+      if (filters.maxQuantity) params.maxQuantity = filters.maxQuantity;
+      if (filters.modifier) params.modifier = filters.modifier;
+    }
+    params.page = page || 1;
+    params.limit = limit || 20;
+    return api.get('/max-purchase-quantity', { params }).then(res => res.data);
+  },
+
+  create: (data: {
+    storeName: string;
+    sku: string;
+    maxQuantity: number;
+    modifier: string;
+  }): Promise<MaxPurchaseQuantityItem> =>
+    api.post('/max-purchase-quantity', data).then(res => res.data),
+
+  update: (
+    original: {
+      storeName: string;
+      sku: string;
+    },
+    data: {
+      storeName?: string;
+      sku?: string;
+      maxQuantity?: number;
+      modifier: string;
+    }
+  ): Promise<MaxPurchaseQuantityItem> =>
+    api.put('/max-purchase-quantity', { original, data }).then(res => res.data),
+
+  delete: (data: {
+    storeName: string;
+    sku: string;
+  }): Promise<{ success: boolean }> =>
+    api.delete('/max-purchase-quantity', { data }).then(res => res.data),
+};
+
 // ACL 类型
 export interface SysPermission { id: number; code: string; name: string; path: string }
 export interface SysRole { id: number; name: string; remark?: string }

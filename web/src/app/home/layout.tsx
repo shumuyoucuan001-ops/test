@@ -87,6 +87,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <ShopOutlined />,
     url: '/home/store-rejection',
   },
+  'max-purchase-quantity': {
+    title: '单次最高采购量',
+    icon: <ShopOutlined />,
+    url: '/home/max-purchase-quantity',
+  },
   'admin-permissions': {
     title: '权限管理',
     icon: <SafetyOutlined />,
@@ -422,6 +427,11 @@ export default function HomeLayout({
             key: 'store-rejection',
             icon: <ShopOutlined />,
             label: '驳回差异单',
+          },
+          {
+            key: 'max-purchase-quantity',
+            icon: <ShopOutlined />,
+            label: '单次最高采购量',
           },
         ],
       },
