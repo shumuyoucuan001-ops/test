@@ -201,6 +201,8 @@ export default function MaxPurchaseQuantityPage() {
                     <Popconfirm
                         title="确认删除？"
                         onConfirm={() => handleDelete(record)}
+                        okText="确定"
+                        cancelText="取消"
                     >
                         <Button
                             type="link"
@@ -305,6 +307,8 @@ export default function MaxPurchaseQuantityPage() {
                 open={modalVisible}
                 onOk={handleModalOk}
                 onCancel={handleModalCancel}
+                okText="确定"
+                cancelText="取消"
                 confirmLoading={modalLoading}
                 width={600}
             >

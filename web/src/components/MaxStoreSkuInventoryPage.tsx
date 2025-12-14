@@ -207,6 +207,8 @@ export default function MaxStoreSkuInventoryPage() {
                     <Popconfirm
                         title="确认删除？"
                         onConfirm={() => handleDelete(record)}
+                        okText="确定"
+                        cancelText="取消"
                     >
                         <Button
                             type="link"
@@ -320,6 +322,8 @@ export default function MaxStoreSkuInventoryPage() {
                 open={modalVisible}
                 onOk={handleModalOk}
                 onCancel={handleModalCancel}
+                okText="确定"
+                cancelText="取消"
                 confirmLoading={modalLoading}
                 width={600}
             >

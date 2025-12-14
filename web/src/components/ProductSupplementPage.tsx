@@ -316,6 +316,8 @@ export default function ProductSupplementPage() {
         onOk={activeTab === 'edit' ? handleSave : undefined}
         onCancel={() => setModalVisible(false)}
         width={800}
+        okText="确定"
+        cancelText="取消"
         footer={activeTab === 'edit' ? undefined : [
           <Button key="close" onClick={() => setModalVisible(false)}>
             关闭

@@ -121,6 +121,8 @@ export default function OpsExclusionPage() {
                     <Popconfirm
                         title="确认删除？"
                         onConfirm={() => handleDelete(record)}
+                        okText="确定"
+                        cancelText="取消"
                     >
                         <Button size="small" type="link" danger icon={<DeleteOutlined />}>删除</Button>
                     </Popconfirm>
@@ -182,6 +184,8 @@ export default function OpsExclusionPage() {
                 title={editing ? "编辑规则" : "新增规则"}
                 onCancel={() => setModalOpen(false)}
                 onOk={handleSave}
+                okText="确定"
+                cancelText="取消"
                 destroyOnClose
             >
                 <Form form={form} layout="vertical">
