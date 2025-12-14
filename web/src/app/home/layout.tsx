@@ -46,9 +46,6 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
       viewBox={`0 0 ${viewBox} ${viewBox}`}
       style={{ display: 'block' }}
     >
-      {/* 深蓝色背景 */}
-      <rect width={viewBox} height={viewBox} fill="#1a3a5c" rx="2" />
-
       {/* 中央垂直条 */}
       <rect
         x={centerX - 1.5}
@@ -58,9 +55,9 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
         fill="#ffffff"
       />
 
-      {/* 左侧波浪线 - 上 */}
+      {/* 左侧波浪线 - 上（弧度反转） */}
       <path
-        d={`M ${centerX - 6} ${centerY - 6} Q ${centerX - 4} ${centerY - 4}, ${centerX - 2} ${centerY - 6}`}
+        d={`M ${centerX - 6} ${centerY - 5} Q ${centerX - 4} ${centerY - 7}, ${centerX - 2} ${centerY - 5}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
@@ -68,7 +65,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
       />
       {/* 左侧波浪线 - 下 */}
       <path
-        d={`M ${centerX - 6} ${centerY + 6} Q ${centerX - 4} ${centerY + 4}, ${centerX - 2} ${centerY + 6}`}
+        d={`M ${centerX - 6} ${centerY + 5} Q ${centerX - 4} ${centerY + 3}, ${centerX - 2} ${centerY + 5}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
@@ -77,24 +74,24 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
 
       {/* 右侧波浪线 - 上 */}
       <path
-        d={`M ${centerX + 2} ${centerY - 6} Q ${centerX + 4} ${centerY - 4}, ${centerX + 6} ${centerY - 6}`}
+        d={`M ${centerX + 2} ${centerY - 5} Q ${centerX + 4} ${centerY - 3}, ${centerX + 6} ${centerY - 5}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
         strokeLinecap="round"
       />
-      {/* 右侧波浪线 - 下 */}
+      {/* 右侧波浪线 - 下（弧度反转） */}
       <path
-        d={`M ${centerX + 2} ${centerY + 6} Q ${centerX + 4} ${centerY + 4}, ${centerX + 6} ${centerY + 6}`}
+        d={`M ${centerX + 2} ${centerY + 5} Q ${centerX + 4} ${centerY + 7}, ${centerX + 6} ${centerY + 5}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
         strokeLinecap="round"
       />
 
-      {/* 右上角橙色弧形装饰 */}
+      {/* 右上角橙色弧形装饰（弧度反转） */}
       <path
-        d={`M ${centerX + 2} ${centerY - 8} Q ${centerX + 4} ${centerY - 10}, ${centerX + 6} ${centerY - 8}`}
+        d={`M ${centerX + 2} ${centerY - 8} Q ${centerX + 4} ${centerY - 6}, ${centerX + 6} ${centerY - 8}`}
         stroke="#ff6b35"
         strokeWidth="2"
         fill="none"
