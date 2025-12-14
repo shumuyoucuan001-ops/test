@@ -114,27 +114,47 @@ export default function MaxPurchaseQuantityPage() {
     };
 
     const handleDelete = useCallback(async (record: MaxPurchaseQuantityItem) => {
-        Modal.confirm({
-            title: '确认删除',
-            content: `确定要删除仓店名称"${record['仓店名称']}"和SKU"${record['SKU']}"的记录吗？`,
-            onOk: async () => {
-                try {
-                    console.log('正在删除记录:', {
-                        storeName: record['仓店名称'],
-                        sku: record['SKU'],
-                    });
-                    await maxPurchaseQuantityApi.delete({
-                        storeName: record['仓店名称'],
-                        sku: record['SKU'],
-                    });
-                    message.success('删除成功');
-                    load(filters, currentPage, pageSize);
-                } catch (error: any) {
-                    console.error('删除失败:', error);
-                    message.error('删除失败: ' + (error?.message || '未知错误'));
-                }
-            },
+        console.log('[MaxPurchaseQuantityPage] handleDelete 被调用', record);
+        console.log('[MaxPurchaseQuantityPage] record 内容:', {
+            '仓店名称': record['仓店名称'],
+            'SKU': record['SKU'],
         });
+
+        try {
+            Modal.confirm({
+                title: '确认删除',
+                content: `确定要删除仓店名称"${record['仓店名称']}"和SKU"${record['SKU']}"的记录吗？`,
+                onOk: async () => {
+                    console.log('[MaxPurchaseQuantityPage] Modal.confirm onOk 被调用');
+                    try {
+                        console.log('[MaxPurchaseQuantityPage] 正在删除记录:', {
+                            storeName: record['仓店名称'],
+                            sku: record['SKU'],
+                        });
+                        await maxPurchaseQuantityApi.delete({
+                            storeName: record['仓店名称'],
+                            sku: record['SKU'],
+                        });
+                        console.log('[MaxPurchaseQuantityPage] 删除API调用成功');
+                        message.success('删除成功');
+                        load(filters, currentPage, pageSize);
+                    } catch (error: any) {
+                        console.error('[MaxPurchaseQuantityPage] 删除失败:', error);
+                        console.error('[MaxPurchaseQuantityPage] 错误详情:', {
+                            message: error?.message,
+                            response: error?.response,
+                            stack: error?.stack,
+                        });
+                        message.error('删除失败: ' + (error?.message || '未知错误'));
+                    }
+                },
+                onCancel: () => {
+                    console.log('[MaxPurchaseQuantityPage] Modal.confirm onCancel 被调用');
+                },
+            });
+        } catch (error: any) {
+            console.error('[MaxPurchaseQuantityPage] handleDelete 执行出错:', error);
+        }
     }, [load, filters, currentPage, pageSize, message]);
 
     const handleModalOk = async () => {
@@ -213,7 +233,11 @@ export default function MaxPurchaseQuantityPage() {
                         size="small"
                         danger
                         icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(record)}
+                        onClick={(e) => {
+                            console.log('[MaxPurchaseQuantityPage] 删除按钮被点击', e);
+                            console.log('[MaxPurchaseQuantityPage] 当前记录:', record);
+                            handleDelete(record);
+                        }}
                     >
                         删除
                     </Button>

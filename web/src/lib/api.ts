@@ -492,8 +492,24 @@ export const maxPurchaseQuantityApi = {
   delete: (data: {
     storeName: string;
     sku: string;
-  }): Promise<{ success: boolean }> =>
-    api.delete('/max-purchase-quantity', { data }).then(res => res.data),
+  }): Promise<{ success: boolean }> => {
+    console.log('[maxPurchaseQuantityApi] delete 被调用，参数:', data);
+    return api.delete('/max-purchase-quantity', { data })
+      .then(res => {
+        console.log('[maxPurchaseQuantityApi] delete 成功，响应:', res.data);
+        return res.data;
+      })
+      .catch(error => {
+        console.error('[maxPurchaseQuantityApi] delete 失败:', error);
+        console.error('[maxPurchaseQuantityApi] 错误详情:', {
+          message: error?.message,
+          response: error?.response,
+          request: error?.request,
+          config: error?.config,
+        });
+        throw error;
+      });
+  },
 };
 
 // 门店管理 - 仓店sku最高库存

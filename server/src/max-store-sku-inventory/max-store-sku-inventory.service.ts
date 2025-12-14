@@ -14,7 +14,7 @@ export interface MaxStoreSkuInventoryItem {
 export class MaxStoreSkuInventoryService {
     constructor(private prisma: PrismaService) { }
 
-    private readonly table = '`sm_chaigou`.`仓店sku最高库存表`';
+    private readonly table = '`sm_chaigou`.`仓店sku最高库存`';
     private readonly warehousePriorityTable = '`sm_chaigou`.`仓库优先级`';
 
     /**
