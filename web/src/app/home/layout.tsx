@@ -157,10 +157,14 @@ export default function HomeLayout({
     setSelectedKey(pageKey);
     setActiveTab(pageKey);
 
-    if (!openTabs.includes(pageKey)) {
-      setOpenTabs(prev => [...prev, pageKey]);
-    }
-  }, [pathname, openTabs, loading, hasPermission, router]);
+    // 只有当路径改变时才添加新标签，避免关闭标签时被重新添加
+    setOpenTabs(prev => {
+      if (!prev.includes(pageKey)) {
+        return [...prev, pageKey];
+      }
+      return prev; // 保持原有顺序，不重新创建数组
+    });
+  }, [pathname, loading, hasPermission, router]);
 
   // 初始化用户信息
   useEffect(() => {
@@ -245,15 +249,20 @@ export default function HomeLayout({
   const handleTabClose = (targetKey: string) => {
     if (targetKey === 'home') return; // 首页不能关闭
 
-    const newTabs = openTabs.filter(tab => tab !== targetKey);
-    setOpenTabs(newTabs);
+    // 使用函数式更新确保状态一致性
+    setOpenTabs(prevTabs => {
+      const newTabs = prevTabs.filter(tab => tab !== targetKey);
 
-    if (activeTab === targetKey) {
-      const newActiveTab = newTabs[newTabs.length - 1] || 'home';
-      setActiveTab(newActiveTab);
-      setSelectedKey(newActiveTab);
-      router.push(PAGE_CONFIGS[newActiveTab].url);
-    }
+      // 如果关闭的是当前激活的标签，需要切换到其他标签
+      if (activeTab === targetKey) {
+        const newActiveTab = newTabs[newTabs.length - 1] || 'home';
+        setActiveTab(newActiveTab);
+        setSelectedKey(newActiveTab);
+        router.push(PAGE_CONFIGS[newActiveTab].url);
+      }
+
+      return newTabs;
+    });
   };
 
   // 清除其他标签页

@@ -1,28 +1,29 @@
 "use client";
 
 import {
-    DeleteOutlined,
-    EditOutlined,
-    HistoryOutlined,
-    ReloadOutlined
+  DeleteOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import {
-    Button,
-    Card,
-    Col,
-    Form,
-    Input,
-    InputNumber,
-    Modal,
-    Popconfirm,
-    Row,
-    Space,
-    Table,
-    Tabs,
-    Tag,
-    Timeline,
-    Typography,
-    message
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Popconfirm,
+  Row,
+  Space,
+  Table,
+  Tabs,
+  Tag,
+  Timeline,
+  Typography,
+  message
 } from 'antd';
 import { useEffect, useState } from 'react';
 
@@ -69,7 +70,7 @@ const supplierApi = {
     if (search) {
       params.append('search', search);
     }
-    
+
     const response = await fetch(`/api/suppliers?${params}`);
     if (!response.ok) {
       throw new Error('获取供应商列表失败');
@@ -116,6 +117,28 @@ const supplierApi = {
     }
     return response.json();
   },
+
+  async createSupplier(data: {
+    supplierCode: string;
+    supplierName?: string;
+    deliveryDays?: number;
+    officeAddress?: string;
+    contactPerson?: string;
+    contactPhone?: string;
+  }): Promise<any> {
+    const response = await fetch('/api/supplier-management/create-supplier', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || '创建供应商失败');
+    }
+    return response.json();
+  },
 };
 
 export default function SupplierManagementPage() {
@@ -126,12 +149,16 @@ export default function SupplierManagementPage() {
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
   const [statistics, setStatistics] = useState<Statistics | null>(null);
-  
+
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<SupplierFullInfo | null>(null);
   const [form] = Form.useForm();
-  
+
+  // 新增供应商模态框状态
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createForm] = Form.useForm();
+
   // 修改日志相关状态
   const [logs, setLogs] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -201,21 +228,21 @@ export default function SupplierManagementPage() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      
+
       // 获取用户信息
       const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
       const displayName = typeof window !== 'undefined' ? (
         localStorage.getItem('displayName') ||
         localStorage.getItem('display_name')
       ) : null;
-      
+
       // 调用原有的API（包含用户信息）
       await supplierApi.upsertSupplierManagement({
         ...values,
         userId: userId ? parseInt(userId) : undefined,
         userName: displayName || undefined,
       });
-      
+
       message.success('保存成功');
       setModalVisible(false);
       loadSuppliers();
@@ -233,6 +260,27 @@ export default function SupplierManagementPage() {
       loadSuppliers();
     } catch (error) {
       message.error('删除失败');
+      console.error(error);
+    }
+  };
+
+  // 打开新增供应商模态框
+  const handleCreate = () => {
+    createForm.resetFields();
+    setCreateModalVisible(true);
+  };
+
+  // 保存新增供应商
+  const handleCreateSave = async () => {
+    try {
+      const values = await createForm.validateFields();
+      await supplierApi.createSupplier(values);
+      message.success('创建供应商成功');
+      setCreateModalVisible(false);
+      createForm.resetFields();
+      loadSuppliers();
+    } catch (error: any) {
+      message.error(error.message || '创建供应商失败');
       console.error(error);
     }
   };
@@ -362,6 +410,13 @@ export default function SupplierManagementPage() {
               onSearch={handleSearch}
             />
             <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleCreate}
+            >
+              新增供应商
+            </Button>
+            <Button
               icon={<ReloadOutlined />}
               onClick={() => {
                 setSearchText('');
@@ -423,79 +478,79 @@ export default function SupplierManagementPage() {
               label: '编辑信息',
               children: (
                 <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            minOrderAmount: undefined,
-            minOrderQuantity: undefined,
-            orderRemarks: '',
-          }}
-        >
-          <Form.Item name="supplierCode" hidden>
-            <Input />
-          </Form.Item>
+                  form={form}
+                  layout="vertical"
+                  initialValues={{
+                    minOrderAmount: undefined,
+                    minOrderQuantity: undefined,
+                    orderRemarks: '',
+                  }}
+                >
+                  <Form.Item name="supplierCode" hidden>
+                    <Input />
+                  </Form.Item>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                label="最小订货金额"
-                name="minOrderAmount"
-                rules={[
-                  { type: 'number', min: 0, message: '金额不能为负数' }
-                ]}
-              >
-                <InputNumber
-                  style={{ width: '100%' }}
-                  placeholder="请输入最小订货金额"
-                  formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value!.replace(/¥\s?|(,*)/g, '')}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                label="最小订货数量"
-                name="minOrderQuantity"
-                rules={[
-                  { type: 'number', min: 0, message: '数量不能为负数' }
-                ]}
-              >
-                <InputNumber
-                  style={{ width: '100%' }}
-                  placeholder="请输入最小订货数量"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        label="最小订货金额"
+                        name="minOrderAmount"
+                        rules={[
+                          { type: 'number', min: 0, message: '金额不能为负数' }
+                        ]}
+                      >
+                        <InputNumber
+                          style={{ width: '100%' }}
+                          placeholder="请输入最小订货金额"
+                          formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                          parser={value => value!.replace(/¥\s?|(,*)/g, '')}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="最小订货数量"
+                        name="minOrderQuantity"
+                        rules={[
+                          { type: 'number', min: 0, message: '数量不能为负数' }
+                        ]}
+                      >
+                        <InputNumber
+                          style={{ width: '100%' }}
+                          placeholder="请输入最小订货数量"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
 
-          <Form.Item
-            label="订货备注"
-            name="orderRemarks"
-          >
-            <TextArea
-              rows={4}
-              placeholder="请输入订货相关的备注信息"
-              maxLength={500}
-              showCount
-            />
-          </Form.Item>
+                  <Form.Item
+                    label="订货备注"
+                    name="orderRemarks"
+                  >
+                    <TextArea
+                      rows={4}
+                      placeholder="请输入订货相关的备注信息"
+                      maxLength={500}
+                      showCount
+                    />
+                  </Form.Item>
 
-          {editingSupplier && (
-            <Card size="small" title="供应商基础信息" style={{ marginTop: 16 }}>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <p><strong>供应商编码：</strong>{editingSupplier.supplierCode}</p>
-                  <p><strong>联系人：</strong>{editingSupplier.contactPerson}</p>
-                </Col>
-                <Col span={12}>
-                  <p><strong>联系电话：</strong>{editingSupplier.contactPhone}</p>
-                  <p><strong>交货天数：</strong>{editingSupplier.deliveryDays}天</p>
-                </Col>
-              </Row>
-              <p><strong>办公地址：</strong>{editingSupplier.officeAddress}</p>
-            </Card>
-          )}
-        </Form>
+                  {editingSupplier && (
+                    <Card size="small" title="供应商基础信息" style={{ marginTop: 16 }}>
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <p><strong>供应商编码：</strong>{editingSupplier.supplierCode}</p>
+                          <p><strong>联系人：</strong>{editingSupplier.contactPerson}</p>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>联系电话：</strong>{editingSupplier.contactPhone}</p>
+                          <p><strong>交货天数：</strong>{editingSupplier.deliveryDays}天</p>
+                        </Col>
+                      </Row>
+                      <p><strong>办公地址：</strong>{editingSupplier.officeAddress}</p>
+                    </Card>
+                  )}
+                </Form>
               ),
             },
             {
@@ -556,6 +611,83 @@ export default function SupplierManagementPage() {
             },
           ]}
         />
+      </Modal>
+
+      {/* 新增供应商模态框 */}
+      <Modal
+        title="新增供应商"
+        open={createModalVisible}
+        onOk={handleCreateSave}
+        onCancel={() => {
+          setCreateModalVisible(false);
+          createForm.resetFields();
+        }}
+        width={600}
+        okText="创建"
+        cancelText="取消"
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="供应商编码"
+            name="supplierCode"
+            rules={[
+              { required: true, message: '请输入供应商编码' },
+              { whitespace: true, message: '供应商编码不能为空' }
+            ]}
+          >
+            <Input placeholder="请输入供应商编码" />
+          </Form.Item>
+
+          <Form.Item
+            label="供应商名称"
+            name="supplierName"
+          >
+            <Input placeholder="请输入供应商名称" />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="到货天数"
+                name="deliveryDays"
+                rules={[
+                  { type: 'number', min: 0, message: '到货天数不能为负数' }
+                ]}
+              >
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="请输入到货天数"
+                  min={0}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="联系电话"
+                name="contactPhone"
+              >
+                <Input placeholder="请输入联系电话" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            label="联系人"
+            name="contactPerson"
+          >
+            <Input placeholder="请输入联系人" />
+          </Form.Item>
+
+          <Form.Item
+            label="办公地址"
+            name="officeAddress"
+          >
+            <Input placeholder="请输入办公地址" />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

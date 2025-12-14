@@ -14,6 +14,16 @@ export class SupplierManagementService {
     });
   }
 
+  private async getChaigouConnection() {
+    return await mysql.createConnection({
+      host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
+      user: process.env.DB_USER || 'xitongquanju',
+      password: process.env.DB_PASSWORD || 'b4FFS6kVGKV4jV',
+      database: 'sm_chaigou',
+      port: parseInt(process.env.DB_PORT || '3306'),
+    });
+  }
+
   // 确保日志表存在
   private async ensureLogTableExists(connection: any): Promise<void> {
     const createTableQuery = `
@@ -217,6 +227,55 @@ export class SupplierManagementService {
     } catch (error) {
       Logger.error('[SupplierManagementService] 获取变更日志失败:', error);
       return [];
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 创建供应商基础资料
+  async createSupplierBasicInfo(data: {
+    supplierCode: string;
+    supplierName?: string;
+    deliveryDays?: number;
+    officeAddress?: string;
+    contactPerson?: string;
+    contactPhone?: string;
+  }): Promise<any> {
+    const connection = await this.getChaigouConnection();
+
+    try {
+      // 检查供应商编码是否已存在
+      const checkQuery = `
+        SELECT COUNT(*) as count 
+        FROM \`供应商基础资料\` 
+        WHERE 供应商编码 = ?
+      `;
+      const [checkResult]: any = await connection.execute(checkQuery, [data.supplierCode]);
+
+      if (checkResult[0].count > 0) {
+        throw new Error('供应商编码已存在');
+      }
+
+      // 插入新记录
+      const insertQuery = `
+        INSERT INTO \`供应商基础资料\` 
+        (供应商编码, 供应商名称, 到货天数, 办公地址, 联系人, 联系电话)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+
+      await connection.execute(insertQuery, [
+        data.supplierCode,
+        data.supplierName || null,
+        data.deliveryDays || null,
+        data.officeAddress || null,
+        data.contactPerson || null,
+        data.contactPhone || null,
+      ]);
+
+      return { success: true, message: '供应商创建成功' };
+    } catch (error: any) {
+      Logger.error('[SupplierManagementService] 创建供应商失败:', error);
+      throw error;
     } finally {
       await connection.end();
     }
