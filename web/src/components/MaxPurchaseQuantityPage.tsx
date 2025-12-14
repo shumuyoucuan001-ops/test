@@ -49,7 +49,7 @@ export default function MaxPurchaseQuantityPage() {
         loadStoreNames();
     }, [loadStoreNames]);
 
-    const load = async (
+    const load = useCallback(async (
         searchFilters?: {
             storeName?: string;
             sku?: string;
@@ -73,7 +73,7 @@ export default function MaxPurchaseQuantityPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, pageSize, message]);
 
     useEffect(() => {
         load(filters, currentPage, pageSize);
@@ -115,28 +115,40 @@ export default function MaxPurchaseQuantityPage() {
 
     const handleDelete = useCallback(async (record: MaxPurchaseQuantityItem) => {
         console.log('[MaxPurchaseQuantityPage] handleDelete 被调用', record);
+
+        // 立即保存 record 的值，避免闭包问题
+        const storeName = record?.['仓店名称'];
+        const sku = record?.['SKU'];
+
         console.log('[MaxPurchaseQuantityPage] record 内容:', {
-            '仓店名称': record['仓店名称'],
-            'SKU': record['SKU'],
+            '仓店名称': storeName,
+            'SKU': sku,
         });
+
+        if (!storeName || !sku) {
+            console.error('[MaxPurchaseQuantityPage] 记录数据不完整:', { storeName, sku });
+            message.error('删除失败: 记录数据不完整');
+            return;
+        }
 
         try {
             Modal.confirm({
                 title: '确认删除',
-                content: `确定要删除仓店名称"${record['仓店名称']}"和SKU"${record['SKU']}"的记录吗？`,
+                content: `确定要删除仓店名称"${storeName}"和SKU"${sku}"的记录吗？`,
                 onOk: async () => {
                     console.log('[MaxPurchaseQuantityPage] Modal.confirm onOk 被调用');
                     try {
                         console.log('[MaxPurchaseQuantityPage] 正在删除记录:', {
-                            storeName: record['仓店名称'],
-                            sku: record['SKU'],
+                            storeName,
+                            sku,
                         });
                         await maxPurchaseQuantityApi.delete({
-                            storeName: record['仓店名称'],
-                            sku: record['SKU'],
+                            storeName,
+                            sku,
                         });
                         console.log('[MaxPurchaseQuantityPage] 删除API调用成功');
                         message.success('删除成功');
+                        // 使用最新的 filters, currentPage, pageSize
                         load(filters, currentPage, pageSize);
                     } catch (error: any) {
                         console.error('[MaxPurchaseQuantityPage] 删除失败:', error);
@@ -154,6 +166,7 @@ export default function MaxPurchaseQuantityPage() {
             });
         } catch (error: any) {
             console.error('[MaxPurchaseQuantityPage] handleDelete 执行出错:', error);
+            message.error('删除失败: ' + (error?.message || '未知错误'));
         }
     }, [load, filters, currentPage, pageSize, message]);
 

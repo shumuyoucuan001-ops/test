@@ -494,7 +494,13 @@ export const maxPurchaseQuantityApi = {
     sku: string;
   }): Promise<{ success: boolean }> => {
     console.log('[maxPurchaseQuantityApi] delete 被调用，参数:', data);
-    return api.delete('/max-purchase-quantity', { data })
+    // 确保 DELETE 请求正确发送 body
+    return api.delete('/max-purchase-quantity', {
+      data,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
       .then(res => {
         console.log('[maxPurchaseQuantityApi] delete 成功，响应:', res.data);
         return res.data;
@@ -504,6 +510,7 @@ export const maxPurchaseQuantityApi = {
         console.error('[maxPurchaseQuantityApi] 错误详情:', {
           message: error?.message,
           response: error?.response,
+          responseData: error?.response?.data,
           request: error?.request,
           config: error?.config,
         });

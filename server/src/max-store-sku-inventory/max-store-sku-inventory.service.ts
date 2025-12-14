@@ -18,6 +18,15 @@ export class MaxStoreSkuInventoryService {
     private readonly warehousePriorityTable = '`sm_chaigou`.`仓库优先级`';
 
     /**
+     * 安全地序列化包含 BigInt 的对象
+     */
+    private safeStringify(obj: any): string {
+        return JSON.stringify(obj, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+            , 2);
+    }
+
+    /**
      * 获取仓库优先级表中的门店/仓名称列表
      */
     async getStoreNames(): Promise<string[]> {
@@ -89,7 +98,7 @@ export class MaxStoreSkuInventoryService {
         limit: number = 20
     ): Promise<{ data: MaxStoreSkuInventoryItem[]; total: number }> {
         Logger.log('[MaxStoreSkuInventoryService] ========== 查询列表开始 ==========');
-        Logger.log('[MaxStoreSkuInventoryService] filters:', JSON.stringify(filters, null, 2));
+        Logger.log('[MaxStoreSkuInventoryService] filters:', this.safeStringify(filters));
         Logger.log('[MaxStoreSkuInventoryService] page:', page);
         Logger.log('[MaxStoreSkuInventoryService] limit:', limit);
 
@@ -161,11 +170,11 @@ export class MaxStoreSkuInventoryService {
         try {
             Logger.log('[MaxStoreSkuInventoryService] ========== 执行 COUNT 查询 ==========');
             Logger.log('[MaxStoreSkuInventoryService] Count SQL:', countSql);
-            Logger.log('[MaxStoreSkuInventoryService] Count params:', JSON.stringify(params, null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] Count params:', this.safeStringify(params));
             Logger.log('[MaxStoreSkuInventoryService] Count params 长度:', params.length);
 
             const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
-            Logger.log('[MaxStoreSkuInventoryService] Count 查询结果:', JSON.stringify(countRows, null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] Count 查询结果:', this.safeStringify(countRows));
             Logger.log('[MaxStoreSkuInventoryService] countRows 类型:', typeof countRows);
             Logger.log('[MaxStoreSkuInventoryService] countRows?.total:', countRows?.total);
 
@@ -174,12 +183,12 @@ export class MaxStoreSkuInventoryService {
 
             Logger.log('[MaxStoreSkuInventoryService] ========== 执行 DATA 查询 ==========');
             Logger.log('[MaxStoreSkuInventoryService] Data SQL:', sql);
-            Logger.log('[MaxStoreSkuInventoryService] Data params:', JSON.stringify(params, null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] Data params:', this.safeStringify(params));
             Logger.log('[MaxStoreSkuInventoryService] Data params 长度:', params.length);
 
             const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
             Logger.log('[MaxStoreSkuInventoryService] Data 查询结果行数:', rows?.length || 0);
-            Logger.log('[MaxStoreSkuInventoryService] Data 查询结果前3条:', JSON.stringify(rows?.slice(0, 3), null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] Data 查询结果前3条:', this.safeStringify(rows?.slice(0, 3)));
 
             const data = (rows || []).map(r => ({
                 '仓店名称': String(r['仓店名称'] || ''),
@@ -200,7 +209,7 @@ export class MaxStoreSkuInventoryService {
             Logger.error('[MaxStoreSkuInventoryService] 错误堆栈:', error?.stack);
             Logger.error('[MaxStoreSkuInventoryService] Count SQL:', countSql);
             Logger.error('[MaxStoreSkuInventoryService] Data SQL:', sql);
-            Logger.error('[MaxStoreSkuInventoryService] SQL params:', JSON.stringify(params, null, 2));
+            Logger.error('[MaxStoreSkuInventoryService] SQL params:', this.safeStringify(params));
             throw error;
         }
     }

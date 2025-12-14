@@ -17,6 +17,15 @@ export class MaxPurchaseQuantityService {
     private readonly warehousePriorityTable = '`sm_chaigou`.`仓库优先级`';
 
     /**
+     * 安全地序列化包含 BigInt 的对象
+     */
+    private safeStringify(obj: any): string {
+        return JSON.stringify(obj, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+            , 2);
+    }
+
+    /**
      * 获取仓库优先级表中的门店/仓名称列表
      */
     async getStoreNames(): Promise<string[]> {
@@ -352,7 +361,7 @@ export class MaxPurchaseQuantityService {
         sku: string;
     }): Promise<void> {
         Logger.log('[MaxPurchaseQuantityService] ========== 开始删除记录 ==========');
-        Logger.log('[MaxPurchaseQuantityService] 接收到的数据:', JSON.stringify(data, null, 2));
+        Logger.log('[MaxPurchaseQuantityService] 接收到的数据:', this.safeStringify(data));
         Logger.log('[MaxPurchaseQuantityService] storeName:', data?.storeName);
         Logger.log('[MaxPurchaseQuantityService] sku:', data?.sku);
         Logger.log('[MaxPurchaseQuantityService] storeName.trim():', data?.storeName?.trim());

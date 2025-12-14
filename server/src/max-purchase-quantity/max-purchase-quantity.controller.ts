@@ -97,7 +97,13 @@ export class MaxPurchaseQuantityController {
         },
     ): Promise<{ success: boolean }> {
         Logger.log('[MaxPurchaseQuantityController] ========== 删除请求开始 ==========');
-        Logger.log('[MaxPurchaseQuantityController] 接收到的 body:', JSON.stringify(body, null, 2));
+        // 安全序列化 body（处理可能的 BigInt）
+        const safeStringify = (obj: any): string => {
+            return JSON.stringify(obj, (key, value) =>
+                typeof value === 'bigint' ? value.toString() : value
+                , 2);
+        };
+        Logger.log('[MaxPurchaseQuantityController] 接收到的 body:', safeStringify(body));
         Logger.log('[MaxPurchaseQuantityController] body.storeName:', body?.storeName);
         Logger.log('[MaxPurchaseQuantityController] body.sku:', body?.sku);
         Logger.log('[MaxPurchaseQuantityController] body.storeName 类型:', typeof body?.storeName);
