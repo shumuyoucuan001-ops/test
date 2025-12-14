@@ -223,7 +223,6 @@ export class MaxStoreSkuInventoryService {
             sku: string;
             maxInventory: number;
             remark: string;
-            modifier: string;
         },
         userId?: number
     ): Promise<MaxStoreSkuInventoryItem> {
@@ -240,8 +239,14 @@ export class MaxStoreSkuInventoryService {
         if (!data.remark || !data.remark.trim()) {
             throw new BadRequestException('备注（说明设置原因）不能为空');
         }
-        if (!data.modifier || !data.modifier.trim()) {
-            throw new BadRequestException('修改人不能为空');
+
+        // 自动获取修改人
+        let modifier = '系统';
+        if (userId) {
+            const displayName = await this.getUserDisplayName(userId);
+            if (displayName) {
+                modifier = displayName;
+            }
         }
 
         try {
@@ -277,7 +282,7 @@ export class MaxStoreSkuInventoryService {
                 data.sku.trim(),
                 data.maxInventory,
                 data.remark.trim(),
-                data.modifier.trim(),
+                modifier,
                 storeCode,
                 skuStoreCode
             );
@@ -323,7 +328,6 @@ export class MaxStoreSkuInventoryService {
             sku?: string;
             maxInventory?: number;
             remark?: string;
-            modifier: string;
         },
         userId?: number
     ): Promise<MaxStoreSkuInventoryItem> {
@@ -340,8 +344,14 @@ export class MaxStoreSkuInventoryService {
         if (data.remark !== undefined && (!data.remark || !data.remark.trim())) {
             throw new BadRequestException('备注（说明设置原因）不能为空');
         }
-        if (!data.modifier || !data.modifier.trim()) {
-            throw new BadRequestException('修改人不能为空');
+
+        // 自动获取修改人
+        let modifier = '系统';
+        if (userId) {
+            const displayName = await this.getUserDisplayName(userId);
+            if (displayName) {
+                modifier = displayName;
+            }
         }
 
         try {
@@ -407,7 +417,7 @@ export class MaxStoreSkuInventoryService {
                 updateParams.push(data.remark.trim());
             }
             updateFields.push('`修改人` = ?');
-            updateParams.push(data.modifier.trim());
+            updateParams.push(modifier);
 
             // 如果仓店名称或SKU编码改变了，更新仓店编码和SKU编码仓店编码
             if (storeCode && skuStoreCode) {

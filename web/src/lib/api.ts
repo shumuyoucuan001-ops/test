@@ -492,31 +492,13 @@ export const maxPurchaseQuantityApi = {
   delete: (data: {
     storeName: string;
     sku: string;
-  }): Promise<{ success: boolean }> => {
-    console.log('[maxPurchaseQuantityApi] delete 被调用，参数:', data);
-    // 确保 DELETE 请求正确发送 body
-    return api.delete('/max-purchase-quantity', {
+  }): Promise<{ success: boolean }> =>
+    api.delete('/max-purchase-quantity', {
       data,
       headers: {
         'Content-Type': 'application/json',
       },
-    })
-      .then(res => {
-        console.log('[maxPurchaseQuantityApi] delete 成功，响应:', res.data);
-        return res.data;
-      })
-      .catch(error => {
-        console.error('[maxPurchaseQuantityApi] delete 失败:', error);
-        console.error('[maxPurchaseQuantityApi] 错误详情:', {
-          message: error?.message,
-          response: error?.response,
-          responseData: error?.response?.data,
-          request: error?.request,
-          config: error?.config,
-        });
-        throw error;
-      });
-  },
+    }).then(res => res.data),
 };
 
 // 门店管理 - 仓店sku最高库存
@@ -564,7 +546,6 @@ export const maxStoreSkuInventoryApi = {
     sku: string;
     maxInventory: number;
     remark: string;
-    modifier: string;
   }): Promise<MaxStoreSkuInventoryItem> =>
     api.post('/max-store-sku-inventory', data).then(res => res.data),
 
@@ -578,7 +559,6 @@ export const maxStoreSkuInventoryApi = {
       sku?: string;
       maxInventory?: number;
       remark?: string;
-      modifier: string;
     }
   ): Promise<MaxStoreSkuInventoryItem> =>
     api.put('/max-store-sku-inventory', { original, data }).then(res => res.data),

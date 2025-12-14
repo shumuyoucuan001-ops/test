@@ -57,7 +57,6 @@ export class MaxStoreSkuInventoryController {
             sku: string;
             maxInventory: number;
             remark: string;
-            modifier: string;
         },
         @Headers('x-user-id') userId?: string,
     ): Promise<MaxStoreSkuInventoryItem> {
@@ -82,7 +81,6 @@ export class MaxStoreSkuInventoryController {
                 sku?: string;
                 maxInventory?: number;
                 remark?: string;
-                modifier: string;
             };
         },
         @Headers('x-user-id') userId?: string,

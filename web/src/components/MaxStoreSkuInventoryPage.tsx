@@ -2,7 +2,7 @@
 
 import { MaxStoreSkuInventoryItem, maxStoreSkuInventoryApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table } from "antd";
+import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const fieldLabels: Record<keyof MaxStoreSkuInventoryItem, string> = {
@@ -21,7 +21,6 @@ export default function MaxStoreSkuInventoryPage() {
     const [loading, setLoading] = useState(false);
     const [storeNames, setStoreNames] = useState<string[]>([]);
     const [loadingStoreNames, setLoadingStoreNames] = useState(false);
-    const [userDisplayName, setUserDisplayName] = useState<string>('');
     const [filters, setFilters] = useState<{
         storeName?: string;
         sku?: string;
@@ -48,22 +47,9 @@ export default function MaxStoreSkuInventoryPage() {
         }
     }, [message]);
 
-    // 加载当前用户的display_name
-    const loadUserDisplayName = useCallback(async () => {
-        try {
-            const result = await maxStoreSkuInventoryApi.getUserDisplayName();
-            if (result.displayName) {
-                setUserDisplayName(result.displayName);
-            }
-        } catch (e: any) {
-            console.error("加载用户display_name失败:", e);
-        }
-    }, []);
-
     useEffect(() => {
         loadStoreNames();
-        loadUserDisplayName();
-    }, [loadStoreNames, loadUserDisplayName]);
+    }, [loadStoreNames]);
 
     const load = async (
         searchFilters?: {
@@ -117,12 +103,6 @@ export default function MaxStoreSkuInventoryPage() {
     const handleAdd = () => {
         setEditingRecord(null);
         form.resetFields();
-        // 设置默认的修改人为当前用户的display_name
-        if (userDisplayName) {
-            form.setFieldsValue({
-                modifier: userDisplayName,
-            });
-        }
         setModalVisible(true);
     };
 
@@ -133,29 +113,23 @@ export default function MaxStoreSkuInventoryPage() {
             sku: record['SKU编码'],
             maxInventory: record['最高库存量（基础单位）'],
             remark: record['备注（说明设置原因）'],
-            modifier: record['修改人'],
         });
         setModalVisible(true);
     };
 
-    const handleDelete = useCallback(async (record: MaxStoreSkuInventoryItem) => {
-        Modal.confirm({
-            title: '确认删除',
-            content: `确定要删除仓店名称"${record['仓店名称']}"和SKU编码"${record['SKU编码']}"的记录吗？`,
-            onOk: async () => {
-                try {
-                    await maxStoreSkuInventoryApi.delete({
-                        storeName: record['仓店名称'],
-                        sku: record['SKU编码'],
-                    });
-                    message.success('删除成功');
-                    load(filters, currentPage, pageSize);
-                } catch (error: any) {
-                    message.error('删除失败: ' + (error?.message || '未知错误'));
-                }
-            },
-        });
-    }, [filters, currentPage, pageSize, message]);
+    const handleDelete = async (record: MaxStoreSkuInventoryItem) => {
+        try {
+            await maxStoreSkuInventoryApi.delete({
+                storeName: record['仓店名称'],
+                sku: record['SKU编码'],
+            });
+            message.success("删除成功");
+            load(filters, currentPage, pageSize);
+        } catch (e: any) {
+            message.error("删除失败: " + (e?.message || '未知错误'));
+            console.error(e);
+        }
+    };
 
     const handleModalOk = async () => {
         try {
@@ -174,7 +148,6 @@ export default function MaxStoreSkuInventoryPage() {
                         sku: values.sku,
                         maxInventory: values.maxInventory,
                         remark: values.remark,
-                        modifier: values.modifier,
                     }
                 );
                 message.success('更新成功');
@@ -185,7 +158,6 @@ export default function MaxStoreSkuInventoryPage() {
                     sku: values.sku,
                     maxInventory: values.maxInventory,
                     remark: values.remark,
-                    modifier: values.modifier,
                 });
                 message.success('创建成功');
             }
@@ -232,21 +204,25 @@ export default function MaxStoreSkuInventoryPage() {
                     >
                         编辑
                     </Button>
-                    <Button
-                        type="link"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(record)}
+                    <Popconfirm
+                        title="确认删除？"
+                        onConfirm={() => handleDelete(record)}
                     >
-                        删除
-                    </Button>
+                        <Button
+                            type="link"
+                            size="small"
+                            danger
+                            icon={<DeleteOutlined />}
+                        >
+                            删除
+                        </Button>
+                    </Popconfirm>
                 </Space>
             ),
         };
 
         return [...dataColumns, actionColumn];
-    }, [handleDelete]);
+    }, []);
 
     return (
         <div style={{ padding: 24 }}>
@@ -406,15 +382,6 @@ export default function MaxStoreSkuInventoryPage() {
                             placeholder="请输入备注（说明设置原因）"
                             rows={4}
                         />
-                    </Form.Item>
-                    <Form.Item
-                        label="修改人"
-                        name="modifier"
-                        rules={[
-                            { required: true, message: '修改人不能为空' },
-                        ]}
-                    >
-                        <Input placeholder="请输入修改人" />
                     </Form.Item>
                 </Form>
             </Modal>

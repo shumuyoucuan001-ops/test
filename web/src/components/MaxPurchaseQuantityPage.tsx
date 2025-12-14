@@ -2,7 +2,7 @@
 
 import { MaxPurchaseQuantityItem, maxPurchaseQuantityApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table } from "antd";
+import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const fieldLabels: Record<keyof MaxPurchaseQuantityItem, string> = {
@@ -113,62 +113,19 @@ export default function MaxPurchaseQuantityPage() {
         setModalVisible(true);
     };
 
-    const handleDelete = useCallback(async (record: MaxPurchaseQuantityItem) => {
-        console.log('[MaxPurchaseQuantityPage] handleDelete 被调用', record);
-
-        // 立即保存 record 的值，避免闭包问题
-        const storeName = record?.['仓店名称'];
-        const sku = record?.['SKU'];
-
-        console.log('[MaxPurchaseQuantityPage] record 内容:', {
-            '仓店名称': storeName,
-            'SKU': sku,
-        });
-
-        if (!storeName || !sku) {
-            console.error('[MaxPurchaseQuantityPage] 记录数据不完整:', { storeName, sku });
-            message.error('删除失败: 记录数据不完整');
-            return;
-        }
-
+    const handleDelete = async (record: MaxPurchaseQuantityItem) => {
         try {
-            Modal.confirm({
-                title: '确认删除',
-                content: `确定要删除仓店名称"${storeName}"和SKU"${sku}"的记录吗？`,
-                onOk: async () => {
-                    console.log('[MaxPurchaseQuantityPage] Modal.confirm onOk 被调用');
-                    try {
-                        console.log('[MaxPurchaseQuantityPage] 正在删除记录:', {
-                            storeName,
-                            sku,
-                        });
-                        await maxPurchaseQuantityApi.delete({
-                            storeName,
-                            sku,
-                        });
-                        console.log('[MaxPurchaseQuantityPage] 删除API调用成功');
-                        message.success('删除成功');
-                        // 使用最新的 filters, currentPage, pageSize
-                        load(filters, currentPage, pageSize);
-                    } catch (error: any) {
-                        console.error('[MaxPurchaseQuantityPage] 删除失败:', error);
-                        console.error('[MaxPurchaseQuantityPage] 错误详情:', {
-                            message: error?.message,
-                            response: error?.response,
-                            stack: error?.stack,
-                        });
-                        message.error('删除失败: ' + (error?.message || '未知错误'));
-                    }
-                },
-                onCancel: () => {
-                    console.log('[MaxPurchaseQuantityPage] Modal.confirm onCancel 被调用');
-                },
+            await maxPurchaseQuantityApi.delete({
+                storeName: record['仓店名称'],
+                sku: record['SKU'],
             });
-        } catch (error: any) {
-            console.error('[MaxPurchaseQuantityPage] handleDelete 执行出错:', error);
-            message.error('删除失败: ' + (error?.message || '未知错误'));
+            message.success("删除成功");
+            load(filters, currentPage, pageSize);
+        } catch (e: any) {
+            message.error("删除失败: " + (e?.message || '未知错误'));
+            console.error(e);
         }
-    }, [load, filters, currentPage, pageSize, message]);
+    };
 
     const handleModalOk = async () => {
         try {
@@ -241,25 +198,25 @@ export default function MaxPurchaseQuantityPage() {
                     >
                         编辑
                     </Button>
-                    <Button
-                        type="link"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={(e) => {
-                            console.log('[MaxPurchaseQuantityPage] 删除按钮被点击', e);
-                            console.log('[MaxPurchaseQuantityPage] 当前记录:', record);
-                            handleDelete(record);
-                        }}
+                    <Popconfirm
+                        title="确认删除？"
+                        onConfirm={() => handleDelete(record)}
                     >
-                        删除
-                    </Button>
+                        <Button
+                            type="link"
+                            size="small"
+                            danger
+                            icon={<DeleteOutlined />}
+                        >
+                            删除
+                        </Button>
+                    </Popconfirm>
                 </Space>
             ),
         };
 
         return [...dataColumns, actionColumn];
-    }, [handleDelete]);
+    }, []);
 
     return (
         <div style={{ padding: 24 }}>
