@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import * as express from 'express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { Logger } from './utils/logger.util';
@@ -7,6 +8,10 @@ import { Logger } from './utils/logger.util';
 async function bootstrap() {
   try {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+    // 确保所有 HTTP 方法（包括 DELETE）都能正确解析 JSON body
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
 
     // 启用静态文件服务（用于托管APK下载）
     app.useStaticAssets(join(__dirname, '..', 'public'), {

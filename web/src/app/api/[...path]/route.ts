@@ -100,8 +100,16 @@ async function proxyRequest(
     if (method !== 'GET') {
       try {
         body = await request.text();
+        // 开发环境记录 DELETE 请求的 body
+        if (process.env.NODE_ENV !== 'production' && method === 'DELETE') {
+          console.log(`[API Proxy] DELETE 请求 body:`, body);
+          console.log(`[API Proxy] DELETE 请求 body 长度:`, body?.length || 0);
+        }
       } catch (e) {
         // 忽略body解析错误
+        if (process.env.NODE_ENV !== 'production' && method === 'DELETE') {
+          console.error(`[API Proxy] DELETE 请求 body 解析失败:`, e);
+        }
       }
     }
 

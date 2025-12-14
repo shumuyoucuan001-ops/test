@@ -102,8 +102,8 @@ export class MaxStoreSkuInventoryController {
             sku: string;
         },
     ): Promise<{ success: boolean }> {
-        Logger.log('[MaxStoreSkuInventoryController] 删除记录:', body);
-        return this.service.delete(body);
+        await this.service.delete(body);
+        return { success: true };
     }
 }
 

@@ -100,17 +100,17 @@ export class MaxStoreSkuInventoryService {
         const buildLike = (v?: string) => `%${(v || '').trim()}%`;
 
         // 按字段匹配（AND）
-        if (filters?.storeName && String(filters.storeName).trim()) {
+        if (filters?.storeName?.trim()) {
             clauses.push(`\`仓店名称\` LIKE ?`);
-            params.push(buildLike(String(filters.storeName)));
+            params.push(buildLike(filters.storeName));
         }
-        if (filters?.sku && String(filters.sku).trim()) {
+        if (filters?.sku?.trim()) {
             clauses.push(`\`SKU编码\` LIKE ?`);
-            params.push(buildLike(String(filters.sku)));
+            params.push(buildLike(filters.sku));
         }
-        if (filters?.maxInventory && String(filters.maxInventory).trim()) {
+        if (filters?.maxInventory?.trim()) {
             // 尝试转换为数字进行精确匹配，如果转换失败则使用LIKE模糊匹配
-            const maxInventoryStr = String(filters.maxInventory).trim();
+            const maxInventoryStr = filters.maxInventory.trim();
             const inventoryValue = parseFloat(maxInventoryStr);
             if (!isNaN(inventoryValue)) {
                 clauses.push(`\`最高库存量（基础单位）\` = ?`);
@@ -120,13 +120,13 @@ export class MaxStoreSkuInventoryService {
                 params.push(buildLike(maxInventoryStr));
             }
         }
-        if (filters?.remark && String(filters.remark).trim()) {
+        if (filters?.remark?.trim()) {
             clauses.push(`\`备注（说明设置原因）\` LIKE ?`);
-            params.push(buildLike(String(filters.remark)));
+            params.push(buildLike(filters.remark));
         }
-        if (filters?.modifier && String(filters.modifier).trim()) {
+        if (filters?.modifier?.trim()) {
             clauses.push(`\`修改人\` LIKE ?`);
-            params.push(buildLike(String(filters.modifier)));
+            params.push(buildLike(filters.modifier));
         }
 
         const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -164,18 +164,8 @@ export class MaxStoreSkuInventoryService {
             }));
 
             return { data, total };
-        } catch (error: any) {
+        } catch (error) {
             Logger.error('[MaxStoreSkuInventoryService] Query error:', error);
-            Logger.error('[MaxStoreSkuInventoryService] Error message:', error?.message);
-            Logger.error('[MaxStoreSkuInventoryService] Error stack:', error?.stack);
-            Logger.error('[MaxStoreSkuInventoryService] SQL:', sql);
-            Logger.error('[MaxStoreSkuInventoryService] SQL params:', params);
-            // 如果错误是已知的BadRequestException，直接抛出
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            // 对于数据库错误，记录详细信息后重新抛出，让NestJS处理（返回500）
-            // 这样前端可以看到具体的错误信息
             throw error;
         }
     }
@@ -425,19 +415,15 @@ export class MaxStoreSkuInventoryService {
     async delete(data: {
         storeName: string;
         sku: string;
-    }): Promise<{ success: boolean }> {
-        try {
-            const deleteSql = `DELETE FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU编码\` = ?`;
-            await this.prisma.$executeRawUnsafe(
-                deleteSql,
-                data.storeName.trim(),
-                data.sku.trim()
-            );
-
-            return { success: true };
-        } catch (error: any) {
-            Logger.error('[MaxStoreSkuInventoryService] Delete error:', error);
-            throw new BadRequestException(error?.message || '删除失败');
+    }): Promise<void> {
+        const affected = await this.prisma.$executeRawUnsafe(
+            `DELETE FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU编码\` = ?`,
+            data.storeName.trim(),
+            data.sku.trim()
+        );
+        // @ts-ignore Prisma returns number for executeRawUnsafe
+        if (!affected) {
+            throw new BadRequestException('未找到记录，删除失败');
         }
     }
 }
