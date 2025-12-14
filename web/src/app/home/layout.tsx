@@ -92,6 +92,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <ShopOutlined />,
     url: '/home/max-purchase-quantity',
   },
+  'max-store-sku-inventory': {
+    title: '仓店sku最高库存',
+    icon: <ShopOutlined />,
+    url: '/home/max-store-sku-inventory',
+  },
   'admin-permissions': {
     title: '权限管理',
     icon: <SafetyOutlined />,
@@ -432,6 +437,11 @@ export default function HomeLayout({
             key: 'max-purchase-quantity',
             icon: <ShopOutlined />,
             label: '单次最高采购量',
+          },
+          {
+            key: 'max-store-sku-inventory',
+            icon: <ShopOutlined />,
+            label: '仓店sku最高库存',
           },
         ],
       },

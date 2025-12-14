@@ -1,21 +1,22 @@
 "use client";
 
-import { MaxPurchaseQuantityItem, maxPurchaseQuantityApi } from "@/lib/api";
+import { MaxStoreSkuInventoryItem, maxStoreSkuInventoryApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table } from "antd";
+import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, TextArea } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const fieldLabels: Record<keyof MaxPurchaseQuantityItem, string> = {
+const fieldLabels: Record<keyof MaxStoreSkuInventoryItem, string> = {
     "仓店名称": "仓店名称",
-    "SKU": "SKU",
-    "单次最高采购量(基本单位)": "单次最高采购量(基本单位)",
+    "SKU编码": "SKU编码",
+    "最高库存量（基础单位）": "最高库存量（基础单位）",
+    "备注（说明设置原因）": "备注（说明设置原因）",
     "修改人": "修改人",
 };
 
-export default function MaxPurchaseQuantityPage() {
+export default function MaxStoreSkuInventoryPage() {
     const { message } = App.useApp();
     const [form] = Form.useForm();
-    const [data, setData] = useState<MaxPurchaseQuantityItem[]>([]);
+    const [data, setData] = useState<MaxStoreSkuInventoryItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
     const [storeNames, setStoreNames] = useState<string[]>([]);
@@ -24,20 +25,21 @@ export default function MaxPurchaseQuantityPage() {
     const [filters, setFilters] = useState<{
         storeName?: string;
         sku?: string;
-        maxQuantity?: string;
+        maxInventory?: string;
+        remark?: string;
         modifier?: string;
     }>({});
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
     const [modalVisible, setModalVisible] = useState(false);
-    const [editingRecord, setEditingRecord] = useState<MaxPurchaseQuantityItem | null>(null);
+    const [editingRecord, setEditingRecord] = useState<MaxStoreSkuInventoryItem | null>(null);
     const [modalLoading, setModalLoading] = useState(false);
 
     // 加载门店名称列表
     const loadStoreNames = useCallback(async () => {
         setLoadingStoreNames(true);
         try {
-            const names = await maxPurchaseQuantityApi.getStoreNames();
+            const names = await maxStoreSkuInventoryApi.getStoreNames();
             setStoreNames(names);
         } catch (e: any) {
             message.error("加载门店名称失败: " + (e?.message || '未知错误'));
@@ -49,7 +51,7 @@ export default function MaxPurchaseQuantityPage() {
     // 加载当前用户的display_name
     const loadUserDisplayName = useCallback(async () => {
         try {
-            const result = await maxPurchaseQuantityApi.getUserDisplayName();
+            const result = await maxStoreSkuInventoryApi.getUserDisplayName();
             if (result.displayName) {
                 setUserDisplayName(result.displayName);
             }
@@ -67,7 +69,8 @@ export default function MaxPurchaseQuantityPage() {
         searchFilters?: {
             storeName?: string;
             sku?: string;
-            maxQuantity?: string;
+            maxInventory?: string;
+            remark?: string;
             modifier?: string;
         },
         page: number = currentPage,
@@ -79,7 +82,7 @@ export default function MaxPurchaseQuantityPage() {
             const activeFilters = searchFilters ? Object.fromEntries(
                 Object.entries(searchFilters).filter(([_, v]) => v && v.trim())
             ) : undefined;
-            const res = await maxPurchaseQuantityApi.list(activeFilters, page, limit);
+            const res = await maxStoreSkuInventoryApi.list(activeFilters, page, limit);
             setData(res?.data || []);
             setTotal(res?.total || 0);
         } catch (e: any) {
@@ -123,26 +126,27 @@ export default function MaxPurchaseQuantityPage() {
         setModalVisible(true);
     };
 
-    const handleEdit = (record: MaxPurchaseQuantityItem) => {
+    const handleEdit = (record: MaxStoreSkuInventoryItem) => {
         setEditingRecord(record);
         form.setFieldsValue({
             storeName: record['仓店名称'],
-            sku: record['SKU'],
-            maxQuantity: record['单次最高采购量(基本单位)'],
+            sku: record['SKU编码'],
+            maxInventory: record['最高库存量（基础单位）'],
+            remark: record['备注（说明设置原因）'],
             modifier: record['修改人'],
         });
         setModalVisible(true);
     };
 
-    const handleDelete = useCallback(async (record: MaxPurchaseQuantityItem) => {
+    const handleDelete = useCallback(async (record: MaxStoreSkuInventoryItem) => {
         Modal.confirm({
             title: '确认删除',
-            content: `确定要删除仓店名称"${record['仓店名称']}"和SKU"${record['SKU']}"的记录吗？`,
+            content: `确定要删除仓店名称"${record['仓店名称']}"和SKU编码"${record['SKU编码']}"的记录吗？`,
             onOk: async () => {
                 try {
-                    await maxPurchaseQuantityApi.delete({
+                    await maxStoreSkuInventoryApi.delete({
                         storeName: record['仓店名称'],
-                        sku: record['SKU'],
+                        sku: record['SKU编码'],
                     });
                     message.success('删除成功');
                     load(filters, currentPage, pageSize);
@@ -160,25 +164,27 @@ export default function MaxPurchaseQuantityPage() {
 
             if (editingRecord) {
                 // 更新
-                await maxPurchaseQuantityApi.update(
+                await maxStoreSkuInventoryApi.update(
                     {
                         storeName: editingRecord['仓店名称'],
-                        sku: editingRecord['SKU'],
+                        sku: editingRecord['SKU编码'],
                     },
                     {
                         storeName: values.storeName,
                         sku: values.sku,
-                        maxQuantity: values.maxQuantity,
+                        maxInventory: values.maxInventory,
+                        remark: values.remark,
                         modifier: values.modifier,
                     }
                 );
                 message.success('更新成功');
             } else {
                 // 新增
-                await maxPurchaseQuantityApi.create({
+                await maxStoreSkuInventoryApi.create({
                     storeName: values.storeName,
                     sku: values.sku,
-                    maxQuantity: values.maxQuantity,
+                    maxInventory: values.maxInventory,
+                    remark: values.remark,
                     modifier: values.modifier,
                 });
                 message.success('创建成功');
@@ -205,7 +211,7 @@ export default function MaxPurchaseQuantityPage() {
     };
 
     const columns = useMemo(() => {
-        const dataColumns = (Object.keys(fieldLabels) as (keyof MaxPurchaseQuantityItem)[]).map((key) => ({
+        const dataColumns = (Object.keys(fieldLabels) as (keyof MaxStoreSkuInventoryItem)[]).map((key) => ({
             title: fieldLabels[key],
             dataIndex: key,
             key,
@@ -216,7 +222,7 @@ export default function MaxPurchaseQuantityPage() {
             title: '操作',
             key: 'action',
             width: 150,
-            render: (_: any, record: MaxPurchaseQuantityItem) => (
+            render: (_: any, record: MaxStoreSkuInventoryItem) => (
                 <Space>
                     <Button
                         type="link"
@@ -245,7 +251,7 @@ export default function MaxPurchaseQuantityPage() {
     return (
         <div style={{ padding: 24 }}>
             <Card
-                title="门店管理 - 单次最高采购量"
+                title="门店管理 - 仓店sku最高库存"
                 extra={
                     <Space>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
@@ -270,7 +276,7 @@ export default function MaxPurchaseQuantityPage() {
                             />
                             <Input
                                 allowClear
-                                placeholder="SKU"
+                                placeholder="SKU编码"
                                 value={filters.sku || ''}
                                 onChange={e => updateFilter('sku', e.target.value)}
                                 onPressEnter={handleSearch}
@@ -279,9 +285,18 @@ export default function MaxPurchaseQuantityPage() {
                             />
                             <Input
                                 allowClear
-                                placeholder="单次最高采购量(基本单位)"
-                                value={filters.maxQuantity || ''}
-                                onChange={e => updateFilter('maxQuantity', e.target.value)}
+                                placeholder="最高库存量（基础单位）"
+                                value={filters.maxInventory || ''}
+                                onChange={e => updateFilter('maxInventory', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 200 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="备注（说明设置原因）"
+                                value={filters.remark || ''}
+                                onChange={e => updateFilter('remark', e.target.value)}
                                 onPressEnter={handleSearch}
                                 style={{ width: 200 }}
                                 prefix={<SearchOutlined />}
@@ -301,7 +316,7 @@ export default function MaxPurchaseQuantityPage() {
                 <Table
                     columns={columns as any}
                     dataSource={data}
-                    rowKey={(r) => `${r["仓店名称"]}_${r["SKU"]}`}
+                    rowKey={(r) => `${r["仓店名称"]}_${r["SKU编码"]}`}
                     loading={loading}
                     pagination={{
                         current: currentPage,
@@ -336,7 +351,7 @@ export default function MaxPurchaseQuantityPage() {
                     form={form}
                     layout="vertical"
                     initialValues={{
-                        maxQuantity: 0,
+                        maxInventory: 0,
                     }}
                 >
                     <Form.Item
@@ -357,27 +372,39 @@ export default function MaxPurchaseQuantityPage() {
                         />
                     </Form.Item>
                     <Form.Item
-                        label="SKU"
+                        label="SKU编码"
                         name="sku"
                         rules={[
-                            { required: true, message: 'SKU不能为空' },
+                            { required: true, message: 'SKU编码不能为空' },
                         ]}
                     >
-                        <Input placeholder="请输入SKU" />
+                        <Input placeholder="请输入SKU编码" />
                     </Form.Item>
                     <Form.Item
-                        label="单次最高采购量(基本单位)"
-                        name="maxQuantity"
+                        label="最高库存量（基础单位）"
+                        name="maxInventory"
                         rules={[
-                            { required: true, message: '单次最高采购量(基本单位)不能为空' },
-                            { type: 'number', min: 0, message: '单次最高采购量(基本单位)必须大于等于0' },
+                            { required: true, message: '最高库存量（基础单位）不能为空' },
+                            { type: 'number', min: 0, message: '最高库存量（基础单位）必须大于等于0' },
                         ]}
                     >
                         <InputNumber
-                            placeholder="请输入单次最高采购量(基本单位)"
+                            placeholder="请输入最高库存量（基础单位）"
                             style={{ width: '100%' }}
                             min={0}
                             precision={0}
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        label="备注（说明设置原因）"
+                        name="remark"
+                        rules={[
+                            { required: true, message: '备注（说明设置原因）不能为空' },
+                        ]}
+                    >
+                        <TextArea
+                            placeholder="请输入备注（说明设置原因）"
+                            rows={4}
                         />
                     </Form.Item>
                     <Form.Item

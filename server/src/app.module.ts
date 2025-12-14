@@ -8,6 +8,7 @@ import { HealthController } from './health/health.controller';
 import { LabelDataModule } from './label-data/label-data.module';
 import { LabelPrintModule } from './label-print/label-print.module';
 import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-quantity.module';
+import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
@@ -36,6 +37,7 @@ import { VersionModule } from './version/version.module';
     OpsExclusionModule,
     StoreRejectionModule,
     MaxPurchaseQuantityModule,
+    MaxStoreSkuInventoryModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

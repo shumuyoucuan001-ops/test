@@ -444,6 +444,9 @@ export const maxPurchaseQuantityApi = {
   getStoreNames: (): Promise<string[]> =>
     api.get('/max-purchase-quantity/store-names').then(res => res.data),
 
+  getUserDisplayName: (): Promise<{ displayName: string | null }> =>
+    api.get('/max-purchase-quantity/user-display-name').then(res => res.data),
+
   list: (
     filters?: {
       storeName?: string;
@@ -493,6 +496,77 @@ export const maxPurchaseQuantityApi = {
     sku: string;
   }): Promise<{ success: boolean }> =>
     api.delete('/max-purchase-quantity', { data }).then(res => res.data),
+};
+
+// 门店管理 - 仓店sku最高库存
+export interface MaxStoreSkuInventoryItem {
+  '仓店名称': string;
+  'SKU编码': string;
+  '最高库存量（基础单位）': number;
+  '备注（说明设置原因）': string;
+  '修改人': string;
+}
+
+export const maxStoreSkuInventoryApi = {
+  getStoreNames: (): Promise<string[]> =>
+    api.get('/max-store-sku-inventory/store-names').then(res => res.data),
+
+  getUserDisplayName: (): Promise<{ displayName: string | null }> =>
+    api.get('/max-store-sku-inventory/user-display-name').then(res => res.data),
+
+  list: (
+    filters?: {
+      storeName?: string;
+      sku?: string;
+      maxInventory?: string;
+      remark?: string;
+      modifier?: string;
+    },
+    page?: number,
+    limit?: number
+  ): Promise<{ data: MaxStoreSkuInventoryItem[]; total: number }> => {
+    const params: any = {};
+    if (filters) {
+      if (filters.storeName) params.storeName = filters.storeName;
+      if (filters.sku) params.sku = filters.sku;
+      if (filters.maxInventory) params.maxInventory = filters.maxInventory;
+      if (filters.remark) params.remark = filters.remark;
+      if (filters.modifier) params.modifier = filters.modifier;
+    }
+    params.page = page || 1;
+    params.limit = limit || 20;
+    return api.get('/max-store-sku-inventory', { params }).then(res => res.data);
+  },
+
+  create: (data: {
+    storeName: string;
+    sku: string;
+    maxInventory: number;
+    remark: string;
+    modifier: string;
+  }): Promise<MaxStoreSkuInventoryItem> =>
+    api.post('/max-store-sku-inventory', data).then(res => res.data),
+
+  update: (
+    original: {
+      storeName: string;
+      sku: string;
+    },
+    data: {
+      storeName?: string;
+      sku?: string;
+      maxInventory?: number;
+      remark?: string;
+      modifier: string;
+    }
+  ): Promise<MaxStoreSkuInventoryItem> =>
+    api.put('/max-store-sku-inventory', { original, data }).then(res => res.data),
+
+  delete: (data: {
+    storeName: string;
+    sku: string;
+  }): Promise<{ success: boolean }> =>
+    api.delete('/max-store-sku-inventory', { data }).then(res => res.data),
 };
 
 // ACL 类型

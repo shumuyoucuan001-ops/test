@@ -1,15 +1,15 @@
 import { Body, Controller, Delete, Get, Headers, Post, Put, Query } from '@nestjs/common';
 import { Logger } from '../utils/logger.util';
-import type { MaxPurchaseQuantityItem } from './max-purchase-quantity.service';
-import { MaxPurchaseQuantityService } from './max-purchase-quantity.service';
+import type { MaxStoreSkuInventoryItem } from './max-store-sku-inventory.service';
+import { MaxStoreSkuInventoryService } from './max-store-sku-inventory.service';
 
-@Controller('max-purchase-quantity')
-export class MaxPurchaseQuantityController {
-    constructor(private service: MaxPurchaseQuantityService) { }
+@Controller('max-store-sku-inventory')
+export class MaxStoreSkuInventoryController {
+    constructor(private service: MaxStoreSkuInventoryService) { }
 
     @Get('store-names')
     async getStoreNames(): Promise<string[]> {
-        Logger.log('[MaxPurchaseQuantityController] 获取门店名称列表');
+        Logger.log('[MaxStoreSkuInventoryController] 获取门店名称列表');
         return this.service.getStoreNames();
     }
 
@@ -19,7 +19,7 @@ export class MaxPurchaseQuantityController {
         if (!userIdNum) {
             return { displayName: null };
         }
-        Logger.log('[MaxPurchaseQuantityController] 获取用户display_name:', userIdNum);
+        Logger.log('[MaxStoreSkuInventoryController] 获取用户display_name:', userIdNum);
         const displayName = await this.service.getUserDisplayName(userIdNum);
         return { displayName };
     }
@@ -28,21 +28,23 @@ export class MaxPurchaseQuantityController {
     async list(
         @Query('storeName') storeName?: string,
         @Query('sku') sku?: string,
-        @Query('maxQuantity') maxQuantity?: string,
+        @Query('maxInventory') maxInventory?: string,
+        @Query('remark') remark?: string,
         @Query('modifier') modifier?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
-    ): Promise<{ data: MaxPurchaseQuantityItem[]; total: number }> {
+    ): Promise<{ data: MaxStoreSkuInventoryItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
         const filters: any = {};
         if (storeName) filters.storeName = storeName;
         if (sku) filters.sku = sku;
-        if (maxQuantity) filters.maxQuantity = maxQuantity;
+        if (maxInventory) filters.maxInventory = maxInventory;
+        if (remark) filters.remark = remark;
         if (modifier) filters.modifier = modifier;
 
-        Logger.log('[MaxPurchaseQuantityController] list query:', {
-            storeName, sku, maxQuantity, modifier, page: pageNum, limit: limitNum,
+        Logger.log('[MaxStoreSkuInventoryController] list query:', {
+            storeName, sku, maxInventory, remark, modifier, page: pageNum, limit: limitNum,
         });
 
         return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum);
@@ -53,13 +55,14 @@ export class MaxPurchaseQuantityController {
         @Body() body: {
             storeName: string;
             sku: string;
-            maxQuantity: number;
+            maxInventory: number;
+            remark: string;
             modifier: string;
         },
         @Headers('x-user-id') userId?: string,
-    ): Promise<MaxPurchaseQuantityItem> {
+    ): Promise<MaxStoreSkuInventoryItem> {
         const userIdNum = userId ? Number(userId) : undefined;
-        Logger.log('[MaxPurchaseQuantityController] 创建记录:', {
+        Logger.log('[MaxStoreSkuInventoryController] 创建记录:', {
             ...body,
             userId: userIdNum,
         });
@@ -77,13 +80,19 @@ export class MaxPurchaseQuantityController {
             data: {
                 storeName?: string;
                 sku?: string;
-                maxQuantity?: number;
+                maxInventory?: number;
+                remark?: string;
                 modifier: string;
             };
         },
-    ): Promise<MaxPurchaseQuantityItem> {
-        Logger.log('[MaxPurchaseQuantityController] 更新记录:', body);
-        return this.service.update(body.original, body.data);
+        @Headers('x-user-id') userId?: string,
+    ): Promise<MaxStoreSkuInventoryItem> {
+        const userIdNum = userId ? Number(userId) : undefined;
+        Logger.log('[MaxStoreSkuInventoryController] 更新记录:', {
+            ...body,
+            userId: userIdNum,
+        });
+        return this.service.update(body.original, body.data, userIdNum);
     }
 
     @Delete()
@@ -93,7 +102,7 @@ export class MaxPurchaseQuantityController {
             sku: string;
         },
     ): Promise<{ success: boolean }> {
-        Logger.log('[MaxPurchaseQuantityController] 删除记录:', body);
+        Logger.log('[MaxStoreSkuInventoryController] 删除记录:', body);
         return this.service.delete(body);
     }
 }
