@@ -33,6 +33,77 @@ import { aclApi } from '../../lib/api';
 
 const { Header, Sider, Content } = Layout;
 
+// Logo 组件 - 用代码生成的logo
+const LogoIcon = ({ size = 24 }: { size?: number }) => {
+  const viewBox = 32;
+  const centerX = viewBox / 2;
+  const centerY = viewBox / 2;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${viewBox} ${viewBox}`}
+      style={{ display: 'block' }}
+    >
+      {/* 深蓝色背景 */}
+      <rect width={viewBox} height={viewBox} fill="#1a3a5c" rx="2" />
+
+      {/* 中央垂直条 */}
+      <rect
+        x={centerX - 1.5}
+        y={centerY - 8}
+        width={3}
+        height={16}
+        fill="#ffffff"
+      />
+
+      {/* 左侧波浪线 - 上 */}
+      <path
+        d={`M ${centerX - 6} ${centerY - 6} Q ${centerX - 4} ${centerY - 4}, ${centerX - 2} ${centerY - 6}`}
+        stroke="#ffffff"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* 左侧波浪线 - 下 */}
+      <path
+        d={`M ${centerX - 6} ${centerY + 6} Q ${centerX - 4} ${centerY + 4}, ${centerX - 2} ${centerY + 6}`}
+        stroke="#ffffff"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* 右侧波浪线 - 上 */}
+      <path
+        d={`M ${centerX + 2} ${centerY - 6} Q ${centerX + 4} ${centerY - 4}, ${centerX + 6} ${centerY - 6}`}
+        stroke="#ffffff"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* 右侧波浪线 - 下 */}
+      <path
+        d={`M ${centerX + 2} ${centerY + 6} Q ${centerX + 4} ${centerY + 4}, ${centerX + 6} ${centerY + 6}`}
+        stroke="#ffffff"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* 右上角橙色弧形装饰 */}
+      <path
+        d={`M ${centerX + 2} ${centerY - 8} Q ${centerX + 4} ${centerY - 10}, ${centerX + 6} ${centerY - 8}`}
+        stroke="#ff6b35"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
 // 页面配置
 interface PageConfig {
   title: string;
@@ -516,15 +587,33 @@ export default function HomeLayout({
               justifyContent: 'space-between',
               overflow: 'hidden'
             }}>
-              <span style={{
+              <div style={{
                 flex: 1,
-                textAlign: 'left',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                overflow: 'hidden'
               }}>
-                {collapsed ? '术木' : '术木优选'}
-              </span>
+                <span style={{
+                  flex: 1,
+                  textAlign: 'left',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {collapsed ? '术木' : '术木优选'}
+                </span>
+                {!collapsed && (
+                  <div style={{
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <LogoIcon size={24} />
+                  </div>
+                )}
+              </div>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
