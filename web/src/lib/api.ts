@@ -473,7 +473,6 @@ export const maxPurchaseQuantityApi = {
     storeName: string;
     sku: string;
     maxQuantity: number;
-    modifier: string;
   }): Promise<MaxPurchaseQuantityItem> =>
     api.post('/max-purchase-quantity', data).then(res => res.data),
 
@@ -486,7 +485,6 @@ export const maxPurchaseQuantityApi = {
       storeName?: string;
       sku?: string;
       maxQuantity?: number;
-      modifier: string;
     }
   ): Promise<MaxPurchaseQuantityItem> =>
     api.put('/max-purchase-quantity', { original, data }).then(res => res.data),

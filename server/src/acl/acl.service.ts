@@ -471,29 +471,78 @@ export class AclService {
       }
     }
 
+    Logger.log(`[AclService] 开始登录验证，用户名: ${username}`);
+
     const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT id, username, display_name, status, password, session_token FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`, username || '');
-    if (!rows.length) throw new BadRequestException('用户不存在');
+    if (!rows.length) {
+      Logger.log(`[AclService] 登录失败：用户不存在，用户名: ${username}`);
+      throw new BadRequestException('用户不存在');
+    }
     const u = rows[0];
-    if (String(u.password || '') !== String(password || '')) throw new BadRequestException('密码错误');
-    if (Number(u.status) !== 1) throw new BadRequestException('账号已禁用');
+    if (String(u.password || '') !== String(password || '')) {
+      Logger.log(`[AclService] 登录失败：密码错误，用户名: ${username}`);
+      throw new BadRequestException('密码错误');
+    }
+    if (Number(u.status) !== 1) {
+      Logger.log(`[AclService] 登录失败：账号已禁用，用户名: ${username}`);
+      throw new BadRequestException('账号已禁用');
+    }
 
     // 生成新token
     const token = randomBytes(24).toString('hex');
     const loginTime = new Date();
     const device = deviceInfo || 'unknown';
 
+    Logger.log(`[AclService] 用户验证通过，准备更新session_token，用户ID: ${u.id}`);
+
     // 更新用户的session_token (单点登录：覆盖旧token)
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=? WHERE id=?`,
-      token,
-      loginTime,
-      device,
-      Number(u.id)
-    );
+    try {
+      // 先检查字段是否存在，如果不存在则尝试创建
+      const hasLastLoginTime = await this.hasCol('last_login_time');
+      const hasLastLoginDevice = await this.hasCol('last_login_device');
+
+      if (!hasLastLoginTime || !hasLastLoginDevice) {
+        Logger.log(`[AclService] 检测到缺少字段，尝试创建... hasLastLoginTime: ${hasLastLoginTime}, hasLastLoginDevice: ${hasLastLoginDevice}`);
+        await this.ensureColumns(); // 重新确保字段存在
+      }
+
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=? WHERE id=?`,
+        token,
+        loginTime,
+        device,
+        Number(u.id)
+      );
+      Logger.log(`[AclService] session_token更新成功，用户ID: ${u.id}`);
+    } catch (error: any) {
+      Logger.error(`[AclService] 更新session_token失败，用户ID: ${u.id}`, error);
+      Logger.error(`[AclService] 错误详情: ${error?.message}`);
+      Logger.error(`[AclService] SQL错误: ${error?.code}`);
+
+      // 如果更新失败，尝试仅更新session_token（不更新登录时间字段）
+      try {
+        Logger.log(`[AclService] 尝试仅更新session_token...`);
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE sm_xitongkaifa.sys_users SET session_token=? WHERE id=?`,
+          token,
+          Number(u.id)
+        );
+        Logger.log(`[AclService] session_token更新成功（简化版本），用户ID: ${u.id}`);
+      } catch (fallbackError: any) {
+        Logger.error(`[AclService] 简化更新也失败: ${fallbackError?.message}`);
+        throw new BadRequestException(`更新会话信息失败: ${error?.message || fallbackError?.message}`);
+      }
+    }
 
     // 记录登录历史
-    await this.logLogin(Number(u.id), u.username, device, loginTime, token);
+    try {
+      await this.logLogin(Number(u.id), u.username, device, loginTime, token);
+    } catch (logError: any) {
+      // 登录历史记录失败不影响登录流程，只记录日志
+      Logger.warn(`[AclService] 记录登录历史失败，但不影响登录: ${logError?.message}`);
+    }
 
+    Logger.log(`[AclService] 登录成功，用户: ${u.username} (ID: ${u.id})`);
     return { id: Number(u.id), username: u.username, display_name: u.display_name, token };
   }
 

@@ -53,8 +53,20 @@ export class AclController {
       return await this.service.login(b.username, b.password, b.deviceInfo, b.dingTalkCode);
     }
     catch (e: any) {
+      // 记录详细错误信息以便调试
+      console.error('[AclController] 登录失败:', e);
+      console.error('[AclController] 错误堆栈:', e?.stack);
+      console.error('[AclController] 错误详情:', {
+        message: e?.message,
+        status: e?.status,
+        response: e?.response,
+        name: e?.name,
+      });
+
       if (e && e.status) throw e;
-      throw new HttpException(e?.message || '登录失败', 400);
+      // 返回500而不是400，因为可能是服务器内部错误
+      const statusCode = e?.status || (e?.message?.includes('数据库') || e?.message?.includes('连接') ? 500 : 400);
+      throw new HttpException(e?.message || '登录失败', statusCode);
     }
   }
 

@@ -54,7 +54,6 @@ export class MaxPurchaseQuantityController {
             storeName: string;
             sku: string;
             maxQuantity: number;
-            modifier: string;
         },
         @Headers('x-user-id') userId?: string,
     ): Promise<MaxPurchaseQuantityItem> {
@@ -78,12 +77,16 @@ export class MaxPurchaseQuantityController {
                 storeName?: string;
                 sku?: string;
                 maxQuantity?: number;
-                modifier: string;
             };
         },
+        @Headers('x-user-id') userId?: string,
     ): Promise<MaxPurchaseQuantityItem> {
-        Logger.log('[MaxPurchaseQuantityController] 更新记录:', body);
-        return this.service.update(body.original, body.data);
+        const userIdNum = userId ? Number(userId) : undefined;
+        Logger.log('[MaxPurchaseQuantityController] 更新记录:', {
+            ...body,
+            userId: userIdNum,
+        });
+        return this.service.update(body.original, body.data, userIdNum);
     }
 
     @Delete()

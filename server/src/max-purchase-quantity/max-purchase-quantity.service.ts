@@ -149,7 +149,6 @@ export class MaxPurchaseQuantityService {
             storeName: string;
             sku: string;
             maxQuantity: number;
-            modifier: string;
         },
         userId?: number
     ): Promise<MaxPurchaseQuantityItem> {
@@ -163,8 +162,14 @@ export class MaxPurchaseQuantityService {
         if (data.maxQuantity === undefined || data.maxQuantity === null) {
             throw new BadRequestException('单次最高采购量(基本单位)不能为空');
         }
-        if (!data.modifier || !data.modifier.trim()) {
-            throw new BadRequestException('修改人不能为空');
+
+        // 自动获取修改人
+        let modifier = '系统';
+        if (userId) {
+            const displayName = await this.getUserDisplayName(userId);
+            if (displayName) {
+                modifier = displayName;
+            }
         }
 
         try {
@@ -190,7 +195,7 @@ export class MaxPurchaseQuantityService {
                 data.storeName.trim(),
                 data.sku.trim(),
                 data.maxQuantity,
-                data.modifier.trim()
+                modifier
             );
 
             // 返回创建的记录
@@ -232,8 +237,8 @@ export class MaxPurchaseQuantityService {
             storeName?: string;
             sku?: string;
             maxQuantity?: number;
-            modifier: string;
-        }
+        },
+        userId?: number
     ): Promise<MaxPurchaseQuantityItem> {
         // 验证必填字段
         if (data.storeName !== undefined && (!data.storeName || !data.storeName.trim())) {
@@ -245,8 +250,14 @@ export class MaxPurchaseQuantityService {
         if (data.maxQuantity !== undefined && (data.maxQuantity === null || data.maxQuantity === undefined)) {
             throw new BadRequestException('单次最高采购量(基本单位)不能为空');
         }
-        if (!data.modifier || !data.modifier.trim()) {
-            throw new BadRequestException('修改人不能为空');
+
+        // 自动获取修改人
+        let modifier = '系统';
+        if (userId) {
+            const displayName = await this.getUserDisplayName(userId);
+            if (displayName) {
+                modifier = displayName;
+            }
         }
 
         try {
@@ -296,7 +307,7 @@ export class MaxPurchaseQuantityService {
                 updateParams.push(data.maxQuantity);
             }
             updateFields.push('`修改人` = ?');
-            updateParams.push(data.modifier.trim());
+            updateParams.push(modifier);
 
             updateParams.push(original.storeName.trim(), original.sku.trim());
 

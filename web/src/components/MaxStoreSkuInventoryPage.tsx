@@ -2,7 +2,7 @@
 
 import { MaxStoreSkuInventoryItem, maxStoreSkuInventoryApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, TextArea } from "antd";
+import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const fieldLabels: Record<keyof MaxStoreSkuInventoryItem, string> = {
@@ -402,7 +402,7 @@ export default function MaxStoreSkuInventoryPage() {
                             { required: true, message: '备注（说明设置原因）不能为空' },
                         ]}
                     >
-                        <TextArea
+                        <Input.TextArea
                             placeholder="请输入备注（说明设置原因）"
                             rows={4}
                         />

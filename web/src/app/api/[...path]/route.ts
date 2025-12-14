@@ -10,30 +10,34 @@ const BACKEND_URL = process.env.API_URL ||
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyRequest(request, params.path, 'GET');
+  const resolvedParams = await params;
+  return proxyRequest(request, resolvedParams.path, 'GET');
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyRequest(request, params.path, 'POST');
+  const resolvedParams = await params;
+  return proxyRequest(request, resolvedParams.path, 'POST');
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyRequest(request, params.path, 'PUT');
+  const resolvedParams = await params;
+  return proxyRequest(request, resolvedParams.path, 'PUT');
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyRequest(request, params.path, 'DELETE');
+  const resolvedParams = await params;
+  return proxyRequest(request, resolvedParams.path, 'DELETE');
 }
 
 // 带超时的 fetch 封装
@@ -74,9 +78,10 @@ async function proxyRequest(
     const queryString = searchParams.toString();
     const fullUrl = queryString ? `${url}?${queryString}` : url;
 
-    // 减少日志输出，只在开发环境或慢请求时记录
+    // 开发环境详细日志
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[API Proxy] ${method} ${fullUrl}`);
+      console.log(`[API Proxy] 后端地址: ${BACKEND_URL}`);
     }
 
     const headers: HeadersInit = {
@@ -96,7 +101,7 @@ async function proxyRequest(
     }
 
     let body = undefined;
-    if (method !== 'GET' && method !== 'DELETE') {
+    if (method !== 'GET') {
       try {
         body = await request.text();
       } catch (e) {
@@ -114,8 +119,19 @@ async function proxyRequest(
     const data = await response.text();
     const duration = Date.now() - startTime;
 
-    // 记录慢请求（降低日志频率）
-    if (duration > 3000) {
+    // 开发环境记录所有请求详情
+    if (process.env.NODE_ENV !== 'production') {
+      if (response.status >= 400) {
+        console.error(`[API Proxy] 错误响应: ${method} ${fullUrl}`);
+        console.error(`[API Proxy] 状态码: ${response.status}`);
+        console.error(`[API Proxy] 响应内容: ${data.substring(0, 500)}`); // 限制输出长度
+      } else if (duration > 3000) {
+        console.warn(`[API Proxy] 慢请求: ${method} ${fullUrl} 耗时 ${duration}ms`);
+      } else {
+        console.log(`[API Proxy] ✓ 请求成功: ${method} ${fullUrl} (${response.status}) 耗时 ${duration}ms`);
+      }
+    } else if (duration > 3000) {
+      // 生产环境只记录慢请求
       console.warn(`[API Proxy] 慢请求: ${method} ${fullUrl} 耗时 ${duration}ms`);
     }
 
@@ -127,35 +143,59 @@ async function proxyRequest(
     });
   } catch (error: any) {
     const duration = Date.now() - startTime;
+    const path = pathSegments.join('/');
+    const fullUrl = `${BACKEND_URL}/${path}`;
+
+    // 详细的错误日志
+    console.error(`[API Proxy] ========== 请求失败 ==========`);
+    console.error(`[API Proxy] 方法: ${method}`);
+    console.error(`[API Proxy] 路径: ${path}`);
+    console.error(`[API Proxy] 完整URL: ${fullUrl}`);
+    console.error(`[API Proxy] 后端地址: ${BACKEND_URL}`);
+    console.error(`[API Proxy] 错误类型: ${error?.name || 'Unknown'}`);
+    console.error(`[API Proxy] 错误消息: ${error?.message || '无消息'}`);
+    console.error(`[API Proxy] 错误代码: ${error?.code || '无代码'}`);
+    console.error(`[API Proxy] 错误堆栈: ${error?.stack || '无堆栈'}`);
+    console.error(`[API Proxy] 耗时: ${duration}ms`);
+    console.error(`[API Proxy] ===============================`);
 
     if (error.message && error.message.includes('超时')) {
-      console.error(`[API Proxy] 请求超时: ${method} ${pathSegments.join('/')} (耗时: ${duration}ms, 超时限制: ${REQUEST_TIMEOUT}ms)`);
+      console.error(`[API Proxy] 请求超时: ${method} ${path} (耗时: ${duration}ms, 超时限制: ${REQUEST_TIMEOUT}ms)`);
       return NextResponse.json(
         {
           error: '请求超时',
           message: `后端服务响应超时 (${REQUEST_TIMEOUT}ms)，请稍后重试`,
           timeout: REQUEST_TIMEOUT,
-          duration
+          duration,
+          path,
+          backendUrl: BACKEND_URL
         },
         { status: 504 } // Gateway Timeout
       );
     } else if (error.message && error.message.includes('ECONNREFUSED')) {
-      console.error(`[API Proxy] 连接被拒绝: ${method} ${pathSegments.join('/')} - 后端服务可能未启动`);
+      console.error(`[API Proxy] 连接被拒绝: ${method} ${path} - 后端服务可能未启动`);
+      console.error(`[API Proxy] 请检查后端服务是否运行在: ${BACKEND_URL}`);
       return NextResponse.json(
         {
           error: '连接失败',
           message: '无法连接到后端服务，请检查服务是否正常运行',
-          backendUrl: BACKEND_URL
+          backendUrl: BACKEND_URL,
+          path,
+          suggestion: '请确认后端服务已启动并监听在正确端口'
         },
         { status: 503 } // Service Unavailable
       );
     } else {
-      console.error(`[API Proxy] 请求错误: ${method} ${pathSegments.join('/')} - ${error.message} (耗时: ${duration}ms)`);
+      console.error(`[API Proxy] 请求错误: ${method} ${path} - ${error.message} (耗时: ${duration}ms)`);
       return NextResponse.json(
         {
           error: '代理请求失败',
           message: error.message || '未知错误',
-          duration
+          errorCode: error?.code,
+          errorType: error?.name,
+          duration,
+          path,
+          backendUrl: BACKEND_URL
         },
         { status: 500 }
       );

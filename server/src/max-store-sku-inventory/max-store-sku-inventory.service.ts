@@ -225,7 +225,7 @@ export class MaxStoreSkuInventoryService {
             const insertSql = `INSERT INTO ${this.table} 
                 (\`仓店名称\`, \`SKU编码\`, \`最高库存量（基础单位）\`, \`备注（说明设置原因）\`, \`修改人\`, \`仓店编码\`, \`SKU编码仓店编码\`)
                 VALUES (?, ?, ?, ?, ?, ?, ?)`;
-            
+
             await this.prisma.$executeRawUnsafe(
                 insertSql,
                 data.storeName.trim(),
@@ -315,7 +315,7 @@ export class MaxStoreSkuInventoryService {
             // 如果更新了仓店名称或SKU编码，检查新组合是否已存在
             const newStoreName = (data.storeName || original.storeName).trim();
             const newSku = (data.sku || original.sku).trim();
-            
+
             if (newStoreName !== original.storeName.trim() || newSku !== original.sku.trim()) {
                 const checkNewSql = `SELECT * FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU编码\` = ?`;
                 const newExisting: any[] = await this.prisma.$queryRawUnsafe(
@@ -332,7 +332,7 @@ export class MaxStoreSkuInventoryService {
             // 获取新的仓店编码（如果仓店名称改变了）
             let storeCode: string | null = null;
             let skuStoreCode: string | null = null;
-            
+
             if (data.storeName !== undefined || data.sku !== undefined) {
                 storeCode = await this.getStoreCodeByStoreName(newStoreName);
                 if (!storeCode) {

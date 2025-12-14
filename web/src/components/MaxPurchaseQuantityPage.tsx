@@ -20,7 +20,6 @@ export default function MaxPurchaseQuantityPage() {
     const [loading, setLoading] = useState(false);
     const [storeNames, setStoreNames] = useState<string[]>([]);
     const [loadingStoreNames, setLoadingStoreNames] = useState(false);
-    const [userDisplayName, setUserDisplayName] = useState<string>('');
     const [filters, setFilters] = useState<{
         storeName?: string;
         sku?: string;
@@ -46,22 +45,9 @@ export default function MaxPurchaseQuantityPage() {
         }
     }, [message]);
 
-    // 加载当前用户的display_name
-    const loadUserDisplayName = useCallback(async () => {
-        try {
-            const result = await maxPurchaseQuantityApi.getUserDisplayName();
-            if (result.displayName) {
-                setUserDisplayName(result.displayName);
-            }
-        } catch (e: any) {
-            console.error("加载用户display_name失败:", e);
-        }
-    }, []);
-
     useEffect(() => {
         loadStoreNames();
-        loadUserDisplayName();
-    }, [loadStoreNames, loadUserDisplayName]);
+    }, [loadStoreNames]);
 
     const load = async (
         searchFilters?: {
@@ -114,12 +100,6 @@ export default function MaxPurchaseQuantityPage() {
     const handleAdd = () => {
         setEditingRecord(null);
         form.resetFields();
-        // 设置默认的修改人为当前用户的display_name
-        if (userDisplayName) {
-            form.setFieldsValue({
-                modifier: userDisplayName,
-            });
-        }
         setModalVisible(true);
     };
 
@@ -129,7 +109,6 @@ export default function MaxPurchaseQuantityPage() {
             storeName: record['仓店名称'],
             sku: record['SKU'],
             maxQuantity: record['单次最高采购量(基本单位)'],
-            modifier: record['修改人'],
         });
         setModalVisible(true);
     };
@@ -169,7 +148,6 @@ export default function MaxPurchaseQuantityPage() {
                         storeName: values.storeName,
                         sku: values.sku,
                         maxQuantity: values.maxQuantity,
-                        modifier: values.modifier,
                     }
                 );
                 message.success('更新成功');
@@ -179,7 +157,6 @@ export default function MaxPurchaseQuantityPage() {
                     storeName: values.storeName,
                     sku: values.sku,
                     maxQuantity: values.maxQuantity,
-                    modifier: values.modifier,
                 });
                 message.success('创建成功');
             }
@@ -379,15 +356,6 @@ export default function MaxPurchaseQuantityPage() {
                             min={0}
                             precision={0}
                         />
-                    </Form.Item>
-                    <Form.Item
-                        label="修改人"
-                        name="modifier"
-                        rules={[
-                            { required: true, message: '修改人不能为空' },
-                        ]}
-                    >
-                        <Input placeholder="请输入修改人" />
                     </Form.Item>
                 </Form>
             </Modal>

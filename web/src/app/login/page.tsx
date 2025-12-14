@@ -148,15 +148,45 @@ export default function LoginPage() {
       // 获取钉钉code（如果有）
       const dingTalkCode = v.dingTalkCode;
 
+      console.log('[LoginPage] 开始登录，用户名:', v.username);
+      console.log('[LoginPage] 登录请求参数:', { username: v.username, hasPassword: !!v.password, hasDingTalkCode: !!dingTalkCode });
+
       const u = await aclApi.login(v.username, v.password, dingTalkCode);
+
+      console.log('[LoginPage] 登录成功，用户信息:', u);
       localStorage.setItem('userId', String(u.id));
       localStorage.setItem('displayName', u.display_name || '');
       localStorage.setItem('sessionToken', u.token || '');
       msgApi.success('登录成功');
       location.href = '/home';
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || '登录失败';
-      msgApi.error(msg);
+      console.error('[LoginPage] 登录失败，完整错误信息:');
+      console.error('[LoginPage] 错误对象:', e);
+      console.error('[LoginPage] 错误消息:', e?.message);
+      console.error('[LoginPage] 错误响应状态:', e?.response?.status);
+      console.error('[LoginPage] 错误响应数据:', e?.response?.data);
+      console.error('[LoginPage] 错误响应头:', e?.response?.headers);
+      console.error('[LoginPage] 请求URL:', e?.config?.url);
+      console.error('[LoginPage] 请求方法:', e?.config?.method);
+      console.error('[LoginPage] 请求数据:', e?.config?.data);
+
+      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || '登录失败';
+      const status = e?.response?.status;
+
+      // 根据错误状态码提供更友好的提示
+      let errorMessage = msg;
+      if (status === 500) {
+        errorMessage = `登录失败（服务器错误 500）：${msg}\n\n请检查后端控制台是否有错误日志`;
+      } else if (status === 503) {
+        errorMessage = `登录失败（服务不可用）：${msg}\n\n请确认后端服务是否正在运行`;
+      } else if (status === 504) {
+        errorMessage = `登录失败（请求超时）：${msg}`;
+      }
+
+      msgApi.error({
+        content: errorMessage,
+        duration: 5,
+      });
     } finally {
       setLoading(false);
     }
