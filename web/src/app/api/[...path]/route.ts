@@ -10,34 +10,30 @@ const BACKEND_URL = process.env.API_URL ||
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: { path: string[] } }
 ) {
-  const resolvedParams = await params;
-  return proxyRequest(request, resolvedParams.path, 'GET');
+  return proxyRequest(request, params.path, 'GET');
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: { path: string[] } }
 ) {
-  const resolvedParams = await params;
-  return proxyRequest(request, resolvedParams.path, 'POST');
+  return proxyRequest(request, params.path, 'POST');
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: { path: string[] } }
 ) {
-  const resolvedParams = await params;
-  return proxyRequest(request, resolvedParams.path, 'PUT');
+  return proxyRequest(request, params.path, 'PUT');
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  { params }: { params: { path: string[] } }
 ) {
-  const resolvedParams = await params;
-  return proxyRequest(request, resolvedParams.path, 'DELETE');
+  return proxyRequest(request, params.path, 'DELETE');
 }
 
 // 带超时的 fetch 封装
