@@ -493,7 +493,10 @@ export const maxPurchaseQuantityApi = {
     storeName: string;
     sku: string;
   }): Promise<{ success: boolean }> =>
-    api.delete('/max-purchase-quantity', { data }).then(res => res.data),
+    api.delete('/max-purchase-quantity', {
+      data,
+      headers: { 'Content-Type': 'application/json' }
+    }).then(res => res.data),
 };
 
 // 门店管理 - 仓店sku最高库存

@@ -119,6 +119,10 @@ export default function MaxPurchaseQuantityPage() {
             content: `确定要删除仓店名称"${record['仓店名称']}"和SKU"${record['SKU']}"的记录吗？`,
             onOk: async () => {
                 try {
+                    console.log('正在删除记录:', {
+                        storeName: record['仓店名称'],
+                        sku: record['SKU'],
+                    });
                     await maxPurchaseQuantityApi.delete({
                         storeName: record['仓店名称'],
                         sku: record['SKU'],
@@ -126,11 +130,12 @@ export default function MaxPurchaseQuantityPage() {
                     message.success('删除成功');
                     load(filters, currentPage, pageSize);
                 } catch (error: any) {
+                    console.error('删除失败:', error);
                     message.error('删除失败: ' + (error?.message || '未知错误'));
                 }
             },
         });
-    }, [filters, currentPage, pageSize, message]);
+    }, [load, filters, currentPage, pageSize, message]);
 
     const handleModalOk = async () => {
         try {

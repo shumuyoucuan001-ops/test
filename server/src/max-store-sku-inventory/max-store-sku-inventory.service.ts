@@ -100,32 +100,33 @@ export class MaxStoreSkuInventoryService {
         const buildLike = (v?: string) => `%${(v || '').trim()}%`;
 
         // 按字段匹配（AND）
-        if (filters?.storeName?.trim()) {
+        if (filters?.storeName && String(filters.storeName).trim()) {
             clauses.push(`\`仓店名称\` LIKE ?`);
-            params.push(buildLike(filters.storeName));
+            params.push(buildLike(String(filters.storeName)));
         }
-        if (filters?.sku?.trim()) {
+        if (filters?.sku && String(filters.sku).trim()) {
             clauses.push(`\`SKU编码\` LIKE ?`);
-            params.push(buildLike(filters.sku));
+            params.push(buildLike(String(filters.sku)));
         }
-        if (filters?.maxInventory?.trim()) {
+        if (filters?.maxInventory && String(filters.maxInventory).trim()) {
             // 尝试转换为数字进行精确匹配，如果转换失败则使用LIKE模糊匹配
-            const inventoryValue = parseFloat(filters.maxInventory.trim());
+            const maxInventoryStr = String(filters.maxInventory).trim();
+            const inventoryValue = parseFloat(maxInventoryStr);
             if (!isNaN(inventoryValue)) {
                 clauses.push(`\`最高库存量（基础单位）\` = ?`);
                 params.push(inventoryValue);
             } else {
                 clauses.push(`CAST(\`最高库存量（基础单位）\` AS CHAR) LIKE ?`);
-                params.push(buildLike(filters.maxInventory));
+                params.push(buildLike(maxInventoryStr));
             }
         }
-        if (filters?.remark?.trim()) {
+        if (filters?.remark && String(filters.remark).trim()) {
             clauses.push(`\`备注（说明设置原因）\` LIKE ?`);
-            params.push(buildLike(filters.remark));
+            params.push(buildLike(String(filters.remark)));
         }
-        if (filters?.modifier?.trim()) {
+        if (filters?.modifier && String(filters.modifier).trim()) {
             clauses.push(`\`修改人\` LIKE ?`);
-            params.push(buildLike(filters.modifier));
+            params.push(buildLike(String(filters.modifier)));
         }
 
         const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -163,8 +164,18 @@ export class MaxStoreSkuInventoryService {
             }));
 
             return { data, total };
-        } catch (error) {
+        } catch (error: any) {
             Logger.error('[MaxStoreSkuInventoryService] Query error:', error);
+            Logger.error('[MaxStoreSkuInventoryService] Error message:', error?.message);
+            Logger.error('[MaxStoreSkuInventoryService] Error stack:', error?.stack);
+            Logger.error('[MaxStoreSkuInventoryService] SQL:', sql);
+            Logger.error('[MaxStoreSkuInventoryService] SQL params:', params);
+            // 如果错误是已知的BadRequestException，直接抛出
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            // 对于数据库错误，记录详细信息后重新抛出，让NestJS处理（返回500）
+            // 这样前端可以看到具体的错误信息
             throw error;
         }
     }

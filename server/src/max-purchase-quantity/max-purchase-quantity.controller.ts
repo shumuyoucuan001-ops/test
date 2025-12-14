@@ -97,6 +97,7 @@ export class MaxPurchaseQuantityController {
         },
     ): Promise<{ success: boolean }> {
         Logger.log('[MaxPurchaseQuantityController] 删除记录:', body);
+        Logger.log('[MaxPurchaseQuantityController] 接收到的数据类型:', typeof body, 'storeName:', typeof body?.storeName, 'sku:', typeof body?.sku);
         return this.service.delete(body);
     }
 }

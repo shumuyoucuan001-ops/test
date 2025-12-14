@@ -351,17 +351,24 @@ export class MaxPurchaseQuantityService {
         storeName: string;
         sku: string;
     }): Promise<{ success: boolean }> {
+        Logger.log('[MaxPurchaseQuantityService] 开始删除记录:', data);
         try {
             const deleteSql = `DELETE FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU\` = ?`;
-            await this.prisma.$executeRawUnsafe(
+            Logger.log('[MaxPurchaseQuantityService] 执行SQL:', deleteSql);
+            Logger.log('[MaxPurchaseQuantityService] SQL参数:', data.storeName.trim(), data.sku.trim());
+
+            const result = await this.prisma.$executeRawUnsafe(
                 deleteSql,
                 data.storeName.trim(),
                 data.sku.trim()
             );
 
+            Logger.log('[MaxPurchaseQuantityService] 删除结果:', result);
             return { success: true };
         } catch (error: any) {
             Logger.error('[MaxPurchaseQuantityService] Delete error:', error);
+            Logger.error('[MaxPurchaseQuantityService] Error message:', error?.message);
+            Logger.error('[MaxPurchaseQuantityService] Error stack:', error?.stack);
             throw new BadRequestException(error?.message || '删除失败');
         }
     }
