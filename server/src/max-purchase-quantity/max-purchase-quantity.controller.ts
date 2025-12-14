@@ -96,8 +96,24 @@ export class MaxPurchaseQuantityController {
             sku: string;
         },
     ): Promise<{ success: boolean }> {
-        await this.service.delete(body);
-        return { success: true };
+        Logger.log('[MaxPurchaseQuantityController] ========== 删除请求开始 ==========');
+        Logger.log('[MaxPurchaseQuantityController] 接收到的 body:', JSON.stringify(body, null, 2));
+        Logger.log('[MaxPurchaseQuantityController] body.storeName:', body?.storeName);
+        Logger.log('[MaxPurchaseQuantityController] body.sku:', body?.sku);
+        Logger.log('[MaxPurchaseQuantityController] body.storeName 类型:', typeof body?.storeName);
+        Logger.log('[MaxPurchaseQuantityController] body.sku 类型:', typeof body?.sku);
+
+        try {
+            await this.service.delete(body);
+            Logger.log('[MaxPurchaseQuantityController] 删除成功');
+            Logger.log('[MaxPurchaseQuantityController] ========== 删除请求结束 ==========');
+            return { success: true };
+        } catch (error: any) {
+            Logger.error('[MaxPurchaseQuantityController] 删除失败:', error);
+            Logger.error('[MaxPurchaseQuantityController] 错误消息:', error?.message);
+            Logger.error('[MaxPurchaseQuantityController] 错误堆栈:', error?.stack);
+            throw error;
+        }
     }
 }
 

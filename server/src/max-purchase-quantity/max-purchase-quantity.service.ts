@@ -351,14 +351,40 @@ export class MaxPurchaseQuantityService {
         storeName: string;
         sku: string;
     }): Promise<void> {
-        const affected = await this.prisma.$executeRawUnsafe(
-            `DELETE FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU\` = ?`,
-            data.storeName.trim(),
-            data.sku.trim()
-        );
-        // @ts-ignore Prisma returns number for executeRawUnsafe
-        if (!affected) {
-            throw new BadRequestException('未找到记录，删除失败');
+        Logger.log('[MaxPurchaseQuantityService] ========== 开始删除记录 ==========');
+        Logger.log('[MaxPurchaseQuantityService] 接收到的数据:', JSON.stringify(data, null, 2));
+        Logger.log('[MaxPurchaseQuantityService] storeName:', data?.storeName);
+        Logger.log('[MaxPurchaseQuantityService] sku:', data?.sku);
+        Logger.log('[MaxPurchaseQuantityService] storeName.trim():', data?.storeName?.trim());
+        Logger.log('[MaxPurchaseQuantityService] sku.trim():', data?.sku?.trim());
+
+        const deleteSql = `DELETE FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU\` = ?`;
+        Logger.log('[MaxPurchaseQuantityService] 执行SQL:', deleteSql);
+        Logger.log('[MaxPurchaseQuantityService] SQL参数1 (仓店名称):', data.storeName.trim());
+        Logger.log('[MaxPurchaseQuantityService] SQL参数2 (SKU):', data.sku.trim());
+
+        try {
+            const affected = await this.prisma.$executeRawUnsafe(
+                deleteSql,
+                data.storeName.trim(),
+                data.sku.trim()
+            );
+            Logger.log('[MaxPurchaseQuantityService] 执行结果 affected:', affected);
+            Logger.log('[MaxPurchaseQuantityService] affected 类型:', typeof affected);
+            Logger.log('[MaxPurchaseQuantityService] affected 是否为真值:', !!affected);
+
+            // @ts-ignore Prisma returns number for executeRawUnsafe
+            if (!affected) {
+                Logger.warn('[MaxPurchaseQuantityService] 未找到记录，删除失败');
+                throw new BadRequestException('未找到记录，删除失败');
+            }
+            Logger.log('[MaxPurchaseQuantityService] 删除成功，影响行数:', affected);
+            Logger.log('[MaxPurchaseQuantityService] ========== 删除记录结束 ==========');
+        } catch (error: any) {
+            Logger.error('[MaxPurchaseQuantityService] 删除过程出错:', error);
+            Logger.error('[MaxPurchaseQuantityService] 错误消息:', error?.message);
+            Logger.error('[MaxPurchaseQuantityService] 错误堆栈:', error?.stack);
+            throw error;
         }
     }
 }

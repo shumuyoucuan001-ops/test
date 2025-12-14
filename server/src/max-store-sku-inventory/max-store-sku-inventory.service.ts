@@ -88,12 +88,19 @@ export class MaxStoreSkuInventoryService {
         page: number = 1,
         limit: number = 20
     ): Promise<{ data: MaxStoreSkuInventoryItem[]; total: number }> {
+        Logger.log('[MaxStoreSkuInventoryService] ========== 查询列表开始 ==========');
+        Logger.log('[MaxStoreSkuInventoryService] filters:', JSON.stringify(filters, null, 2));
+        Logger.log('[MaxStoreSkuInventoryService] page:', page);
+        Logger.log('[MaxStoreSkuInventoryService] limit:', limit);
+
         let sql: string;
         let countSql: string;
         let params: any[] = [];
 
         const offset = (page - 1) * limit;
         const baseFrom = `FROM ${this.table}`;
+        Logger.log('[MaxStoreSkuInventoryService] 表名:', this.table);
+        Logger.log('[MaxStoreSkuInventoryService] offset:', offset);
 
         // 构建搜索条件
         const clauses: string[] = [];
@@ -103,10 +110,12 @@ export class MaxStoreSkuInventoryService {
         if (filters?.storeName?.trim()) {
             clauses.push(`\`仓店名称\` LIKE ?`);
             params.push(buildLike(filters.storeName));
+            Logger.log('[MaxStoreSkuInventoryService] 添加 storeName 条件:', buildLike(filters.storeName));
         }
         if (filters?.sku?.trim()) {
             clauses.push(`\`SKU编码\` LIKE ?`);
             params.push(buildLike(filters.sku));
+            Logger.log('[MaxStoreSkuInventoryService] 添加 sku 条件:', buildLike(filters.sku));
         }
         if (filters?.maxInventory?.trim()) {
             // 尝试转换为数字进行精确匹配，如果转换失败则使用LIKE模糊匹配
@@ -115,21 +124,27 @@ export class MaxStoreSkuInventoryService {
             if (!isNaN(inventoryValue)) {
                 clauses.push(`\`最高库存量（基础单位）\` = ?`);
                 params.push(inventoryValue);
+                Logger.log('[MaxStoreSkuInventoryService] 添加 maxInventory 精确匹配条件:', inventoryValue);
             } else {
                 clauses.push(`CAST(\`最高库存量（基础单位）\` AS CHAR) LIKE ?`);
                 params.push(buildLike(maxInventoryStr));
+                Logger.log('[MaxStoreSkuInventoryService] 添加 maxInventory 模糊匹配条件:', buildLike(maxInventoryStr));
             }
         }
         if (filters?.remark?.trim()) {
             clauses.push(`\`备注（说明设置原因）\` LIKE ?`);
             params.push(buildLike(filters.remark));
+            Logger.log('[MaxStoreSkuInventoryService] 添加 remark 条件:', buildLike(filters.remark));
         }
         if (filters?.modifier?.trim()) {
             clauses.push(`\`修改人\` LIKE ?`);
             params.push(buildLike(filters.modifier));
+            Logger.log('[MaxStoreSkuInventoryService] 添加 modifier 条件:', buildLike(filters.modifier));
         }
 
         const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+        Logger.log('[MaxStoreSkuInventoryService] 搜索条件数量:', clauses.length);
+        Logger.log('[MaxStoreSkuInventoryService] searchCondition:', searchCondition);
 
         countSql = `SELECT COUNT(*) as total ${baseFrom} ${searchCondition}`;
         sql = `SELECT 
@@ -144,16 +159,27 @@ export class MaxStoreSkuInventoryService {
         LIMIT ${limit} OFFSET ${offset}`;
 
         try {
-            Logger.log('[MaxStoreSkuInventoryService] Executing count SQL:', countSql);
-            Logger.log('[MaxStoreSkuInventoryService] Count params:', params);
+            Logger.log('[MaxStoreSkuInventoryService] ========== 执行 COUNT 查询 ==========');
+            Logger.log('[MaxStoreSkuInventoryService] Count SQL:', countSql);
+            Logger.log('[MaxStoreSkuInventoryService] Count params:', JSON.stringify(params, null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] Count params 长度:', params.length);
+
             const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
+            Logger.log('[MaxStoreSkuInventoryService] Count 查询结果:', JSON.stringify(countRows, null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] countRows 类型:', typeof countRows);
+            Logger.log('[MaxStoreSkuInventoryService] countRows?.total:', countRows?.total);
+
             const total = Number(countRows?.total || 0);
             Logger.log('[MaxStoreSkuInventoryService] Total count:', total);
 
-            Logger.log('[MaxStoreSkuInventoryService] Executing data SQL:', sql);
-            Logger.log('[MaxStoreSkuInventoryService] Data params:', params);
+            Logger.log('[MaxStoreSkuInventoryService] ========== 执行 DATA 查询 ==========');
+            Logger.log('[MaxStoreSkuInventoryService] Data SQL:', sql);
+            Logger.log('[MaxStoreSkuInventoryService] Data params:', JSON.stringify(params, null, 2));
+            Logger.log('[MaxStoreSkuInventoryService] Data params 长度:', params.length);
+
             const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
-            Logger.log('[MaxStoreSkuInventoryService] Rows returned:', rows?.length || 0);
+            Logger.log('[MaxStoreSkuInventoryService] Data 查询结果行数:', rows?.length || 0);
+            Logger.log('[MaxStoreSkuInventoryService] Data 查询结果前3条:', JSON.stringify(rows?.slice(0, 3), null, 2));
 
             const data = (rows || []).map(r => ({
                 '仓店名称': String(r['仓店名称'] || ''),
@@ -163,9 +189,18 @@ export class MaxStoreSkuInventoryService {
                 '修改人': String(r['修改人'] || ''),
             }));
 
+            Logger.log('[MaxStoreSkuInventoryService] 处理后的数据行数:', data.length);
+            Logger.log('[MaxStoreSkuInventoryService] ========== 查询列表结束 ==========');
             return { data, total };
-        } catch (error) {
-            Logger.error('[MaxStoreSkuInventoryService] Query error:', error);
+        } catch (error: any) {
+            Logger.error('[MaxStoreSkuInventoryService] ========== 查询出错 ==========');
+            Logger.error('[MaxStoreSkuInventoryService] 错误对象:', error);
+            Logger.error('[MaxStoreSkuInventoryService] 错误消息:', error?.message);
+            Logger.error('[MaxStoreSkuInventoryService] 错误代码:', error?.code);
+            Logger.error('[MaxStoreSkuInventoryService] 错误堆栈:', error?.stack);
+            Logger.error('[MaxStoreSkuInventoryService] Count SQL:', countSql);
+            Logger.error('[MaxStoreSkuInventoryService] Data SQL:', sql);
+            Logger.error('[MaxStoreSkuInventoryService] SQL params:', JSON.stringify(params, null, 2));
             throw error;
         }
     }
