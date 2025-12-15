@@ -588,15 +588,16 @@ export default function HomeLayout({
                 flex: 1,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
+                gap: 8,
                 overflow: 'hidden',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                paddingRight: collapsed ? 0 : 8
+                justifyContent: collapsed ? 'center' : 'flex-start'
               }}>
                 {!collapsed && (
                   <span style={{
-                    flexShrink: 0,
+                    flex: 1,
                     textAlign: 'left',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
                     术木优选
@@ -608,7 +609,7 @@ export default function HomeLayout({
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <LogoIcon size={25.2} />
+                  <LogoIcon size={24} />
                 </div>
               </div>
               <div style={{
@@ -616,7 +617,7 @@ export default function HomeLayout({
                 alignItems: 'center',
                 gap: 4,
                 flexShrink: 0,
-                marginLeft: 12
+                marginLeft: 8
               }}>
                 <Button
                   type="text"
