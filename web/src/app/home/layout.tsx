@@ -50,50 +50,50 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
       <rect
         x={centerX - 1.5}
         y={centerY - 8}
-        width={2}
+        width={3}
         height={16}
         fill="#ffffff"
       />
 
       {/* 左侧波浪线 - 上 */}
       <path
-        d={`M ${centerX - 7} ${centerY - 1.25} Q ${centerX - 4.5} ${centerY - 3.25}, ${centerX - 1.5} ${centerY - 1.25}`}
+        d={`M ${centerX - 7} ${centerY - 3} Q ${centerX - 4.5} ${centerY - 5}, ${centerX - 1.5} ${centerY - 3}`}
         stroke="#ffffff"
-        strokeWidth="1.5"
+        strokeWidth="3"
         fill="none"
         strokeLinecap="round"
       />
-      {/* 左侧波浪线 - 下 */}
+      {/* 左侧波浪线 - 下（弧度反转） */}
       <path
-        d={`M ${centerX - 7} ${centerY + 1.25} Q ${centerX - 4.5} ${centerY + 3.25}, ${centerX - 1.5} ${centerY + 1.25}`}
+        d={`M ${centerX - 7} ${centerY + 3} Q ${centerX - 4.5} ${centerY + 1}, ${centerX - 1.5} ${centerY + 3}`}
         stroke="#ffffff"
-        strokeWidth="1.5"
+        strokeWidth="3"
         fill="none"
         strokeLinecap="round"
       />
 
-      {/* 右侧波浪线 - 上 */}
+      {/* 右侧波浪线 - 上（弧度反转） */}
       <path
-        d={`M ${centerX + 1.5} ${centerY - 1.25} Q ${centerX + 4.5} ${centerY - 3.25}, ${centerX + 7} ${centerY - 1.25}`}
+        d={`M ${centerX + 1.5} ${centerY - 3} Q ${centerX + 4.5} ${centerY - 1}, ${centerX + 7} ${centerY - 3}`}
         stroke="#ffffff"
-        strokeWidth="1.5"
+        strokeWidth="3"
         fill="none"
         strokeLinecap="round"
       />
-      {/* 右侧波浪线 - 下（弧度反转） */}
+      {/* 右侧波浪线 - 下 */}
       <path
-        d={`M ${centerX + 1.5} ${centerY + 1.25} Q ${centerX + 4.5} ${centerY + 3.25}, ${centerX + 7} ${centerY + 1.25}`}
+        d={`M ${centerX + 1.5} ${centerY + 3} Q ${centerX + 4.5} ${centerY + 5}, ${centerX + 7} ${centerY + 3}`}
         stroke="#ffffff"
-        strokeWidth="1.5"
+        strokeWidth="3"
         fill="none"
         strokeLinecap="round"
       />
 
       {/* 右上角橙色弧形装饰（弧度反转） */}
       <path
-        d={`M ${centerX + 2} ${centerY - 8} Q ${centerX + 4} ${centerY - 6}, ${centerX + 6} ${centerY - 8}`}
+        d={`M ${centerX + 2.6} ${centerY - 7} Q ${centerX + 4.8} ${centerY - 5}, ${centerX + 7} ${centerY - 7}`}
         stroke="#ff6b35"
-        strokeWidth="2"
+        strokeWidth="2.3"
         fill="none"
         strokeLinecap="round"
       />
@@ -589,27 +589,28 @@ export default function HomeLayout({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                overflow: 'hidden'
+                overflow: 'hidden',
+                justifyContent: collapsed ? 'center' : 'flex-start'
               }}>
-                <span style={{
-                  flex: 1,
-                  textAlign: 'left',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
-                  {collapsed ? '术木' : '术木优选'}
-                </span>
                 {!collapsed && (
-                  <div style={{
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                  <span style={{
+                    flex: 1,
+                    textAlign: 'left',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
                   }}>
-                    <LogoIcon size={24} />
-                  </div>
+                    术木优选
+                  </span>
                 )}
+                <div style={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <LogoIcon size={36} />
+                </div>
               </div>
               <div style={{
                 display: 'flex',

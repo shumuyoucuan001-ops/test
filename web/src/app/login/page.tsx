@@ -1,8 +1,76 @@
 "use client";
 
 import { aclApi, dingTalkApi } from "@/lib/api";
-import { Button, Card, Divider, Form, Input, message } from "antd";
+import { Button, Card, Divider, Form, Input, message, Space } from "antd";
 import { useEffect, useState } from "react";
+
+// Logo 组件 - 用代码生成的logo（支持颜色自定义）
+const LogoIcon = ({ size = 24, color = "#ffffff", orangeColor = "#ff6b35" }: { size?: number; color?: string; orangeColor?: string }) => {
+  const viewBox = 32;
+  const centerX = viewBox / 2;
+  const centerY = viewBox / 2;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${viewBox} ${viewBox}`}
+      style={{ display: 'block' }}
+    >
+      {/* 中央垂直条 */}
+      <rect
+        x={centerX - 1.5}
+        y={centerY - 8}
+        width={3}
+        height={16}
+        fill={color}
+      />
+
+      {/* 左侧波浪线 - 上 */}
+      <path
+        d={`M ${centerX - 7} ${centerY - 3} Q ${centerX - 4.5} ${centerY - 5}, ${centerX - 1.5} ${centerY - 3}`}
+        stroke={color}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* 左侧波浪线 - 下 */}
+      <path
+        d={`M ${centerX - 7} ${centerY + 3} Q ${centerX - 4.5} ${centerY + 1}, ${centerX - 1.5} ${centerY + 3}`}
+        stroke={color}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* 右侧波浪线 - 上 */}
+      <path
+        d={`M ${centerX + 1.5} ${centerY - 3} Q ${centerX + 4.5} ${centerY - 1}, ${centerX + 7} ${centerY - 3}`}
+        stroke={color}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* 右侧波浪线 - 下 */}
+      <path
+        d={`M ${centerX + 1.5} ${centerY + 3} Q ${centerX + 4.5} ${centerY + 5}, ${centerX + 7} ${centerY + 3}`}
+        stroke={color}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* 右上角橙色弧形装饰 */}
+      <path
+        d={`M ${centerX + 2.6} ${centerY - 7} Q ${centerX + 4.8} ${centerY - 5}, ${centerX + 7} ${centerY - 7}`}
+        stroke={orangeColor}
+        strokeWidth="2.3"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -195,7 +263,15 @@ export default function LoginPage() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
       {contextHolder}
-      <Card title="登录到术木优选" style={{ width: 400 }}>
+      <Card
+        title={
+          <Space size={8} style={{ display: 'flex', alignItems: 'center' }}>
+            <span>登录到术木优选</span>
+            <LogoIcon size={30} color="#18478A" orangeColor="#ff6b35" />
+          </Space>
+        }
+        style={{ width: 400 }}
+      >
         <Form layout="vertical" form={form} onFinish={onSubmit}>
           {/* 隐藏字段：存储钉钉code */}
           <Form.Item name="dingTalkCode" hidden>
