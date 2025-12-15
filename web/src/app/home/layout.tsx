@@ -63,7 +63,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
         fill="none"
         strokeLinecap="round"
       />
-      {/* 左侧波浪线 - 下（弧度反转） */}
+      {/* 左侧波浪线 - 下 */}
       <path
         d={`M ${centerX - 7} ${centerY + 2.5} Q ${centerX - 4.5} ${centerY + 0.5}, ${centerX - 1.5} ${centerY + 2.5}`}
         stroke="#ffffff"
@@ -72,7 +72,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
         strokeLinecap="round"
       />
 
-      {/* 右侧波浪线 - 上（弧度反转） */}
+      {/* 右侧波浪线 - 上 */}
       <path
         d={`M ${centerX + 1.5} ${centerY - 3} Q ${centerX + 4.5} ${centerY - 1}, ${centerX + 7} ${centerY - 3}`}
         stroke="#ffffff"
@@ -89,7 +89,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
         strokeLinecap="round"
       />
 
-      {/* 右上角橙色弧形装饰（弧度反转） */}
+      {/* 右上角橙色弧形装饰 */}
       <path
         d={`M ${centerX + 2.6} ${centerY - 7} Q ${centerX + 4.8} ${centerY - 5}, ${centerX + 7} ${centerY - 7}`}
         stroke="#ff6b35"
@@ -565,13 +565,19 @@ export default function HomeLayout({
 
   return (
     <App>
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden' }}>
         {siderVisible && (
           <Sider
             trigger={null}
             collapsible
             collapsed={collapsed}
             theme="dark"
+            style={{
+              height: '100vh',
+              position: 'sticky',
+              top: 0,
+              overflow: 'auto',
+            }}
           >
             <div style={{
               height: 48,
@@ -667,7 +673,7 @@ export default function HomeLayout({
           </Sider>
         )}
 
-        <Layout>
+        <Layout style={{ height: '100vh', overflow: 'hidden' }}>
           <Header style={{
             padding: '0 16px',
             background: '#ffffff',
@@ -827,12 +833,15 @@ export default function HomeLayout({
           </div>
 
           <Content style={{
+            flex: 1,
             margin: '8px 16px 16px',
-            overflow: 'auto',
+            overflow: 'hidden',
             background: '#ffffff',
             borderRadius: 8,
+            display: 'flex',
+            flexDirection: 'column',
           }}>
-            <div style={{ padding: 16, minHeight: 360 }}>
+            <div style={{ padding: 16, minHeight: 360, height: '100%', overflow: 'auto' }}>
               {loading ? (
                 <div style={{
                   display: 'flex',
