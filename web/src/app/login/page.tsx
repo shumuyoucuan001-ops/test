@@ -28,7 +28,7 @@ const LogoIcon = ({ size = 24, color = "#ffffff", orangeColor = "#ff6b35" }: { s
 
       {/* 左侧波浪线 - 上 */}
       <path
-        d={`M ${centerX - 7} ${centerY - 3} Q ${centerX - 4.5} ${centerY - 5}, ${centerX - 1.5} ${centerY - 3}`}
+        d={`M ${centerX - 7} ${centerY - 3.5} Q ${centerX - 4.5} ${centerY - 5.5}, ${centerX - 1.5} ${centerY - 3.5}`}
         stroke={color}
         strokeWidth="3"
         fill="none"
@@ -36,7 +36,7 @@ const LogoIcon = ({ size = 24, color = "#ffffff", orangeColor = "#ff6b35" }: { s
       />
       {/* 左侧波浪线 - 下 */}
       <path
-        d={`M ${centerX - 7} ${centerY + 3} Q ${centerX - 4.5} ${centerY + 1}, ${centerX - 1.5} ${centerY + 3}`}
+        d={`M ${centerX - 7} ${centerY + 2.5} Q ${centerX - 4.5} ${centerY + 0.5}, ${centerX - 1.5} ${centerY + 2.5}`}
         stroke={color}
         strokeWidth="3"
         fill="none"
