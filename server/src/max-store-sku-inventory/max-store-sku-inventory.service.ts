@@ -289,8 +289,8 @@ export class MaxStoreSkuInventoryService {
                         // 如果 department_id 是"金沙湾"且 extractedStoreName 是"沙湾"，则不匹配
                         // 如果 extractedStoreName 是"金沙湾"且 department_id 是"沙湾"，则不匹配
                         const isJinshawanMismatch =
-                            (departmentId === '金沙湾' && extractedStoreName === '沙湾') ||
-                            (extractedStoreName === '金沙湾' && departmentId === '沙湾');
+                            (departmentId.includes('金沙湾') && extractedStoreName === '沙湾') ||
+                            (extractedStoreName === '金沙湾' && departmentId.includes('沙湾'));
 
                         if (!isJinshawanMismatch &&
                             (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId))) {
