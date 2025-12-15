@@ -17,6 +17,87 @@ export class MaxPurchaseQuantityService {
     private readonly warehousePriorityTable = '`sm_chaigou`.`仓库优先级`';
 
     /**
+     * 获取用户的角色名称列表
+     */
+    private async getUserRoles(userId: number): Promise<string[]> {
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT r.name 
+                FROM sm_xitongkaifa.sys_roles r
+                JOIN sm_xitongkaifa.sys_user_roles ur ON ur.role_id = r.id
+                WHERE ur.user_id = ?`,
+                userId
+            );
+            return (rows || []).map(r => String(r.name || '').trim()).filter(Boolean);
+        } catch (error) {
+            Logger.error('[MaxPurchaseQuantityService] 获取用户角色失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 获取用户的 department_id（可能是数字或字符串）
+     */
+    private async getUserDepartmentId(userId: number): Promise<string | null> {
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT department_id 
+                FROM sm_xitongkaifa.sys_users 
+                WHERE id = ? 
+                LIMIT 1`,
+                userId
+            );
+            if (rows && rows.length > 0 && rows[0].department_id !== null && rows[0].department_id !== undefined) {
+                return String(rows[0].department_id);
+            }
+            return null;
+        } catch (error) {
+            Logger.error('[MaxPurchaseQuantityService] 获取用户department_id失败:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 从"仓店名称"字段提取"-"之后、'仓'之前的数据
+     * 例如："XX-门店名称仓" -> "门店名称"
+     */
+    private extractStoreNameFromStoreName(storeName: string): string | null {
+        if (!storeName || !storeName.trim()) {
+            return null;
+        }
+        const str = storeName.trim();
+        // 找到"-"的位置
+        const dashIndex = str.indexOf('-');
+        if (dashIndex === -1) {
+            return null;
+        }
+        // 从"-"之后开始提取
+        let extracted = str.substring(dashIndex + 1);
+        // 找到'仓'的位置
+        const warehouseIndex = extracted.indexOf('仓');
+        if (warehouseIndex !== -1) {
+            extracted = extracted.substring(0, warehouseIndex);
+        }
+        return extracted.trim() || null;
+    }
+
+    /**
+     * 检查是否需要根据角色过滤数据
+     */
+    private async shouldFilterByRole(userId?: number): Promise<{ shouldFilter: boolean; departmentId: string | null }> {
+        if (!userId) {
+            return { shouldFilter: false, departmentId: null };
+        }
+        const roles = await this.getUserRoles(userId);
+        const hasRestrictedRole = roles.some(role => role === '仓店-店长' || role === '仓店-拣货员');
+        if (!hasRestrictedRole) {
+            return { shouldFilter: false, departmentId: null };
+        }
+        const departmentId = await this.getUserDepartmentId(userId);
+        return { shouldFilter: true, departmentId };
+    }
+
+    /**
      * 安全地序列化包含 BigInt 的对象
      */
     private safeStringify(obj: any): string {
@@ -73,7 +154,8 @@ export class MaxPurchaseQuantityService {
             modifier?: string;
         },
         page: number = 1,
-        limit: number = 20
+        limit: number = 20,
+        userId?: number
     ): Promise<{ data: MaxPurchaseQuantityItem[]; total: number }> {
         let sql: string;
         let countSql: string;
@@ -128,13 +210,39 @@ export class MaxPurchaseQuantityService {
             Logger.log('[MaxPurchaseQuantityService] Executing count SQL:', countSql);
             Logger.log('[MaxPurchaseQuantityService] Count params:', params);
             const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
-            const total = Number(countRows?.total || 0);
+            let total = Number(countRows?.total || 0);
             Logger.log('[MaxPurchaseQuantityService] Total count:', total);
 
             Logger.log('[MaxPurchaseQuantityService] Executing data SQL:', sql);
             Logger.log('[MaxPurchaseQuantityService] Data params:', params);
-            const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
+            let rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
             Logger.log('[MaxPurchaseQuantityService] Rows returned:', rows?.length || 0);
+
+            // 根据角色过滤数据
+            const { shouldFilter, departmentId } = await this.shouldFilterByRole(userId);
+            if (shouldFilter && departmentId !== null) {
+                Logger.log('[MaxPurchaseQuantityService] 需要根据角色过滤数据，departmentId:', departmentId);
+                // 先查询所有数据（不分页）进行过滤
+                const allRowsSql = sql.replace(/LIMIT \d+ OFFSET \d+$/, '');
+                const allRows: any[] = await this.prisma.$queryRawUnsafe(allRowsSql, ...params);
+                const filteredRows: any[] = [];
+                for (const r of allRows) {
+                    const storeName = String(r['仓店名称'] || '');
+                    const extractedStoreName = this.extractStoreNameFromStoreName(storeName);
+                    if (extractedStoreName) {
+                        // 检查 department_id 是否包含提取的字符串
+                        if (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId)) {
+                            filteredRows.push(r);
+                        }
+                    }
+                }
+                total = filteredRows.length;
+                // 对过滤后的数据进行分页
+                const startIndex = (page - 1) * limit;
+                rows = filteredRows.slice(startIndex, startIndex + limit);
+                Logger.log('[MaxPurchaseQuantityService] 过滤后的总行数:', total);
+                Logger.log('[MaxPurchaseQuantityService] 当前页行数:', rows.length);
+            }
 
             const data = (rows || []).map(r => ({
                 '仓店名称': String(r['仓店名称'] || ''),

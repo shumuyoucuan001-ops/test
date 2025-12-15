@@ -32,9 +32,11 @@ export class MaxPurchaseQuantityController {
         @Query('modifier') modifier?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Headers('x-user-id') userId?: string,
     ): Promise<{ data: MaxPurchaseQuantityItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        const userIdNum = userId ? Number(userId) : undefined;
         const filters: any = {};
         if (storeName) filters.storeName = storeName;
         if (sku) filters.sku = sku;
@@ -42,10 +44,10 @@ export class MaxPurchaseQuantityController {
         if (modifier) filters.modifier = modifier;
 
         Logger.log('[MaxPurchaseQuantityController] list query:', {
-            storeName, sku, maxQuantity, modifier, page: pageNum, limit: limitNum,
+            storeName, sku, maxQuantity, modifier, page: pageNum, limit: limitNum, userId: userIdNum,
         });
 
-        return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum);
+        return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum, userIdNum);
     }
 
     @Post()

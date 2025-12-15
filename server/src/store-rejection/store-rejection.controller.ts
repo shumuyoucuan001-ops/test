@@ -18,9 +18,11 @@ export class StoreRejectionController {
         @Query('q') keyword?: string, // 兼容旧的 q 查询
         @Query('page') page?: string,
         @Query('limit') limit?: string,
+        @Headers('x-user-id') userId?: string,
     ): Promise<{ data: StoreRejectionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        const userIdNum = userId ? Number(userId) : undefined;
         const filters: any = {};
         if (store) filters.store = store;
         if (productName) filters.productName = productName;
@@ -31,10 +33,10 @@ export class StoreRejectionController {
         if (keyword) filters.keyword = keyword;
 
         Logger.log('[StoreRejectionController] list query:', {
-            store, productName, skuId, upc, purchaseOrderNo, receiptNo, keyword, page: pageNum, limit: limitNum,
+            store, productName, skuId, upc, purchaseOrderNo, receiptNo, keyword, page: pageNum, limit: limitNum, userId: userIdNum,
         });
 
-        return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum);
+        return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum, userIdNum);
     }
 
     @Post('send-rejection-email')

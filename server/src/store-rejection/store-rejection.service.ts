@@ -20,6 +20,91 @@ export class StoreRejectionService {
         private emailService: EmailService,
     ) { }
 
+    /**
+     * 获取用户的角色名称列表
+     */
+    private async getUserRoles(userId: number): Promise<string[]> {
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT r.name 
+                FROM sm_xitongkaifa.sys_roles r
+                JOIN sm_xitongkaifa.sys_user_roles ur ON ur.role_id = r.id
+                WHERE ur.user_id = ?`,
+                userId
+            );
+            return (rows || []).map(r => String(r.name || '').trim()).filter(Boolean);
+        } catch (error) {
+            Logger.error('[StoreRejectionService] 获取用户角色失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 获取用户的 department_id（可能是数字或字符串）
+     */
+    private async getUserDepartmentId(userId: number): Promise<string | null> {
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT department_id 
+                FROM sm_xitongkaifa.sys_users 
+                WHERE id = ? 
+                LIMIT 1`,
+                userId
+            );
+            if (rows && rows.length > 0 && rows[0].department_id !== null && rows[0].department_id !== undefined) {
+                return String(rows[0].department_id);
+            }
+            return null;
+        } catch (error) {
+            Logger.error('[StoreRejectionService] 获取用户department_id失败:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 从"门店/仓"字段提取第二个"-"之后、'仓'之前的数据
+     * 例如："XX-XX-门店名称仓" -> "门店名称"
+     */
+    private extractStoreNameFromStoreWarehouse(storeWarehouse: string): string | null {
+        if (!storeWarehouse || !storeWarehouse.trim()) {
+            return null;
+        }
+        const str = storeWarehouse.trim();
+        // 找到第二个"-"的位置
+        const firstDash = str.indexOf('-');
+        if (firstDash === -1) {
+            return null;
+        }
+        const secondDash = str.indexOf('-', firstDash + 1);
+        if (secondDash === -1) {
+            return null;
+        }
+        // 从第二个"-"之后开始提取
+        let extracted = str.substring(secondDash + 1);
+        // 找到'仓'的位置
+        const warehouseIndex = extracted.indexOf('仓');
+        if (warehouseIndex !== -1) {
+            extracted = extracted.substring(0, warehouseIndex);
+        }
+        return extracted.trim() || null;
+    }
+
+    /**
+     * 检查是否需要根据角色过滤数据
+     */
+    private async shouldFilterByRole(userId?: number): Promise<{ shouldFilter: boolean; departmentId: string | null }> {
+        if (!userId) {
+            return { shouldFilter: false, departmentId: null };
+        }
+        const roles = await this.getUserRoles(userId);
+        const hasRestrictedRole = roles.some(role => role === '仓店-店长' || role === '仓店-拣货员');
+        if (!hasRestrictedRole) {
+            return { shouldFilter: false, departmentId: null };
+        }
+        const departmentId = await this.getUserDepartmentId(userId);
+        return { shouldFilter: true, departmentId };
+    }
+
     async list(
         filters?: {
             store?: string;
@@ -31,7 +116,8 @@ export class StoreRejectionService {
             keyword?: string; // 兼容 keyword/q 的模糊搜索
         },
         page: number = 1,
-        limit: number = 20
+        limit: number = 20,
+        userId?: number
     ): Promise<{ data: StoreRejectionItem[]; total: number }> {
         let sql: string;
         let countSql: string;
@@ -107,13 +193,49 @@ export class StoreRejectionService {
             Logger.log('[StoreRejectionService] Executing count SQL:', countSql);
             Logger.log('[StoreRejectionService] Count params:', params);
             const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
-            const total = Number(countRows?.total || 0);
+            let total = Number(countRows?.total || 0);
             Logger.log('[StoreRejectionService] Total count:', total);
 
             Logger.log('[StoreRejectionService] Executing data SQL:', sql);
             Logger.log('[StoreRejectionService] Data params:', params);
-            const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
+            let rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
             Logger.log('[StoreRejectionService] Rows returned:', rows?.length || 0);
+
+            // 根据角色过滤数据
+            const { shouldFilter, departmentId } = await this.shouldFilterByRole(userId);
+            if (shouldFilter && departmentId !== null) {
+                Logger.log('[StoreRejectionService] 需要根据角色过滤数据，departmentId:', departmentId);
+                const filteredRows: any[] = [];
+                for (const r of rows) {
+                    const storeWarehouse = String(r['门店/仓'] || '');
+                    const extractedStoreName = this.extractStoreNameFromStoreWarehouse(storeWarehouse);
+                    if (extractedStoreName) {
+                        // 检查 department_id 是否包含提取的字符串
+                        if (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId)) {
+                            filteredRows.push(r);
+                        }
+                    }
+                }
+                rows = filteredRows;
+                Logger.log('[StoreRejectionService] 过滤后的行数:', rows.length);
+                // 重新计算总数：需要重新查询所有数据并过滤
+                const allRowsSql = sql.replace(/LIMIT \d+ OFFSET \d+$/, '');
+                const allRows: any[] = await this.prisma.$queryRawUnsafe(allRowsSql, ...params);
+                const finalFilteredRows: any[] = [];
+                for (const r of allRows) {
+                    const storeWarehouse = String(r['门店/仓'] || '');
+                    const extractedStoreName = this.extractStoreNameFromStoreWarehouse(storeWarehouse);
+                    if (extractedStoreName) {
+                        if (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId)) {
+                            finalFilteredRows.push(r);
+                        }
+                    }
+                }
+                total = finalFilteredRows.length;
+                // 对当前页的数据进行分页
+                const startIndex = (page - 1) * limit;
+                rows = filteredRows.slice(startIndex, startIndex + limit);
+            }
 
             const data = (rows || []).map(r => ({
                 '门店/仓': String(r['门店/仓'] || ''),
