@@ -376,7 +376,14 @@ export class AclService {
       // 如果还有其他字段需要更新，继续更新（但不包括 display_name，因为已经更新了）
       const otherSets: string[] = [];
       const otherVals: any[] = [];
-      if (u.status !== undefined) { otherSets.push('status=?'); otherVals.push(u.status); }
+      if (u.status !== undefined) {
+        otherSets.push('status=?');
+        otherVals.push(u.status);
+        // 当账号被禁用时，立即清空 session_token，强制下线
+        if (Number(u.status) === 0) {
+          otherSets.push('session_token=NULL');
+        }
+      }
       if (u.password !== undefined) { otherSets.push('password=?'); otherVals.push(u.password); }
       if (u.code !== undefined) { otherSets.push('code=?'); otherVals.push(u.code); }
       if (u.department_id !== undefined) { otherSets.push('department_id=?'); otherVals.push(u.department_id); }
@@ -395,7 +402,14 @@ export class AclService {
     // 如果不是更新 display_name，使用原来的逻辑
     const sets: string[] = [];
     const vals: any[] = [];
-    if (u.status !== undefined) { sets.push('status=?'); vals.push(u.status); }
+    if (u.status !== undefined) {
+      sets.push('status=?');
+      vals.push(u.status);
+      // 当账号被禁用时，立即清空 session_token，强制下线
+      if (Number(u.status) === 0) {
+        sets.push('session_token=NULL');
+      }
+    }
     if (u.password !== undefined) { sets.push('password=?'); vals.push(u.password); }
     if (u.code !== undefined) { sets.push('code=?'); vals.push(u.code); }
     if (u.department_id !== undefined) { sets.push('department_id=?'); vals.push(u.department_id); }
@@ -672,8 +686,13 @@ export class AclService {
 
   async validateToken(userId: number, token: string) {
     await this.ensureSysUsersSchema();
-    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT session_token FROM sm_xitongkaifa.sys_users WHERE id=?`, userId);
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT session_token, status FROM sm_xitongkaifa.sys_users WHERE id=?`,
+      userId
+    );
     if (!rows.length) return false;
+    // 账号被禁用时，无论 token 是否匹配，都视为无效，会触发前端强制退出
+    if (Number(rows[0]?.status) !== 1) return false;
     return String(rows[0]?.session_token || '') === String(token || '');
   }
 
