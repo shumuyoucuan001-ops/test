@@ -58,21 +58,31 @@ export class MaxPurchaseQuantityService {
     }
 
     /**
-     * 从"仓店名称"字段提取"-"之后、'仓'之前的数据
-     * 例如："XX-门店名称仓" -> "门店名称"
+     * 从"仓店名称"字段提取第二个"-"之后、'仓'之前的数据
+     * 例如："XX-XX-门店名称仓" -> "门店名称"
      */
     private extractStoreNameFromStoreName(storeName: string): string | null {
         if (!storeName || !storeName.trim()) {
             return null;
         }
         const str = storeName.trim();
-        // 找到"-"的位置
-        const dashIndex = str.indexOf('-');
-        if (dashIndex === -1) {
+        // 找到第二个"-"的位置
+        const firstDash = str.indexOf('-');
+        if (firstDash === -1) {
             return null;
         }
-        // 从"-"之后开始提取
-        let extracted = str.substring(dashIndex + 1);
+        const secondDash = str.indexOf('-', firstDash + 1);
+        if (secondDash === -1) {
+            // 如果没有第二个"-"，则使用第一个"-"（兼容只有单个"-"的情况）
+            let extracted = str.substring(firstDash + 1);
+            const warehouseIndex = extracted.indexOf('仓');
+            if (warehouseIndex !== -1) {
+                extracted = extracted.substring(0, warehouseIndex);
+            }
+            return extracted.trim() || null;
+        }
+        // 从第二个"-"之后开始提取
+        let extracted = str.substring(secondDash + 1);
         // 找到'仓'的位置
         const warehouseIndex = extracted.indexOf('仓');
         if (warehouseIndex !== -1) {
