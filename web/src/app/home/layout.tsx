@@ -588,16 +588,15 @@ export default function HomeLayout({
                 flex: 1,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
+                gap: 12,
                 overflow: 'hidden',
-                justifyContent: collapsed ? 'center' : 'flex-start'
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                paddingRight: collapsed ? 0 : 8
               }}>
                 {!collapsed && (
                   <span style={{
-                    flex: 1,
+                    flexShrink: 0,
                     textAlign: 'left',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
                     术木优选
@@ -617,7 +616,7 @@ export default function HomeLayout({
                 alignItems: 'center',
                 gap: 4,
                 flexShrink: 0,
-                marginLeft: 8
+                marginLeft: 12
               }}>
                 <Button
                   type="text"
