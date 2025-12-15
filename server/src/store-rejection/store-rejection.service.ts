@@ -205,36 +205,29 @@ export class StoreRejectionService {
             const { shouldFilter, departmentId } = await this.shouldFilterByRole(userId);
             if (shouldFilter && departmentId !== null) {
                 Logger.log('[StoreRejectionService] 需要根据角色过滤数据，departmentId:', departmentId);
-                const filteredRows: any[] = [];
-                for (const r of rows) {
-                    const storeWarehouse = String(r['门店/仓'] || '');
-                    const extractedStoreName = this.extractStoreNameFromStoreWarehouse(storeWarehouse);
-                    if (extractedStoreName) {
-                        // 检查 department_id 是否包含提取的字符串
-                        if (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId)) {
-                            filteredRows.push(r);
-                        }
-                    }
-                }
-                rows = filteredRows;
-                Logger.log('[StoreRejectionService] 过滤后的行数:', rows.length);
-                // 重新计算总数：需要重新查询所有数据并过滤
+                // 先查询所有数据（不分页）进行过滤
                 const allRowsSql = sql.replace(/LIMIT \d+ OFFSET \d+$/, '');
                 const allRows: any[] = await this.prisma.$queryRawUnsafe(allRowsSql, ...params);
+                Logger.log('[StoreRejectionService] 查询到的所有数据行数:', allRows.length);
+
                 const finalFilteredRows: any[] = [];
                 for (const r of allRows) {
                     const storeWarehouse = String(r['门店/仓'] || '');
                     const extractedStoreName = this.extractStoreNameFromStoreWarehouse(storeWarehouse);
                     if (extractedStoreName) {
+                        // 检查 department_id 是否包含提取的字符串
                         if (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId)) {
                             finalFilteredRows.push(r);
                         }
                     }
                 }
                 total = finalFilteredRows.length;
-                // 对当前页的数据进行分页
+                Logger.log('[StoreRejectionService] 过滤后的总行数:', total);
+
+                // 对过滤后的数据进行分页
                 const startIndex = (page - 1) * limit;
-                rows = filteredRows.slice(startIndex, startIndex + limit);
+                rows = finalFilteredRows.slice(startIndex, startIndex + limit);
+                Logger.log('[StoreRejectionService] 当前页行数:', rows.length);
             }
 
             const data = (rows || []).map(r => ({
