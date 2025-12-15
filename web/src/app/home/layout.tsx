@@ -598,7 +598,8 @@ export default function HomeLayout({
                     textAlign: 'left',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    fontSize: 15
                   }}>
                     术木优选
                   </span>
@@ -609,7 +610,7 @@ export default function HomeLayout({
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <LogoIcon size={21} />
+                  <LogoIcon size={20} />
                 </div>
               </div>
               <div style={{
