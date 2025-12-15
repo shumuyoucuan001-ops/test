@@ -609,7 +609,7 @@ export default function HomeLayout({
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <LogoIcon size={24} />
+                  <LogoIcon size={21} />
                 </div>
               </div>
               <div style={{
