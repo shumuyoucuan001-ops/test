@@ -296,11 +296,11 @@ export class MaxStoreSkuInventoryService {
                     if (extractedStoreName) {
                         // 检查 department_id 是否包含提取的字符串
                         // 特殊处理：避免"金沙湾"误匹配"沙湾"
-                        // 如果 department_id 是"金沙湾"且 extractedStoreName 是"沙湾"，则不匹配
-                        // 如果 extractedStoreName 是"金沙湾"且 department_id 是"沙湾"，则不匹配
+                        // 如果 department_id 包含"金沙湾"且 extractedStoreName 是"沙湾"，则不匹配
+                        // 如果 extractedStoreName 是"金沙湾"且 department_id 包含"沙湾"但不包含"金沙湾"，则不匹配
                         const isJinshawanMismatch =
                             (departmentId.includes('金沙湾') && extractedStoreName === '沙湾') ||
-                            (extractedStoreName === '金沙湾' && departmentId.includes('沙湾'));
+                            (extractedStoreName === '金沙湾' && departmentId.includes('沙湾') && !departmentId.includes('金沙湾'));
 
                         if (!isJinshawanMismatch &&
                             (departmentId.includes(extractedStoreName) || extractedStoreName.includes(departmentId))) {
