@@ -50,14 +50,14 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
       <rect
         x={centerX - 1.5}
         y={centerY - 8}
-        width={3}
+        width={2}
         height={16}
         fill="#ffffff"
       />
 
-      {/* 左侧波浪线 - 上（弧度反转） */}
+      {/* 左侧波浪线 - 上 */}
       <path
-        d={`M ${centerX - 6} ${centerY - 5} Q ${centerX - 4} ${centerY - 7}, ${centerX - 2} ${centerY - 5}`}
+        d={`M ${centerX - 7} ${centerY - 1.25} Q ${centerX - 4.5} ${centerY - 3.25}, ${centerX - 1.5} ${centerY - 1.25}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
@@ -65,7 +65,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
       />
       {/* 左侧波浪线 - 下 */}
       <path
-        d={`M ${centerX - 6} ${centerY + 5} Q ${centerX - 4} ${centerY + 3}, ${centerX - 2} ${centerY + 5}`}
+        d={`M ${centerX - 7} ${centerY + 1.25} Q ${centerX - 4.5} ${centerY + 3.25}, ${centerX - 1.5} ${centerY + 1.25}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
@@ -74,7 +74,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
 
       {/* 右侧波浪线 - 上 */}
       <path
-        d={`M ${centerX + 2} ${centerY - 5} Q ${centerX + 4} ${centerY - 3}, ${centerX + 6} ${centerY - 5}`}
+        d={`M ${centerX + 1.5} ${centerY - 1.25} Q ${centerX + 4.5} ${centerY - 3.25}, ${centerX + 7} ${centerY - 1.25}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
@@ -82,7 +82,7 @@ const LogoIcon = ({ size = 24 }: { size?: number }) => {
       />
       {/* 右侧波浪线 - 下（弧度反转） */}
       <path
-        d={`M ${centerX + 2} ${centerY + 5} Q ${centerX + 4} ${centerY + 7}, ${centerX + 6} ${centerY + 5}`}
+        d={`M ${centerX + 1.5} ${centerY + 1.25} Q ${centerX + 4.5} ${centerY + 3.25}, ${centerX + 7} ${centerY + 1.25}`}
         stroke="#ffffff"
         strokeWidth="1.5"
         fill="none"
