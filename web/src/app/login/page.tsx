@@ -110,6 +110,41 @@ export default function LoginPage() {
     }
   };
 
+  // 检查是否已有有效的登录token，如果有则自动跳转（避免返回时重复登录）
+  useEffect(() => {
+    const checkExistingToken = async () => {
+      const userId = localStorage.getItem('userId');
+      const token = localStorage.getItem('sessionToken');
+
+      if (!userId || !token) {
+        return; // 没有token，需要登录
+      }
+
+      try {
+        // 验证token是否有效
+        const isValid = await aclApi.validateToken(Number(userId), token);
+        if (isValid) {
+          // Token有效，自动跳转到首页，避免重复登录
+          console.log('[LoginPage] 检测到有效的登录token，自动跳转到首页');
+          window.location.href = '/home';
+        } else {
+          // Token无效，清除localStorage
+          console.log('[LoginPage] Token已失效，清除登录信息');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('sessionToken');
+          localStorage.removeItem('displayName');
+        }
+      } catch (error) {
+        // 验证失败（可能是网络问题），不自动跳转，让用户手动登录
+        console.log('[LoginPage] Token验证失败，等待用户手动登录:', error);
+      }
+    };
+
+    // 延迟执行，避免与钉钉回调处理冲突
+    const timer = setTimeout(checkExistingToken, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // 检查URL参数中是否有钉钉回调的code
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

@@ -255,8 +255,12 @@ export default function HomeLayout({
   }, []);
 
   // 单点登录心跳检查：定期验证 token 是否有效
+  // 优化：增加重试机制，避免因网络问题导致的误退出
   useEffect(() => {
-    const checkToken = async () => {
+    let consecutiveFailures = 0; // 连续失败次数
+    const MAX_FAILURES = 3; // 最大连续失败次数，超过此次数才退出登录
+
+    const checkToken = async (isRetry = false) => {
       const userId = localStorage.getItem('userId');
       const token = localStorage.getItem('sessionToken');
 
@@ -269,13 +273,38 @@ export default function HomeLayout({
         const isValid = await aclApi.validateToken(Number(userId), token);
 
         if (!isValid) {
-          // Token 失效，退出登录
-          console.log('[单点登录] 您的账号已在其他设备登录');
-          localStorage.clear();
-          router.push('/login');
+          consecutiveFailures++;
+          console.log(`[单点登录] Token验证失败 (连续失败${consecutiveFailures}次)`);
+
+          // 只有在连续失败多次后才退出登录（避免网络波动导致误退出）
+          if (consecutiveFailures >= MAX_FAILURES) {
+            console.log('[单点登录] Token已失效或账号已在其他设备登录');
+            localStorage.clear();
+            router.push('/login');
+          } else if (!isRetry) {
+            // 如果不是重试，等待一段时间后重试
+            setTimeout(() => checkToken(true), 5000);
+          }
+        } else {
+          // 验证成功，重置失败计数
+          if (consecutiveFailures > 0) {
+            console.log('[单点登录] Token验证恢复成功');
+            consecutiveFailures = 0;
+          }
         }
       } catch (error) {
-        console.error('Token 验证失败:', error);
+        consecutiveFailures++;
+        console.error(`[单点登录] Token验证失败 (连续失败${consecutiveFailures}次):`, error);
+
+        // 网络错误时，如果连续失败多次才退出
+        if (consecutiveFailures >= MAX_FAILURES) {
+          console.log('[单点登录] Token验证连续失败，可能是网络问题，退出登录');
+          localStorage.clear();
+          router.push('/login');
+        } else if (!isRetry) {
+          // 等待后重试
+          setTimeout(() => checkToken(true), 5000);
+        }
       }
     };
 
@@ -283,9 +312,36 @@ export default function HomeLayout({
     checkToken();
 
     // 每 30 秒检查一次
-    const interval = setInterval(checkToken, 30000);
+    const interval = setInterval(() => {
+      consecutiveFailures = 0; // 重置失败计数（定期检查时重置）
+      checkToken();
+    }, 30000);
 
-    return () => clearInterval(interval);
+    // 页面可见性变化时检查token（用户从后台返回时）
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[单点登录] 页面重新可见，检查token');
+        consecutiveFailures = 0; // 重置失败计数
+        checkToken();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 页面获得焦点时检查token（用户切换回应用时）
+    const handleFocus = () => {
+      console.log('[单点登录] 页面获得焦点，检查token');
+      consecutiveFailures = 0;
+      checkToken();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [router]);
 
   // 菜单点击处理
