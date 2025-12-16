@@ -18,6 +18,7 @@ import {
 import {
   App,
   Button,
+  Drawer,
   Input,
   Layout,
   Menu,
@@ -208,7 +209,31 @@ export default function HomeLayout({
   const [selectedKey, setSelectedKey] = useState('home');
   const [openTabs, setOpenTabs] = useState<string[]>(['home']);
   const [activeTab, setActiveTab] = useState('home');
+  const [isMobile, setIsMobile] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const { permissions, loading, hasPermission, hasMenuPermission } = usePermissions();
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // 移动端默认隐藏侧边栏，使用抽屉
+      if (mobile) {
+        setSiderVisible(false);
+        setCollapsed(false);
+      } else {
+        // 桌面端恢复侧边栏显示
+        if (!siderVisible && !mobile) {
+          setSiderVisible(true);
+        }
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [siderVisible]);
 
   // 根据当前路径确定选中的菜单项和活动标签
   useEffect(() => {
@@ -361,6 +386,11 @@ export default function HomeLayout({
       }
 
       router.push(config.url);
+
+      // 移动端点击菜单后关闭抽屉
+      if (isMobile) {
+        setDrawerVisible(false);
+      }
     }
   };
 
@@ -629,10 +659,110 @@ export default function HomeLayout({
     closable: key !== 'home',
   }));
 
+  // 侧边栏内容组件（用于桌面端和移动端抽屉）
+  const siderContent = (
+    <>
+      <div style={{
+        height: 48,
+        margin: 16,
+        color: '#fff',
+        fontSize: collapsed && !isMobile ? 14 : 18,
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          overflow: 'hidden',
+          justifyContent: (collapsed && !isMobile) ? 'center' : 'flex-start'
+        }}>
+          {(!collapsed || isMobile) && (
+            <span style={{
+              flex: 1,
+              textAlign: 'left',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 15
+            }}>
+              术木优选
+            </span>
+          )}
+          <div style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <LogoIcon size={20} />
+          </div>
+        </div>
+        {!isMobile && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexShrink: 0,
+            marginLeft: 8
+          }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{
+                color: '#fff',
+                fontSize: '16px',
+                width: 32,
+                height: 32,
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title={collapsed ? '展开' : '收缩'}
+            />
+            {!collapsed && (
+              <Button
+                type="text"
+                icon={<MenuFoldOutlined />}
+                onClick={() => setSiderVisible(false)}
+                style={{
+                  color: '#fff',
+                  fontSize: '16px',
+                  width: 32,
+                  height: 32,
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="隐藏侧边栏"
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <Menu
+        theme="dark"
+        mode="inline"
+        selectedKeys={[selectedKey]}
+        items={getFilteredMenuItems()}
+        onClick={handleMenuClick}
+        inlineCollapsed={collapsed && !isMobile}
+      />
+    </>
+  );
+
   return (
     <App>
       <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden' }}>
-        {siderVisible && (
+        {/* 桌面端侧边栏 */}
+        {siderVisible && !isMobile && (
           <Sider
             trigger={null}
             collapsible
@@ -645,111 +775,60 @@ export default function HomeLayout({
               overflow: 'auto',
             }}
           >
-            <div style={{
-              height: 48,
-              margin: 16,
-              color: '#fff',
-              fontSize: collapsed ? 14 : 18,
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                overflow: 'hidden',
-                justifyContent: collapsed ? 'center' : 'flex-start'
-              }}>
-                {!collapsed && (
-                  <span style={{
-                    flex: 1,
-                    textAlign: 'left',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontSize: 15
-                  }}>
-                    术木优选
-                  </span>
-                )}
-                <div style={{
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <LogoIcon size={20} />
-                </div>
-              </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                flexShrink: 0,
-                marginLeft: 8
-              }}>
-                <Button
-                  type="text"
-                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                  onClick={() => setCollapsed(!collapsed)}
-                  style={{
-                    color: '#fff',
-                    fontSize: '16px',
-                    width: 32,
-                    height: 32,
-                    padding: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  title={collapsed ? '展开' : '收缩'}
-                />
-                {!collapsed && (
-                  <Button
-                    type="text"
-                    icon={<MenuFoldOutlined />}
-                    onClick={() => setSiderVisible(false)}
-                    style={{
-                      color: '#fff',
-                      fontSize: '16px',
-                      width: 32,
-                      height: 32,
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    title="隐藏侧边栏"
-                  />
-                )}
-              </div>
-            </div>
-            <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={[selectedKey]}
-              items={getFilteredMenuItems()}
-              onClick={handleMenuClick}
-              inlineCollapsed={collapsed}
-            />
+            {siderContent}
           </Sider>
+        )}
+
+        {/* 移动端抽屉 */}
+        {isMobile && (
+          <Drawer
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <LogoIcon size={20} />
+                <span>术木优选</span>
+              </div>
+            }
+            placement="left"
+            onClose={() => setDrawerVisible(false)}
+            open={drawerVisible}
+            bodyStyle={{ padding: 0 }}
+            width={280}
+            styles={{
+              body: { padding: 0 }
+            }}
+          >
+            <div style={{ background: '#001529', height: '100%' }}>
+              {siderContent}
+            </div>
+          </Drawer>
         )}
 
         <Layout style={{ height: '100vh', overflow: 'hidden' }}>
           <Header style={{
-            padding: '0 16px',
+            padding: isMobile ? '0 8px' : '0 16px',
             background: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             height: 48,
-            lineHeight: '48px'
+            lineHeight: '48px',
+            flexWrap: 'nowrap',
           }}>
-            {siderVisible ? (
+            {/* 菜单按钮 */}
+            {isMobile ? (
+              <Button
+                type="text"
+                icon={<MenuUnfoldOutlined />}
+                onClick={() => setDrawerVisible(true)}
+                style={{
+                  fontSize: '16px',
+                  width: 48,
+                  height: 48,
+                  minWidth: 48,
+                }}
+                title="打开菜单"
+              />
+            ) : siderVisible ? (
               <Button
                 type="text"
                 icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -778,9 +857,16 @@ export default function HomeLayout({
               />
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* 右侧用户信息和操作 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: isMobile ? 4 : 12,
+              flexWrap: 'nowrap',
+              overflow: 'hidden',
+            }}>
               {editingDisplayName ? (
-                <Space size="small">
+                <Space size="small" wrap={false}>
                   <Input
                     value={editInputValue}
                     onChange={(e) => setEditInputValue(e.target.value)}
@@ -788,7 +874,7 @@ export default function HomeLayout({
                     onBlur={handleSaveDisplayName}
                     autoFocus
                     maxLength={64}
-                    style={{ width: 150 }}
+                    style={{ width: isMobile ? 100 : 150 }}
                     disabled={loadingEdit}
                   />
                   <Button
@@ -797,66 +883,130 @@ export default function HomeLayout({
                     onClick={handleSaveDisplayName}
                     loading={loadingEdit}
                   >
-                    保存
+                    {isMobile ? '保存' : '保存'}
                   </Button>
                   <Button
                     size="small"
                     onClick={handleCancelEdit}
                     disabled={loadingEdit}
                   >
-                    取消
+                    {isMobile ? '取消' : '取消'}
                   </Button>
                 </Space>
               ) : (
-                <Space size="small">
+                <Space size="small" wrap={false}>
                   <div
                     style={{
                       color: '#666',
-                      fontSize: 14,
+                      fontSize: isMobile ? 12 : 14,
                       cursor: remainingEdits > 0 ? 'pointer' : 'default',
                       padding: '4px 8px',
                       borderRadius: 4,
                       transition: 'background-color 0.2s',
+                      maxWidth: isMobile ? 80 : 'none',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                     onClick={handleStartEdit}
                     onMouseEnter={(e) => {
-                      if (remainingEdits > 0) {
+                      if (remainingEdits > 0 && !isMobile) {
                         e.currentTarget.style.backgroundColor = '#f5f5f5';
                       }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
+                      if (!isMobile) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }
                     }}
                     title={remainingEdits > 0 ? `点击编辑（剩余 ${remainingEdits} 次）` : '已达到编辑上限'}
                   >
                     {displayName}
                   </div>
-                  {remainingEdits > 0 && (
+                  {!isMobile && remainingEdits > 0 && (
                     <span style={{ color: '#999', fontSize: 12 }}>
                       (可编辑 {remainingEdits} 次)
                     </span>
                   )}
                 </Space>
               )}
-              <Button size="small" onClick={handleLogout}>
-                退出登录
+              <Button
+                size="small"
+                onClick={handleLogout}
+                style={{ flexShrink: 0 }}
+              >
+                {isMobile ? '退出' : '退出登录'}
               </Button>
             </div>
           </Header>
 
-          {/* 标签栏 */}
-          <div style={{
-            background: '#f5f5f5',
-            padding: '0 16px',
-            display: 'flex',
-            alignItems: 'center',
-            height: 36,
-            position: 'relative',
-          }}>
+          {/* 标签栏 - 移动端简化显示 */}
+          {!isMobile && (
             <div style={{
-              flex: 1,
-              overflow: 'hidden',
-              minWidth: 0,
+              background: '#f5f5f5',
+              padding: '0 16px',
+              display: 'flex',
+              alignItems: 'center',
+              height: 36,
+              position: 'relative',
+            }}>
+              <div style={{
+                flex: 1,
+                overflow: 'hidden',
+                minWidth: 0,
+              }}>
+                <Tabs
+                  type="editable-card"
+                  size="small"
+                  activeKey={activeTab}
+                  onChange={handleTabChange}
+                  onEdit={(targetKey, action) => {
+                    if (action === 'remove') {
+                      handleTabClose(targetKey as string);
+                    }
+                  }}
+                  items={tabItems}
+                  style={{
+                    marginBottom: 0,
+                    height: 36,
+                  }}
+                  tabBarStyle={{
+                    marginBottom: 0,
+                    borderBottom: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{
+                flexShrink: 0,
+                marginLeft: 8,
+              }}>
+                <Space size="small">
+                  <Button
+                    size="small"
+                    icon={<ClearOutlined />}
+                    onClick={handleClearOtherTabs}
+                    disabled={openTabs.length <= 1}
+                    title="关闭其他标签页"
+                  >
+                    清除其他
+                  </Button>
+                </Space>
+              </div>
+            </div>
+          )}
+
+          {/* 移动端简化标签栏 */}
+          {isMobile && (
+            <div style={{
+              background: '#f5f5f5',
+              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'center',
+              height: 40,
+              position: 'relative',
+              overflowX: 'auto',
+              overflowY: 'hidden',
             }}>
               <Tabs
                 type="editable-card"
@@ -868,10 +1018,18 @@ export default function HomeLayout({
                     handleTabClose(targetKey as string);
                   }
                 }}
-                items={tabItems}
+                items={tabItems.map(item => ({
+                  ...item,
+                  label: (
+                    <span style={{ fontSize: 12 }}>
+                      {PAGE_CONFIGS[item.key]?.title}
+                    </span>
+                  ),
+                }))}
                 style={{
                   marginBottom: 0,
-                  height: 36,
+                  height: 40,
+                  minWidth: '100%',
                 }}
                 tabBarStyle={{
                   marginBottom: 0,
@@ -879,35 +1037,23 @@ export default function HomeLayout({
                 }}
               />
             </div>
-
-            <div style={{
-              flexShrink: 0,
-              marginLeft: 8,
-            }}>
-              <Space size="small">
-                <Button
-                  size="small"
-                  icon={<ClearOutlined />}
-                  onClick={handleClearOtherTabs}
-                  disabled={openTabs.length <= 1}
-                  title="关闭其他标签页"
-                >
-                  清除其他
-                </Button>
-              </Space>
-            </div>
-          </div>
+          )}
 
           <Content style={{
             flex: 1,
-            margin: '8px 16px 16px',
+            margin: isMobile ? '4px 8px 8px' : '8px 16px 16px',
             overflow: 'hidden',
             background: '#ffffff',
-            borderRadius: 8,
+            borderRadius: isMobile ? 4 : 8,
             display: 'flex',
             flexDirection: 'column',
           }}>
-            <div style={{ padding: 16, minHeight: 360, height: '100%', overflow: 'auto' }}>
+            <div style={{
+              padding: isMobile ? 8 : 16,
+              minHeight: 360,
+              height: '100%',
+              overflow: 'auto'
+            }}>
               {loading ? (
                 <div style={{
                   display: 'flex',

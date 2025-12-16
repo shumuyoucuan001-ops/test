@@ -3,7 +3,7 @@
 import { purchasePassDifferenceApi } from "@/lib/api";
 import { MailOutlined } from "@ant-design/icons";
 import { App, Button, Card, Input, Space, Table, message as antdMessage } from "antd";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface TableDataItem {
     key: number;
@@ -14,6 +14,17 @@ export default function PurchasePassDifferencePage() {
     const { message } = App.useApp();
     const [data, setData] = useState<TableDataItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // 检测移动端
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // 处理粘贴事件
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -107,11 +118,12 @@ export default function PurchasePassDifferencePage() {
             title: '数据',
             dataIndex: 'value',
             key: 'value',
+            ellipsis: isMobile,
         },
         {
             title: '操作',
             key: 'action',
-            width: 100,
+            width: isMobile ? 60 : 100,
             render: (_: any, record: TableDataItem) => (
                 <Button
                     type="link"
@@ -119,27 +131,33 @@ export default function PurchasePassDifferencePage() {
                     size="small"
                     onClick={() => handleDelete(record.key)}
                 >
-                    删除
+                    {isMobile ? '删' : '删除'}
                 </Button>
             ),
         },
     ];
 
     return (
-        <div style={{ padding: 24 }}>
+        <div style={{ padding: isMobile ? 8 : 24 }}>
             <Card
-                title="采购管理 - 采购通过差异单"
+                title={<span style={{ fontSize: isMobile ? 14 : 16 }}>采购管理 - 采购通过差异单</span>}
                 extra={
-                    <Space>
-                        <Button onClick={handleClear}>清空</Button>
+                    <Space size={isMobile ? 'small' : 'middle'} wrap={isMobile}>
+                        <Button
+                            size={isMobile ? 'small' : 'middle'}
+                            onClick={handleClear}
+                        >
+                            清空
+                        </Button>
                         <Button
                             type="primary"
                             icon={<MailOutlined />}
                             onClick={handleSendEmail}
                             loading={loading}
                             disabled={data.length === 0}
+                            size={isMobile ? 'small' : 'middle'}
                         >
-                            通过差异单
+                            {isMobile ? '通过' : '通过差异单'}
                         </Button>
                     </Space>
                 }
@@ -147,20 +165,25 @@ export default function PurchasePassDifferencePage() {
                 <div
                     style={{
                         marginBottom: 16,
-                        padding: '16px',
+                        padding: isMobile ? '12px' : '16px',
                         background: '#f5f5f5',
                         borderRadius: '4px',
                     }}
                 >
-                    <div style={{ marginBottom: 8, color: '#666' }}>
+                    <div style={{
+                        marginBottom: 8,
+                        color: '#666',
+                        fontSize: isMobile ? 12 : 14,
+                    }}>
                         提示：您可以从 Excel 中复制一列数据，然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
                     </div>
                     <Input.TextArea
                         placeholder="在此处粘贴 Excel 数据（Ctrl+V），支持多行数据，每行一个"
-                        rows={4}
+                        rows={isMobile ? 3 : 4}
                         onPaste={handlePaste}
                         style={{
                             fontFamily: 'monospace',
+                            fontSize: isMobile ? 12 : 14,
                         }}
                     />
                 </div>
@@ -168,11 +191,14 @@ export default function PurchasePassDifferencePage() {
                     columns={columns}
                     dataSource={data}
                     rowKey="key"
+                    scroll={isMobile ? { x: 'max-content' } : undefined}
+                    size={isMobile ? 'small' : 'middle'}
                     pagination={{
-                        pageSize: 50,
-                        showSizeChanger: true,
+                        pageSize: isMobile ? 20 : 50,
+                        showSizeChanger: !isMobile,
                         pageSizeOptions: ['20', '50', '100'],
                         showTotal: (total) => `共 ${total} 条记录`,
+                        simple: isMobile,
                     }}
                 />
             </Card>
