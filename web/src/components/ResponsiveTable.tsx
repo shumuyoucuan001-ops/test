@@ -1,0 +1,197 @@
+"use client";
+
+import { Card, Table } from "antd";
+import type { ColumnsType, TableProps } from "antd/es/table";
+import { useEffect, useState } from "react";
+
+interface ResponsiveTableProps<T> extends Omit<TableProps<T>, 'columns'> {
+    columns: ColumnsType<T>;
+    dataSource: T[];
+    rowKey: string | ((record: T) => string);
+    isMobile?: boolean; // 可选，如果不提供则自动检测
+}
+
+/**
+ * 响应式表格组件
+ * 在移动端自动切换为卡片式布局，桌面端使用普通表格
+ */
+export default function ResponsiveTable<T extends Record<string, any>>({
+    columns,
+    dataSource,
+    rowKey,
+    isMobile: propIsMobile,
+    ...tableProps
+}: ResponsiveTableProps<T>) {
+    const [isMobile, setIsMobile] = useState(propIsMobile ?? false);
+
+    // 自动检测移动端（如果未通过 props 传入）
+    useEffect(() => {
+        if (propIsMobile !== undefined) {
+            setIsMobile(propIsMobile);
+            return;
+        }
+
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, [propIsMobile]);
+
+    // 获取行键值
+    const getRowKey = (record: T, index: number): string => {
+        if (typeof rowKey === 'function') {
+            return rowKey(record);
+        }
+        return record[rowKey]?.toString() || index.toString();
+    };
+
+    // 移动端卡片式布局
+    if (isMobile) {
+        // 过滤掉操作列，单独处理
+        const dataColumns = columns.filter(col => {
+            const key = (col as any).key || (col as any).dataIndex;
+            return key !== 'action' && !(col as any).fixed;
+        });
+        const actionColumn = columns.find(col => {
+            const key = (col as any).key || (col as any).dataIndex;
+            return key === 'action';
+        });
+
+        return (
+            <div>
+                {dataSource.length === 0 ? (
+                    <div style={{
+                        padding: 40,
+                        textAlign: 'center',
+                        color: '#999',
+                        fontSize: 14,
+                    }}>
+                        暂无数据
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {dataSource.map((record, index) => {
+                            const key = getRowKey(record, index);
+                            return (
+                                <Card
+                                    key={key}
+                                    size="small"
+                                    style={{
+                                        marginBottom: 0,
+                                        borderRadius: 4,
+                                    }}
+                                    bodyStyle={{
+                                        padding: '12px',
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {dataColumns.map((col) => {
+                                            const colKey = (col as any).key || (col as any).dataIndex;
+                                            const title = (col as any).title;
+                                            const render = (col as any).render;
+                                            const dataIndex = (col as any).dataIndex;
+
+                                            // 获取单元格值
+                                            let cellValue: any;
+                                            if (render) {
+                                                cellValue = render(record[dataIndex], record, index);
+                                            } else if (dataIndex) {
+                                                const keys = Array.isArray(dataIndex) ? dataIndex : [dataIndex];
+                                                cellValue = keys.reduce((obj, k) => obj?.[k], record);
+                                            } else {
+                                                cellValue = record[colKey];
+                                            }
+
+                                            // 如果值为空或 undefined，跳过
+                                            if (cellValue === null || cellValue === undefined || cellValue === '') {
+                                                return null;
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={colKey}
+                                                    style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'flex-start',
+                                                        gap: 8,
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        fontSize: 12,
+                                                        color: '#666',
+                                                        fontWeight: 500,
+                                                        flexShrink: 0,
+                                                        minWidth: 80,
+                                                    }}>
+                                                        {title}:
+                                                    </div>
+                                                    <div style={{
+                                                        flex: 1,
+                                                        fontSize: 14,
+                                                        color: '#333',
+                                                        wordBreak: 'break-all',
+                                                        textAlign: 'right',
+                                                    }}>
+                                                        {typeof cellValue === 'object' && cellValue !== null
+                                                            ? JSON.stringify(cellValue)
+                                                            : String(cellValue)}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {/* 操作列单独显示在底部 */}
+                                        {actionColumn && (actionColumn as any).render && (
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'flex-end',
+                                                paddingTop: 8,
+                                                borderTop: '1px solid #f0f0f0',
+                                                marginTop: 4,
+                                            }}>
+                                                {(actionColumn as any).render(null, record, index)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
+                {/* 移动端分页信息 */}
+                {tableProps.pagination && dataSource.length > 0 && (
+                    <div style={{
+                        marginTop: 16,
+                        padding: '12px',
+                        background: '#f5f5f5',
+                        borderRadius: 4,
+                        textAlign: 'center',
+                        fontSize: 13,
+                        color: '#666',
+                    }}>
+                        {typeof tableProps.pagination === 'object' && tableProps.pagination.showTotal
+                            ? tableProps.pagination.showTotal(dataSource.length, [
+                                dataSource.length,
+                                dataSource.length,
+                            ])
+                            : `共 ${dataSource.length} 条记录`}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // 桌面端使用普通表格
+    return (
+        <Table
+            {...tableProps}
+            columns={columns}
+            dataSource={dataSource}
+            rowKey={rowKey}
+        />
+    );
+}
+

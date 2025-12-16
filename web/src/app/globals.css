@@ -281,4 +281,25 @@ a {
   .ant-table-tbody>tr {
     min-height: 44px;
   }
+
+  /* 移动端卡片式表格优化 */
+  .mobile-card-table {
+    width: 100%;
+  }
+
+  .mobile-card-table .ant-card {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .mobile-card-table .ant-card-body {
+    padding: 12px;
+  }
+
+  /* 确保移动端卡片内容不溢出 */
+  .mobile-card-table * {
+    max-width: 100%;
+    word-wrap: break-word;
+    word-break: break-all;
+  }
 }

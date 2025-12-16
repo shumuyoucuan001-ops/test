@@ -187,20 +187,103 @@ export default function PurchasePassDifferencePage() {
                         }}
                     />
                 </div>
-                <Table
-                    columns={columns}
-                    dataSource={data}
-                    rowKey="key"
-                    scroll={isMobile ? { x: 'max-content' } : undefined}
-                    size={isMobile ? 'small' : 'middle'}
-                    pagination={{
-                        pageSize: isMobile ? 20 : 50,
-                        showSizeChanger: !isMobile,
-                        pageSizeOptions: ['20', '50', '100'],
-                        showTotal: (total) => `共 ${total} 条记录`,
-                        simple: isMobile,
-                    }}
-                />
+                {/* 移动端使用卡片式布局，桌面端使用表格 */}
+                {isMobile ? (
+                    <div>
+                        {data.length === 0 ? (
+                            <div style={{
+                                padding: 40,
+                                textAlign: 'center',
+                                color: '#999',
+                                fontSize: 14
+                            }}>
+                                暂无数据，请粘贴数据到上方输入框
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {data.map((item) => (
+                                    <Card
+                                        key={item.key}
+                                        size="small"
+                                        style={{
+                                            marginBottom: 0,
+                                            borderRadius: 4,
+                                            width: '100%',
+                                            boxSizing: 'border-box',
+                                        }}
+                                        bodyStyle={{
+                                            padding: '12px',
+                                        }}
+                                    >
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 8,
+                                        }}>
+                                            {/* 数据内容 */}
+                                            <div style={{
+                                                fontSize: 14,
+                                                color: '#333',
+                                                wordBreak: 'break-all',
+                                                wordWrap: 'break-word',
+                                                whiteSpace: 'normal',
+                                                lineHeight: '1.5',
+                                            }}>
+                                                {item.value}
+                                            </div>
+                                            {/* 操作按钮 */}
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'flex-end',
+                                                paddingTop: 8,
+                                                borderTop: '1px solid #f0f0f0',
+                                            }}>
+                                                <Button
+                                                    type="link"
+                                                    danger
+                                                    size="small"
+                                                    onClick={() => handleDelete(item.key)}
+                                                    style={{
+                                                        padding: '0 8px',
+                                                    }}
+                                                >
+                                                    删除
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                        {/* 移动端分页信息 */}
+                        {data.length > 0 && (
+                            <div style={{
+                                marginTop: 16,
+                                padding: '12px',
+                                background: '#f5f5f5',
+                                borderRadius: 4,
+                                textAlign: 'center',
+                                fontSize: 13,
+                                color: '#666',
+                            }}>
+                                共 {data.length} 条记录
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <Table
+                        columns={columns}
+                        dataSource={data}
+                        rowKey="key"
+                        size="middle"
+                        pagination={{
+                            pageSize: 50,
+                            showSizeChanger: true,
+                            pageSizeOptions: ['20', '50', '100'],
+                            showTotal: (total) => `共 ${total} 条记录`,
+                        }}
+                    />
+                )}
             </Card>
         </div>
     );
