@@ -352,28 +352,7 @@ export class AclService {
       const currentDisplayName = userRows[0].display_name;
       const editCount = Number(userRows[0].display_name_edit_count || 0);
 
-      // 如果 display_name 没有变化，不需要更新
-      if (currentDisplayName === u.display_name) {
-        return Promise.resolve(0);
-      }
-
-      // 检查编辑次数是否超过限制（最多2次）
-      if (editCount >= 2) {
-        throw new BadRequestException('display_name 最多只能编辑2次，已达到上限');
-      }
-
-      // 更新 display_name 和编辑次数
-      const newEditCount = editCount + 1;
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE sm_xitongkaifa.sys_users SET display_name=?, display_name_edit_count=? WHERE id=?`,
-        u.display_name,
-        newEditCount,
-        id
-      );
-
-      Logger.log(`[AclService] 用户 ${id} 更新 display_name，编辑次数: ${newEditCount}/2`);
-
-      // 如果还有其他字段需要更新，继续更新（但不包括 display_name，因为已经更新了）
+      // 准备其他字段的更新（无论 display_name 是否变化，都要处理其他字段）
       const otherSets: string[] = [];
       const otherVals: any[] = [];
       if (u.status !== undefined) {
@@ -388,15 +367,35 @@ export class AclService {
       if (u.code !== undefined) { otherSets.push('code=?'); otherVals.push(u.code); }
       if (u.department_id !== undefined) { otherSets.push('department_id=?'); otherVals.push(u.department_id); }
 
+      // 如果 display_name 有变化，需要更新 display_name
+      if (currentDisplayName !== u.display_name) {
+        // 检查编辑次数是否超过限制（最多2次）
+        if (editCount >= 2) {
+          throw new BadRequestException('display_name 最多只能编辑2次，已达到上限');
+        }
+
+        // 更新 display_name 和编辑次数
+        const newEditCount = editCount + 1;
+        otherSets.push('display_name=?');
+        otherVals.push(u.display_name);
+        otherSets.push('display_name_edit_count=?');
+        otherVals.push(newEditCount);
+
+        Logger.log(`[AclService] 用户 ${id} 更新 display_name，编辑次数: ${newEditCount}/2`);
+      }
+
+      // 如果有任何字段需要更新，执行更新
       if (otherSets.length > 0) {
         otherVals.push(id);
         await this.prisma.$executeRawUnsafe(
           `UPDATE sm_xitongkaifa.sys_users SET ${otherSets.join(',')} WHERE id=?`,
           ...otherVals
         );
+        return Promise.resolve(1);
       }
 
-      return Promise.resolve(1);
+      // 如果没有任何字段需要更新，返回0
+      return Promise.resolve(0);
     }
 
     // 如果不是更新 display_name，使用原来的逻辑
