@@ -273,6 +273,42 @@ a {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* 在移动端强制隐藏表格，使用卡片布局 */
+  .purchase-pass-difference-page .mobile-card-layout .ant-table-wrapper {
+    display: none !important;
+  }
+
+  .purchase-pass-difference-page .mobile-card-layout .mobile-card-container {
+    display: block !important;
+  }
+
+  /* 桌面端隐藏卡片容器，显示表格 */
+  @media (min-width: 769px) {
+    .purchase-pass-difference-page .mobile-card-container {
+      display: none !important;
+    }
+
+    .purchase-pass-difference-page .mobile-card-layout>div:last-child {
+      display: block !important;
+    }
+  }
+
+  /* 移动端强制显示卡片容器，隐藏表格 */
+  @media (max-width: 768px) {
+    .purchase-pass-difference-page .mobile-card-container {
+      display: block !important;
+    }
+
+    .purchase-pass-difference-page .mobile-card-layout>div:last-child {
+      display: none !important;
+    }
+
+    /* 如果检测到移动端但还在显示表格，强制隐藏 */
+    .purchase-pass-difference-page .ant-table-wrapper {
+      display: none !important;
+    }
+  }
+
   /* 优化空间间距 */
   .ant-space {
     gap: 8px !important;

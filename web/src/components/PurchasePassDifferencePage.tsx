@@ -16,27 +16,50 @@ export default function PurchasePassDifferencePage() {
     const [loading, setLoading] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
 
-    // 检测移动端
+    // 检测移动端 - 使用更可靠的检测方式
     useEffect(() => {
         const checkMobile = () => {
+            if (typeof window === 'undefined') return;
+
             const width = window.innerWidth;
-            // 更严格的移动端检测：小于768px或检测到移动设备
-            const isMobileDevice = width < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const height = window.innerHeight;
+            const userAgent = navigator.userAgent || '';
+
+            // 多种检测方式组合
+            const isMobileByWidth = width < 768;
+            const isMobileByUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(userAgent);
+            const isMobileByTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const isMobileByRatio = width < height && width < 768; // 竖屏且宽度小于768
+
+            // 只要满足任一条件就认为是移动端
+            const isMobileDevice = isMobileByWidth || (isMobileByUA && isMobileByTouch) || isMobileByRatio;
+
             setIsMobile(isMobileDevice);
-            // 调试日志（生产环境可移除）
-            if (process.env.NODE_ENV === 'development') {
-                console.log('[PurchasePassDifferencePage] 移动端检测:', {
-                    width,
-                    isMobile: isMobileDevice,
-                    userAgent: navigator.userAgent,
-                });
-            }
+
+            // 始终输出调试信息（帮助排查问题）
+            console.log('[PurchasePassDifferencePage] 移动端检测:', {
+                width,
+                height,
+                isMobile: isMobileDevice,
+                isMobileByWidth,
+                isMobileByUA,
+                isMobileByTouch,
+                isMobileByRatio,
+                userAgent: userAgent.substring(0, 50),
+            });
         };
+
+        // 立即执行一次
         checkMobile();
+
+        // 延迟执行一次（处理某些浏览器的初始化问题）
+        const timeoutId = setTimeout(checkMobile, 100);
+
         window.addEventListener('resize', checkMobile);
-        // 监听方向变化
         window.addEventListener('orientationchange', checkMobile);
+
         return () => {
+            clearTimeout(timeoutId);
             window.removeEventListener('resize', checkMobile);
             window.removeEventListener('orientationchange', checkMobile);
         };
@@ -154,13 +177,16 @@ export default function PurchasePassDifferencePage() {
     ];
 
     return (
-        <div style={{
-            padding: isMobile ? 8 : 24,
-            width: '100%',
-            maxWidth: '100%',
-            overflowX: 'hidden',
-            boxSizing: 'border-box',
-        }}>
+        <div
+            className="purchase-pass-difference-page"
+            style={{
+                padding: isMobile ? 8 : 24,
+                width: '100%',
+                maxWidth: '100%',
+                overflowX: 'hidden',
+                boxSizing: 'border-box',
+            }}
+        >
             <Card
                 title={<span style={{ fontSize: isMobile ? 14 : 16 }}>采购管理 - 采购通过差异单</span>}
                 extra={
@@ -215,13 +241,19 @@ export default function PurchasePassDifferencePage() {
                     />
                 </div>
                 {/* 移动端使用卡片式布局，桌面端使用表格 */}
-                {isMobile ? (
-                    <div style={{
-                        width: '100%',
-                        maxWidth: '100%',
-                        overflowX: 'hidden',
-                        boxSizing: 'border-box',
-                    }}>
+                {/* 使用双重保障：JS检测 + CSS媒体查询 */}
+                <div className="mobile-card-layout">
+                    {/* 移动端卡片容器 - 通过CSS控制显示/隐藏 */}
+                    <div
+                        className="mobile-card-container"
+                        style={{
+                            width: '100%',
+                            maxWidth: '100%',
+                            overflowX: 'hidden',
+                            boxSizing: 'border-box',
+                            display: isMobile ? 'block' : 'none',
+                        }}
+                    >
                         {data.length === 0 ? (
                             <div style={{
                                 padding: 40,
@@ -327,20 +359,25 @@ export default function PurchasePassDifferencePage() {
                             </div>
                         )}
                     </div>
-                ) : (
-                    <Table
-                        columns={columns}
-                        dataSource={data}
-                        rowKey="key"
-                        size="middle"
-                        pagination={{
-                            pageSize: 50,
-                            showSizeChanger: true,
-                            pageSizeOptions: ['20', '50', '100'],
-                            showTotal: (total) => `共 ${total} 条记录`,
-                        }}
-                    />
-                )}
+
+                    {/* 桌面端表格 - 通过CSS控制显示/隐藏 */}
+                    <div style={{
+                        display: isMobile ? 'none' : 'block',
+                    }}>
+                        <Table
+                            columns={columns}
+                            dataSource={data}
+                            rowKey="key"
+                            size="middle"
+                            pagination={{
+                                pageSize: 50,
+                                showSizeChanger: true,
+                                pageSizeOptions: ['20', '50', '100'],
+                                showTotal: (total) => `共 ${total} 条记录`,
+                            }}
+                        />
+                    </div>
+                </div>
             </Card>
         </div>
     );
