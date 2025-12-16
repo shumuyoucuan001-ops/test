@@ -2,7 +2,7 @@
 
 import { Card, Pagination, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 interface ResponsiveTableProps<T> extends Omit<TableProps<T>, 'columns'> {
     columns: ColumnsType<T>;
@@ -102,7 +102,15 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                             // 获取单元格值
                                             let cellValue: any;
                                             if (render) {
-                                                cellValue = render(record[dataIndex], record, index);
+                                                // 使用列自带的 render 直接渲染，兼容 Tag、按钮等 React 组件
+                                                cellValue = render(
+                                                    dataIndex ? (Array.isArray(dataIndex)
+                                                        ? dataIndex.reduce((obj, k) => obj?.[k], record)
+                                                        : record[dataIndex])
+                                                        : record,
+                                                    record,
+                                                    index
+                                                );
                                             } else if (dataIndex) {
                                                 const keys = Array.isArray(dataIndex) ? dataIndex : [dataIndex];
                                                 cellValue = keys.reduce((obj, k) => obj?.[k], record);
@@ -134,15 +142,17 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                                     }}>
                                                         {title}:
                                                     </div>
-                                                    <div style={{
-                                                        flex: 1,
-                                                        fontSize: 14,
-                                                        color: '#333',
-                                                        wordBreak: 'break-all',
-                                                        textAlign: 'right',
-                                                    }}>
-                                                        {typeof cellValue === 'object' && cellValue !== null
-                                                            ? JSON.stringify(cellValue)
+                                                    <div
+                                                        style={{
+                                                            flex: 1,
+                                                            fontSize: 14,
+                                                            color: '#333',
+                                                            wordBreak: 'break-all',
+                                                            textAlign: 'right',
+                                                        }}
+                                                    >
+                                                        {React.isValidElement(cellValue)
+                                                            ? cellValue
                                                             : String(cellValue)}
                                                     </div>
                                                 </div>
