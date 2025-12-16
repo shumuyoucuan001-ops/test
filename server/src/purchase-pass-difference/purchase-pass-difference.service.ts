@@ -21,11 +21,11 @@ export class PurchasePassDifferenceService {
         email?: string,
         userId?: number,
     ): Promise<void> {
-        const recipientEmail = email || process.env.PURCHASE_PASS_DIFFERENCE_EMAIL || '';
+        const recipientEmail = email || process.env.STORE_REJECTION_EMAIL || '';
 
         if (!recipientEmail) {
             throw new Error(
-                '未配置收件人邮箱，请设置环境变量 PURCHASE_PASS_DIFFERENCE_EMAIL 或在请求中提供邮箱地址',
+                '未配置收件人邮箱，请设置环境变量 STORE_REJECTION_EMAIL 或在请求中提供邮箱地址',
             );
         }
 

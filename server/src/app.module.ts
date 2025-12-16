@@ -11,8 +11,8 @@ import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-
 import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { PurchasePassDifferenceModule } from './purchase-pass-difference/purchase-pass-difference.module';
 import { ProductModule } from './product/product.module';
+import { PurchasePassDifferenceModule } from './purchase-pass-difference/purchase-pass-difference.module';
 import { ReceiptModule } from './receipt/receipt.module';
 import { StoreRejectionModule } from './store-rejection/store-rejection.module';
 import { SupplierManagementModule } from './supplier-management/supplier-management.module';
