@@ -23,12 +23,12 @@ import {
   Modal,
   Row,
   Space,
-  Table,
   Tabs,
   Typography,
   message,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import ResponsiveTable from "./ResponsiveTable";
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -366,8 +366,8 @@ export default function ProductMasterPage() {
           </Space>
         }
       >
-        <Table
-          columns={columns}
+        <ResponsiveTable<MasterListItem>
+          columns={columns as any}
           dataSource={data}
           rowKey={(r) => r.skuCode}
           loading={loading}
@@ -410,8 +410,8 @@ export default function ProductMasterPage() {
                 </Space>
               ),
               children: (
-                <Table
-                  columns={labelTableCols}
+                <ResponsiveTable<LabelDataItem>
+                  columns={labelTableCols as any}
                   dataSource={labelDataSource}
                   rowKey={(r) => r.skuCode + (r.labelRaw?.["供应商名称"] || "")}
                   size="small"

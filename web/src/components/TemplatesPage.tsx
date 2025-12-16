@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Table, 
-  Button, 
-  Space, 
-  Modal, 
-  Form, 
-  Input, 
-  Switch, 
-  message, 
-  Popconfirm,
+import { CreateTemplateDto, LabelTemplate, templateApi, UpdateTemplateDto } from '@/lib/api';
+import { EditOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  Button,
   Card,
-  Tabs,
+  Col,
+  Form,
+  Input,
+  message,
+  Modal,
   Row,
-  Col
+  Space,
+  Switch,
+  Tabs
 } from 'antd';
-import { PlusOutlined, EditOutlined } from '@ant-design/icons';
-import { templateApi, LabelTemplate, CreateTemplateDto, UpdateTemplateDto } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import ResponsiveTable from './ResponsiveTable';
 
 const { TextArea } = Input;
 const { TabPane } = Tabs;
@@ -71,7 +70,7 @@ export default function TemplatesPage() {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      
+
       if (editingTemplate) {
         // 更新
         await templateApi.update(editingTemplate.id, values as UpdateTemplateDto);
@@ -81,7 +80,7 @@ export default function TemplatesPage() {
         await templateApi.create(values as CreateTemplateDto);
         message.success('模板创建成功');
       }
-      
+
       closeModal();
       loadTemplates();
     } catch (error) {
@@ -139,20 +138,20 @@ export default function TemplatesPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Card 
-        title="标签模板管理" 
+      <Card
+        title="标签模板管理"
         extra={
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
             onClick={() => openModal()}
           >
             新增模板
           </Button>
         }
       >
-        <Table
-          columns={columns}
+        <ResponsiveTable<LabelTemplate>
+          columns={columns as any}
           dataSource={templates}
           rowKey="id"
           loading={loading}
@@ -194,7 +193,7 @@ export default function TemplatesPage() {
               </Form.Item>
             </Col>
           </Row>
-          
+
           <Form.Item
             name="isDefault"
             label="设为默认模板"
@@ -214,8 +213,8 @@ export default function TemplatesPage() {
                   rules={[{ required: true, message: '请输入HTML模板内容' }]}
                   style={{ marginBottom: 0 }}
                 >
-                  <TextArea 
-                    rows={12} 
+                  <TextArea
+                    rows={12}
                     placeholder="请输入HTML模板内容，使用mm单位，例如：
 <div style='width: 40mm; height: 30mm; position: relative; padding: 1mm; box-sizing: border-box;'>
   <div style='position: absolute; top: 1.5mm; left: 2mm; right: 2mm; text-align: center; font-size: 12px; font-weight: 600;'>
@@ -234,8 +233,8 @@ export default function TemplatesPage() {
                   rules={[{ required: true, message: '请输入TSPL模板内容' }]}
                   style={{ marginBottom: 0 }}
                 >
-                  <TextArea 
-                    rows={12} 
+                  <TextArea
+                    rows={12}
                     placeholder="请输入TSPL模板内容，使用px单位，例如：
 <div style='width: 320px; height: 240px; position: relative; padding: 8px; box-sizing: border-box;'>
   <div style='position: absolute; top: 12px; left: 16px; right: 16px; text-align: center; font-size: 14px; font-weight: 600;'>

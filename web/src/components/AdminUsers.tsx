@@ -2,8 +2,9 @@
 
 import Can from "@/components/Can";
 import { aclApi, SysRole, SysUser } from "@/lib/api";
-import { Button, Card, Checkbox, Divider, Form, Input, message, Modal, Select, Space, Table, Tag } from "antd";
+import { Button, Card, Checkbox, Divider, Form, Input, message, Modal, Select, Space, Tag } from "antd";
 import { useEffect, useState } from "react";
+import ResponsiveTable from "./ResponsiveTable";
 
 export default function UserPage() {
   const [loading, setLoading] = useState(false);
@@ -138,7 +139,7 @@ export default function UserPage() {
   return (
     <div style={{ padding: 24 }}>
       <Card title="账号管理" extra={<Space><Input placeholder="按用户名/显示名搜索" value={q} onChange={(e) => setQ(e.target.value)} onPressEnter={load} style={{ width: 240 }} /><Button onClick={load}>搜索</Button><Can code="button:user:create"><Button type="primary" onClick={() => onEdit()}>新增账号</Button></Can></Space>}>
-        <Table rowKey="id" columns={columns as any} dataSource={data} loading={loading} pagination={false} />
+        <ResponsiveTable<SysUser> rowKey="id" columns={columns as any} dataSource={data} loading={loading} pagination={false} />
       </Card>
 
       <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} confirmLoading={loading} title={editing ? '编辑账号' : '新增账号'} destroyOnClose>

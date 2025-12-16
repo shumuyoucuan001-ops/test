@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Table } from "antd";
+import { Card, Pagination, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useEffect, useState } from "react";
 
@@ -47,6 +47,11 @@ export default function ResponsiveTable<T extends Record<string, any>>({
         }
         return record[rowKey]?.toString() || index.toString();
     };
+
+    // 抽取分页配置（如果存在且不是 false）
+    const pagination = tableProps.pagination && typeof tableProps.pagination === 'object'
+        ? tableProps.pagination
+        : undefined;
 
     // 移动端卡片式布局
     if (isMobile) {
@@ -161,23 +166,20 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                         })}
                     </div>
                 )}
-                {/* 移动端分页信息 */}
-                {tableProps.pagination && dataSource.length > 0 && (
-                    <div style={{
-                        marginTop: 16,
-                        padding: '12px',
-                        background: '#f5f5f5',
-                        borderRadius: 4,
-                        textAlign: 'center',
-                        fontSize: 13,
-                        color: '#666',
-                    }}>
-                        {typeof tableProps.pagination === 'object' && tableProps.pagination.showTotal
-                            ? tableProps.pagination.showTotal(dataSource.length, [
-                                dataSource.length,
-                                dataSource.length,
-                            ])
-                            : `共 ${dataSource.length} 条记录`}
+                {/* 移动端分页控件：使用与桌面端相同的分页配置 */}
+                {pagination && dataSource.length > 0 && (
+                    <div
+                        style={{
+                            marginTop: 16,
+                            padding: '8px 0',
+                            display: 'flex',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Pagination
+                            size="small"
+                            {...pagination}
+                        />
                     </div>
                 )}
             </div>

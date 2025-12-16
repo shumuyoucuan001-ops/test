@@ -10,7 +10,6 @@ import {
   Input,
   Modal,
   Space,
-  Table,
   Tabs,
   Tag,
   Timeline,
@@ -18,6 +17,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
+import ResponsiveTable from './ResponsiveTable';
 
 const { Search } = Input;
 
@@ -290,7 +290,7 @@ export default function ProductSupplementPage() {
           </Space>
         }
       >
-        <Table
+        <ResponsiveTable<LabelDataRecord>
           columns={columns}
           dataSource={data}
           rowKey={(r) => `${r.sku}_${r.supplierName}`}
@@ -306,7 +306,6 @@ export default function ProductSupplementPage() {
               setPageSize(size);
             },
           }}
-          scroll={{ x: 1600 }}
         />
       </Card>
 

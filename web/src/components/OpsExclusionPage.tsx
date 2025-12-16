@@ -2,8 +2,9 @@
 
 import { OpsExclusionItem, opsExclusionApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Card, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
+import { Button, Card, Form, Input, Modal, Popconfirm, Space, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof OpsExclusionItem, string> = {
     "视图名称": "视图名称",
@@ -153,7 +154,7 @@ export default function OpsExclusionPage() {
                     </Space>
                 }
             >
-                <Table
+                <ResponsiveTable<OpsExclusionItem>
                     columns={columns as any}
                     dataSource={data}
                     rowKey={(r) => `${r["视图名称"]}_${r["门店编码"]}_${r["SKU编码"]}_${r["SPU编码"]}`}

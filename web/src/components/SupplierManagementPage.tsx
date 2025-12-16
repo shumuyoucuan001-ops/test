@@ -18,7 +18,6 @@ import {
   Popconfirm,
   Row,
   Space,
-  Table,
   Tabs,
   Tag,
   Timeline,
@@ -26,6 +25,7 @@ import {
   message
 } from 'antd';
 import { useEffect, useState } from 'react';
+import ResponsiveTable from './ResponsiveTable';
 
 const { Search } = Input;
 const { Title } = Typography;
@@ -428,12 +428,11 @@ export default function SupplierManagementPage() {
           </Space>
         }
       >
-        <Table
-          columns={columns}
+        <ResponsiveTable<SupplierFullInfo>
+          columns={columns as any}
           dataSource={suppliers}
           rowKey="supplierCode"
           loading={loading}
-          scroll={{ x: 1200 }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,

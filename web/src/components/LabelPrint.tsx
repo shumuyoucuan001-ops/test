@@ -2,8 +2,9 @@
 
 import { LabelPrintItem, LabelTemplate, labelDataApi, labelPrintApi, templateApi } from "@/lib/api";
 import { PrinterOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Card, Input, InputNumber, Select, Space, Table, message } from "antd";
+import { Button, Card, Input, InputNumber, Select, Space, message } from "antd";
 import { useEffect, useState } from "react";
+import ResponsiveTable from "./ResponsiveTable";
 
 const { Option } = Select;
 
@@ -40,7 +41,7 @@ export default function LabelPrint() {
         const all = await templateApi.getAll();
         const qualified = (all || []).find(t => t.name === "合格证标签") || (all || []).find(t => t.name?.includes("合格证"));
         const defaultT = (all || []).find(t => t.name === "默认标签模板") || (all || []).find(t => t.isDefault);
-        
+
         setQualifiedTemplate(qualified || null);
         setDefaultTemplate(defaultT || await templateApi.getDefault());
       } catch (error) {
@@ -59,16 +60,16 @@ export default function LabelPrint() {
         setLoading(false);
         return;
       }
-      
+
       const res = await labelPrintApi.search(q);
-      
+
       // 对每个搜索结果，查询 label_data_audit 表
       const enhancedData = await Promise.all((res || []).map(async (item) => {
         try {
           // 使用 getAll API 查询 label_data_audit 表
           const result = await labelDataApi.getAll({ sku: item.skuCode, limit: 100 });
           const auditRecords = result?.data || [];
-          
+
           if (auditRecords && auditRecords.length > 0) {
             // 有审核数据，解析供应商信息
             const auditData = auditRecords.map((record: any) => ({
@@ -81,9 +82,9 @@ export default function LabelPrint() {
               material: record.material || '',
               otherInfo: record.otherInfo || '',
             }));
-            
+
             console.log('[LabelPrint] Found audit data for SKU:', item.skuCode, 'count:', auditData.length);
-            
+
             return {
               ...item,
               auditData,
@@ -94,15 +95,15 @@ export default function LabelPrint() {
         } catch (error) {
           console.error('Failed to load audit data for SKU:', item.skuCode, error);
         }
-        
+
         console.log('[LabelPrint] No audit data for SKU:', item.skuCode);
-        
+
         return {
           ...item,
           selectedTemplate: 'default' as const,
         };
       }));
-      
+
       setData(enhancedData);
       setSearched(true);
     } catch (e) {
@@ -127,10 +128,10 @@ export default function LabelPrint() {
   const handlePrint = async (item: ExtendedLabelPrintItem, copies = 1) => {
     try {
       const hide = message.loading('正在准备打印...', 0);
-      
+
       // 根据选择的模板类型获取模板
       const template = item.selectedTemplate === 'qualified' ? qualifiedTemplate : defaultTemplate;
-      
+
       if (!template) {
         message.error('模板未加载完成');
         hide();
@@ -138,10 +139,10 @@ export default function LabelPrint() {
       }
 
       // 上月日期格式 YYYY.MM
-      const prevMonth = (() => { 
-        const now = new Date(); 
-        const m = new Date(now.getFullYear(), now.getMonth() - 1, 1); 
-        return `${m.getFullYear()}.${String(m.getMonth() + 1).padStart(2,'0')}`; 
+      const prevMonth = (() => {
+        const now = new Date();
+        const m = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return `${m.getFullYear()}.${String(m.getMonth() + 1).padStart(2, '0')}`;
       })();
 
       // 准备渲染数据（与收货单打印逻辑一致）
@@ -185,13 +186,13 @@ export default function LabelPrint() {
           manufacturerName: '',
         };
       }
-      
+
       console.log('[LabelPrint] Rendering with data:', renderData);
-      
+
       // 使用 renderHtml 而不是 render，获取 HTML 内容而不是 TSPL 指令
       const html = await templateApi.renderHtml(template.id, renderData);
       const pages = Array.from({ length: Math.max(1, Number(copies) || 1) }, () => html.rendered);
-      
+
       hide();
       openPrintInline(pages);
     } catch (e) {
@@ -216,7 +217,7 @@ export default function LabelPrint() {
         .label [style*="font-family"], .label [style*="Courier"], .label [style*="monospace"] { font-family: 'AlibabaPuHuiTi','Alibaba PuHuiTi', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif !important; }
       </style>
     </head><body>${labels.map(l => `<div class="label">${l}</div>`).join('')}</body></html>`;
-    
+
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
@@ -225,25 +226,25 @@ export default function LabelPrint() {
     iframe.style.height = '0';
     iframe.style.border = '0';
     document.body.appendChild(iframe);
-    
+
     const doc = iframe.contentWindow?.document;
-    if (!doc) { 
-      message.error('无法创建打印上下文'); 
-      return; 
+    if (!doc) {
+      message.error('无法创建打印上下文');
+      return;
     }
-    
+
     doc.open();
     doc.write(html);
     doc.close();
-    
+
     iframe.onload = () => {
-      setTimeout(() => { 
-        try { 
-          iframe.contentWindow?.focus(); 
-          iframe.contentWindow?.print(); 
-        } finally { 
-          document.body.removeChild(iframe); 
-        } 
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } finally {
+          document.body.removeChild(iframe);
+        }
       }, 100);
     };
   };
@@ -254,11 +255,11 @@ export default function LabelPrint() {
     { title: 'SKU编码', dataIndex: 'skuCode', key: 'skuCode', width: 220, ellipsis: true },
     { title: '规格', dataIndex: 'spec', key: 'spec', width: 180, ellipsis: true },
     { title: '商品条码', dataIndex: 'productCode', key: 'productCode', width: 180, ellipsis: true },
-    { 
-      title: '核对条码尾号', 
-      dataIndex: 'barcodeTail', 
-      key: 'barcodeTail', 
-      width: 120 
+    {
+      title: '核对条码尾号',
+      dataIndex: 'barcodeTail',
+      key: 'barcodeTail',
+      width: 120
     },
     {
       title: '标签模板',
@@ -269,7 +270,7 @@ export default function LabelPrint() {
         if (!record.auditData || record.auditData.length === 0) {
           return <span>默认标签</span>;
         }
-        
+
         // 有审核数据时，提供选择
         return (
           <Select
@@ -312,9 +313,9 @@ export default function LabelPrint() {
       }
     },
     {
-      title: '操作', 
-      key: 'action', 
-      width: 200, 
+      title: '操作',
+      key: 'action',
+      width: 200,
       render: (_: any, r: ExtendedLabelPrintItem) => {
         return (
           <Space>
@@ -328,31 +329,30 @@ export default function LabelPrint() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Card 
+      <Card
         title="商品标签打印"
         extra={
           <Space>
-            <Input 
-              allowClear 
-              placeholder="按 SPU/SKU/商品条码 搜索（最多20条）" 
-              prefix={<SearchOutlined />} 
-              value={q} 
-              onChange={e => setQ(e.target.value)} 
-              onPressEnter={doSearch} 
-              style={{ width: 420 }} 
+            <Input
+              allowClear
+              placeholder="按 SPU/SKU/商品条码 搜索（最多20条）"
+              prefix={<SearchOutlined />}
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              onPressEnter={doSearch}
+              style={{ width: 420 }}
             />
             <Button onClick={doSearch} icon={<SearchOutlined />} type="primary">搜索</Button>
           </Space>
         }
       >
         {searched ? (
-          <Table 
-            columns={columns as any} 
-            dataSource={data} 
-            loading={loading} 
-            rowKey={(r) => r.skuCode + r.productCode} 
-            pagination={false} 
-            scroll={{ x: 1400 }}
+          <ResponsiveTable<ExtendedLabelPrintItem>
+            columns={columns as any}
+            dataSource={data}
+            loading={loading}
+            rowKey={(r) => r.skuCode + r.productCode}
+            pagination={false}
           />
         ) : (
           <div style={{ padding: 32, color: '#888' }}>请输入 SPU/SKU/商品条码后点击"搜索"以展示商品列表。</div>
