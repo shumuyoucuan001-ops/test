@@ -61,6 +61,16 @@ export class AclService {
       }
     }
 
+    // token_expires_at 字段用于存储token过期时间（3天有效期）
+    if (!(await this.hasCol('token_expires_at'))) {
+      try {
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN token_expires_at DATETIME NULL`);
+        Logger.log('[AclService] ✓ 已创建 token_expires_at 字段');
+      } catch (e: any) {
+        Logger.error('[AclService] ✗ 创建 token_expires_at 字段失败:', e.message);
+      }
+    }
+
     // 放宽 code 可空
     try {
       await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users MODIFY code VARCHAR(64) NULL`);
@@ -505,6 +515,9 @@ export class AclService {
     const token = randomBytes(24).toString('hex');
     const loginTime = new Date();
     const device = deviceInfo || 'unknown';
+    // 设置token过期时间为3天后
+    const tokenExpiresAt = new Date();
+    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 3);
 
     Logger.log(`[AclService] 用户验证通过，准备更新session_token，用户ID: ${u.id}`);
 
@@ -513,33 +526,45 @@ export class AclService {
       // 先检查字段是否存在，如果不存在则尝试创建
       const hasLastLoginTime = await this.hasCol('last_login_time');
       const hasLastLoginDevice = await this.hasCol('last_login_device');
+      const hasTokenExpiresAt = await this.hasCol('token_expires_at');
 
-      if (!hasLastLoginTime || !hasLastLoginDevice) {
-        Logger.log(`[AclService] 检测到缺少字段，尝试创建... hasLastLoginTime: ${hasLastLoginTime}, hasLastLoginDevice: ${hasLastLoginDevice}`);
+      if (!hasLastLoginTime || !hasLastLoginDevice || !hasTokenExpiresAt) {
+        Logger.log(`[AclService] 检测到缺少字段，尝试创建... hasLastLoginTime: ${hasLastLoginTime}, hasLastLoginDevice: ${hasLastLoginDevice}, hasTokenExpiresAt: ${hasTokenExpiresAt}`);
         await this.ensureColumns(); // 重新确保字段存在
       }
 
       await this.prisma.$executeRawUnsafe(
-        `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=? WHERE id=?`,
+        `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, token_expires_at=? WHERE id=?`,
         token,
         loginTime,
         device,
+        tokenExpiresAt,
         Number(u.id)
       );
-      Logger.log(`[AclService] session_token更新成功，用户ID: ${u.id}`);
+      Logger.log(`[AclService] session_token更新成功，用户ID: ${u.id}，token过期时间: ${tokenExpiresAt.toISOString()}`);
     } catch (error: any) {
       Logger.error(`[AclService] 更新session_token失败，用户ID: ${u.id}`, error);
       Logger.error(`[AclService] 错误详情: ${error?.message}`);
       Logger.error(`[AclService] SQL错误: ${error?.code}`);
 
-      // 如果更新失败，尝试仅更新session_token（不更新登录时间字段）
+      // 如果更新失败，尝试仅更新session_token和token_expires_at（不更新登录时间字段）
       try {
-        Logger.log(`[AclService] 尝试仅更新session_token...`);
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE sm_xitongkaifa.sys_users SET session_token=? WHERE id=?`,
-          token,
-          Number(u.id)
-        );
+        Logger.log(`[AclService] 尝试仅更新session_token和token_expires_at...`);
+        const hasTokenExpiresAt = await this.hasCol('token_expires_at');
+        if (hasTokenExpiresAt) {
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE sm_xitongkaifa.sys_users SET session_token=?, token_expires_at=? WHERE id=?`,
+            token,
+            tokenExpiresAt,
+            Number(u.id)
+          );
+        } else {
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE sm_xitongkaifa.sys_users SET session_token=? WHERE id=?`,
+            token,
+            Number(u.id)
+          );
+        }
         Logger.log(`[AclService] session_token更新成功（简化版本），用户ID: ${u.id}`);
       } catch (fallbackError: any) {
         Logger.error(`[AclService] 简化更新也失败: ${fallbackError?.message}`);
@@ -655,20 +680,33 @@ export class AclService {
     const token = randomBytes(24).toString('hex');
     const loginTime = new Date();
     const device = deviceInfo || 'dingtalk_web';
+    // 设置token过期时间为3天后
+    const tokenExpiresAt = new Date();
+    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 3);
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
     // dingTalkUserId 是从 qyapi_get_member 权限点获取的真实员工 userID，将保存到 user_id 字段
     Logger.log('[AclService] 更新用户信息，userId:', user.id, 'departmentName:', departmentName, 'dingTalkUserId (qyapi_get_member):', dingTalkUserId);
+
+    // 确保token_expires_at字段存在
+    const hasTokenExpiresAt = await this.hasCol('token_expires_at');
+    if (!hasTokenExpiresAt) {
+      await this.ensureColumns();
+    }
+
     await this.prisma.$executeRawUnsafe(
-      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=?, user_id=? WHERE id=?`,
+      `UPDATE sm_xitongkaifa.sys_users SET session_token=?, last_login_time=?, last_login_device=?, code=?, department_id=?, user_id=?, token_expires_at=? WHERE id=?`,
       token,
       loginTime,
       device,
       `dingtalk_${dingTalkUserId}`,
       departmentName,
       dingTalkUserId, // 保存钉钉员工 userID（来自 qyapi_get_member 权限点，通常由数字组成）
+      tokenExpiresAt,
       Number(user.id)
     );
+
+    Logger.log('[AclService] token过期时间已设置:', tokenExpiresAt.toISOString());
 
     // 记录登录历史
     await this.logLogin(Number(user.id), user.username, device, loginTime, token);
@@ -686,13 +724,30 @@ export class AclService {
   async validateToken(userId: number, token: string) {
     await this.ensureSysUsersSchema();
     const rows: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT session_token, status FROM sm_xitongkaifa.sys_users WHERE id=?`,
+      `SELECT session_token, status, token_expires_at FROM sm_xitongkaifa.sys_users WHERE id=?`,
       userId
     );
     if (!rows.length) return false;
     // 账号被禁用时，无论 token 是否匹配，都视为无效，会触发前端强制退出
     if (Number(rows[0]?.status) !== 1) return false;
-    return String(rows[0]?.session_token || '') === String(token || '');
+
+    // 检查token是否匹配
+    if (String(rows[0]?.session_token || '') !== String(token || '')) {
+      return false;
+    }
+
+    // 检查token是否过期（如果token_expires_at字段存在）
+    const tokenExpiresAt = rows[0]?.token_expires_at;
+    if (tokenExpiresAt) {
+      const expiresAt = new Date(tokenExpiresAt);
+      const now = new Date();
+      if (now > expiresAt) {
+        Logger.log(`[AclService] Token已过期，用户ID: ${userId}, 过期时间: ${expiresAt.toISOString()}, 当前时间: ${now.toISOString()}`);
+        return false;
+      }
+    }
+
+    return true;
   }
 
   async logout(userId: number, token: string) {
