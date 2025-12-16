@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
 import { aclApi, SysPermission } from '@/lib/api';
+import { useEffect, useState } from 'react';
 
 export function usePermissions() {
   const [permissions, setPermissions] = useState<SysPermission[]>([]);
@@ -34,14 +34,19 @@ export function usePermissions() {
   const hasPermission = (path: string): boolean => {
     if (loading) return false;
     if (permissions.length === 0) return false;
-    
+
     // 检查是否有完全匹配的权限
     const hasExactMatch = permissions.some(p => p.path === path);
     if (hasExactMatch) return true;
 
     // 检查是否有父级权限（例如 /admin 包含 /admin/users）
+    // 修复：只检查 path.startsWith(p.path + '/')，确保是真正的父级路径
+    // 避免 /home 匹配 /homepage，以及 /home/supplier-management 匹配 /home/purchase-pass-difference 等情况
     const hasParentPermission = permissions.some(p => {
-      return path.startsWith(p.path + '/') || path.startsWith(p.path);
+      // 只有当权限路径是目标路径的前缀，且后面跟着 '/' 时才允许
+      // 例如：/home 可以匹配 /home/purchase-pass-difference（父级权限）
+      // 但 /home 不能匹配 /homepage，/home/supplier-management 不能匹配 /home/purchase-pass-difference
+      return path.startsWith(p.path + '/');
     });
 
     return hasParentPermission;
@@ -51,7 +56,7 @@ export function usePermissions() {
   const hasMenuPermission = (menuCode: string): boolean => {
     if (loading) return false;
     if (permissions.length === 0) return false;
-    
+
     return permissions.some(p => p.code === menuCode);
   };
 

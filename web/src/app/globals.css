@@ -25,23 +25,41 @@ body {
 }
 
 /* 全局强制：所有元素默认使用普惠体 */
-html, body, body * { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif; }
+html,
+body,
+body * {
+  font-family: var(--font-alibaba), Arial, Helvetica, sans-serif;
+}
 
 /* 表格与表头、分页、按钮、菜单等 AntD 组件统一字体 */
-.ant-table, .ant-table *,
-.ant-pagination, .ant-pagination *,
-.ant-btn, .ant-btn *,
-.ant-menu, .ant-menu *,
-.ant-select, .ant-select *,
-.ant-input, .ant-input *,
-.ant-statistic, .ant-statistic * { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif; }
+.ant-table,
+.ant-table *,
+.ant-pagination,
+.ant-pagination *,
+.ant-btn,
+.ant-btn *,
+.ant-menu,
+.ant-menu *,
+.ant-select,
+.ant-select *,
+.ant-input,
+.ant-input *,
+.ant-statistic,
+.ant-statistic * {
+  font-family: var(--font-alibaba), Arial, Helvetica, sans-serif;
+}
 
 /* 商品明细中特定列：条码与核对条码尾号（确保等宽表现但保留普惠体） */
-.barcode-cell, .barcode-tail-cell { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif !important; }
+.barcode-cell,
+.barcode-tail-cell {
+  font-family: var(--font-alibaba), Arial, Helvetica, sans-serif !important;
+}
 
 /* 让打印窗口也继承同样的字体 */
 @media print {
-  body { font-family: var(--font-alibaba), Arial, Helvetica, sans-serif; }
+  body {
+    font-family: var(--font-alibaba), Arial, Helvetica, sans-serif;
+  }
 }
 
 * {
@@ -63,84 +81,85 @@ a {
 
 /* 移动端响应式优化 */
 @media (max-width: 768px) {
+
   /* 优化 Ant Design 组件在移动端的显示 */
   .ant-table {
     font-size: 12px;
   }
-  
-  .ant-table-thead > tr > th {
+
+  .ant-table-thead>tr>th {
     padding: 8px 4px;
     font-size: 12px;
   }
-  
-  .ant-table-tbody > tr > td {
+
+  .ant-table-tbody>tr>td {
     padding: 8px 4px;
     font-size: 12px;
   }
-  
+
   /* 优化卡片在移动端 */
   .ant-card {
     border-radius: 4px;
   }
-  
+
   .ant-card-head {
     padding: 0 12px;
     min-height: 40px;
   }
-  
+
   .ant-card-head-title {
     font-size: 14px;
     padding: 12px 0;
   }
-  
+
   .ant-card-body {
     padding: 12px;
   }
-  
+
   /* 优化按钮在移动端 */
   .ant-btn {
     font-size: 12px;
     height: 32px;
     padding: 0 12px;
   }
-  
+
   .ant-btn-sm {
     height: 28px;
     padding: 0 8px;
     font-size: 12px;
   }
-  
+
   /* 优化输入框在移动端 */
   .ant-input,
   .ant-input-affix-wrapper {
     font-size: 14px;
     padding: 4px 8px;
   }
-  
+
   /* 优化表单在移动端 */
   .ant-form-item {
     margin-bottom: 16px;
   }
-  
+
   .ant-form-item-label {
     padding-bottom: 4px;
   }
-  
-  .ant-form-item-label > label {
+
+  .ant-form-item-label>label {
     font-size: 13px;
   }
-  
+
   /* 优化标签页在移动端 */
   .ant-tabs-tab {
     padding: 8px 12px;
     font-size: 12px;
   }
-  
+
   /* 优化分页在移动端 */
   .ant-pagination {
     margin: 16px 0;
   }
-  
+
   .ant-pagination-item,
   .ant-pagination-prev,
   .ant-pagination-next {
@@ -149,27 +168,27 @@ a {
     line-height: 26px;
     font-size: 12px;
   }
-  
+
   /* 优化菜单在移动端 */
   .ant-menu {
     font-size: 14px;
   }
-  
+
   /* 优化抽屉在移动端 */
   .ant-drawer-body {
     padding: 0;
   }
-  
+
   /* 优化消息提示在移动端 */
   .ant-message {
     top: 16px;
   }
-  
+
   .ant-message-notice-content {
     padding: 8px 12px;
     font-size: 13px;
   }
-  
+
   /* 优化模态框在移动端 */
   .ant-modal {
     margin: 0;
@@ -177,39 +196,39 @@ a {
     top: 0;
     padding-bottom: 0;
   }
-  
+
   .ant-modal-content {
     border-radius: 0;
   }
-  
+
   .ant-modal-header {
     padding: 12px 16px;
   }
-  
+
   .ant-modal-title {
     font-size: 16px;
   }
-  
+
   .ant-modal-body {
     padding: 16px;
     font-size: 14px;
   }
-  
+
   .ant-modal-footer {
     padding: 12px 16px;
   }
-  
+
   /* 优化表格滚动 */
   .ant-table-wrapper {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* 优化空间间距 */
   .ant-space {
     gap: 8px !important;
   }
-  
+
   .ant-space-item {
     font-size: 12px;
   }
@@ -220,19 +239,19 @@ a {
   .ant-card-head-title {
     font-size: 13px;
   }
-  
+
   .ant-btn {
     font-size: 11px;
     height: 28px;
     padding: 0 8px;
   }
-  
+
   .ant-table {
     font-size: 11px;
   }
-  
-  .ant-table-thead > tr > th,
-  .ant-table-tbody > tr > td {
+
+  .ant-table-thead>tr>th,
+  .ant-table-tbody>tr>td {
     padding: 6px 4px;
     font-size: 11px;
   }
@@ -240,25 +259,26 @@ a {
 
 /* 触摸设备优化 */
 @media (hover: none) and (pointer: coarse) {
+
   /* 增加触摸目标大小 */
   .ant-btn {
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   .ant-input,
   .ant-input-affix-wrapper {
     min-height: 44px;
   }
-  
+
   /* 优化点击区域 */
   .ant-menu-item,
   .ant-menu-submenu-title {
     padding: 12px 16px;
   }
-  
+
   /* 优化表格行点击 */
-  .ant-table-tbody > tr {
+  .ant-table-tbody>tr {
     min-height: 44px;
   }
 }
