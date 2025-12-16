@@ -32,9 +32,9 @@ export class PurchasePassDifferenceService {
         const subject = '采购通过差异单';
 
         // 将列表数据格式化为邮件内容
-        // 格式化为 {item1,item2,item3} 格式
+        // 格式化为 [item1,item2,item3] 格式
         const emailData: any = {
-            数据列表: items.length > 0 ? `{${items.join(',')}}` : '{}',
+            数据列表: items.length > 0 ? `[${items.join(',')}]` : '[]',
         };
 
         // 如果提供了userId，查询sys_users表中的user_id字段并添加到邮件中
