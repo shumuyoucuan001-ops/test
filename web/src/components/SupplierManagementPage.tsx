@@ -502,7 +502,12 @@ export default function SupplierManagementPage() {
                           style={{ width: '100%' }}
                           placeholder="请输入最小订货金额"
                           formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                          parser={value => value!.replace(/¥\s?|(,*)/g, '')}
+                          parser={value => {
+                            if (typeof value !== 'string') {
+                              return '';
+                            }
+                            return value.replace(/¥\s?|(,*)/g, '');
+                          }}
                         />
                       </Form.Item>
                     </Col>
