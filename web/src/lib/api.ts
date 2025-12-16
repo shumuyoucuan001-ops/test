@@ -432,6 +432,12 @@ export const storeRejectionApi = {
     api.post('/store-rejection/send-rejection-all-email', { item, email }).then(res => res.data),
 };
 
+// 采购管理 - 采购通过差异单
+export const purchasePassDifferenceApi = {
+  sendEmail: (items: string[], email?: string): Promise<{ success: boolean; message: string }> =>
+    api.post('/purchase-pass-difference/send-email', { items, email }).then(res => res.data),
+};
+
 // 门店管理 - 单次最高采购量
 export interface MaxPurchaseQuantityItem {
   '仓店名称': string;

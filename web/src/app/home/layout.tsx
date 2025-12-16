@@ -130,6 +130,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <TeamOutlined />,
     url: '/home/supplier-management',
   },
+  'purchase-pass-difference': {
+    title: '采购通过差异单',
+    icon: <ShoppingOutlined />,
+    url: '/home/purchase-pass-difference',
+  },
   'purchase': {
     title: '收货单查询打印',
     icon: <ShoppingOutlined />,
@@ -519,6 +524,11 @@ export default function HomeLayout({
             key: 'supplier-management',
             icon: <TeamOutlined />,
             label: '供应商管理',
+          },
+          {
+            key: 'purchase-pass-difference',
+            icon: <ShoppingOutlined />,
+            label: '采购通过差异单',
           },
         ],
       },
