@@ -1047,12 +1047,19 @@ export default function HomeLayout({
             borderRadius: isMobile ? 4 : 8,
             display: 'flex',
             flexDirection: 'column',
+            width: isMobile ? 'calc(100% - 16px)' : 'auto',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
           }}>
             <div style={{
               padding: isMobile ? 8 : 16,
               minHeight: 360,
               height: '100%',
-              overflow: 'auto'
+              overflow: 'auto',
+              overflowX: 'hidden',
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
             }}>
               {loading ? (
                 <div style={{

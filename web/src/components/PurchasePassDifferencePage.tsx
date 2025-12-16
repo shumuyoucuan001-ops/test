@@ -19,11 +19,27 @@ export default function PurchasePassDifferencePage() {
     // 检测移动端
     useEffect(() => {
         const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
+            const width = window.innerWidth;
+            // 更严格的移动端检测：小于768px或检测到移动设备
+            const isMobileDevice = width < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            setIsMobile(isMobileDevice);
+            // 调试日志（生产环境可移除）
+            if (process.env.NODE_ENV === 'development') {
+                console.log('[PurchasePassDifferencePage] 移动端检测:', {
+                    width,
+                    isMobile: isMobileDevice,
+                    userAgent: navigator.userAgent,
+                });
+            }
         };
         checkMobile();
         window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
+        // 监听方向变化
+        window.addEventListener('orientationchange', checkMobile);
+        return () => {
+            window.removeEventListener('resize', checkMobile);
+            window.removeEventListener('orientationchange', checkMobile);
+        };
     }, []);
 
     // 处理粘贴事件
@@ -138,7 +154,13 @@ export default function PurchasePassDifferencePage() {
     ];
 
     return (
-        <div style={{ padding: isMobile ? 8 : 24 }}>
+        <div style={{
+            padding: isMobile ? 8 : 24,
+            width: '100%',
+            maxWidth: '100%',
+            overflowX: 'hidden',
+            boxSizing: 'border-box',
+        }}>
             <Card
                 title={<span style={{ fontSize: isMobile ? 14 : 16 }}>采购管理 - 采购通过差异单</span>}
                 extra={
@@ -161,6 +183,11 @@ export default function PurchasePassDifferencePage() {
                         </Button>
                     </Space>
                 }
+                style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                }}
             >
                 <div
                     style={{
@@ -189,7 +216,12 @@ export default function PurchasePassDifferencePage() {
                 </div>
                 {/* 移动端使用卡片式布局，桌面端使用表格 */}
                 {isMobile ? (
-                    <div>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: '100%',
+                        overflowX: 'hidden',
+                        boxSizing: 'border-box',
+                    }}>
                         {data.length === 0 ? (
                             <div style={{
                                 padding: 40,
@@ -200,7 +232,14 @@ export default function PurchasePassDifferencePage() {
                                 暂无数据，请粘贴数据到上方输入框
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                                width: '100%',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box',
+                            }}>
                                 {data.map((item) => (
                                     <Card
                                         key={item.key}
@@ -209,16 +248,25 @@ export default function PurchasePassDifferencePage() {
                                             marginBottom: 0,
                                             borderRadius: 4,
                                             width: '100%',
+                                            maxWidth: '100%',
                                             boxSizing: 'border-box',
+                                            overflow: 'hidden',
                                         }}
                                         bodyStyle={{
                                             padding: '12px',
+                                            width: '100%',
+                                            maxWidth: '100%',
+                                            boxSizing: 'border-box',
+                                            overflow: 'hidden',
                                         }}
                                     >
                                         <div style={{
                                             display: 'flex',
                                             flexDirection: 'column',
                                             gap: 8,
+                                            width: '100%',
+                                            maxWidth: '100%',
+                                            boxSizing: 'border-box',
                                         }}>
                                             {/* 数据内容 */}
                                             <div style={{
@@ -228,6 +276,10 @@ export default function PurchasePassDifferencePage() {
                                                 wordWrap: 'break-word',
                                                 whiteSpace: 'normal',
                                                 lineHeight: '1.5',
+                                                width: '100%',
+                                                maxWidth: '100%',
+                                                overflowWrap: 'break-word',
+                                                boxSizing: 'border-box',
                                             }}>
                                                 {item.value}
                                             </div>
@@ -237,6 +289,8 @@ export default function PurchasePassDifferencePage() {
                                                 justifyContent: 'flex-end',
                                                 paddingTop: 8,
                                                 borderTop: '1px solid #f0f0f0',
+                                                width: '100%',
+                                                boxSizing: 'border-box',
                                             }}>
                                                 <Button
                                                     type="link"
@@ -245,6 +299,7 @@ export default function PurchasePassDifferencePage() {
                                                     onClick={() => handleDelete(item.key)}
                                                     style={{
                                                         padding: '0 8px',
+                                                        flexShrink: 0,
                                                     }}
                                                 >
                                                     删除
@@ -265,6 +320,8 @@ export default function PurchasePassDifferencePage() {
                                 textAlign: 'center',
                                 fontSize: 13,
                                 color: '#666',
+                                width: '100%',
+                                boxSizing: 'border-box',
                             }}>
                                 共 {data.length} 条记录
                             </div>
