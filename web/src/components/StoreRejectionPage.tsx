@@ -2,8 +2,9 @@
 
 import { StoreRejectionItem, storeRejectionApi } from "@/lib/api";
 import { MailOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Input, Space, Table } from "antd";
+import { App, Button, Card, Input, Space } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof StoreRejectionItem, string> = {
     "门店/仓": "门店/仓",
@@ -280,7 +281,7 @@ export default function StoreRejectionPage() {
                         </Space>
                     </Space>
                 </div>
-                <Table
+                <ResponsiveTable<StoreRejectionItem>
                     columns={columns as any}
                     dataSource={data}
                     rowKey={(r) => `${r["采购单号"]}_${r["sku_id"]}_${r["门店/仓"]}`}

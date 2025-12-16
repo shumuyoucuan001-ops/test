@@ -2,8 +2,9 @@
 
 import { MaxStoreSkuInventoryItem, maxStoreSkuInventoryApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table } from "antd";
+import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof MaxStoreSkuInventoryItem, string> = {
     "仓店名称": "仓店名称",
@@ -291,7 +292,7 @@ export default function MaxStoreSkuInventoryPage() {
                         </Space>
                     </Space>
                 </div>
-                <Table
+                <ResponsiveTable<MaxStoreSkuInventoryItem>
                     columns={columns as any}
                     dataSource={data}
                     rowKey={(r) => `${r["仓店名称"]}_${r["SKU编码"]}`}
