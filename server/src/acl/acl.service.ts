@@ -61,7 +61,7 @@ export class AclService {
       }
     }
 
-    // token_expires_at 字段用于存储token过期时间（3天有效期）
+    // token_expires_at 字段用于存储token过期时间（7天有效期）
     if (!(await this.hasCol('token_expires_at'))) {
       try {
         await this.prisma.$executeRawUnsafe(`ALTER TABLE sm_xitongkaifa.sys_users ADD COLUMN token_expires_at DATETIME NULL`);
@@ -515,9 +515,9 @@ export class AclService {
     const token = randomBytes(24).toString('hex');
     const loginTime = new Date();
     const device = deviceInfo || 'unknown';
-    // 设置token过期时间为3天后
+    // 设置token过期时间为7天后
     const tokenExpiresAt = new Date();
-    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 3);
+    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 7);
 
     Logger.log(`[AclService] 用户验证通过，准备更新session_token，用户ID: ${u.id}`);
 
@@ -680,9 +680,9 @@ export class AclService {
     const token = randomBytes(24).toString('hex');
     const loginTime = new Date();
     const device = deviceInfo || 'dingtalk_web';
-    // 设置token过期时间为3天后
+    // 设置token过期时间为7天后
     const tokenExpiresAt = new Date();
-    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 3);
+    tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 7);
 
     // 更新用户的session_token和部门信息 (单点登录：覆盖旧token)
     // dingTalkUserId 是从 qyapi_get_member 权限点获取的真实员工 userID，将保存到 user_id 字段
@@ -724,7 +724,7 @@ export class AclService {
   async validateToken(userId: number, token: string) {
     await this.ensureSysUsersSchema();
     const rows: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT session_token, status, token_expires_at FROM sm_xitongkaifa.sys_users WHERE id=?`,
+      `SELECT session_token, status, token_expires_at, user_id FROM sm_xitongkaifa.sys_users WHERE id=?`,
       userId
     );
     if (!rows.length) return false;
@@ -744,6 +744,28 @@ export class AclService {
       if (now > expiresAt) {
         Logger.log(`[AclService] Token已过期，用户ID: ${userId}, 过期时间: ${expiresAt.toISOString()}, 当前时间: ${now.toISOString()}`);
         return false;
+      }
+    }
+
+    // 对于钉钉用户，检查员工是否还在企业中（防止离职员工继续使用token）
+    const dingTalkUserId = rows[0]?.user_id;
+    if (dingTalkUserId) {
+      try {
+        const isActive = await this.dingTalkService.verifyEnterpriseMember(dingTalkUserId);
+        if (!isActive) {
+          Logger.log(`[AclService] 钉钉用户已离职或不在企业中，用户ID: ${userId}, 钉钉userID: ${dingTalkUserId}`);
+          // 自动禁用账号并清空token，防止后续继续使用
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE sm_xitongkaifa.sys_users SET status=0, session_token=NULL WHERE id=?`,
+            userId
+          );
+          return false;
+        }
+      } catch (error: any) {
+        // 如果钉钉API调用失败，记录日志但不阻止验证（避免因网络问题导致误判）
+        Logger.warn(`[AclService] 检查钉钉用户状态失败，用户ID: ${userId}, 钉钉userID: ${dingTalkUserId}, 错误: ${error?.message}`);
+        // 网络错误时允许通过，避免因钉钉API故障导致所有用户无法使用
+        // 但会记录警告日志，方便排查问题
       }
     }
 
