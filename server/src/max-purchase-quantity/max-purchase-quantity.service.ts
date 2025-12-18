@@ -137,7 +137,7 @@ export class MaxPurchaseQuantityService {
             // 查询仓店补货参考表
             const sql = `SELECT \`30天总销量\` 
                         FROM ${this.replenishmentReferenceTable} 
-                        WHERE \`仓店名称\` = ? AND \`SKU\` = ? 
+                        WHERE \`门店/仓名称\` = ? AND \`商品SKU\` = ? 
                         LIMIT 1`;
 
             const rows: any[] = await this.prisma.$queryRawUnsafe(sql, storeName.trim(), sku.trim());
