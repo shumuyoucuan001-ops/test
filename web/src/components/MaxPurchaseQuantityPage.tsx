@@ -1,7 +1,7 @@
 "use client";
 
 import { MaxPurchaseQuantityItem, maxPurchaseQuantityApi } from "@/lib/api";
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ResponsiveTable from "./ResponsiveTable";
@@ -128,34 +128,48 @@ export default function MaxPurchaseQuantityPage() {
         }
     };
 
+    // 解析错误消息中的推荐最小值
+    const parseRequiredMinimum = (errorMessage: string): number | null => {
+        const match = errorMessage.match(/\[REQUIRED_MINIMUM:(\d+)\]/);
+        if (match && match[1]) {
+            return parseInt(match[1], 10);
+        }
+        return null;
+    };
+
+    // 执行创建或更新操作
+    const executeCreateOrUpdate = async (values: any) => {
+        if (editingRecord) {
+            // 更新
+            await maxPurchaseQuantityApi.update(
+                {
+                    storeName: editingRecord['仓店名称'],
+                    sku: editingRecord['SKU'],
+                },
+                {
+                    storeName: values.storeName,
+                    sku: values.sku,
+                    maxQuantity: values.maxQuantity,
+                }
+            );
+            message.success('更新成功');
+        } else {
+            // 新增
+            await maxPurchaseQuantityApi.create({
+                storeName: values.storeName,
+                sku: values.sku,
+                maxQuantity: values.maxQuantity,
+            });
+            message.success('创建成功');
+        }
+    };
+
     const handleModalOk = async () => {
         try {
             const values = await form.validateFields();
             setModalLoading(true);
 
-            if (editingRecord) {
-                // 更新
-                await maxPurchaseQuantityApi.update(
-                    {
-                        storeName: editingRecord['仓店名称'],
-                        sku: editingRecord['SKU'],
-                    },
-                    {
-                        storeName: values.storeName,
-                        sku: values.sku,
-                        maxQuantity: values.maxQuantity,
-                    }
-                );
-                message.success('更新成功');
-            } else {
-                // 新增
-                await maxPurchaseQuantityApi.create({
-                    storeName: values.storeName,
-                    sku: values.sku,
-                    maxQuantity: values.maxQuantity,
-                });
-                message.success('创建成功');
-            }
+            await executeCreateOrUpdate(values);
 
             setModalVisible(false);
             form.resetFields();
@@ -165,7 +179,50 @@ export default function MaxPurchaseQuantityPage() {
                 // 表单验证错误
                 return;
             }
-            message.error((editingRecord ? '更新' : '创建') + '失败: ' + (error?.message || '未知错误'));
+
+            // 检查是否是单次最高采购量验证错误
+            const errorMessage = error?.response?.data?.message || error?.message || '未知错误';
+            const requiredMinimum = parseRequiredMinimum(errorMessage);
+
+            if (requiredMinimum !== null) {
+                // 显示确认对话框
+                // 清理错误消息，移除 [REQUIRED_MINIMUM:xxx] 标记
+                const cleanMessage = errorMessage.replace(/\[REQUIRED_MINIMUM:\d+\]/, '').trim();
+
+                Modal.confirm({
+                    title: '单次最高采购量不能低于月销/15',
+                    icon: <ExclamationCircleOutlined />,
+                    content: (
+                        <div>
+                            <p>{cleanMessage}</p>
+                            <p style={{ marginTop: 16, fontWeight: 'bold' }}>
+                                当前商品最低可设置为 {requiredMinimum}，是否调整到该值？
+                            </p>
+                        </div>
+                    ),
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk: async () => {
+                        // 自动设置表单值为推荐的最小值
+                        form.setFieldsValue({ maxQuantity: requiredMinimum });
+
+                        try {
+                            const updatedValues = await form.validateFields();
+                            await executeCreateOrUpdate(updatedValues);
+
+                            setModalVisible(false);
+                            form.resetFields();
+                            load(filters, currentPage, pageSize);
+                            message.success((editingRecord ? '更新' : '创建') + '成功');
+                        } catch (retryError: any) {
+                            message.error((editingRecord ? '更新' : '创建') + '失败: ' + (retryError?.response?.data?.message || retryError?.message || '未知错误'));
+                        }
+                    },
+                });
+            } else {
+                // 其他错误，直接显示错误消息
+                message.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
+            }
         } finally {
             setModalLoading(false);
         }

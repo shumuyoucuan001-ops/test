@@ -156,12 +156,14 @@ export class MaxPurchaseQuantityService {
             Logger.log('[MaxPurchaseQuantityService] 计算得到的最小采购量要求:', requiredMinimum);
 
             if (maxQuantity < requiredMinimum) {
-                const message = `设置的单次最高采购量(${maxQuantity})低于要求的最小值(${requiredMinimum.toFixed(2)})。根据该仓店SKU的30天总销量(${totalSales30Days})计算，最小值应为：${totalSales30Days} ÷ 15 = ${requiredMinimum.toFixed(2)}`;
+                // 向上取整作为推荐值
+                const recommendedMinimum = Math.ceil(requiredMinimum);
+                const message = `设置的单次最高采购量(${maxQuantity})低于要求的最小值。根据该仓店SKU的30天总销量(${totalSales30Days})计算，最小值应为：${totalSales30Days} ÷ 15 = ${requiredMinimum.toFixed(2)}（向上取整为 ${recommendedMinimum}）`;
                 Logger.log('[MaxPurchaseQuantityService] 验证失败:', message);
                 return {
                     valid: false,
                     message,
-                    requiredMinimum
+                    requiredMinimum: recommendedMinimum  // 返回向上取整后的值
                 };
             }
 
@@ -364,7 +366,9 @@ export class MaxPurchaseQuantityService {
         );
 
         if (!validationResult.valid) {
-            throw new BadRequestException(validationResult.message);
+            // 在错误消息中包含推荐的最小值，方便前端解析
+            const errorMessage = `${validationResult.message}[REQUIRED_MINIMUM:${validationResult.requiredMinimum}]`;
+            throw new BadRequestException(errorMessage);
         }
 
         // 自动获取修改人
@@ -467,7 +471,9 @@ export class MaxPurchaseQuantityService {
             );
 
             if (!validationResult.valid) {
-                throw new BadRequestException(validationResult.message);
+                // 在错误消息中包含推荐的最小值，方便前端解析
+                const errorMessage = `${validationResult.message}[REQUIRED_MINIMUM:${validationResult.requiredMinimum}]`;
+                throw new BadRequestException(errorMessage);
             }
         }
 
