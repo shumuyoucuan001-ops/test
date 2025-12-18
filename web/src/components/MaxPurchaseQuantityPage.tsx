@@ -14,7 +14,7 @@ const fieldLabels: Record<keyof MaxPurchaseQuantityItem, string> = {
 };
 
 export default function MaxPurchaseQuantityPage() {
-    const { message } = App.useApp();
+    const { message, modal } = App.useApp();
     const [form] = Form.useForm();
     const [data, setData] = useState<MaxPurchaseQuantityItem[]>([]);
     const [total, setTotal] = useState(0);
@@ -205,7 +205,7 @@ export default function MaxPurchaseQuantityPage() {
                 const cleanMessage = errorMessage.replace(/\[REQUIRED_MINIMUM:\d+\]/, '').trim();
 
                 console.log('[MaxPurchaseQuantity] 显示确认对话框，推荐最小值:', requiredMinimum);
-                Modal.confirm({
+                modal.confirm({
                     title: '单次最高采购量不能低于月销/15',
                     icon: <ExclamationCircleOutlined />,
                     content: (
