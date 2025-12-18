@@ -36,38 +36,86 @@ export class Refund1688FollowUpService {
     });
   }
 
-  // 获取所有退款跟进记录(包含自动匹配采购单号)
-  async findAll(): Promise<Refund1688FollowUp[]> {
+  // 获取所有退款跟进记录(包含自动匹配采购单号和分页)
+  async findAll(
+    page: number = 1,
+    limit: number = 20,
+    filters?: {
+      收货人姓名?: string;
+      订单编号?: string;
+      买家会员名?: string;
+      采购单号?: string;
+      物流单号?: string;
+      进度追踪?: string;
+      keyword?: string; // 关键词搜索
+    }
+  ): Promise<{ data: Refund1688FollowUp[]; total: number }> {
     const connection = await this.getChaigouConnection();
     try {
-      // 先检查表是否存在
-      Logger.log('[Refund1688FollowUpService] 开始查询表...');
+      Logger.log('[Refund1688FollowUpService] 开始查询，分页参数:', { page, limit, filters });
 
-      try {
-        const [tables] = await connection.execute(
-          `SHOW TABLES FROM sm_chaigou LIKE '1688退款售后'`
-        );
-        Logger.log('[Refund1688FollowUpService] 表检查结果:', tables);
+      const offset = (page - 1) * limit;
 
-        if (!tables || (tables as any[]).length === 0) {
-          Logger.warn('[Refund1688FollowUpService] 表 "sm_chaigou.1688退款售后" 不存在，返回空数组');
-          return [];
-        }
-      } catch (checkError) {
-        Logger.error('[Refund1688FollowUpService] 检查表失败:', checkError);
+      // 构建搜索条件
+      const clauses: string[] = [];
+      const params: any[] = [];
+      const buildLike = (v?: string) => `%${(v || '').trim()}%`;
+
+      // 关键词搜索（OR across all columns）
+      if (filters?.keyword?.trim()) {
+        const like = buildLike(filters.keyword);
+        clauses.push(`(
+          r.\`收货人姓名\` LIKE ? OR
+          r.\`订单编号\` LIKE ? OR
+          r.\`买家会员名\` LIKE ? OR
+          COALESCE(r.\`采购单号\`, p.\`采购单号\`) LIKE ? OR
+          r.\`物流单号\` LIKE ?
+        )`);
+        params.push(like, like, like, like, like);
       }
 
-      // 先尝试简单查询，看看能否获取数据
-      Logger.log('[Refund1688FollowUpService] 执行简单查询测试...');
-      const [testRows] = await connection.execute(
-        `SELECT * FROM \`sm_chaigou\`.\`1688退款售后\` LIMIT 1`
-      );
-      Logger.log('[Refund1688FollowUpService] 测试查询结果:', testRows);
+      // 按字段精确搜索（AND）
+      if (filters?.收货人姓名?.trim()) {
+        clauses.push(`r.\`收货人姓名\` LIKE ?`);
+        params.push(buildLike(filters.收货人姓名));
+      }
+      if (filters?.订单编号?.trim()) {
+        clauses.push(`r.\`订单编号\` LIKE ?`);
+        params.push(buildLike(filters.订单编号));
+      }
+      if (filters?.买家会员名?.trim()) {
+        clauses.push(`r.\`买家会员名\` LIKE ?`);
+        params.push(buildLike(filters.买家会员名));
+      }
+      if (filters?.采购单号?.trim()) {
+        clauses.push(`COALESCE(r.\`采购单号\`, p.\`采购单号\`) LIKE ?`);
+        params.push(buildLike(filters.采购单号));
+      }
+      if (filters?.物流单号?.trim()) {
+        clauses.push(`r.\`物流单号\` LIKE ?`);
+        params.push(buildLike(filters.物流单号));
+      }
+      if (filters?.进度追踪?.trim()) {
+        clauses.push(`r.\`进度追踪\` = ?`);
+        params.push(filters.进度追踪);
+      }
 
-      // 使用LEFT JOIN自动关联采购单号
-      Logger.log('[Refund1688FollowUpService] 执行完整查询...');
-      const [rows] = await connection.execute(
-        `SELECT 
+      const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
+      // 获取总数
+      const countSql = `SELECT COUNT(*) as total 
+        FROM \`sm_chaigou\`.\`1688退款售后\` r
+        LEFT JOIN \`sm_chaigou\`.\`采购单信息\` p 
+          ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
+        ${searchCondition}`;
+
+      Logger.log('[Refund1688FollowUpService] 执行计数查询...');
+      const [countRows] = await connection.execute(countSql, params);
+      const total = Number((countRows as any[])[0]?.total || 0);
+      Logger.log(`[Refund1688FollowUpService] 总记录数: ${total}`);
+
+      // 获取分页数据
+      const dataSql = `SELECT 
           r.\`订单编号\`,
           r.\`收货人姓名\`,
           r.\`买家会员名\`,
@@ -89,32 +137,17 @@ export class Refund1688FollowUpService {
         FROM \`sm_chaigou\`.\`1688退款售后\` r
         LEFT JOIN \`sm_chaigou\`.\`采购单信息\` p 
           ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
-        ORDER BY r.\`订单编号\` DESC`,
-      );
+        ${searchCondition}
+        ORDER BY r.\`订单编号\` DESC
+        LIMIT ${limit} OFFSET ${offset}`;
 
-      Logger.log(`[Refund1688FollowUpService] 查询到 ${(rows as any[]).length} 条记录`);
-      const results = rows as Refund1688FollowUp[];
+      Logger.log('[Refund1688FollowUpService] 执行数据查询...');
+      const [rows] = await connection.execute(dataSql, params);
+      const data = rows as Refund1688FollowUp[];
 
-      // 对于有新匹配到采购单号但数据库中为空的记录,更新到数据库
-      for (const row of results) {
-        if (row.采购单号 && row.订单编号) {
-          // 检查数据库中是否为空,如果为空则更新
-          const [checkRows] = await connection.execute(
-            `SELECT \`采购单号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
-            [row.订单编号],
-          );
-          const dbRow = (checkRows as any[])[0];
-          if (!dbRow['采购单号'] || dbRow['采购单号'].trim() === '') {
-            await connection.execute(
-              `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`采购单号\` = ? WHERE \`订单编号\` = ?`,
-              [row.采购单号, row.订单编号],
-            );
-            Logger.log(`[Refund1688FollowUpService] 自动匹配采购单号: 订单编号=${row.订单编号}, 采购单号=${row.采购单号}`);
-          }
-        }
-      }
+      Logger.log(`[Refund1688FollowUpService] 查询到 ${data.length} 条记录（第 ${page} 页）`);
 
-      return results;
+      return { data, total };
     } catch (error) {
       Logger.error('[Refund1688FollowUpService] 查询失败，详细错误:', error);
       Logger.error('[Refund1688FollowUpService] 错误消息:', (error as any)?.message);

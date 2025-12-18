@@ -29,7 +29,7 @@ const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 90000, // 增加到90秒
 });
 
 // 带上用户ID，用于后端权限校验
@@ -660,8 +660,19 @@ export interface Refund1688FollowUp {
 }
 
 export const refund1688Api = {
-  // 获取所有退款跟进记录
-  getAll: (): Promise<Refund1688FollowUp[]> => api.get('/refund-1688-follow-up').then(res => res.data),
+  // 获取所有退款跟进记录（支持分页）
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    收货人姓名?: string;
+    订单编号?: string;
+    买家会员名?: string;
+    采购单号?: string;
+    物流单号?: string;
+    进度追踪?: string;
+    keyword?: string;
+  }): Promise<{ data: Refund1688FollowUp[]; total: number }> =>
+    api.get('/refund-1688-follow-up', { params }).then(res => res.data),
 
   // 更新退款跟进记录
   update: (orderNo: string, data: Partial<Refund1688FollowUp>): Promise<{ success: boolean; message: string }> =>

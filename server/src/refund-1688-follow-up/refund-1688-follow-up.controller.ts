@@ -5,10 +5,36 @@ import { Refund1688FollowUpService, Refund1688FollowUp } from './refund-1688-fol
 export class Refund1688FollowUpController {
   constructor(private readonly service: Refund1688FollowUpService) {}
 
-  // 获取所有退款跟进记录
+  // 获取所有退款跟进记录（支持分页）
   @Get()
-  async findAll(): Promise<Refund1688FollowUp[]> {
-    return await this.service.findAll();
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('收货人姓名') 收货人姓名?: string,
+    @Query('订单编号') 订单编号?: string,
+    @Query('买家会员名') 买家会员名?: string,
+    @Query('采购单号') 采购单号?: string,
+    @Query('物流单号') 物流单号?: string,
+    @Query('进度追踪') 进度追踪?: string,
+    @Query('keyword') keyword?: string,
+  ): Promise<{ data: Refund1688FollowUp[]; total: number }> {
+    const pageNum = Math.max(1, parseInt(page || '1', 10));
+    const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 200));
+    
+    const filters: any = {};
+    if (收货人姓名) filters.收货人姓名 = 收货人姓名;
+    if (订单编号) filters.订单编号 = 订单编号;
+    if (买家会员名) filters.买家会员名 = 买家会员名;
+    if (采购单号) filters.采购单号 = 采购单号;
+    if (物流单号) filters.物流单号 = 物流单号;
+    if (进度追踪) filters.进度追踪 = 进度追踪;
+    if (keyword) filters.keyword = keyword;
+
+    return await this.service.findAll(
+      pageNum, 
+      limitNum, 
+      Object.keys(filters).length > 0 ? filters : undefined
+    );
   }
 
   // 更新退款跟进记录

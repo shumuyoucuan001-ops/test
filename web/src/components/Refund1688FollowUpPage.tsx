@@ -34,19 +34,26 @@ const PROGRESS_STATUS_OPTIONS = [
 
 export default function Refund1688FollowUpPage() {
     const [data, setData] = useState<Refund1688FollowUp[]>([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Refund1688FollowUp | null>(null);
     const [form] = Form.useForm();
-    const [pageSize, setPageSize] = useState(50);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [searchText, setSearchText] = useState('');
 
     // 加载数据
     const loadData = async () => {
         setLoading(true);
         try {
-            const result = await refund1688Api.getAll();
-            setData(result);
+            const result = await refund1688Api.getAll({
+                page: currentPage,
+                limit: pageSize,
+                keyword: searchText || undefined,
+            });
+            setData(result.data || []);
+            setTotal(result.total || 0);
         } catch (error) {
             message.error('加载数据失败');
             console.error(error);
@@ -150,20 +157,13 @@ export default function Refund1688FollowUpPage() {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [currentPage, pageSize]);
 
-    // 过滤数据
-    const filteredData = data.filter(item => {
-        if (!searchText) return true;
-        const searchLower = searchText.toLowerCase();
-        return (
-            item.收货人姓名?.toLowerCase().includes(searchLower) ||
-            item.订单编号?.toLowerCase().includes(searchLower) ||
-            item.买家会员名?.toLowerCase().includes(searchLower) ||
-            item.采购单号?.toLowerCase().includes(searchLower) ||
-            item.物流单号?.toLowerCase().includes(searchLower)
-        );
-    });
+    // 处理搜索
+    const handleSearch = () => {
+        setCurrentPage(1); // 重置到第一页
+        loadData();
+    };
 
     const columns: ColumnType<Refund1688FollowUp>[] = [
         {
@@ -340,6 +340,7 @@ export default function Refund1688FollowUpPage() {
                             style={{ width: 400 }}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
+                            onSearch={handleSearch}
                             allowClear
                         />
                         <Button
@@ -357,19 +358,24 @@ export default function Refund1688FollowUpPage() {
             >
                 <Table
                     columns={columns}
-                    dataSource={filteredData}
+                    dataSource={data}
                     rowKey="订单编号"
                     loading={loading}
                     scroll={{ x: 2500, y: 600 }}
                     pagination={{
-                        pageSize,
+                        current: currentPage,
+                        pageSize: pageSize,
+                        total: total,
                         showSizeChanger: true,
                         pageSizeOptions: ['20', '50', '100', '200'],
                         showTotal: (total) => `共 ${total} 条记录`,
-                        onChange: (_p, size) => {
-                            if (size && size !== pageSize) setPageSize(size);
+                        onChange: (page, size) => {
+                            setCurrentPage(page);
+                            if (size && size !== pageSize) {
+                                setPageSize(size);
+                                setCurrentPage(1); // 改变页面大小时重置到第一页
+                            }
                         },
-                        onShowSizeChange: (_c, size) => setPageSize(size),
                     }}
                 />
             </Card>
