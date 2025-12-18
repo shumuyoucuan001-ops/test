@@ -137,8 +137,8 @@ export default function MaxPurchaseQuantityPage() {
         return null;
     };
 
-    // 执行创建或更新操作
-    const executeCreateOrUpdate = async (values: any) => {
+    // 执行创建或更新操作（不显示成功消息，由调用者决定）
+    const executeCreateOrUpdate = async (values: any, showSuccessMessage: boolean = false) => {
         if (editingRecord) {
             // 更新
             await maxPurchaseQuantityApi.update(
@@ -152,7 +152,9 @@ export default function MaxPurchaseQuantityPage() {
                     maxQuantity: values.maxQuantity,
                 }
             );
-            message.success('更新成功');
+            if (showSuccessMessage) {
+                message.success('更新成功');
+            }
         } else {
             // 新增
             await maxPurchaseQuantityApi.create({
@@ -160,7 +162,9 @@ export default function MaxPurchaseQuantityPage() {
                 sku: values.sku,
                 maxQuantity: values.maxQuantity,
             });
-            message.success('创建成功');
+            if (showSuccessMessage) {
+                message.success('创建成功');
+            }
         }
     };
 
@@ -169,26 +173,38 @@ export default function MaxPurchaseQuantityPage() {
             const values = await form.validateFields();
             setModalLoading(true);
 
-            await executeCreateOrUpdate(values);
+            console.log('[MaxPurchaseQuantity] 提交数据:', values);
+            await executeCreateOrUpdate(values, false);
 
+            // 成功后的处理
             setModalVisible(false);
             form.resetFields();
+            message.success((editingRecord ? '更新' : '创建') + '成功');
             load(filters, currentPage, pageSize);
         } catch (error: any) {
+            console.log('[MaxPurchaseQuantity] 捕获错误:', error);
+            console.log('[MaxPurchaseQuantity] 错误响应:', error?.response);
+            console.log('[MaxPurchaseQuantity] 错误数据:', error?.response?.data);
+
             if (error?.errorFields) {
                 // 表单验证错误
+                console.log('[MaxPurchaseQuantity] 表单验证错误');
                 return;
             }
 
             // 检查是否是单次最高采购量验证错误
             const errorMessage = error?.response?.data?.message || error?.message || '未知错误';
+            console.log('[MaxPurchaseQuantity] 错误消息:', errorMessage);
+
             const requiredMinimum = parseRequiredMinimum(errorMessage);
+            console.log('[MaxPurchaseQuantity] 解析的最小值:', requiredMinimum);
 
             if (requiredMinimum !== null) {
                 // 显示确认对话框
                 // 清理错误消息，移除 [REQUIRED_MINIMUM:xxx] 标记
                 const cleanMessage = errorMessage.replace(/\[REQUIRED_MINIMUM:\d+\]/, '').trim();
 
+                console.log('[MaxPurchaseQuantity] 显示确认对话框，推荐最小值:', requiredMinimum);
                 Modal.confirm({
                     title: '单次最高采购量不能低于月销/15',
                     icon: <ExclamationCircleOutlined />,
@@ -203,24 +219,31 @@ export default function MaxPurchaseQuantityPage() {
                     okText: '确定',
                     cancelText: '取消',
                     onOk: async () => {
+                        console.log('[MaxPurchaseQuantity] 用户确认使用推荐值:', requiredMinimum);
                         // 自动设置表单值为推荐的最小值
                         form.setFieldsValue({ maxQuantity: requiredMinimum });
 
                         try {
                             const updatedValues = await form.validateFields();
-                            await executeCreateOrUpdate(updatedValues);
+                            console.log('[MaxPurchaseQuantity] 重新提交数据:', updatedValues);
+                            await executeCreateOrUpdate(updatedValues, false);
 
                             setModalVisible(false);
                             form.resetFields();
-                            load(filters, currentPage, pageSize);
                             message.success((editingRecord ? '更新' : '创建') + '成功');
+                            load(filters, currentPage, pageSize);
                         } catch (retryError: any) {
+                            console.error('[MaxPurchaseQuantity] 重试失败:', retryError);
                             message.error((editingRecord ? '更新' : '创建') + '失败: ' + (retryError?.response?.data?.message || retryError?.message || '未知错误'));
                         }
+                    },
+                    onCancel: () => {
+                        console.log('[MaxPurchaseQuantity] 用户取消操作');
                     },
                 });
             } else {
                 // 其他错误，直接显示错误消息
+                console.log('[MaxPurchaseQuantity] 显示错误消息:', errorMessage);
                 message.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
             }
         } finally {

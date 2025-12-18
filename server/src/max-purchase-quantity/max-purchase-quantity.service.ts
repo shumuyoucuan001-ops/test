@@ -128,7 +128,8 @@ export class MaxPurchaseQuantityService {
         maxQuantity: number
     ): Promise<{ valid: boolean; message?: string; requiredMinimum?: number }> {
         try {
-            Logger.log('[MaxPurchaseQuantityService] 开始验证单次最高采购量:', {
+            Logger.log('[MaxPurchaseQuantityService] ========== 开始验证单次最高采购量 ==========');
+            Logger.log('[MaxPurchaseQuantityService] 输入参数:', {
                 storeName,
                 sku,
                 maxQuantity
@@ -140,11 +141,19 @@ export class MaxPurchaseQuantityService {
                         WHERE \`门店/仓名称\` = ? AND \`商品SKU\` = ? 
                         LIMIT 1`;
 
+            Logger.log('[MaxPurchaseQuantityService] 执行查询SQL:', sql);
+            Logger.log('[MaxPurchaseQuantityService] 查询参数:', [storeName.trim(), sku.trim()]);
+
             const rows: any[] = await this.prisma.$queryRawUnsafe(sql, storeName.trim(), sku.trim());
+
+            Logger.log('[MaxPurchaseQuantityService] 查询结果行数:', rows?.length || 0);
+            Logger.log('[MaxPurchaseQuantityService] 查询结果:', this.safeStringify(rows));
 
             if (!rows || rows.length === 0) {
                 // 如果没有找到对应的补货参考记录，则不进行验证，允许设置
-                Logger.log('[MaxPurchaseQuantityService] 未找到仓店补货参考记录，跳过验证');
+                Logger.warn('[MaxPurchaseQuantityService] ⚠️ 未找到仓店补货参考记录，跳过验证');
+                Logger.warn('[MaxPurchaseQuantityService] 仓店名称:', storeName.trim());
+                Logger.warn('[MaxPurchaseQuantityService] SKU:', sku.trim());
                 return { valid: true };
             }
 
@@ -154,12 +163,14 @@ export class MaxPurchaseQuantityService {
             // 计算最小采购量要求：30天总销量 / 15
             const requiredMinimum = totalSales30Days / 15;
             Logger.log('[MaxPurchaseQuantityService] 计算得到的最小采购量要求:', requiredMinimum);
+            Logger.log('[MaxPurchaseQuantityService] 用户输入的最高采购量:', maxQuantity);
 
             if (maxQuantity < requiredMinimum) {
                 // 向上取整作为推荐值
                 const recommendedMinimum = Math.ceil(requiredMinimum);
                 const message = `设置的单次最高采购量(${maxQuantity})低于要求的最小值。根据该仓店SKU的30天总销量(${totalSales30Days})计算，最小值应为：${totalSales30Days} ÷ 15 = ${requiredMinimum.toFixed(2)}（向上取整为 ${recommendedMinimum}）`;
-                Logger.log('[MaxPurchaseQuantityService] 验证失败:', message);
+                Logger.warn('[MaxPurchaseQuantityService] ❌ 验证失败:', message);
+                Logger.warn('[MaxPurchaseQuantityService] 推荐最小值:', recommendedMinimum);
                 return {
                     valid: false,
                     message,
@@ -167,10 +178,12 @@ export class MaxPurchaseQuantityService {
                 };
             }
 
-            Logger.log('[MaxPurchaseQuantityService] 验证通过');
+            Logger.log('[MaxPurchaseQuantityService] ✅ 验证通过');
+            Logger.log('[MaxPurchaseQuantityService] ========== 验证结束 ==========');
             return { valid: true };
         } catch (error) {
-            Logger.error('[MaxPurchaseQuantityService] 验证单次最高采购量时发生错误:', error);
+            Logger.error('[MaxPurchaseQuantityService] ❌ 验证单次最高采购量时发生错误:', error);
+            Logger.error('[MaxPurchaseQuantityService] 错误堆栈:', (error as Error)?.stack);
             // 如果查询出错，记录日志但不阻止操作
             return { valid: true };
         }
