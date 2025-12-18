@@ -1,7 +1,7 @@
 "use client";
 
-import PurchasePassDifferencePage from '../../../components/PurchasePassDifferencePage';
 import PermissionGuard from '../../../components/PermissionGuard';
+import PurchasePassDifferencePage from '../../../components/PurchasePassDifferencePage';
 
 export default function PurchasePassDifferenceRoute() {
   return (

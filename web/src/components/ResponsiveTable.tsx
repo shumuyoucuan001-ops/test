@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, Pagination, Table } from "antd";
+import { Card, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface ResponsiveTableProps<T> extends Omit<TableProps<T>, 'columns'> {
     columns: ColumnsType<T>;
@@ -47,11 +47,6 @@ export default function ResponsiveTable<T extends Record<string, any>>({
         }
         return record[rowKey]?.toString() || index.toString();
     };
-
-    // 抽取分页配置（如果存在且不是 false）
-    const pagination = tableProps.pagination && typeof tableProps.pagination === 'object'
-        ? tableProps.pagination
-        : undefined;
 
     // 移动端卡片式布局
     if (isMobile) {
@@ -102,15 +97,7 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                             // 获取单元格值
                                             let cellValue: any;
                                             if (render) {
-                                                // 使用列自带的 render 直接渲染，兼容 Tag、按钮等 React 组件
-                                                cellValue = render(
-                                                    dataIndex ? (Array.isArray(dataIndex)
-                                                        ? dataIndex.reduce((obj, k) => obj?.[k], record)
-                                                        : record[dataIndex])
-                                                        : record,
-                                                    record,
-                                                    index
-                                                );
+                                                cellValue = render(record[dataIndex], record, index);
                                             } else if (dataIndex) {
                                                 const keys = Array.isArray(dataIndex) ? dataIndex : [dataIndex];
                                                 cellValue = keys.reduce((obj, k) => obj?.[k], record);
@@ -142,17 +129,15 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                                     }}>
                                                         {title}:
                                                     </div>
-                                                    <div
-                                                        style={{
-                                                            flex: 1,
-                                                            fontSize: 14,
-                                                            color: '#333',
-                                                            wordBreak: 'break-all',
-                                                            textAlign: 'right',
-                                                        }}
-                                                    >
-                                                        {React.isValidElement(cellValue)
-                                                            ? cellValue
+                                                    <div style={{
+                                                        flex: 1,
+                                                        fontSize: 14,
+                                                        color: '#333',
+                                                        wordBreak: 'break-all',
+                                                        textAlign: 'right',
+                                                    }}>
+                                                        {typeof cellValue === 'object' && cellValue !== null
+                                                            ? JSON.stringify(cellValue)
                                                             : String(cellValue)}
                                                     </div>
                                                 </div>
@@ -176,20 +161,23 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                         })}
                     </div>
                 )}
-                {/* 移动端分页控件：使用与桌面端相同的分页配置 */}
-                {pagination && dataSource.length > 0 && (
-                    <div
-                        style={{
-                            marginTop: 16,
-                            padding: '8px 0',
-                            display: 'flex',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Pagination
-                            size="small"
-                            {...pagination}
-                        />
+                {/* 移动端分页信息 */}
+                {tableProps.pagination && dataSource.length > 0 && (
+                    <div style={{
+                        marginTop: 16,
+                        padding: '12px',
+                        background: '#f5f5f5',
+                        borderRadius: 4,
+                        textAlign: 'center',
+                        fontSize: 13,
+                        color: '#666',
+                    }}>
+                        {typeof tableProps.pagination === 'object' && tableProps.pagination.showTotal
+                            ? tableProps.pagination.showTotal(dataSource.length, [
+                                dataSource.length,
+                                dataSource.length,
+                            ])
+                            : `共 ${dataSource.length} 条记录`}
                     </div>
                 )}
             </div>

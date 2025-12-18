@@ -15,6 +15,7 @@ export class MaxPurchaseQuantityService {
 
     private readonly table = '`sm_chaigou`.`单次最高采购量`';
     private readonly warehousePriorityTable = '`sm_chaigou`.`仓库优先级`';
+    private readonly replenishmentReferenceTable = '`sm_chaigou`.`仓店补货参考`';
 
     /**
      * 获取用户的角色名称列表
@@ -114,6 +115,63 @@ export class MaxPurchaseQuantityService {
         return JSON.stringify(obj, (key, value) =>
             typeof value === 'bigint' ? value.toString() : value
             , 2);
+    }
+
+    /**
+     * 验证单次最高采购量是否符合30天总销量的要求
+     * 从 sm_chaigou.仓店补货参考 表中查询同仓店名称、同SKU的30天总销量
+     * 单次最高采购量不能低于 (30天总销量 / 15)
+     */
+    private async validateMaxQuantityAgainstSales(
+        storeName: string,
+        sku: string,
+        maxQuantity: number
+    ): Promise<{ valid: boolean; message?: string; requiredMinimum?: number }> {
+        try {
+            Logger.log('[MaxPurchaseQuantityService] 开始验证单次最高采购量:', {
+                storeName,
+                sku,
+                maxQuantity
+            });
+
+            // 查询仓店补货参考表
+            const sql = `SELECT \`30天总销量\` 
+                        FROM ${this.replenishmentReferenceTable} 
+                        WHERE \`仓店名称\` = ? AND \`SKU\` = ? 
+                        LIMIT 1`;
+
+            const rows: any[] = await this.prisma.$queryRawUnsafe(sql, storeName.trim(), sku.trim());
+
+            if (!rows || rows.length === 0) {
+                // 如果没有找到对应的补货参考记录，则不进行验证，允许设置
+                Logger.log('[MaxPurchaseQuantityService] 未找到仓店补货参考记录，跳过验证');
+                return { valid: true };
+            }
+
+            const totalSales30Days = Number(rows[0]['30天总销量'] || 0);
+            Logger.log('[MaxPurchaseQuantityService] 查询到30天总销量:', totalSales30Days);
+
+            // 计算最小采购量要求：30天总销量 / 15
+            const requiredMinimum = totalSales30Days / 15;
+            Logger.log('[MaxPurchaseQuantityService] 计算得到的最小采购量要求:', requiredMinimum);
+
+            if (maxQuantity < requiredMinimum) {
+                const message = `设置的单次最高采购量(${maxQuantity})低于要求的最小值(${requiredMinimum.toFixed(2)})。根据该仓店SKU的30天总销量(${totalSales30Days})计算，最小值应为：${totalSales30Days} ÷ 15 = ${requiredMinimum.toFixed(2)}`;
+                Logger.log('[MaxPurchaseQuantityService] 验证失败:', message);
+                return {
+                    valid: false,
+                    message,
+                    requiredMinimum
+                };
+            }
+
+            Logger.log('[MaxPurchaseQuantityService] 验证通过');
+            return { valid: true };
+        } catch (error) {
+            Logger.error('[MaxPurchaseQuantityService] 验证单次最高采购量时发生错误:', error);
+            // 如果查询出错，记录日志但不阻止操作
+            return { valid: true };
+        }
     }
 
     /**
@@ -298,6 +356,17 @@ export class MaxPurchaseQuantityService {
             throw new BadRequestException('单次最高采购量(基本单位)不能为空');
         }
 
+        // 验证单次最高采购量是否符合30天总销量的要求
+        const validationResult = await this.validateMaxQuantityAgainstSales(
+            data.storeName,
+            data.sku,
+            data.maxQuantity
+        );
+
+        if (!validationResult.valid) {
+            throw new BadRequestException(validationResult.message);
+        }
+
         // 自动获取修改人
         let modifier = '系统';
         if (userId) {
@@ -384,6 +453,22 @@ export class MaxPurchaseQuantityService {
         }
         if (data.maxQuantity !== undefined && (data.maxQuantity === null || data.maxQuantity === undefined)) {
             throw new BadRequestException('单次最高采购量(基本单位)不能为空');
+        }
+
+        // 如果更新了单次最高采购量，验证是否符合30天总销量的要求
+        if (data.maxQuantity !== undefined) {
+            const finalStoreName = data.storeName || original.storeName;
+            const finalSku = data.sku || original.sku;
+
+            const validationResult = await this.validateMaxQuantityAgainstSales(
+                finalStoreName,
+                finalSku,
+                data.maxQuantity
+            );
+
+            if (!validationResult.valid) {
+                throw new BadRequestException(validationResult.message);
+            }
         }
 
         // 自动获取修改人
