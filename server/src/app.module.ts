@@ -19,6 +19,7 @@ import { SupplierManagementModule } from './supplier-management/supplier-managem
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
 import { VersionModule } from './version/version.module';
+import { Refund1688FollowUpModule } from './refund-1688-follow-up/refund-1688-follow-up.module';
 // 暂时关闭后端接口权限拦截
 
 @Module({
@@ -40,6 +41,7 @@ import { VersionModule } from './version/version.module';
     MaxPurchaseQuantityModule,
     MaxStoreSkuInventoryModule,
     PurchasePassDifferenceModule,
+    Refund1688FollowUpModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

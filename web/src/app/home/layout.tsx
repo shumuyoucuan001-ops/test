@@ -186,6 +186,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <TeamOutlined />,
     url: '/home/admin-users',
   },
+  'refund-1688-follow-up': {
+    title: '1688退款(退货)跟进情况',
+    icon: <ShoppingOutlined />,
+    url: '/home/refund-1688-follow-up',
+  },
 };
 
 // 允许无需权限展示的路径格式['/home/ops-exclusion'];
@@ -559,6 +564,11 @@ export default function HomeLayout({
             key: 'purchase-pass-difference',
             icon: <ShoppingOutlined />,
             label: '采购通过差异单',
+          },
+          {
+            key: 'refund-1688-follow-up',
+            icon: <ShoppingOutlined />,
+            label: '1688退款(退货)跟进情况',
           },
         ],
       },
