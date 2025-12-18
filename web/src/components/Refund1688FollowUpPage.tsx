@@ -143,25 +143,6 @@ export default function Refund1688FollowUpPage() {
         window.open(url, '_blank');
     };
 
-    // 自动匹配采购单号
-    const handleAutoMatchPurchaseOrders = async () => {
-        try {
-            message.loading({ content: '正在匹配采购单号...', key: 'autoMatch' });
-            const result = await refund1688Api.autoMatchPurchaseOrderNos();
-            message.success({
-                content: `${result.message}`,
-                key: 'autoMatch',
-                duration: 3
-            });
-            await loadData(); // 重新加载数据
-        } catch (error: any) {
-            message.error({
-                content: error?.response?.data?.message || '匹配失败',
-                key: 'autoMatch'
-            });
-            console.error(error);
-        }
-    };
 
     useEffect(() => {
         loadData();
@@ -359,13 +340,6 @@ export default function Refund1688FollowUpPage() {
                             onSearch={handleSearch}
                             allowClear
                         />
-                        <Button
-                            icon={<SyncOutlined />}
-                            onClick={handleAutoMatchPurchaseOrders}
-                            type="default"
-                        >
-                            匹配采购单号
-                        </Button>
                         <Button icon={<SyncOutlined />} onClick={loadData} loading={loading}>
                             刷新
                         </Button>
