@@ -64,7 +64,7 @@ export default function Refund1688FollowUpPage() {
 
         try {
             message.loading({ content: '正在获取订单状态...', key: 'orderStatus' });
-            const result = await refund1688Api.getOrderStatus(record.id);
+            const result = await refund1688Api.getOrderStatus(record.订单编号);
             message.success({ content: '订单状态已更新', key: 'orderStatus' });
             await loadData(); // 重新加载数据
         } catch (error: any) {
@@ -85,7 +85,7 @@ export default function Refund1688FollowUpPage() {
 
         try {
             message.loading({ content: '正在获取退款状态...', key: 'refundStatus' });
-            const result = await refund1688Api.getRefundStatus(record.id);
+            const result = await refund1688Api.getRefundStatus(record.订单编号);
             message.success({ content: '退款状态已更新', key: 'refundStatus' });
             await loadData(); // 重新加载数据
         } catch (error: any) {
@@ -112,7 +112,7 @@ export default function Refund1688FollowUpPage() {
             const values = await form.validateFields();
             if (!editingRecord) return;
 
-            await refund1688Api.update(editingRecord.id, values);
+            await refund1688Api.update(editingRecord.订单编号, values);
             message.success('保存成功');
             setEditModalVisible(false);
             await loadData();
@@ -358,7 +358,7 @@ export default function Refund1688FollowUpPage() {
                 <Table
                     columns={columns}
                     dataSource={filteredData}
-                    rowKey="id"
+                    rowKey="订单编号"
                     loading={loading}
                     scroll={{ x: 2500, y: 600 }}
                     pagination={{

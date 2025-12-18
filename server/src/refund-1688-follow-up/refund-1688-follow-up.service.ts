@@ -4,9 +4,8 @@ import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
 export interface Refund1688FollowUp {
-  id: number;
+  订单编号: string; // 主键
   收货人姓名?: string;
-  订单编号?: string;
   买家会员名?: string;
   订单状态?: string;
   订单详情页?: string;
@@ -69,9 +68,8 @@ export class Refund1688FollowUpService {
       Logger.log('[Refund1688FollowUpService] 执行完整查询...');
       const [rows] = await connection.execute(
         `SELECT 
-          r.id,
-          r.\`收货人姓名\`,
           r.\`订单编号\`,
+          r.\`收货人姓名\`,
           r.\`买家会员名\`,
           r.\`订单状态\`,
           r.\`订单详情页\`,
@@ -91,7 +89,7 @@ export class Refund1688FollowUpService {
         FROM \`sm_chaigou\`.\`1688退款售后\` r
         LEFT JOIN \`sm_chaigou\`.\`采购单信息\` p 
           ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
-        ORDER BY r.id DESC`,
+        ORDER BY r.\`订单编号\` DESC`,
       );
 
       Logger.log(`[Refund1688FollowUpService] 查询到 ${(rows as any[]).length} 条记录`);
@@ -102,16 +100,16 @@ export class Refund1688FollowUpService {
         if (row.采购单号 && row.订单编号) {
           // 检查数据库中是否为空,如果为空则更新
           const [checkRows] = await connection.execute(
-            `SELECT \`采购单号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE id = ?`,
-            [row.id],
+            `SELECT \`采购单号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+            [row.订单编号],
           );
           const dbRow = (checkRows as any[])[0];
           if (!dbRow['采购单号'] || dbRow['采购单号'].trim() === '') {
             await connection.execute(
-              `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`采购单号\` = ? WHERE id = ?`,
-              [row.采购单号, row.id],
+              `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`采购单号\` = ? WHERE \`订单编号\` = ?`,
+              [row.采购单号, row.订单编号],
             );
-            Logger.log(`[Refund1688FollowUpService] 自动匹配采购单号: ID=${row.id}, 采购单号=${row.采购单号}`);
+            Logger.log(`[Refund1688FollowUpService] 自动匹配采购单号: 订单编号=${row.订单编号}, 采购单号=${row.采购单号}`);
           }
         }
       }
@@ -129,7 +127,7 @@ export class Refund1688FollowUpService {
   }
 
   // 更新退款跟进记录
-  async update(id: number, data: Partial<Refund1688FollowUp>): Promise<void> {
+  async update(orderNo: string, data: Partial<Refund1688FollowUp>): Promise<void> {
     const connection = await this.getChaigouConnection();
     try {
       // 构建更新语句
@@ -164,16 +162,16 @@ export class Refund1688FollowUpService {
         return;
       }
 
-      updateValues.push(id);
+      updateValues.push(orderNo);
 
-      const sql = `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET ${updateFields.join(', ')} WHERE id = ?`;
+      const sql = `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET ${updateFields.join(', ')} WHERE \`订单编号\` = ?`;
 
       Logger.log('[Refund1688FollowUpService] 执行更新SQL:', sql);
       Logger.log('[Refund1688FollowUpService] 更新参数:', updateValues);
 
       await connection.execute(sql, updateValues);
 
-      Logger.log(`[Refund1688FollowUpService] 更新成功: ID=${id}`);
+      Logger.log(`[Refund1688FollowUpService] 更新成功: 订单编号=${orderNo}`);
     } catch (error) {
       Logger.error('[Refund1688FollowUpService] 更新失败:', error);
       throw error;
@@ -183,13 +181,13 @@ export class Refund1688FollowUpService {
   }
 
   // 根据订单编号获取订单状态
-  async getOrderStatus(id: number): Promise<{ status: string }> {
+  async getOrderStatus(orderNo: string): Promise<{ status: string }> {
     const connection = await this.getChaigouConnection();
     try {
       // 先获取记录的http请求url
       const [rows] = await connection.execute(
-        `SELECT \`http请求(url)\` as http请求url FROM \`1688退款售后\` WHERE id = ?`,
-        [id],
+        `SELECT \`http请求(url)\` as http请求url FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        [orderNo],
       );
 
       const record = (rows as any[])[0];
@@ -211,11 +209,11 @@ export class Refund1688FollowUpService {
 
       // 更新订单状态到数据库
       await connection.execute(
-        `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`订单状态\` = ?, \`请求获取订单状态\` = ? WHERE id = ?`,
-        [status, new Date().toISOString(), id],
+        `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`订单状态\` = ?, \`请求获取订单状态\` = ? WHERE \`订单编号\` = ?`,
+        [status, new Date().toISOString(), orderNo],
       );
 
-      Logger.log(`[Refund1688FollowUpService] 订单状态已更新: ID=${id}, status=${status}`);
+      Logger.log(`[Refund1688FollowUpService] 订单状态已更新: 订单编号=${orderNo}, status=${status}`);
 
       return { status };
     } catch (error: any) {
@@ -227,13 +225,13 @@ export class Refund1688FollowUpService {
   }
 
   // 根据订单编号获取退款状态
-  async getRefundStatus(id: number): Promise<{ refundStatus: string }> {
+  async getRefundStatus(orderNo: string): Promise<{ refundStatus: string }> {
     const connection = await this.getChaigouConnection();
     try {
       // 先获取记录的http请求url
       const [rows] = await connection.execute(
-        `SELECT \`http请求(url)\` as http请求url FROM \`sm_chaigou\`.\`1688退款售后\` WHERE id = ?`,
-        [id],
+        `SELECT \`http请求(url)\` as http请求url FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        [orderNo],
       );
 
       const record = (rows as any[])[0];
@@ -256,11 +254,11 @@ export class Refund1688FollowUpService {
 
       // 更新退款状态到数据库
       await connection.execute(
-        `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`请求获取退款状态\` = ? WHERE id = ?`,
-        [refundStatus || '无', id],
+        `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`请求获取退款状态\` = ? WHERE \`订单编号\` = ?`,
+        [refundStatus || '无', orderNo],
       );
 
-      Logger.log(`[Refund1688FollowUpService] 退款状态已更新: ID=${id}, refundStatus=${refundStatus}`);
+      Logger.log(`[Refund1688FollowUpService] 退款状态已更新: 订单编号=${orderNo}, refundStatus=${refundStatus}`);
 
       return { refundStatus };
     } catch (error: any) {
@@ -299,7 +297,7 @@ export class Refund1688FollowUpService {
     try {
       // 查询所有没有采购单号的记录
       const [rows] = await connection.execute(
-        `SELECT id, \`订单编号\` 
+        `SELECT \`订单编号\` 
         FROM \`sm_chaigou\`.\`1688退款售后\` 
         WHERE \`采购单号\` IS NULL OR \`采购单号\` = ''`,
       );
@@ -311,11 +309,11 @@ export class Refund1688FollowUpService {
         const purchaseOrderNo = await this.matchPurchaseOrderNo(record['订单编号']);
         if (purchaseOrderNo) {
           await connection.execute(
-            `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`采购单号\` = ? WHERE id = ?`,
-            [purchaseOrderNo, record.id],
+            `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`采购单号\` = ? WHERE \`订单编号\` = ?`,
+            [purchaseOrderNo, record['订单编号']],
           );
           updateCount++;
-          Logger.log(`[Refund1688FollowUpService] 已匹配采购单号: ID=${record.id}, 采购单号=${purchaseOrderNo}`);
+          Logger.log(`[Refund1688FollowUpService] 已匹配采购单号: 订单编号=${record['订单编号']}, 采购单号=${purchaseOrderNo}`);
         }
       }
 

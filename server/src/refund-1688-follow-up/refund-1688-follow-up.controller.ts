@@ -12,25 +12,25 @@ export class Refund1688FollowUpController {
   }
 
   // 更新退款跟进记录
-  @Put(':id')
+  @Put(':orderNo')
   async update(
-    @Param('id') id: string,
+    @Param('orderNo') orderNo: string,
     @Body() data: Partial<Refund1688FollowUp>,
   ): Promise<{ success: boolean; message: string }> {
-    await this.service.update(Number(id), data);
+    await this.service.update(orderNo, data);
     return { success: true, message: '更新成功' };
   }
 
   // 获取订单状态
-  @Post(':id/order-status')
-  async getOrderStatus(@Param('id') id: string): Promise<{ status: string }> {
-    return await this.service.getOrderStatus(Number(id));
+  @Post(':orderNo/order-status')
+  async getOrderStatus(@Param('orderNo') orderNo: string): Promise<{ status: string }> {
+    return await this.service.getOrderStatus(orderNo);
   }
 
   // 获取退款状态
-  @Post(':id/refund-status')
-  async getRefundStatus(@Param('id') id: string): Promise<{ refundStatus: string }> {
-    return await this.service.getRefundStatus(Number(id));
+  @Post(':orderNo/refund-status')
+  async getRefundStatus(@Param('orderNo') orderNo: string): Promise<{ refundStatus: string }> {
+    return await this.service.getRefundStatus(orderNo);
   }
 
   // 自动匹配采购单号

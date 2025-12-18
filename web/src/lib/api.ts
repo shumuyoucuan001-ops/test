@@ -639,9 +639,8 @@ export const aclApi = {
 
 // 1688退款跟进接口
 export interface Refund1688FollowUp {
-  id: number;
+  订单编号: string; // 主键
   收货人姓名?: string;
-  订单编号?: string;
   买家会员名?: string;
   订单状态?: string;
   订单详情页?: string;
@@ -665,16 +664,16 @@ export const refund1688Api = {
   getAll: (): Promise<Refund1688FollowUp[]> => api.get('/refund-1688-follow-up').then(res => res.data),
 
   // 更新退款跟进记录
-  update: (id: number, data: Partial<Refund1688FollowUp>): Promise<{ success: boolean; message: string }> =>
-    api.put(`/refund-1688-follow-up/${id}`, data).then(res => res.data),
+  update: (orderNo: string, data: Partial<Refund1688FollowUp>): Promise<{ success: boolean; message: string }> =>
+    api.put(`/refund-1688-follow-up/${encodeURIComponent(orderNo)}`, data).then(res => res.data),
 
   // 获取订单状态
-  getOrderStatus: (id: number): Promise<{ status: string }> =>
-    api.post(`/refund-1688-follow-up/${id}/order-status`).then(res => res.data),
+  getOrderStatus: (orderNo: string): Promise<{ status: string }> =>
+    api.post(`/refund-1688-follow-up/${encodeURIComponent(orderNo)}/order-status`).then(res => res.data),
 
   // 获取退款状态
-  getRefundStatus: (id: number): Promise<{ refundStatus: string }> =>
-    api.post(`/refund-1688-follow-up/${id}/refund-status`).then(res => res.data),
+  getRefundStatus: (orderNo: string): Promise<{ refundStatus: string }> =>
+    api.post(`/refund-1688-follow-up/${encodeURIComponent(orderNo)}/refund-status`).then(res => res.data),
 
   // 自动匹配采购单号
   autoMatchPurchaseOrderNos: (): Promise<{ success: boolean; count: number; message: string }> =>
