@@ -100,7 +100,12 @@ export class Refund1688FollowUpService {
         params.push(filters.进度追踪);
       }
 
-      const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+      // 添加固定条件：1688平台且最近3个月
+      const fixedConditions = `p.\`采购下单渠道\` = '1688采购平台' AND p.\`创建时间\` >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)`;
+
+      const searchCondition = clauses.length > 0
+        ? `WHERE ${fixedConditions} AND (${clauses.join(' AND ')})`
+        : `WHERE ${fixedConditions}`;
 
       // 获取总数
       const countSql = `SELECT COUNT(*) as total 
@@ -238,12 +243,15 @@ export class Refund1688FollowUpService {
         },
       });
 
-      const status = response.data?.status || '';
+      // 从1688 API的实际JSON结构中提取订单状态
+      const status = response.data?.result?.baseInfo?.status || '';
 
-      // 更新订单状态到数据库
+      Logger.log(`[Refund1688FollowUpService] 获取到订单状态: ${status}`);
+
+      // 更新订单状态到数据库（两个字段都存状态值）
       await connection.execute(
         `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`订单状态\` = ?, \`请求获取订单状态\` = ? WHERE \`订单编号\` = ?`,
-        [status, new Date().toISOString(), orderNo],
+        [status, status, orderNo],
       );
 
       Logger.log(`[Refund1688FollowUpService] 订单状态已更新: 订单编号=${orderNo}, status=${status}`);
@@ -282,8 +290,13 @@ export class Refund1688FollowUpService {
         },
       });
 
-      // 尝试获取 refundStatus 或 refundStatusForAs
-      const refundStatus = response.data?.refundStatus || response.data?.refundStatusForAs || '';
+      // 从1688 API的实际JSON结构中提取退款状态
+      // 尝试从 result.baseInfo.refundStatus 获取，如果没有则尝试 refundStatusForAs
+      const refundStatus = response.data?.result?.baseInfo?.refundStatus
+        || response.data?.result?.baseInfo?.refundStatusForAs
+        || '';
+
+      Logger.log(`[Refund1688FollowUpService] 获取到退款状态: ${refundStatus}`);
 
       // 更新退款状态到数据库
       await connection.execute(

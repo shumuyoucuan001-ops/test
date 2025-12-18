@@ -210,32 +210,40 @@ export default function Refund1688FollowUpPage() {
         },
         {
             title: '请求获取订单状态',
+            dataIndex: '请求获取订单状态',
             key: '请求获取订单状态',
-            width: 150,
-            render: (_, record) => (
-                <Button
-                    size="small"
-                    icon={<SyncOutlined />}
-                    onClick={() => handleRefreshOrderStatus(record)}
-                    disabled={!record.http请求url}
-                >
-                    刷新
-                </Button>
+            width: 180,
+            render: (text, record) => (
+                <Space>
+                    <span>{text || '-'}</span>
+                    <Button
+                        size="small"
+                        type="link"
+                        icon={<SyncOutlined />}
+                        onClick={() => handleRefreshOrderStatus(record)}
+                        disabled={!record.http请求url}
+                        title="刷新订单状态"
+                    />
+                </Space>
             ),
         },
         {
             title: '请求获取退款状态',
+            dataIndex: '请求获取退款状态',
             key: '请求获取退款状态',
-            width: 150,
-            render: (_, record) => (
-                <Button
-                    size="small"
-                    icon={<SyncOutlined />}
-                    onClick={() => handleRefreshRefundStatus(record)}
-                    disabled={!record.http请求url}
-                >
-                    刷新
-                </Button>
+            width: 180,
+            render: (text, record) => (
+                <Space>
+                    <span>{text || '-'}</span>
+                    <Button
+                        size="small"
+                        type="link"
+                        icon={<SyncOutlined />}
+                        onClick={() => handleRefreshRefundStatus(record)}
+                        disabled={!record.http请求url}
+                        title="刷新退款状态"
+                    />
+                </Space>
             ),
         },
         {
