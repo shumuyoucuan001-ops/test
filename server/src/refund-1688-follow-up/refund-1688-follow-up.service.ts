@@ -43,6 +43,7 @@ export class Refund1688FollowUpService {
     filters?: {
       收货人姓名?: string;
       订单编号?: string;
+      订单状态?: string;
       买家会员名?: string;
       采购单号?: string;
       物流单号?: string;
@@ -82,6 +83,10 @@ export class Refund1688FollowUpService {
       if (filters?.订单编号?.trim()) {
         clauses.push(`r.\`订单编号\` LIKE ?`);
         params.push(buildLike(filters.订单编号));
+      }
+      if (filters?.订单状态?.trim()) {
+        clauses.push(`r.\`订单状态\` LIKE ?`);
+        params.push(buildLike(filters.订单状态));
       }
       if (filters?.买家会员名?.trim()) {
         clauses.push(`r.\`买家会员名\` LIKE ?`);
@@ -152,12 +157,10 @@ export class Refund1688FollowUpService {
 
       Logger.log(`[Refund1688FollowUpService] 查询到 ${data.length} 条记录（第 ${page} 页）`);
 
-      // 自动更新订单状态和退款状态（异步执行，不阻塞返回）
-      this.autoUpdateOrderAndRefundStatus(data).catch((error) => {
-        Logger.error('[Refund1688FollowUpService] 自动更新状态失败:', error);
-      });
+      // 同步更新订单状态和退款状态（等待更新完成再返回）
+      const updatedData = await this.autoUpdateOrderAndRefundStatus(data);
 
-      return { data, total };
+      return { data: updatedData, total };
     } catch (error) {
       Logger.error('[Refund1688FollowUpService] 查询失败，详细错误:', error);
       Logger.error('[Refund1688FollowUpService] 错误消息:', (error as any)?.message);
@@ -256,13 +259,13 @@ export class Refund1688FollowUpService {
 
       Logger.log(`[Refund1688FollowUpService] 获取到订单状态: ${statusEn} (${statusCn})`);
 
-      // 更新订单状态到数据库（保存中文）
+      // 只更新"请求获取订单状态"字段，不同步到"订单状态"
       await connection.execute(
-        `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`订单状态\` = ?, \`请求获取订单状态\` = ? WHERE \`订单编号\` = ?`,
-        [statusCn, statusCn, orderNo],
+        `UPDATE \`sm_chaigou\`.\`1688退款售后\` SET \`请求获取订单状态\` = ? WHERE \`订单编号\` = ?`,
+        [statusCn, orderNo],
       );
 
-      Logger.log(`[Refund1688FollowUpService] 订单状态已更新: 订单编号=${orderNo}, status=${statusCn}`);
+      Logger.log(`[Refund1688FollowUpService] 请求获取订单状态已更新: 订单编号=${orderNo}, status=${statusCn}`);
 
       return { status: statusCn };
     } catch (error: any) {
@@ -432,18 +435,21 @@ export class Refund1688FollowUpService {
     return refundStatusMap[refundStatus] || refundStatus || '无';
   }
 
-  // 自动更新订单状态和退款状态（异步批量处理）
-  private async autoUpdateOrderAndRefundStatus(records: Refund1688FollowUp[]): Promise<void> {
+  // 自动更新订单状态和退款状态（同步批量处理，返回更新后的数据）
+  private async autoUpdateOrderAndRefundStatus(records: Refund1688FollowUp[]): Promise<Refund1688FollowUp[]> {
     Logger.log(`[Refund1688FollowUpService] 开始自动更新状态，共 ${records.length} 条记录`);
 
     // 过滤出有 http请求url 的记录
     const recordsWithUrl = records.filter(r => r.http请求url);
     if (recordsWithUrl.length === 0) {
       Logger.log('[Refund1688FollowUpService] 没有记录需要更新状态');
-      return;
+      return records; // 直接返回原始数据
     }
 
     Logger.log(`[Refund1688FollowUpService] 需要更新 ${recordsWithUrl.length} 条记录`);
+
+    // 存储更新后的状态（订单编号 -> 状态）
+    const updatedStatusMap = new Map<string, { requestOrderStatus: string; refundStatus: string }>();
 
     // 限制并发数，避免同时发起过多请求（每次处理5条）
     const concurrentLimit = 5;
@@ -475,13 +481,19 @@ export class Refund1688FollowUpService {
               const statusCn = this.translateOrderStatus(statusEn);
               const refundStatusCn = this.translateRefundStatus(refundStatusEn);
 
-              // 更新数据库（保存中文）
+              // 只更新"请求获取订单状态"和"请求获取退款状态"，不同步到"订单状态"
               await connection.execute(
                 `UPDATE \`sm_chaigou\`.\`1688退款售后\` 
-                 SET \`订单状态\` = ?, \`请求获取订单状态\` = ?, \`请求获取退款状态\` = ? 
+                 SET \`请求获取订单状态\` = ?, \`请求获取退款状态\` = ? 
                  WHERE \`订单编号\` = ?`,
-                [statusCn, statusCn, refundStatusCn, record.订单编号],
+                [statusCn, refundStatusCn, record.订单编号],
               );
+
+              // 记录更新后的状态（只更新请求获取的状态，不更新订单状态）
+              updatedStatusMap.set(record.订单编号, {
+                requestOrderStatus: statusCn,
+                refundStatus: refundStatusCn,
+              });
 
               Logger.log(`[Refund1688FollowUpService] 已更新状态: 订单编号=${record.订单编号}, 订单状态=${statusEn}(${statusCn}), 退款状态=${refundStatusEn}(${refundStatusCn})`);
             } catch (error: any) {
@@ -503,6 +515,21 @@ export class Refund1688FollowUpService {
     } finally {
       await connection.end();
     }
+
+    // 将更新后的状态应用到原始记录中（只更新请求获取的状态字段）
+    const updatedRecords = records.map(record => {
+      const updated = updatedStatusMap.get(record.订单编号);
+      if (updated) {
+        return {
+          ...record,
+          请求获取订单状态: updated.requestOrderStatus,
+          请求获取退款状态: updated.refundStatus,
+        };
+      }
+      return record;
+    });
+
+    return updatedRecords;
   }
 }
 

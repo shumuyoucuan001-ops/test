@@ -42,6 +42,13 @@ export default function Refund1688FollowUpPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
     const [searchText, setSearchText] = useState('');
+    const [searchFilters, setSearchFilters] = useState<{
+        收货人姓名?: string;
+        订单编号?: string;
+        订单状态?: string;
+        进度追踪?: string;
+        采购单号?: string;
+    }>({});
 
     // 加载数据
     const loadData = async () => {
@@ -51,6 +58,7 @@ export default function Refund1688FollowUpPage() {
                 page: currentPage,
                 limit: pageSize,
                 keyword: searchText || undefined,
+                ...searchFilters,
             });
             setData(result.data || []);
             setTotal(result.total || 0);

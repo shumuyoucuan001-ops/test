@@ -12,6 +12,7 @@ export class Refund1688FollowUpController {
     @Query('limit') limit?: string,
     @Query('收货人姓名') 收货人姓名?: string,
     @Query('订单编号') 订单编号?: string,
+    @Query('订单状态') 订单状态?: string,
     @Query('买家会员名') 买家会员名?: string,
     @Query('采购单号') 采购单号?: string,
     @Query('物流单号') 物流单号?: string,
@@ -24,6 +25,7 @@ export class Refund1688FollowUpController {
     const filters: any = {};
     if (收货人姓名) filters.收货人姓名 = 收货人姓名;
     if (订单编号) filters.订单编号 = 订单编号;
+    if (订单状态) filters.订单状态 = 订单状态;
     if (买家会员名) filters.买家会员名 = 买家会员名;
     if (采购单号) filters.采购单号 = 采购单号;
     if (物流单号) filters.物流单号 = 物流单号;
