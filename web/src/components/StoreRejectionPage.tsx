@@ -112,8 +112,6 @@ export default function StoreRejectionPage() {
 
         // 检查是否在一分钟内重复点击
         if (lastClickTime && now - lastClickTime < 60000) {
-            const remainingTime = Math.ceil((60000 - (now - lastClickTime)) / 1000);
-            message.warning(`请勿在一分钟内重复点击（还需等待 ${remainingTime} 秒）`);
             return;
         }
 
@@ -172,8 +170,6 @@ export default function StoreRejectionPage() {
 
         // 检查是否在一分钟内重复点击
         if (lastClickTime && now - lastClickTime < 60000) {
-            const remainingTime = Math.ceil((60000 - (now - lastClickTime)) / 1000);
-            message.warning(`请勿在一分钟内重复点击（还需等待 ${remainingTime} 秒）`);
             return;
         }
 
@@ -233,7 +229,14 @@ export default function StoreRejectionPage() {
 
         // 添加操作列
         const actionColumn = {
-            title: '操作',
+            title: (
+                <span>
+                    操作{' '}
+                    <span style={{ color: 'red', fontSize: '12px' }}>
+                        (一分钟内不能重复点击相同按钮)
+                    </span>
+                </span>
+            ),
             key: 'action',
             width: 300,
             render: (_: any, record: StoreRejectionItem) => {
