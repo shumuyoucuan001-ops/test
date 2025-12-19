@@ -69,7 +69,7 @@ export class Refund1688FollowUpService {
           r.\`收货人姓名\` LIKE ? OR
           r.\`订单编号\` LIKE ? OR
           r.\`买家会员名\` LIKE ? OR
-          COALESCE(r.\`采购单号\`, p.\`采购单号\`) LIKE ? OR
+          r.\`采购单号\` LIKE ? OR
           r.\`物流单号\` LIKE ?
         )`);
         params.push(like, like, like, like, like);
@@ -93,7 +93,7 @@ export class Refund1688FollowUpService {
         params.push(buildLike(filters.买家会员名));
       }
       if (filters?.采购单号?.trim()) {
-        clauses.push(`COALESCE(r.\`采购单号\`, p.\`采购单号\`) LIKE ?`);
+        clauses.push(`r.\`采购单号\` LIKE ?`);
         params.push(buildLike(filters.采购单号));
       }
       if (filters?.物流单号?.trim()) {
@@ -105,18 +105,14 @@ export class Refund1688FollowUpService {
         params.push(filters.进度追踪);
       }
 
-      // 添加固定条件：1688平台且最近3个月
-      const fixedConditions = `p.\`采购下单渠道\` = '1688采购平台' AND p.\`创建时间\` >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)`;
-
+      // 构建搜索条件（不再需要JOIN采购单信息表）
       const searchCondition = clauses.length > 0
-        ? `WHERE ${fixedConditions} AND (${clauses.join(' AND ')})`
-        : `WHERE ${fixedConditions}`;
+        ? `WHERE ${clauses.join(' AND ')}`
+        : '';
 
-      // 获取总数
+      // 获取总数（不再需要JOIN采购单信息表）
       const countSql = `SELECT COUNT(*) as total 
         FROM \`sm_chaigou\`.\`1688退款售后\` r
-        LEFT JOIN \`sm_chaigou\`.\`采购单信息\` p 
-          ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
         ${searchCondition}`;
 
       Logger.log('[Refund1688FollowUpService] 执行计数查询...');
@@ -124,7 +120,7 @@ export class Refund1688FollowUpService {
       const total = Number((countRows as any[])[0]?.total || 0);
       Logger.log(`[Refund1688FollowUpService] 总记录数: ${total}`);
 
-      // 获取分页数据（JOIN sys_users获取跟进人的display_name）
+      // 获取分页数据（直接查询1688退款售后表的采购单号，JOIN sys_users获取跟进人的display_name）
       const dataSql = `SELECT 
           r.\`订单编号\`,
           r.\`收货人姓名\`,
@@ -135,7 +131,7 @@ export class Refund1688FollowUpService {
           r.\`请求获取订单状态\`,
           r.\`请求获取退款状态\`,
           r.\`进度追踪\`,
-          COALESCE(r.\`采购单号\`, p.\`采购单号\`) as 采购单号,
+          r.\`采购单号\`,
           r.\`跟进情况/备注\` as 跟进情况备注,
           r.\`出库单号（回库）\` as 出库单号回库,
           r.\`差异单/出库单详情\` as 差异单出库单详情,
@@ -145,8 +141,6 @@ export class Refund1688FollowUpService {
           r.\`发货截图\`,
           COALESCE(u.\`display_name\`, r.\`跟进人\`) as 跟进人
         FROM \`sm_chaigou\`.\`1688退款售后\` r
-        LEFT JOIN \`sm_chaigou\`.\`采购单信息\` p 
-          ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
         LEFT JOIN \`sm_xitongkaifa\`.\`sys_users\` u
           ON r.\`跟进人\` REGEXP '^[0-9]+$' AND CAST(r.\`跟进人\` AS UNSIGNED) = u.\`id\`
         ${searchCondition}

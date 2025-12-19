@@ -471,14 +471,6 @@ export default function Refund1688FollowUpPage() {
                     <Form.Item label="发货截图" name="发货截图">
                         <TextArea rows={2} placeholder="图片URL，多个用逗号分隔" />
                     </Form.Item>
-
-                    <Form.Item label="跟进人" name="跟进人">
-                        <Input
-                            disabled
-                            placeholder="自动获取当前登录用户的display_name"
-                            style={{ backgroundColor: '#f5f5f5' }}
-                        />
-                    </Form.Item>
                 </Form>
             </Modal>
         </div>
