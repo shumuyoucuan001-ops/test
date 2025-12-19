@@ -112,14 +112,17 @@ export default function StoreRejectionPage() {
 
         // 检查是否在一分钟内重复点击
         if (lastClickTime && now - lastClickTime < 60000) {
-            message.warning('请勿在一分钟内重复点击');
+            const remainingTime = Math.ceil((60000 - (now - lastClickTime)) / 1000);
+            message.warning(`请勿在一分钟内重复点击（还需等待 ${remainingTime} 秒）`);
             return;
         }
 
-        // 设置按钮为禁用状态
-        setButtonDisabled(prev => ({ ...prev, [buttonKey]: true }));
-        // 记录点击时间
+        // 先记录点击时间（立即更新，确保快速连续点击能被检测到）
         buttonClickTimesRef.current[buttonKey] = now;
+        // 然后设置按钮为禁用状态（使用 setTimeout 延迟一小段时间，确保快速连续点击能被检测到）
+        setTimeout(() => {
+            setButtonDisabled(prev => ({ ...prev, [buttonKey]: true }));
+        }, 50);
 
         // 一分钟后恢复按钮
         setTimeout(() => {
@@ -169,14 +172,17 @@ export default function StoreRejectionPage() {
 
         // 检查是否在一分钟内重复点击
         if (lastClickTime && now - lastClickTime < 60000) {
-            message.warning('请勿在一分钟内重复点击');
+            const remainingTime = Math.ceil((60000 - (now - lastClickTime)) / 1000);
+            message.warning(`请勿在一分钟内重复点击（还需等待 ${remainingTime} 秒）`);
             return;
         }
 
-        // 设置按钮为禁用状态
-        setButtonDisabled(prev => ({ ...prev, [buttonKey]: true }));
-        // 记录点击时间
+        // 先记录点击时间（立即更新，确保快速连续点击能被检测到）
         buttonClickTimesRef.current[buttonKey] = now;
+        // 然后设置按钮为禁用状态（使用 setTimeout 延迟一小段时间，确保快速连续点击能被检测到）
+        setTimeout(() => {
+            setButtonDisabled(prev => ({ ...prev, [buttonKey]: true }));
+        }, 50);
 
         // 一分钟后恢复按钮
         setTimeout(() => {
