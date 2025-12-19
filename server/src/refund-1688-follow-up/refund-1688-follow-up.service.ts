@@ -120,7 +120,7 @@ export class Refund1688FollowUpService {
       const total = Number((countRows as any[])[0]?.total || 0);
       Logger.log(`[Refund1688FollowUpService] 总记录数: ${total}`);
 
-      // 获取分页数据（直接查询1688退款售后表的采购单号，JOIN sys_users获取跟进人的display_name）
+      // 获取分页数据（只查询1688退款售后表，不JOIN任何其他表）
       const dataSql = `SELECT 
           r.\`订单编号\`,
           r.\`收货人姓名\`,
@@ -139,10 +139,8 @@ export class Refund1688FollowUpService {
           r.\`跟进相关附件\`,
           r.\`物流单号\`,
           r.\`发货截图\`,
-          COALESCE(u.\`display_name\`, r.\`跟进人\`) as 跟进人
+          r.\`跟进人\`
         FROM \`sm_chaigou\`.\`1688退款售后\` r
-        LEFT JOIN \`sm_xitongkaifa\`.\`sys_users\` u
-          ON r.\`跟进人\` REGEXP '^[0-9]+$' AND CAST(r.\`跟进人\` AS UNSIGNED) = u.\`id\`
         ${searchCondition}
         ORDER BY r.\`订单编号\` DESC
         LIMIT ${limit} OFFSET ${offset}`;
