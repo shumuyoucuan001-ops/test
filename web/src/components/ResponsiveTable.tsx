@@ -1,6 +1,7 @@
 "use client";
 
-import { Card, Table } from "antd";
+import { Card, Table, Button, Select, Space } from "antd";
+import { LeftOutlined, RightOutlined } from "@ant-design/icons";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useEffect, useState } from "react";
 
@@ -162,22 +163,109 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                     </div>
                 )}
                 {/* 移动端分页信息 */}
-                {tableProps.pagination && dataSource.length > 0 && (
+                {tableProps.pagination && typeof tableProps.pagination === 'object' && (
                     <div style={{
                         marginTop: 16,
                         padding: '12px',
                         background: '#f5f5f5',
                         borderRadius: 4,
-                        textAlign: 'center',
-                        fontSize: 13,
-                        color: '#666',
                     }}>
-                        {typeof tableProps.pagination === 'object' && tableProps.pagination.showTotal
-                            ? tableProps.pagination.showTotal(dataSource.length, [
-                                dataSource.length,
-                                dataSource.length,
-                            ])
-                            : `共 ${dataSource.length} 条记录`}
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                            alignItems: 'center',
+                        }}>
+                            {/* 总数信息 */}
+                            <div style={{
+                                fontSize: 13,
+                                color: '#666',
+                                textAlign: 'center',
+                            }}>
+                                {tableProps.pagination.showTotal
+                                    ? tableProps.pagination.showTotal(
+                                        tableProps.pagination.total || 0,
+                                        [
+                                            ((tableProps.pagination.current || 1) - 1) * (tableProps.pagination.pageSize || 20) + 1,
+                                            Math.min(
+                                                (tableProps.pagination.current || 1) * (tableProps.pagination.pageSize || 20),
+                                                tableProps.pagination.total || 0
+                                            ),
+                                        ]
+                                    )
+                                    : `共 ${tableProps.pagination.total || 0} 条记录`}
+                            </div>
+                            
+                            {/* 分页控件 */}
+                            <Space size="middle" align="center">
+                                <Button
+                                    size="small"
+                                    icon={<LeftOutlined />}
+                                    disabled={!tableProps.pagination.current || tableProps.pagination.current <= 1}
+                                    onClick={() => {
+                                        if (tableProps.pagination && typeof tableProps.pagination === 'object' && tableProps.pagination.onChange) {
+                                            const current = tableProps.pagination.current || 1;
+                                            tableProps.pagination.onChange(current - 1, tableProps.pagination.pageSize || 20);
+                                        }
+                                    }}
+                                >
+                                    上一页
+                                </Button>
+                                
+                                <span style={{ fontSize: 13, color: '#666' }}>
+                                    第 {tableProps.pagination.current || 1} / {Math.ceil((tableProps.pagination.total || 0) / (tableProps.pagination.pageSize || 20)) || 1} 页
+                                </span>
+                                
+                                <Button
+                                    size="small"
+                                    icon={<RightOutlined />}
+                                    disabled={
+                                        !tableProps.pagination.current ||
+                                        !tableProps.pagination.total ||
+                                        tableProps.pagination.current >= Math.ceil((tableProps.pagination.total || 0) / (tableProps.pagination.pageSize || 20))
+                                    }
+                                    onClick={() => {
+                                        if (tableProps.pagination && typeof tableProps.pagination === 'object' && tableProps.pagination.onChange) {
+                                            const current = tableProps.pagination.current || 1;
+                                            tableProps.pagination.onChange(current + 1, tableProps.pagination.pageSize || 20);
+                                        }
+                                    }}
+                                >
+                                    下一页
+                                </Button>
+                            </Space>
+                            
+                            {/* 每页条数选择 */}
+                            {tableProps.pagination.showSizeChanger && tableProps.pagination.pageSizeOptions && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    fontSize: 13,
+                                    color: '#666',
+                                }}>
+                                    <span>每页显示：</span>
+                                    <Select
+                                        size="small"
+                                        value={tableProps.pagination.pageSize || 20}
+                                        style={{ width: 80 }}
+                                        options={tableProps.pagination.pageSizeOptions.map(size => ({
+                                            value: typeof size === 'string' ? parseInt(size) : size,
+                                            label: `${size} 条`,
+                                        }))}
+                                        onChange={(size) => {
+                                            if (tableProps.pagination && typeof tableProps.pagination === 'object') {
+                                                if (tableProps.pagination.onShowSizeChange) {
+                                                    tableProps.pagination.onShowSizeChange(1, size);
+                                                } else if (tableProps.pagination.onChange) {
+                                                    tableProps.pagination.onChange(1, size);
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

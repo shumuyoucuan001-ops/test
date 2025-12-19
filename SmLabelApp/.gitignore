@@ -72,3 +72,10 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# 安卓签名证书
+*.jks
+*.keystore
+# 证书配置文件（若有）
+*.properties
+signing-config.json
