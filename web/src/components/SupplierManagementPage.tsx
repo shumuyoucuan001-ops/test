@@ -433,6 +433,7 @@ export default function SupplierManagementPage() {
           dataSource={suppliers}
           rowKey="supplierCode"
           loading={loading}
+          isMobile={false}
           pagination={{
             current: currentPage,
             pageSize: pageSize,

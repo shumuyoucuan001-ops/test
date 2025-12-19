@@ -83,6 +83,17 @@ export default function PurchasePage() {
   const [searching, setSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const searchTimer = useRef<any>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   // 模板缓存
   const [templatesCache, setTemplatesCache] = useState<LabelTemplate[] | null>(null);
@@ -641,37 +652,71 @@ export default function PurchasePage() {
             title="收货单查询打印" 
             bodyStyle={{ padding: 0 }}
             extra={
-              <Space size={16}>
-                <Select
-                  placeholder="选择关联收货单号"
-                  style={{ 
-                    width: 600, 
-                    height: 48,
-                    fontSize: '20px'
-                  }}
-                  value={selectedReceiptNo}
-                  onChange={handleSelectReceiptNo}
-                  showSearch
-                  filterOption={false}
-                  onSearch={onRemoteSearch}
-                  loading={searching}
-                  allowClear
-                >
-                  {receiptNumbers.slice(0, 10).map(no => (
-                    <Option key={no} value={no}>{no}</Option>
-                  ))}
-                </Select>
-                <Button 
-                  onClick={loadReceiptNumbers}
-                  style={{
-                    height: 48,
-                    fontSize: '16px',
-                    padding: '0 20px'
-                  }}
-                >
-                  刷新列表
-                </Button>
-              </Space>
+              isMobile ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                  <Select
+                    placeholder="选择关联收货单号"
+                    style={{ 
+                      width: '100%',
+                      height: 40,
+                      fontSize: '14px'
+                    }}
+                    value={selectedReceiptNo}
+                    onChange={handleSelectReceiptNo}
+                    showSearch
+                    filterOption={false}
+                    onSearch={onRemoteSearch}
+                    loading={searching}
+                    allowClear
+                  >
+                    {receiptNumbers.slice(0, 10).map(no => (
+                      <Option key={no} value={no}>{no}</Option>
+                    ))}
+                  </Select>
+                  <Button 
+                    onClick={loadReceiptNumbers}
+                    block
+                    style={{
+                      height: 40,
+                      fontSize: '14px'
+                    }}
+                  >
+                    刷新列表
+                  </Button>
+                </div>
+              ) : (
+                <Space size={16}>
+                  <Select
+                    placeholder="选择关联收货单号"
+                    style={{ 
+                      width: 600, 
+                      height: 48,
+                      fontSize: '20px'
+                    }}
+                    value={selectedReceiptNo}
+                    onChange={handleSelectReceiptNo}
+                    showSearch
+                    filterOption={false}
+                    onSearch={onRemoteSearch}
+                    loading={searching}
+                    allowClear
+                  >
+                    {receiptNumbers.slice(0, 10).map(no => (
+                      <Option key={no} value={no}>{no}</Option>
+                    ))}
+                  </Select>
+                  <Button 
+                    onClick={loadReceiptNumbers}
+                    style={{
+                      height: 48,
+                      fontSize: '16px',
+                      padding: '0 20px'
+                    }}
+                  >
+                    刷新列表
+                  </Button>
+                </Space>
+              )
             }
           />
         </Col>

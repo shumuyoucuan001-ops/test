@@ -48,6 +48,17 @@ export default function ProductMasterPage() {
   const [data, setData] = useState<MasterListItem[]>([]);
   const [sku, setSku] = useState("");
   const [q, setQ] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // 编辑抽屉
   const [open, setOpen] = useState(false);
@@ -343,27 +354,51 @@ export default function ProductMasterPage() {
       <Card
         title="商品资料"
         extra={
-          <Space>
-            <Search
-              placeholder="SKU 精确搜索"
-              allowClear
-              enterButton={<SearchOutlined />}
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-              onSearch={(v) => load({ sku: v.trim(), q })}
-              style={{ width: 220 }}
-            />
-            <Search
-              placeholder="关键字搜索（SPU/名称/SKU/条码）"
-              allowClear
-              enterButton={<SearchOutlined />}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onSearch={(v) => load({ sku, q: v.trim() })}
-              style={{ width: 320 }}
-            />
-            <Button onClick={() => { setSku(""); setQ(""); load(); }}>重置</Button>
-          </Space>
+          isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+              <Search
+                placeholder="SKU 精确搜索"
+                allowClear
+                enterButton={<SearchOutlined />}
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                onSearch={(v) => load({ sku: v.trim(), q })}
+                style={{ width: '100%' }}
+              />
+              <Search
+                placeholder="关键字搜索"
+                allowClear
+                enterButton={<SearchOutlined />}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onSearch={(v) => load({ sku, q: v.trim() })}
+                style={{ width: '100%' }}
+              />
+              <Button onClick={() => { setSku(""); setQ(""); load(); }} block>重置</Button>
+            </div>
+          ) : (
+            <Space>
+              <Search
+                placeholder="SKU 精确搜索"
+                allowClear
+                enterButton={<SearchOutlined />}
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                onSearch={(v) => load({ sku: v.trim(), q })}
+                style={{ width: 220 }}
+              />
+              <Search
+                placeholder="关键字搜索（SPU/名称/SKU/条码）"
+                allowClear
+                enterButton={<SearchOutlined />}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onSearch={(v) => load({ sku, q: v.trim() })}
+                style={{ width: 320 }}
+              />
+              <Button onClick={() => { setSku(""); setQ(""); load(); }}>重置</Button>
+            </Space>
+          )
         }
       >
         <ResponsiveTable<MasterListItem>

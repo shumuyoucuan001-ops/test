@@ -29,6 +29,17 @@ export default function LabelPrint() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ExtendedLabelPrintItem[]>([]);
   const [searched, setSearched] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // 模板缓存
   const [defaultTemplate, setDefaultTemplate] = useState<LabelTemplate | null>(null);
@@ -332,18 +343,33 @@ export default function LabelPrint() {
       <Card
         title="商品标签打印"
         extra={
-          <Space>
-            <Input
-              allowClear
-              placeholder="按 SPU/SKU/商品条码 搜索（最多20条）"
-              prefix={<SearchOutlined />}
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              onPressEnter={doSearch}
-              style={{ width: 420 }}
-            />
-            <Button onClick={doSearch} icon={<SearchOutlined />} type="primary">搜索</Button>
-          </Space>
+          isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+              <Input
+                allowClear
+                placeholder="按 SPU/SKU/商品条码 搜索（最多20条）"
+                prefix={<SearchOutlined />}
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                onPressEnter={doSearch}
+                style={{ width: '100%' }}
+              />
+              <Button onClick={doSearch} icon={<SearchOutlined />} type="primary" block>搜索</Button>
+            </div>
+          ) : (
+            <Space>
+              <Input
+                allowClear
+                placeholder="按 SPU/SKU/商品条码 搜索（最多20条）"
+                prefix={<SearchOutlined />}
+                value={q}
+                onChange={e => setQ(e.target.value)}
+                onPressEnter={doSearch}
+                style={{ width: 420 }}
+              />
+              <Button onClick={doSearch} icon={<SearchOutlined />} type="primary">搜索</Button>
+            </Space>
+          )
         }
       >
         {searched ? (

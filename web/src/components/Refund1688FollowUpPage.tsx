@@ -17,6 +17,7 @@ import {
 } from 'antd';
 import { ColumnType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
+import ResponsiveTable from './ResponsiveTable';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -395,7 +396,7 @@ export default function Refund1688FollowUpPage() {
                     </Space>
                 }
             >
-                <Table
+                <ResponsiveTable<Refund1688FollowUp>
                     columns={columns}
                     dataSource={data}
                     rowKey="订单编号"

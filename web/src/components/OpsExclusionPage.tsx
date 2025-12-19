@@ -23,6 +23,17 @@ export default function OpsExclusionPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<OpsExclusionItem | null>(null);
     const [form] = Form.useForm<OpsExclusionItem>();
+    const [isMobile, setIsMobile] = useState(false);
+
+    // 检测移动端
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     const load = async (keyword?: string, page: number = currentPage, limit: number = pageSize) => {
         setLoading(true);
@@ -138,20 +149,39 @@ export default function OpsExclusionPage() {
             <Card
                 title="运营组管理 - 排除活动商品"
                 extra={
-                    <Space>
-                        <Input
-                            allowClear
-                            placeholder="搜索相关信息"
-                            value={q}
-                            onChange={e => setQ(e.target.value)}
-                            onPressEnter={handleSearch}
-                            style={{ width: 240 }}
-                            prefix={<SearchOutlined />}
-                        />
-                        <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
-                        <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }}>刷新</Button>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
-                    </Space>
+                    isMobile ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                            <Input
+                                allowClear
+                                placeholder="搜索相关信息"
+                                value={q}
+                                onChange={e => setQ(e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: '100%' }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Space style={{ width: '100%' }}>
+                                <Button icon={<SearchOutlined />} onClick={handleSearch} style={{ flex: 1 }}>搜索</Button>
+                                <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }} style={{ flex: 1 }}>刷新</Button>
+                            </Space>
+                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
+                        </div>
+                    ) : (
+                        <Space>
+                            <Input
+                                allowClear
+                                placeholder="搜索相关信息"
+                                value={q}
+                                onChange={e => setQ(e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 240 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
+                            <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }}>刷新</Button>
+                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
+                        </Space>
+                    )
                 }
             >
                 <ResponsiveTable<OpsExclusionItem>

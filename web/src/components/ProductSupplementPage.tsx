@@ -36,6 +36,17 @@ export default function ProductSupplementPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('edit');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -263,31 +274,59 @@ export default function ProductSupplementPage() {
       <Card
         title="商品标签资料"
         extra={
-          <Space>
-            <Search
-              placeholder="SKU 搜索"
-              allowClear
-              value={searchSku}
-              onChange={(e) => setSearchSku(e.target.value)}
-              onSearch={() => {
-                setCurrentPage(1);
-                load();
-              }}
-              style={{ width: 200 }}
-            />
-            <Search
-              placeholder="供应商搜索"
-              allowClear
-              value={searchSupplier}
-              onChange={(e) => setSearchSupplier(e.target.value)}
-              onSearch={() => {
-                setCurrentPage(1);
-                load();
-              }}
-              style={{ width: 200 }}
-            />
-            <Button type="primary" onClick={() => openModal()}>新增</Button>
-          </Space>
+          isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+              <Search
+                placeholder="SKU 搜索"
+                allowClear
+                value={searchSku}
+                onChange={(e) => setSearchSku(e.target.value)}
+                onSearch={() => {
+                  setCurrentPage(1);
+                  load();
+                }}
+                style={{ width: '100%' }}
+              />
+              <Search
+                placeholder="供应商搜索"
+                allowClear
+                value={searchSupplier}
+                onChange={(e) => setSearchSupplier(e.target.value)}
+                onSearch={() => {
+                  setCurrentPage(1);
+                  load();
+                }}
+                style={{ width: '100%' }}
+              />
+              <Button type="primary" onClick={() => openModal()} block>新增</Button>
+            </div>
+          ) : (
+            <Space>
+              <Search
+                placeholder="SKU 搜索"
+                allowClear
+                value={searchSku}
+                onChange={(e) => setSearchSku(e.target.value)}
+                onSearch={() => {
+                  setCurrentPage(1);
+                  load();
+                }}
+                style={{ width: 200 }}
+              />
+              <Search
+                placeholder="供应商搜索"
+                allowClear
+                value={searchSupplier}
+                onChange={(e) => setSearchSupplier(e.target.value)}
+                onSearch={() => {
+                  setCurrentPage(1);
+                  load();
+                }}
+                style={{ width: 200 }}
+              />
+              <Button type="primary" onClick={() => openModal()}>新增</Button>
+            </Space>
+          )
         }
       >
         <ResponsiveTable<LabelDataRecord>

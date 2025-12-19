@@ -1019,37 +1019,66 @@ export default function HomeLayout({
               alignItems: 'center',
               height: 40,
               position: 'relative',
-              overflowX: 'auto',
-              overflowY: 'hidden',
             }}>
-              <Tabs
-                type="editable-card"
-                size="small"
-                activeKey={activeTab}
-                onChange={handleTabChange}
-                onEdit={(targetKey, action) => {
-                  if (action === 'remove') {
-                    handleTabClose(targetKey as string);
-                  }
-                }}
-                items={tabItems.map(item => ({
-                  ...item,
-                  label: (
-                    <span style={{ fontSize: 12 }}>
-                      {PAGE_CONFIGS[item.key]?.title}
-                    </span>
-                  ),
-                }))}
-                style={{
-                  marginBottom: 0,
-                  height: 40,
-                  minWidth: '100%',
-                }}
-                tabBarStyle={{
-                  marginBottom: 0,
-                  borderBottom: 'none',
-                }}
-              />
+              <div style={{
+                flex: 1,
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin',
+                msOverflowStyle: '-ms-autohiding-scrollbar',
+              }}>
+                <Tabs
+                  type="editable-card"
+                  size="small"
+                  activeKey={activeTab}
+                  onChange={handleTabChange}
+                  onEdit={(targetKey, action) => {
+                    if (action === 'remove') {
+                      handleTabClose(targetKey as string);
+                    }
+                  }}
+                  items={tabItems.map(item => ({
+                    ...item,
+                    label: (
+                      <span style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {PAGE_CONFIGS[item.key]?.title}
+                      </span>
+                    ),
+                  }))}
+                  style={{
+                    marginBottom: 0,
+                    height: 40,
+                    minWidth: 'max-content',
+                  }}
+                  tabBarStyle={{
+                    marginBottom: 0,
+                    borderBottom: 'none',
+                  }}
+                />
+              </div>
+              {openTabs.length > 1 && (
+                <div style={{
+                  flexShrink: 0,
+                  marginLeft: 8,
+                  paddingLeft: 8,
+                  borderLeft: '1px solid #d9d9d9',
+                }}>
+                  <Button
+                    size="small"
+                    icon={<ClearOutlined />}
+                    onClick={handleClearOtherTabs}
+                    title="清除其他标签页"
+                    style={{
+                      fontSize: 12,
+                      height: 28,
+                      padding: '0 8px',
+                    }}
+                  >
+                    清除其他
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
