@@ -138,7 +138,7 @@ export class Refund1688FollowUpService {
           r.\`退款详情\`,
           r.\`跟进相关附件\`,
           r.\`物流单号\`,
-          r.\`发货截图\`,
+          CAST(r.\`发货截图\` AS CHAR) as 发货截图,
           r.\`跟进人\`
         FROM \`sm_chaigou\`.\`1688退款售后\` r
         ${searchCondition}

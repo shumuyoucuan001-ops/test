@@ -12,10 +12,11 @@ import {
     Modal,
     Select,
     Space,
-    Table,
-    Tag,
+    Tag
 } from 'antd';
 import { ColumnType } from 'antd/es/table';
+import Upload from 'antd/es/upload';
+import type { RcFile } from 'antd/es/upload/interface';
 import { useEffect, useState } from 'react';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -50,6 +51,7 @@ export default function Refund1688FollowUpPage() {
         进度追踪?: string;
         采购单号?: string;
     }>({});
+    const [shippingScreenshotPreview, setShippingScreenshotPreview] = useState<string | undefined>(undefined);
 
     // 加载数据
     const loadData = async () => {
@@ -119,6 +121,7 @@ export default function Refund1688FollowUpPage() {
         form.setFieldsValue({
             ...record,
         });
+        setShippingScreenshotPreview(record.发货截图);
         setEditModalVisible(true);
     };
 
@@ -470,7 +473,47 @@ export default function Refund1688FollowUpPage() {
                     </Form.Item>
 
                     <Form.Item label="发货截图" name="发货截图">
-                        <TextArea rows={2} placeholder="图片URL，多个用逗号分隔" />
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                            {shippingScreenshotPreview ? (
+                                <Image
+                                    width={120}
+                                    height={120}
+                                    src={shippingScreenshotPreview}
+                                    alt="发货截图预览"
+                                    style={{ objectFit: 'cover' }}
+                                />
+                            ) : (
+                                <span style={{ color: '#999' }}>当前暂无截图</span>
+                            )}
+                            <Upload
+                                showUploadList={false}
+                                accept="image/*"
+                                beforeUpload={(file: RcFile) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => {
+                                        const base64 = e.target?.result as string;
+                                        form.setFieldsValue({ 发货截图: base64 });
+                                        setShippingScreenshotPreview(base64);
+                                    };
+                                    reader.readAsDataURL(file);
+                                    // 阻止 Upload 自己上传，改为表单统一提交
+                                    return false;
+                                }}
+                            >
+                                <Button type="primary">选择图片</Button>
+                            </Upload>
+                            {shippingScreenshotPreview && (
+                                <Button
+                                    danger
+                                    onClick={() => {
+                                        form.setFieldsValue({ 发货截图: undefined });
+                                        setShippingScreenshotPreview(undefined);
+                                    }}
+                                >
+                                    清除截图
+                                </Button>
+                            )}
+                        </Space>
                     </Form.Item>
                 </Form>
             </Modal>
