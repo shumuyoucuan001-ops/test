@@ -14,12 +14,12 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
 import { PurchasePassDifferenceModule } from './purchase-pass-difference/purchase-pass-difference.module';
 import { ReceiptModule } from './receipt/receipt.module';
+import { Refund1688FollowUpModule } from './refund-1688-follow-up/refund-1688-follow-up.module';
 import { StoreRejectionModule } from './store-rejection/store-rejection.module';
 import { SupplierManagementModule } from './supplier-management/supplier-management.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
 import { VersionModule } from './version/version.module';
-import { Refund1688FollowUpModule } from './refund-1688-follow-up/refund-1688-follow-up.module';
 // 暂时关闭后端接口权限拦截
 
 @Module({

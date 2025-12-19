@@ -3,7 +3,7 @@
 import { StoreRejectionItem, storeRejectionApi } from "@/lib/api";
 import { MailOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Input, Space } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof StoreRejectionItem, string> = {
@@ -30,6 +30,10 @@ export default function StoreRejectionPage() {
     }>({});
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
+    // 记录每个按钮的最后点击时间，key: rowKey_actionType (如: "xxx_rejection" 或 "xxx_rejectionAll")
+    const buttonClickTimesRef = useRef<Record<string, number>>({});
+    // 记录每个按钮的禁用状态
+    const [buttonDisabled, setButtonDisabled] = useState<Record<string, boolean>>({});
 
     const load = async (
         searchFilters?: {
@@ -101,6 +105,27 @@ export default function StoreRejectionPage() {
     };
 
     const handleSendRejectionEmail = useCallback(async (item: StoreRejectionItem) => {
+        const rowKey = `${item["采购单号"]}_${item["sku_id"]}_${item["门店/仓"]}`;
+        const buttonKey = `${rowKey}_rejection`;
+        const now = Date.now();
+        const lastClickTime = buttonClickTimesRef.current[buttonKey];
+
+        // 检查是否在一分钟内重复点击
+        if (lastClickTime && now - lastClickTime < 60000) {
+            message.warning('请勿在一分钟内重复点击');
+            return;
+        }
+
+        // 设置按钮为禁用状态
+        setButtonDisabled(prev => ({ ...prev, [buttonKey]: true }));
+        // 记录点击时间
+        buttonClickTimesRef.current[buttonKey] = now;
+
+        // 一分钟后恢复按钮
+        setTimeout(() => {
+            setButtonDisabled(prev => ({ ...prev, [buttonKey]: false }));
+        }, 60000);
+
         try {
             const result = await storeRejectionApi.sendRejectionEmail(item);
             if (result.success) {
@@ -137,6 +162,27 @@ export default function StoreRejectionPage() {
     }, [message]);
 
     const handleSendRejectionAllEmail = useCallback(async (item: StoreRejectionItem) => {
+        const rowKey = `${item["采购单号"]}_${item["sku_id"]}_${item["门店/仓"]}`;
+        const buttonKey = `${rowKey}_rejectionAll`;
+        const now = Date.now();
+        const lastClickTime = buttonClickTimesRef.current[buttonKey];
+
+        // 检查是否在一分钟内重复点击
+        if (lastClickTime && now - lastClickTime < 60000) {
+            message.warning('请勿在一分钟内重复点击');
+            return;
+        }
+
+        // 设置按钮为禁用状态
+        setButtonDisabled(prev => ({ ...prev, [buttonKey]: true }));
+        // 记录点击时间
+        buttonClickTimesRef.current[buttonKey] = now;
+
+        // 一分钟后恢复按钮
+        setTimeout(() => {
+            setButtonDisabled(prev => ({ ...prev, [buttonKey]: false }));
+        }, 60000);
+
         try {
             const result = await storeRejectionApi.sendRejectionAllEmail(item);
             if (result.success) {
@@ -184,31 +230,38 @@ export default function StoreRejectionPage() {
             title: '操作',
             key: 'action',
             width: 300,
-            render: (_: any, record: StoreRejectionItem) => (
-                <Space>
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<MailOutlined />}
-                        onClick={() => handleSendRejectionEmail(record)}
-                    >
-                        驳回差异单
-                    </Button>
-                    <Button
-                        type="default"
-                        size="small"
-                        icon={<MailOutlined />}
-                        onClick={() => handleSendRejectionAllEmail(record)}
-                    >
-                        驳回全部
-                    </Button>
-                    <span style={{ color: '#999', fontSize: '9px' }}>驳回该收货单所有上报商品</span>
-                </Space>
-            ),
+            render: (_: any, record: StoreRejectionItem) => {
+                const rowKey = `${record["采购单号"]}_${record["sku_id"]}_${record["门店/仓"]}`;
+                const rejectionButtonKey = `${rowKey}_rejection`;
+                const rejectionAllButtonKey = `${rowKey}_rejectionAll`;
+                return (
+                    <Space>
+                        <Button
+                            type="primary"
+                            size="small"
+                            icon={<MailOutlined />}
+                            onClick={() => handleSendRejectionEmail(record)}
+                            disabled={buttonDisabled[rejectionButtonKey] || false}
+                        >
+                            驳回差异单
+                        </Button>
+                        <Button
+                            type="default"
+                            size="small"
+                            icon={<MailOutlined />}
+                            onClick={() => handleSendRejectionAllEmail(record)}
+                            disabled={buttonDisabled[rejectionAllButtonKey] || false}
+                        >
+                            驳回全部
+                        </Button>
+                        <span style={{ color: '#999', fontSize: '9px' }}>驳回该收货单所有上报商品</span>
+                    </Space>
+                );
+            },
         };
 
         return [...dataColumns, actionColumn];
-    }, [handleSendRejectionEmail, handleSendRejectionAllEmail]);
+    }, [handleSendRejectionEmail, handleSendRejectionAllEmail, buttonDisabled]);
 
     return (
         <div style={{ padding: 24 }}>
