@@ -3,7 +3,7 @@
 import { LeftOutlined, RightOutlined } from "@ant-design/icons";
 import { Button, Card, Select, Space, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 interface ResponsiveTableProps<T> extends Omit<TableProps<T>, 'columns'> {
     columns: ColumnsType<T>;
@@ -130,16 +130,20 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                                     }}>
                                                         {title}:
                                                     </div>
-                                                    <div style={{
-                                                        flex: 1,
-                                                        fontSize: 14,
-                                                        color: '#333',
-                                                        wordBreak: 'break-all',
-                                                        textAlign: 'right',
-                                                    }}>
-                                                        {typeof cellValue === 'object' && cellValue !== null
-                                                            ? JSON.stringify(cellValue)
-                                                            : String(cellValue)}
+                                                    <div
+                                                        style={{
+                                                            flex: 1,
+                                                            fontSize: 14,
+                                                            color: '#333',
+                                                            wordBreak: 'break-all',
+                                                            textAlign: 'right',
+                                                        }}
+                                                    >
+                                                        {React.isValidElement(cellValue)
+                                                            ? cellValue
+                                                            : (typeof cellValue === 'object' && cellValue !== null
+                                                                ? JSON.stringify(cellValue)
+                                                                : String(cellValue))}
                                                     </div>
                                                 </div>
                                             );
