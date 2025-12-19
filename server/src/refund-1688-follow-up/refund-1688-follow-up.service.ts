@@ -151,7 +151,7 @@ export class Refund1688FollowUpService {
 
       Logger.log(`[Refund1688FollowUpService] 查询到 ${data.length} 条记录（第 ${page} 页）`);
 
-      // 同步更新订单状态和退款状态（等待更新完成再返回）
+      // 同步更新订单状态和退款状态（等待更新完成再返回，但已优化性能）
       const updatedData = await this.autoUpdateOrderAndRefundStatus(data);
 
       return { data: updatedData, total };
@@ -466,21 +466,24 @@ export class Refund1688FollowUpService {
     // 存储更新后的状态（订单编号 -> 状态）
     const updatedStatusMap = new Map<string, { requestOrderStatus: string; refundStatus: string }>();
 
-    // 限制并发数，避免同时发起过多请求（每次处理5条）
-    const concurrentLimit = 5;
+    // 限制并发数，避免同时发起过多请求（每次处理10条，提高并发）
+    const concurrentLimit = 10;
     const connection = await this.getChaigouConnection();
 
     try {
+      // 收集所有需要更新的数据
+      const updateBatch: Array<{ orderNo: string; statusCn: string; refundStatusCn: string }> = [];
+
       for (let i = 0; i < recordsWithUrl.length; i += concurrentLimit) {
         const batch = recordsWithUrl.slice(i, i + concurrentLimit);
 
-        // 并发处理这一批记录
+        // 并发处理这一批记录（只获取数据，不立即更新数据库）
         await Promise.all(
           batch.map(async (record) => {
             try {
-              // 发起HTTP请求
+              // 发起HTTP请求（减少超时时间到5秒）
               const response = await axios.get(record.http请求url!, {
-                timeout: 10000,
+                timeout: 5000, // 从10秒减少到5秒
                 headers: {
                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 },
@@ -496,31 +499,54 @@ export class Refund1688FollowUpService {
               const statusCn = this.translateOrderStatus(statusEn);
               const refundStatusCn = this.translateRefundStatus(refundStatusEn);
 
-              // 只更新"请求获取订单状态"和"请求获取退款状态"，不同步到"订单状态"
-              await connection.execute(
-                `UPDATE \`sm_chaigou\`.\`1688退款售后\` 
-                 SET \`请求获取订单状态\` = ?, \`请求获取退款状态\` = ? 
-                 WHERE \`订单编号\` = ?`,
-                [statusCn, refundStatusCn, record.订单编号],
-              );
+              // 收集到批量更新列表
+              updateBatch.push({
+                orderNo: record.订单编号,
+                statusCn,
+                refundStatusCn,
+              });
 
-              // 记录更新后的状态（只更新请求获取的状态，不更新订单状态）
+              // 记录更新后的状态（用于返回数据）
               updatedStatusMap.set(record.订单编号, {
                 requestOrderStatus: statusCn,
                 refundStatus: refundStatusCn,
               });
 
-              Logger.log(`[Refund1688FollowUpService] 已更新状态: 订单编号=${record.订单编号}, 订单状态=${statusEn}(${statusCn}), 退款状态=${refundStatusEn}(${refundStatusCn})`);
+              Logger.log(`[Refund1688FollowUpService] 已获取状态: 订单编号=${record.订单编号}, 订单状态=${statusEn}(${statusCn}), 退款状态=${refundStatusEn}(${refundStatusCn})`);
             } catch (error: any) {
               // 单条记录更新失败不影响其他记录
-              Logger.warn(`[Refund1688FollowUpService] 更新订单 ${record.订单编号} 状态失败: ${error?.message}`);
+              Logger.warn(`[Refund1688FollowUpService] 获取订单 ${record.订单编号} 状态失败: ${error?.message}`);
             }
           })
         );
 
-        // 批次之间稍作延迟，避免请求过快
+        // 批次之间稍作延迟，避免请求过快（减少延迟时间）
         if (i + concurrentLimit < recordsWithUrl.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 200)); // 从500ms减少到200ms
+        }
+      }
+
+      // 批量执行UPDATE（一次性更新所有记录，而不是循环更新）
+      if (updateBatch.length > 0) {
+        Logger.log(`[Refund1688FollowUpService] 开始批量更新 ${updateBatch.length} 条记录到数据库...`);
+
+        // 使用事务批量更新
+        await connection.beginTransaction();
+        try {
+          for (const item of updateBatch) {
+            await connection.execute(
+              `UPDATE \`sm_chaigou\`.\`1688退款售后\` 
+               SET \`请求获取订单状态\` = ?, \`请求获取退款状态\` = ? 
+               WHERE \`订单编号\` = ?`,
+              [item.statusCn, item.refundStatusCn, item.orderNo],
+            );
+          }
+          await connection.commit();
+          Logger.log(`[Refund1688FollowUpService] 批量更新完成，共更新 ${updateBatch.length} 条记录`);
+        } catch (error) {
+          await connection.rollback();
+          Logger.error('[Refund1688FollowUpService] 批量更新失败，已回滚:', error);
+          throw error;
         }
       }
 
