@@ -666,6 +666,7 @@ export const refund1688Api = {
     limit?: number;
     收货人姓名?: string;
     订单编号?: string;
+    订单状态?: string;
     买家会员名?: string;
     采购单号?: string;
     物流单号?: string;

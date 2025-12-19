@@ -24,7 +24,7 @@ const { Option } = Select;
 // 进度追踪状态选项
 const PROGRESS_STATUS_OPTIONS = [
     '等待商家同意退换',
-    '商家拒退-修改后申请',
+    '商家拒退-修改后申退',
     '换货/退货给商家',
     '等待商家确认收货',
     '退款/退换货成功',
@@ -127,7 +127,10 @@ export default function Refund1688FollowUpPage() {
             const values = await form.validateFields();
             if (!editingRecord) return;
 
-            await refund1688Api.update(editingRecord.订单编号, values);
+            // 移除跟进人字段，后端会自动从当前登录用户获取
+            const { 跟进人, ...updateData } = values;
+
+            await refund1688Api.update(editingRecord.订单编号, updateData);
             message.success('保存成功');
             setEditModalVisible(false);
             await loadData();
@@ -331,15 +334,61 @@ export default function Refund1688FollowUpPage() {
             <Card
                 title="1688退款(退货)跟进情况"
                 extra={
-                    <Space>
+                    <Space wrap>
+                        <Input
+                            placeholder="收货人姓名"
+                            style={{ width: 150 }}
+                            value={searchFilters.收货人姓名}
+                            onChange={(e) => setSearchFilters({ ...searchFilters, 收货人姓名: e.target.value })}
+                            allowClear
+                        />
+                        <Input
+                            placeholder="订单编号"
+                            style={{ width: 150 }}
+                            value={searchFilters.订单编号}
+                            onChange={(e) => setSearchFilters({ ...searchFilters, 订单编号: e.target.value })}
+                            allowClear
+                        />
+                        <Input
+                            placeholder="订单状态"
+                            style={{ width: 150 }}
+                            value={searchFilters.订单状态}
+                            onChange={(e) => setSearchFilters({ ...searchFilters, 订单状态: e.target.value })}
+                            allowClear
+                        />
+                        <Select
+                            placeholder="进度追踪"
+                            style={{ width: 180 }}
+                            value={searchFilters.进度追踪}
+                            onChange={(value) => setSearchFilters({ ...searchFilters, 进度追踪: value })}
+                            allowClear
+                        >
+                            {PROGRESS_STATUS_OPTIONS.map(status => (
+                                <Option key={status} value={status}>{status}</Option>
+                            ))}
+                        </Select>
+                        <Input
+                            placeholder="采购单号"
+                            style={{ width: 150 }}
+                            value={searchFilters.采购单号}
+                            onChange={(e) => setSearchFilters({ ...searchFilters, 采购单号: e.target.value })}
+                            allowClear
+                        />
                         <Input.Search
-                            placeholder="搜索收货人/订单编号/买家会员名/采购单号/物流单号"
-                            style={{ width: 400 }}
+                            placeholder="总搜索（全字段）"
+                            style={{ width: 200 }}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                             onSearch={handleSearch}
                             allowClear
                         />
+                        <Button type="primary" onClick={handleSearch}>搜索</Button>
+                        <Button onClick={() => {
+                            setSearchText('');
+                            setSearchFilters({});
+                            setCurrentPage(1);
+                            loadData();
+                        }}>重置</Button>
                         <Button icon={<SyncOutlined />} onClick={loadData} loading={loading}>
                             刷新
                         </Button>
@@ -381,24 +430,8 @@ export default function Refund1688FollowUpPage() {
                 cancelText="取消"
             >
                 <Form form={form} layout="vertical">
-                    <Form.Item label="收货人姓名" name="收货人姓名">
-                        <Input />
-                    </Form.Item>
-
                     <Form.Item label="订单编号" name="订单编号">
                         <Input disabled />
-                    </Form.Item>
-
-                    <Form.Item label="买家会员名" name="买家会员名">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item label="订单状态" name="订单状态">
-                        <Input disabled />
-                    </Form.Item>
-
-                    <Form.Item label="HTTP请求URL" name="http请求url">
-                        <Input />
                     </Form.Item>
 
                     <Form.Item label="进度追踪" name="进度追踪">
@@ -412,7 +445,7 @@ export default function Refund1688FollowUpPage() {
                     </Form.Item>
 
                     <Form.Item label="采购单号" name="采购单号">
-                        <Input disabled />
+                        <Input />
                     </Form.Item>
 
                     <Form.Item label="跟进情况/备注" name="跟进情况备注">
@@ -435,16 +468,16 @@ export default function Refund1688FollowUpPage() {
                         <Input />
                     </Form.Item>
 
-                    <Form.Item label="发货截图URL" name="发货截图">
-                        <Input placeholder="图片URL" />
+                    <Form.Item label="发货截图" name="发货截图">
+                        <TextArea rows={2} placeholder="图片URL，多个用逗号分隔" />
                     </Form.Item>
 
                     <Form.Item label="跟进人" name="跟进人">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item label="跟进相关附件" name="跟进相关附件">
-                        <Input placeholder="附件URL或描述" />
+                        <Input
+                            disabled
+                            placeholder="自动获取当前登录用户的display_name"
+                            style={{ backgroundColor: '#f5f5f5' }}
+                        />
                     </Form.Item>
                 </Form>
             </Modal>

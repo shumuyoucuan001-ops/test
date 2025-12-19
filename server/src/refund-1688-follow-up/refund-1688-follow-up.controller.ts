@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, Put, Post, Query } from '@nestjs/common';
-import { Refund1688FollowUpService, Refund1688FollowUp } from './refund-1688-follow-up.service';
+import { Body, Controller, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { Refund1688FollowUp, Refund1688FollowUpService } from './refund-1688-follow-up.service';
 
 @Controller('refund-1688-follow-up')
 export class Refund1688FollowUpController {
-  constructor(private readonly service: Refund1688FollowUpService) {}
+  constructor(private readonly service: Refund1688FollowUpService) { }
 
   // 获取所有退款跟进记录（支持分页）
   @Get()
@@ -21,7 +21,7 @@ export class Refund1688FollowUpController {
   ): Promise<{ data: Refund1688FollowUp[]; total: number }> {
     const pageNum = Math.max(1, parseInt(page || '1', 10));
     const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 200));
-    
+
     const filters: any = {};
     if (收货人姓名) filters.收货人姓名 = 收货人姓名;
     if (订单编号) filters.订单编号 = 订单编号;
@@ -33,8 +33,8 @@ export class Refund1688FollowUpController {
     if (keyword) filters.keyword = keyword;
 
     return await this.service.findAll(
-      pageNum, 
-      limitNum, 
+      pageNum,
+      limitNum,
       Object.keys(filters).length > 0 ? filters : undefined
     );
   }
@@ -44,8 +44,9 @@ export class Refund1688FollowUpController {
   async update(
     @Param('orderNo') orderNo: string,
     @Body() data: Partial<Refund1688FollowUp>,
+    @Headers('x-user-id') userId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    await this.service.update(orderNo, data);
+    await this.service.update(orderNo, data, userId ? parseInt(userId, 10) : undefined);
     return { success: true, message: '更新成功' };
   }
 
