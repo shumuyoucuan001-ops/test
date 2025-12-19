@@ -506,7 +506,8 @@ export default function Refund1688FollowUpPage() {
                                 <Button
                                     danger
                                     onClick={() => {
-                                        form.setFieldsValue({ 发货截图: undefined });
+                                        // 使用空字符串而不是 undefined，确保提交时会带上该字段，从而真正清空数据库中的值
+                                        form.setFieldsValue({ 发货截图: '' });
                                         setShippingScreenshotPreview(undefined);
                                     }}
                                 >

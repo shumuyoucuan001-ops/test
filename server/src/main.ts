@@ -9,9 +9,9 @@ async function bootstrap() {
   try {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-    // 确保所有 HTTP 方法（包括 DELETE）都能正确解析 JSON body
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
+    // 确保所有 HTTP 方法（包括 DELETE）都能正确解析 JSON body，并放宽请求体大小限制以支持图片等大字段
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // 启用静态文件服务（用于托管APK下载）
     app.useStaticAssets(join(__dirname, '..', 'public'), {
