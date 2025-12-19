@@ -1,7 +1,7 @@
 "use client";
 
-import { Card, Table, Button, Select, Space } from "antd";
 import { LeftOutlined, RightOutlined } from "@ant-design/icons";
+import { Button, Card, Select, Space, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import { useEffect, useState } from "react";
 
@@ -195,7 +195,7 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                     )
                                     : `共 ${tableProps.pagination.total || 0} 条记录`}
                             </div>
-                            
+
                             {/* 分页控件 */}
                             <Space size="middle" align="center">
                                 <Button
@@ -211,11 +211,11 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                 >
                                     上一页
                                 </Button>
-                                
+
                                 <span style={{ fontSize: 13, color: '#666' }}>
                                     第 {tableProps.pagination.current || 1} / {Math.ceil((tableProps.pagination.total || 0) / (tableProps.pagination.pageSize || 20)) || 1} 页
                                 </span>
-                                
+
                                 <Button
                                     size="small"
                                     icon={<RightOutlined />}
@@ -234,7 +234,7 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                     下一页
                                 </Button>
                             </Space>
-                            
+
                             {/* 每页条数选择 */}
                             {tableProps.pagination.showSizeChanger && tableProps.pagination.pageSizeOptions && (
                                 <div style={{

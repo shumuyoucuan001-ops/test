@@ -220,6 +220,8 @@ export default function HomeLayout({
 
   // 检测移动端
   useEffect(() => {
+    let prevIsMobile = window.innerWidth < 768;
+
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
@@ -228,17 +230,19 @@ export default function HomeLayout({
         setSiderVisible(false);
         setCollapsed(false);
       } else {
-        // 桌面端恢复侧边栏显示
-        if (!siderVisible && !mobile) {
+        // 只在从移动端切换到桌面端时才恢复侧边栏显示
+        // 如果用户手动隐藏了侧边栏，则不会自动恢复
+        if (prevIsMobile && !mobile) {
           setSiderVisible(true);
         }
       }
+      prevIsMobile = mobile;
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [siderVisible]);
+  }, []);
 
   // 根据当前路径确定选中的菜单项和活动标签
   useEffect(() => {

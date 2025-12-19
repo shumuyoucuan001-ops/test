@@ -76,6 +76,6 @@ yarn-error.log
 # 安卓签名证书
 *.jks
 *.keystore
-# 证书配置文件（若有）
+# 证书配置文件
 *.properties
 signing-config.json

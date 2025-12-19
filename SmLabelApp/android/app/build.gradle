@@ -89,6 +89,12 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+        storeFile file('my-release-key.jks') // 证书文件在android/app目录下，直接写文件名
+        storePassword '123456SMYX'       // 生成证书时输入的“密钥库口令”
+        keyAlias 'my-key-alias'               // 固定值（命令里的-alias参数）
+        keyPassword '123456SMYX'        // 生成证书时输入的“<my-key-alias>的密钥口令”（一般和证书密码一致）
+    }
     }
     buildTypes {
         debug {
@@ -97,8 +103,10 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            minifyEnabled enableProguardInReleaseBuilds
+            //signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            // minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
