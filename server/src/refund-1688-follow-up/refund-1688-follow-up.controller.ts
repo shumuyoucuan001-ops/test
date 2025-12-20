@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { Logger } from '../utils/logger.util';
 import { Refund1688FollowUp, Refund1688FollowUpService } from './refund-1688-follow-up.service';
 
 @Controller('refund-1688-follow-up')
@@ -39,13 +40,17 @@ export class Refund1688FollowUpController {
       Object.keys(filters).length > 0 ? filters : undefined
     );
 
-    // 检查用户是否有编辑权限
+    // 检查用户是否有编辑权限（即使检查失败也不影响数据返回）
     let canEdit = true;
     if (userId) {
       try {
-        canEdit = await this.service.checkEditPermission(parseInt(userId, 10));
+        const userIdNum = parseInt(userId, 10);
+        if (!isNaN(userIdNum)) {
+          canEdit = await this.service.checkEditPermission(userIdNum);
+        }
       } catch (error) {
-        // 如果检查失败，默认不允许编辑
+        // 如果检查失败，默认不允许编辑，但不影响数据返回
+        Logger.error('[Refund1688FollowUpController] 权限检查失败，默认不允许编辑:', error);
         canEdit = false;
       }
     }

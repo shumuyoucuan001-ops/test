@@ -73,15 +73,20 @@ export default function Refund1688FollowUpPage() {
                 ? overrideParams.filters
                 : searchFilters;
 
+            // 过滤掉undefined值，避免API调用问题
+            const cleanFilters = Object.fromEntries(
+                Object.entries(finalFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+            );
+
             const result = await refund1688Api.getAll({
                 page: finalPage,
                 limit: pageSize,
                 keyword: finalKeyword,
-                ...finalFilters,
+                ...cleanFilters,
             });
-            setData(result.data || []);
-            setTotal(result.total || 0);
-            setCanEdit(result.canEdit !== false); // 如果返回false则不允许编辑，否则允许
+            setData(result?.data || []);
+            setTotal(result?.total || 0);
+            setCanEdit(result?.canEdit !== false); // 如果返回false则不允许编辑，否则允许
         } catch (error) {
             message.error('加载数据失败');
             console.error(error);
@@ -150,7 +155,7 @@ export default function Refund1688FollowUpPage() {
 
         try {
             const result = await refund1688Api.getFollowUpImage(orderNo);
-            if (result.跟进情况图片) {
+            if (result?.跟进情况图片) {
                 setImageCache(prev => ({ ...prev, [orderNo]: result.跟进情况图片! }));
             } else {
                 message.info('该订单暂无跟进情况图片');
@@ -178,7 +183,7 @@ export default function Refund1688FollowUpPage() {
             // 按需加载图片
             try {
                 const result = await refund1688Api.getFollowUpImage(orderNo);
-                if (result.跟进情况图片) {
+                if (result?.跟进情况图片) {
                     setFollowUpImagePreview(result.跟进情况图片);
                     setImageCache(prev => ({ ...prev, [orderNo]: result.跟进情况图片! }));
                 } else {
@@ -223,6 +228,7 @@ export default function Refund1688FollowUpPage() {
 
     useEffect(() => {
         loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 
     // 处理搜索
@@ -273,19 +279,22 @@ export default function Refund1688FollowUpPage() {
             key: '请求获取订单状态',
             width: 180,
             ...({ mobileRequired: true } as any), // 移动端必须显示
-            render: (text, record) => (
-                <Space>
-                    <span>{text || '-'}</span>
-                    <Button
-                        size="small"
-                        type="link"
-                        icon={<SyncOutlined />}
-                        onClick={() => handleRefreshOrderStatus(record)}
-                        disabled={!record.http请求url}
-                        title="刷新订单状态"
-                    />
-                </Space>
-            ),
+            render: (text, record) => {
+                if (!record) return '-';
+                return (
+                    <Space>
+                        <span>{text || '-'}</span>
+                        <Button
+                            size="small"
+                            type="link"
+                            icon={<SyncOutlined />}
+                            onClick={() => handleRefreshOrderStatus(record)}
+                            disabled={!record?.http请求url}
+                            title="刷新订单状态"
+                        />
+                    </Space>
+                );
+            },
         },
         {
             title: '请求获取退款状态',
@@ -293,19 +302,22 @@ export default function Refund1688FollowUpPage() {
             key: '请求获取退款状态',
             width: 180,
             ...({ mobileRequired: true } as any), // 移动端必须显示
-            render: (text, record) => (
-                <Space>
-                    {text ? <Tag color="blue">{text}</Tag> : '-'}
-                    <Button
-                        size="small"
-                        type="link"
-                        icon={<SyncOutlined />}
-                        onClick={() => handleRefreshRefundStatus(record)}
-                        disabled={!record.http请求url}
-                        title="刷新退款状态"
-                    />
-                </Space>
-            ),
+            render: (text, record) => {
+                if (!record) return '-';
+                return (
+                    <Space>
+                        {text ? <Tag color="blue">{text}</Tag> : '-'}
+                        <Button
+                            size="small"
+                            type="link"
+                            icon={<SyncOutlined />}
+                            onClick={() => handleRefreshRefundStatus(record)}
+                            disabled={!record?.http请求url}
+                            title="刷新退款状态"
+                        />
+                    </Space>
+                );
+            },
         },
         {
             title: '进度追踪',
@@ -346,6 +358,7 @@ export default function Refund1688FollowUpPage() {
             key: '跟进情况图片',
             width: 150,
             render: (text, record) => {
+                if (!record) return '-';
                 const orderNo = record.订单编号;
                 const hasImage = record.有跟进情况图片 === 1;
                 const cachedImage = imageCache[orderNo];
@@ -417,15 +430,18 @@ export default function Refund1688FollowUpPage() {
             key: 'action',
             width: 100,
             fixed: 'right',
-            render: (_, record) => (
-                canEdit ? (
-                    <Button type="primary" size="small" onClick={() => handleEdit(record)}>
-                        编辑
-                    </Button>
-                ) : (
-                    <span style={{ color: '#999' }}>仅查看</span>
-                )
-            ),
+            render: (_, record) => {
+                if (!record) return '-';
+                return (
+                    canEdit ? (
+                        <Button type="primary" size="small" onClick={() => handleEdit(record)}>
+                            编辑
+                        </Button>
+                    ) : (
+                        <span style={{ color: '#999' }}>仅查看</span>
+                    )
+                );
+            },
         },
     ];
 
@@ -502,7 +518,7 @@ export default function Refund1688FollowUpPage() {
                                     message.loading({ content: '正在同步数据...', key: 'syncData' });
                                     const result = await refund1688Api.syncData();
                                     message.success({
-                                        content: result.message || `同步成功，共更新 ${result.updatedCount} 条记录`,
+                                        content: result?.message || `同步成功，共更新 ${result?.updatedCount || 0} 条记录`,
                                         key: 'syncData',
                                         duration: 5
                                     });
