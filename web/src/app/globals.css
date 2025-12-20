@@ -13,18 +13,20 @@
 html,
 body {
   max-width: 100vw;
-  overflow-x: hidden;
+  /* overflow-x: hidden; */
+  /* 注释掉：允许移动端左右滑动 */
   width: 100%;
   box-sizing: border-box;
 }
 
 /* 防止移动端横向滚动 */
-* {
+/* * {
   max-width: 100%;
-}
+} */
+/* 注释掉：允许移动端左右滑动 */
 
 /* 移动端强制禁止横向滚动 */
-@media (max-width: 768px) {
+/* @media (max-width: 768px) {
 
   html,
   body {
@@ -37,7 +39,8 @@ body {
     max-width: 100% !important;
     overflow-x: hidden !important;
   }
-}
+} */
+/* 注释掉：允许移动端左右滑动 */
 
 body {
   color: var(--foreground);
@@ -106,22 +109,24 @@ a {
 @media (max-width: 768px) {
 
   /* 强制禁止横向滚动 */
-  body,
+  /* body,
   html {
     overflow-x: hidden !important;
     width: 100% !important;
     max-width: 100vw !important;
-  }
+  } */
+  /* 注释掉：允许移动端左右滑动 */
 
   /* 所有容器禁止横向滚动 */
-  .ant-layout,
+  /* .ant-layout,
   .ant-layout-content,
   .ant-card,
   .ant-card-body {
     max-width: 100% !important;
     overflow-x: hidden !important;
     box-sizing: border-box !important;
-  }
+  } */
+  /* 注释掉：允许移动端左右滑动 */
 
   /* 优化 Ant Design 组件在移动端的显示 */
   .ant-table {

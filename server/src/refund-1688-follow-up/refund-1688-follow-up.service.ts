@@ -253,8 +253,15 @@ export class Refund1688FollowUpService {
 
       for (const [key, dbField] of Object.entries(fieldMapping)) {
         if (key in data) {
-          updateFields.push(`\`${dbField}\` = ?`);
-          updateValues.push(data[key as keyof Refund1688FollowUp]);
+          const value = data[key as keyof Refund1688FollowUp];
+          // 对于跟进情况图片字段，空字符串表示要清空
+          if (key === '跟进情况图片' && value === '') {
+            updateFields.push(`\`${dbField}\` = ?`);
+            updateValues.push(null); // 使用 null 来清空数据库字段
+          } else if (value !== undefined) {
+            updateFields.push(`\`${dbField}\` = ?`);
+            updateValues.push(value);
+          }
         }
       }
 
@@ -390,6 +397,102 @@ export class Refund1688FollowUpService {
     } catch (error: any) {
       Logger.error('[Refund1688FollowUpService] 获取退款状态失败:', error?.message || error);
       throw new Error(error?.message || '获取退款状态失败');
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 删除退款跟进记录
+  async delete(orderNo: string, userId?: number): Promise<void> {
+    const connection = await this.getChaigouConnection();
+
+    try {
+      // 检查编辑权限
+      if (userId !== undefined) {
+        const hasPermission = await this.checkEditPermission(userId);
+        if (!hasPermission) {
+          throw new Error('您的账号没有编辑权限，无法执行删除操作');
+        }
+      }
+
+      // 检查记录是否存在
+      const [existingRecords]: any = await connection.execute(
+        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        [orderNo]
+      );
+
+      if (!existingRecords || existingRecords.length === 0) {
+        throw new Error('记录不存在');
+      }
+
+      // 删除记录
+      await connection.execute(
+        `DELETE FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        [orderNo]
+      );
+
+      Logger.log(`[Refund1688FollowUpService] 删除记录成功: 订单编号=${orderNo}`);
+    } catch (error: any) {
+      Logger.error(`[Refund1688FollowUpService] 删除记录失败: ${error?.message || error}`);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 批量删除退款跟进记录
+  async batchDelete(orderNos: string[], userId?: number): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    const connection = await this.getChaigouConnection();
+
+    try {
+      // 检查编辑权限
+      if (userId !== undefined) {
+        const hasPermission = await this.checkEditPermission(userId);
+        if (!hasPermission) {
+          throw new Error('您的账号没有编辑权限，无法执行批量删除操作');
+        }
+      }
+
+      if (!orderNos || orderNos.length === 0) {
+        throw new Error('请选择要删除的记录');
+      }
+
+      // 检查记录是否存在
+      const placeholders = orderNos.map(() => '?').join(',');
+      const [existingRecords]: any = await connection.execute(
+        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` IN (${placeholders})`,
+        orderNos
+      );
+
+      const existingOrderNos = existingRecords.map((row: any) => row.订单编号);
+      const notFoundOrderNos = orderNos.filter(no => !existingOrderNos.includes(no));
+
+      if (notFoundOrderNos.length > 0) {
+        Logger.warn(`[Refund1688FollowUpService] 部分记录不存在: ${notFoundOrderNos.join(', ')}`);
+      }
+
+      if (existingOrderNos.length === 0) {
+        throw new Error('没有找到要删除的记录');
+      }
+
+      // 批量删除记录
+      const deletePlaceholders = existingOrderNos.map(() => '?').join(',');
+      await connection.execute(
+        `DELETE FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` IN (${deletePlaceholders})`,
+        existingOrderNos
+      );
+
+      const deletedCount = existingOrderNos.length;
+      Logger.log(`[Refund1688FollowUpService] 批量删除记录成功: 共删除 ${deletedCount} 条记录`);
+
+      return {
+        success: true,
+        message: `成功删除 ${deletedCount} 条记录`,
+        deletedCount,
+      };
+    } catch (error: any) {
+      Logger.error(`[Refund1688FollowUpService] 批量删除记录失败: ${error?.message || error}`);
+      throw error;
     } finally {
       await connection.end();
     }
@@ -660,6 +763,7 @@ export class Refund1688FollowUpService {
       const threeMonthsAgoStr = threeMonthsAgo.toISOString().slice(0, 19).replace('T', ' ');
 
       // 优化：先查询需要更新的记录，然后分批更新，避免长时间锁定
+      // 如果1688退款售后的采购单号不为空，则不同步
       const selectSql = `
         SELECT r.\`订单编号\`, p.\`采购单号\`, p.\`物流单号\`
         FROM \`sm_chaigou\`.\`1688退款售后\` r
@@ -670,9 +774,10 @@ export class Refund1688FollowUpService {
           AND p.\`创建时间\` >= ?
           AND (
             r.\`采购单号\` IS NULL 
-            OR r.\`采购单号\` = '' 
-            OR r.\`采购单号\` != p.\`采购单号\`
-            OR r.\`牵牛花物流单号\` IS NULL 
+            OR r.\`采购单号\` = ''
+          )
+          AND (
+            r.\`牵牛花物流单号\` IS NULL 
             OR r.\`牵牛花物流单号\` = '' 
             OR r.\`牵牛花物流单号\` != p.\`物流单号\`
           )
@@ -716,6 +821,10 @@ export class Refund1688FollowUpService {
             r.\`订单编号\` IN (${placeholders})
             AND p.\`采购下单渠道\` = '1688采购平台'
             AND p.\`创建时间\` >= ?
+            AND (
+              r.\`采购单号\` IS NULL 
+              OR r.\`采购单号\` = ''
+            )
         `;
 
         try {

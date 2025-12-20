@@ -698,6 +698,14 @@ export const refund1688Api = {
   // 同步数据：从采购单信息表同步采购单号和物流单号
   syncData: (): Promise<{ success: boolean; updatedCount: number; message: string }> =>
     api.post('/refund-1688-follow-up/sync-data').then(res => res.data),
+
+  // 删除退款跟进记录
+  delete: (orderNo: string): Promise<{ success: boolean; message: string }> =>
+    api.delete(`/refund-1688-follow-up/${orderNo}`).then(res => res.data),
+
+  // 批量删除退款跟进记录
+  batchDelete: (orderNos: string[]): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    api.post('/refund-1688-follow-up/batch-delete', { orderNos }).then(res => res.data),
 };
 
 export default api;

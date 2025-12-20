@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 import { Logger } from '../utils/logger.util';
 import { Refund1688FollowUp, Refund1688FollowUpService } from './refund-1688-follow-up.service';
 
@@ -123,6 +123,26 @@ export class Refund1688FollowUpController {
     }
 
     return await this.service.syncDataFromPurchaseOrder();
+  }
+
+  // 删除退款跟进记录
+  @Delete(':orderNo')
+  async delete(
+    @Param('orderNo') orderNo: string,
+    @Headers('x-user-id') userId?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.service.delete(orderNo, userId ? parseInt(userId, 10) : undefined);
+    return { success: true, message: '删除成功' };
+  }
+
+  // 批量删除退款跟进记录
+  @Post('batch-delete')
+  async batchDelete(
+    @Body() body: { orderNos: string[] },
+    @Headers('x-user-id') userId?: string,
+  ): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    const result = await this.service.batchDelete(body.orderNos, userId ? parseInt(userId, 10) : undefined);
+    return result;
   }
 }
 

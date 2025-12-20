@@ -1,13 +1,16 @@
 "use client";
 
 import { refund1688Api, Refund1688FollowUp } from '@/lib/api';
-import { LinkOutlined, SyncOutlined } from '@ant-design/icons';
+import { LinkOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
+    Checkbox,
+    Dropdown,
     Form,
     Image,
     Input,
+    MenuProps,
     message,
     Modal,
     Select,
@@ -55,6 +58,42 @@ export default function Refund1688FollowUpPage() {
     const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
     const [imageCache, setImageCache] = useState<Record<string, string>>({});
     const [canEdit, setCanEdit] = useState<boolean>(true); // 默认允许编辑
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]); // 选中的行
+    const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set()); // 隐藏的列
+
+    // 从 localStorage 加载列显示偏好
+    useEffect(() => {
+        const savedHiddenColumns = localStorage.getItem('refund1688_hidden_columns');
+        if (savedHiddenColumns) {
+            try {
+                const parsed = JSON.parse(savedHiddenColumns);
+                setHiddenColumns(new Set(parsed));
+            } catch (error) {
+                console.error('加载列显示偏好失败:', error);
+            }
+        }
+    }, []);
+
+    // 保存列显示偏好到 localStorage
+    const saveHiddenColumns = (hidden: Set<string>) => {
+        try {
+            localStorage.setItem('refund1688_hidden_columns', JSON.stringify(Array.from(hidden)));
+        } catch (error) {
+            console.error('保存列显示偏好失败:', error);
+        }
+    };
+
+    // 切换列的显示/隐藏
+    const toggleColumnVisibility = (columnKey: string) => {
+        const newHidden = new Set(hiddenColumns);
+        if (newHidden.has(columnKey)) {
+            newHidden.delete(columnKey);
+        } else {
+            newHidden.add(columnKey);
+        }
+        setHiddenColumns(newHidden);
+        saveHiddenColumns(newHidden);
+    };
 
     // 加载数据
     const loadData = async (overrideParams?: {
@@ -87,6 +126,7 @@ export default function Refund1688FollowUpPage() {
             setData(result?.data || []);
             setTotal(result?.total || 0);
             setCanEdit(result?.canEdit !== false); // 如果返回false则不允许编辑，否则允许
+            setSelectedRowKeys([]); // 加载新数据时清空选中
         } catch (error) {
             message.error('加载数据失败');
             console.error(error);
@@ -219,6 +259,81 @@ export default function Refund1688FollowUpPage() {
         }
     };
 
+    // 删除记录
+    const handleDelete = (record: Refund1688FollowUp) => {
+        if (!canEdit) {
+            message.warning('您没有删除权限');
+            return;
+        }
+
+        Modal.confirm({
+            title: '确认删除',
+            content: `确定要删除订单编号为 "${record.订单编号}" 的记录吗？此操作不可恢复。`,
+            okText: '确定',
+            okType: 'danger',
+            cancelText: '取消',
+            onOk: async () => {
+                try {
+                    await refund1688Api.delete(record.订单编号);
+                    message.success('删除成功');
+                    await loadData();
+                } catch (error: any) {
+                    message.error(error?.response?.data?.message || '删除失败');
+                }
+            },
+        });
+    };
+
+    // 批量删除记录
+    const handleBatchDelete = () => {
+        if (!canEdit) {
+            message.warning('您没有删除权限');
+            return;
+        }
+
+        if (selectedRowKeys.length === 0) {
+            message.warning('请至少选择一条记录');
+            return;
+        }
+
+        Modal.confirm({
+            title: '确认批量删除',
+            content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`,
+            okText: '确定',
+            okType: 'danger',
+            cancelText: '取消',
+            onOk: async () => {
+                try {
+                    const orderNos = selectedRowKeys.map(key => String(key));
+                    const result = await refund1688Api.batchDelete(orderNos);
+                    message.success(result.message || `成功删除 ${result.deletedCount} 条记录`);
+                    setSelectedRowKeys([]); // 清空选中
+                    await loadData();
+                } catch (error: any) {
+                    message.error(error?.response?.data?.message || '批量删除失败');
+                }
+            },
+        });
+    };
+
+    // 全选/取消全选
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedRowKeys(data.map(record => record.订单编号));
+        } else {
+            setSelectedRowKeys([]);
+        }
+    };
+
+    // 单行选择
+    const handleSelect = (record: Refund1688FollowUp, checked: boolean) => {
+        if (checked) {
+            setSelectedRowKeys([...selectedRowKeys, record.订单编号]);
+        } else {
+            setSelectedRowKeys(selectedRowKeys.filter(key => key !== record.订单编号));
+        }
+    };
+
     // 跳转到订单详情页
     const handleViewOrder = (orderNo: string) => {
         const url = `https://air.1688.com/app/ctf-page/trade-order-detail/index.html?orderId=${orderNo}`;
@@ -238,6 +353,24 @@ export default function Refund1688FollowUpPage() {
     };
 
     const columns: ColumnType<Refund1688FollowUp>[] = [
+        {
+            title: (
+                <Checkbox
+                    checked={selectedRowKeys.length > 0 && selectedRowKeys.length === data.length}
+                    indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < data.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                />
+            ),
+            key: 'selection',
+            width: 60,
+            fixed: 'left',
+            render: (_, record) => (
+                <Checkbox
+                    checked={selectedRowKeys.includes(record.订单编号)}
+                    onChange={(e) => handleSelect(record, e.target.checked)}
+                />
+            ),
+        },
         {
             title: '收货人姓名',
             dataIndex: '收货人姓名',
@@ -428,15 +561,24 @@ export default function Refund1688FollowUpPage() {
         {
             title: '操作',
             key: 'action',
-            width: 100,
+            width: 150,
             fixed: 'right',
             render: (_, record) => {
                 if (!record) return '-';
                 return (
                     canEdit ? (
-                        <Button type="primary" size="small" onClick={() => handleEdit(record)}>
-                            编辑
-                        </Button>
+                        <Space>
+                            <Button type="primary" size="small" onClick={() => handleEdit(record)}>
+                                编辑
+                            </Button>
+                            <Button
+                                danger
+                                size="small"
+                                onClick={() => handleDelete(record)}
+                            >
+                                删除
+                            </Button>
+                        </Space>
                     ) : (
                         <span style={{ color: '#999' }}>仅查看</span>
                     )
@@ -444,6 +586,43 @@ export default function Refund1688FollowUpPage() {
             },
         },
     ];
+
+    // 过滤列：根据隐藏状态过滤，但保留 selection 和 action 列
+    const visibleColumns = columns.filter(col => {
+        const key = col.key as string;
+        // 始终显示选择列和操作列
+        if (key === 'selection' || key === 'action') {
+            return true;
+        }
+        // 其他列根据隐藏状态决定
+        return !hiddenColumns.has(key);
+    });
+
+    // 构建列显示/隐藏菜单项
+    const columnMenuItems: MenuProps['items'] = columns
+        .filter(col => {
+            const key = col.key as string;
+            // 不显示选择列和操作列的选项（这两个列始终显示）
+            return key !== 'selection' && key !== 'action';
+        })
+        .map(col => {
+            const columnKey = col.key as string;
+            const isVisible = !hiddenColumns.has(columnKey);
+            return {
+                key: columnKey,
+                label: (
+                    <Checkbox
+                        checked={isVisible}
+                        onChange={(e) => {
+                            e.stopPropagation(); // 阻止事件冒泡
+                            toggleColumnVisibility(columnKey);
+                        }}
+                    >
+                        {col.title as string}
+                    </Checkbox>
+                ),
+            };
+        });
 
     return (
         <div style={{ padding: 24 }}>
@@ -504,6 +683,7 @@ export default function Refund1688FollowUpPage() {
                             setSearchText('');
                             setSearchFilters({});
                             setCurrentPage(1);
+                            setSelectedRowKeys([]); // 重置时清空选中
                             // 立即使用空参数加载数据，确保使用新参数而不是状态值
                             loadData({
                                 page: 1,
@@ -539,11 +719,29 @@ export default function Refund1688FollowUpPage() {
                         >
                             同步数据
                         </Button>
+                        {selectedRowKeys.length > 0 && (
+                            <Button
+                                danger
+                                disabled={!canEdit}
+                                onClick={handleBatchDelete}
+                            >
+                                批量删除 ({selectedRowKeys.length})
+                            </Button>
+                        )}
+                        <Dropdown
+                            menu={{ items: columnMenuItems }}
+                            trigger={['click']}
+                            placement="bottomRight"
+                        >
+                            <Button icon={<SettingOutlined />}>
+                                列设置
+                            </Button>
+                        </Dropdown>
                     </Space>
                 }
             >
                 <ResponsiveTable<Refund1688FollowUp>
-                    columns={columns}
+                    columns={visibleColumns}
                     dataSource={data}
                     rowKey="订单编号"
                     loading={loading}
@@ -633,9 +831,17 @@ export default function Refund1688FollowUpPage() {
                                 <Button
                                     danger
                                     onClick={() => {
-                                        // 使用空字符串而不是 undefined，确保提交时会带上该字段，从而真正清空数据库中的值
-                                        form.setFieldsValue({ 跟进情况图片: '' });
+                                        // 使用空字符串，确保提交时会带上该字段，从而真正清空数据库中的值
+                                        form.setFieldValue('跟进情况图片', '');
                                         setFollowUpImagePreview(undefined);
+                                        // 同时清除缓存中的图片
+                                        if (editingRecord?.订单编号) {
+                                            setImageCache(prev => {
+                                                const newCache = { ...prev };
+                                                delete newCache[editingRecord.订单编号];
+                                                return newCache;
+                                            });
+                                        }
                                     }}
                                 >
                                     清除图片
