@@ -449,12 +449,16 @@ export class Refund1688FollowUpService {
 
   // 批量删除退款跟进记录
   async batchDelete(orderNos: string[], userId?: number): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    Logger.log(`[Refund1688FollowUpService] 开始批量删除: userId=${userId}, orderNos数量=${orderNos?.length || 0}`);
+    Logger.log(`[Refund1688FollowUpService] 订单编号列表:`, orderNos);
+
     const connection = await this.getChaigouConnection();
 
     try {
       // 检查编辑权限
       if (userId !== undefined) {
         const hasPermission = await this.checkEditPermission(userId);
+        Logger.log(`[Refund1688FollowUpService] 权限检查结果: hasPermission=${hasPermission}`);
         if (!hasPermission) {
           throw new Error('您的账号没有编辑权限，无法执行批量删除操作');
         }

@@ -141,7 +141,10 @@ export class Refund1688FollowUpController {
     @Body() body: { orderNos: string[] },
     @Headers('x-user-id') userId?: string,
   ): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    Logger.log(`[Refund1688FollowUpController] 收到批量删除请求: userId=${userId}, orderNos数量=${body?.orderNos?.length || 0}`);
+    Logger.log(`[Refund1688FollowUpController] 订单编号列表:`, body?.orderNos);
     const result = await this.service.batchDelete(body.orderNos, userId ? parseInt(userId, 10) : undefined);
+    Logger.log(`[Refund1688FollowUpController] 批量删除完成: 删除数量=${result.deletedCount}`);
     return result;
   }
 }
