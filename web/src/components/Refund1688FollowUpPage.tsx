@@ -823,9 +823,10 @@ export default function Refund1688FollowUpPage() {
                                     message.warning('您没有编辑权限，无法执行同步操作');
                                     return;
                                 }
+                                const hide = message.loading({ content: '正在同步数据...', key: 'syncData', duration: 0 });
                                 try {
-                                    message.loading({ content: '正在同步数据...', key: 'syncData' });
                                     const result = await refund1688Api.syncData();
+                                    hide();
                                     message.success({
                                         content: result?.message || `同步成功，共更新 ${result?.updatedCount || 0} 条记录`,
                                         key: 'syncData',
@@ -833,6 +834,7 @@ export default function Refund1688FollowUpPage() {
                                     });
                                     await loadData(); // 重新加载数据
                                 } catch (error: any) {
+                                    hide();
                                     message.error({
                                         content: error?.response?.data?.message || '同步数据失败',
                                         key: 'syncData'
