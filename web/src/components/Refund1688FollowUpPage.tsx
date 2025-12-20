@@ -326,7 +326,7 @@ export default function Refund1688FollowUpPage() {
     };
 
     // 批量删除记录
-    const handleBatchDelete = () => {
+    const handleBatchDelete = async () => {
         console.log('[批量删除] 开始执行，选中数量:', selectedRowKeys.length, 'canEdit:', canEdit);
 
         if (!canEdit) {
@@ -339,35 +339,21 @@ export default function Refund1688FollowUpPage() {
             return;
         }
 
-        console.log('[批量删除] 准备显示确认对话框，选中的订单编号:', selectedRowKeys);
+        try {
+            console.log('[批量删除] 用户确认删除，开始执行');
+            const orderNos = selectedRowKeys.map(key => String(key));
+            console.log('[批量删除] 准备删除的订单编号:', orderNos);
 
-        Modal.confirm({
-            title: '确认批量删除',
-            content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`,
-            okText: '确定',
-            okType: 'danger',
-            cancelText: '取消',
-            onOk: async () => {
-                try {
-                    console.log('[批量删除] 用户确认删除，开始执行');
-                    const orderNos = selectedRowKeys.map(key => String(key));
-                    console.log('[批量删除] 准备删除的订单编号:', orderNos);
+            const result = await refund1688Api.batchDelete(orderNos);
+            console.log('[批量删除] 删除成功，结果:', result);
 
-                    const result = await refund1688Api.batchDelete(orderNos);
-                    console.log('[批量删除] 删除成功，结果:', result);
-
-                    message.success(result.message || `成功删除 ${result.deletedCount} 条记录`);
-                    setSelectedRowKeys([]); // 清空选中
-                    await loadData();
-                } catch (error: any) {
-                    console.error('[批量删除] 删除失败:', error);
-                    message.error(error?.response?.data?.message || error?.message || '批量删除失败');
-                }
-            },
-            onCancel: () => {
-                console.log('[批量删除] 用户取消删除');
-            },
-        });
+            message.success(result.message || `成功删除 ${result.deletedCount} 条记录`);
+            setSelectedRowKeys([]); // 清空选中
+            await loadData();
+        } catch (error: any) {
+            console.error('[批量删除] 删除失败:', error);
+            message.error(error?.response?.data?.message || error?.message || '批量删除失败');
+        }
     };
 
     // 全选/取消全选
@@ -858,13 +844,22 @@ export default function Refund1688FollowUpPage() {
                             同步数据
                         </Button>
                         {selectedRowKeys.length > 0 && (
-                            <Button
-                                danger
+                            <Popconfirm
+                                title="确认批量删除？"
+                                description={`确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`}
+                                onConfirm={handleBatchDelete}
+                                okText="确定"
+                                cancelText="取消"
+                                okButtonProps={{ danger: true }}
                                 disabled={!canEdit}
-                                onClick={handleBatchDelete}
                             >
-                                批量删除 ({selectedRowKeys.length})
-                            </Button>
+                                <Button
+                                    danger
+                                    disabled={!canEdit}
+                                >
+                                    批量删除 ({selectedRowKeys.length})
+                                </Button>
+                            </Popconfirm>
                         )}
                         <Popover
                             content={columnSettingsContent}
