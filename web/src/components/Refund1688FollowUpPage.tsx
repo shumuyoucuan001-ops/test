@@ -513,7 +513,12 @@ export default function Refund1688FollowUpPage() {
                         }}>重置</Button>
                         <Button
                             type="primary"
+                            disabled={!canEdit}
                             onClick={async () => {
+                                if (!canEdit) {
+                                    message.warning('您没有编辑权限，无法执行同步操作');
+                                    return;
+                                }
                                 try {
                                     message.loading({ content: '正在同步数据...', key: 'syncData' });
                                     const result = await refund1688Api.syncData();

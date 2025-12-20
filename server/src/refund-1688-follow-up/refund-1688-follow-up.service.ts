@@ -661,7 +661,7 @@ export class Refund1688FollowUpService {
 
       // 优化：先查询需要更新的记录，然后分批更新，避免长时间锁定
       const selectSql = `
-        SELECT r.\`订单编号\`, p.\`物流单号\`
+        SELECT r.\`订单编号\`, p.\`采购单号\`, p.\`物流单号\`
         FROM \`sm_chaigou\`.\`1688退款售后\` r
         INNER JOIN \`sm_chaigou\`.\`采购单信息\` p
           ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
@@ -669,7 +669,10 @@ export class Refund1688FollowUpService {
           p.\`采购下单渠道\` = '1688采购平台'
           AND p.\`创建时间\` >= ?
           AND (
-            r.\`牵牛花物流单号\` IS NULL 
+            r.\`采购单号\` IS NULL 
+            OR r.\`采购单号\` = '' 
+            OR r.\`采购单号\` != p.\`采购单号\`
+            OR r.\`牵牛花物流单号\` IS NULL 
             OR r.\`牵牛花物流单号\` = '' 
             OR r.\`牵牛花物流单号\` != p.\`物流单号\`
           )
@@ -678,7 +681,7 @@ export class Refund1688FollowUpService {
 
       Logger.log('[Refund1688FollowUpService] 查询需要同步的记录...');
       const [rows]: any = await connection.execute(selectSql, [threeMonthsAgoStr]);
-      const recordsToUpdate = rows as Array<{ 订单编号: string; 物流单号: string }>;
+      const recordsToUpdate = rows as Array<{ 订单编号: string; 采购单号: string; 物流单号: string }>;
 
       if (recordsToUpdate.length === 0) {
         Logger.log('[Refund1688FollowUpService] 没有需要同步的记录');
@@ -707,6 +710,7 @@ export class Refund1688FollowUpService {
           INNER JOIN \`sm_chaigou\`.\`采购单信息\` p
             ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
           SET 
+            r.\`采购单号\` = p.\`采购单号\`,
             r.\`牵牛花物流单号\` = p.\`物流单号\`
           WHERE 
             r.\`订单编号\` IN (${placeholders})

@@ -103,7 +103,25 @@ export class Refund1688FollowUpController {
 
   // 同步数据：从采购单信息表同步采购单号和物流单号
   @Post('sync-data')
-  async syncData(): Promise<{ success: boolean; updatedCount: number; message: string }> {
+  async syncData(
+    @Headers('x-user-id') userId?: string,
+  ): Promise<{ success: boolean; updatedCount: number; message: string }> {
+    // 检查编辑权限
+    if (userId) {
+      try {
+        const hasPermission = await this.service.checkEditPermission(parseInt(userId, 10));
+        if (!hasPermission) {
+          throw new Error('您的账号没有编辑权限，无法执行同步操作');
+        }
+      } catch (error: any) {
+        if (error.message && error.message.includes('没有编辑权限')) {
+          throw error;
+        }
+        // 其他错误也拒绝，保证安全
+        throw new Error('权限检查失败，无法执行同步操作');
+      }
+    }
+
     return await this.service.syncDataFromPurchaseOrder();
   }
 }
