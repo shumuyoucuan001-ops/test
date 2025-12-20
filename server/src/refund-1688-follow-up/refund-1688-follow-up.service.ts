@@ -616,7 +616,8 @@ export class Refund1688FollowUpService {
       'refunding': '退款中',
       'refund_success': '退款成功',
       'refund_closed': '退款关闭',
-      'confirm_goods_but_not_fund': '确认商品但未支付',
+      'confirm_goods_but_not_fund': '确认收货但未支付',
+      'send_goods_but_not_fund': '已发货未到账',
     };
     return statusMap[status?.toLowerCase()] || status || '未知状态';
   }
