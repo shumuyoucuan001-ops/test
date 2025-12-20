@@ -672,7 +672,7 @@ export const refund1688Api = {
     牵牛花物流单号?: string;
     进度追踪?: string;
     keyword?: string;
-  }): Promise<{ data: Refund1688FollowUp[]; total: number }> =>
+  }): Promise<{ data: Refund1688FollowUp[]; total: number; canEdit?: boolean }> =>
     api.get('/refund-1688-follow-up', { params }).then(res => res.data),
 
   // 更新退款跟进记录
@@ -694,6 +694,10 @@ export const refund1688Api = {
   // 获取跟进情况图片（按需查询，原发货截图）
   getFollowUpImage: (orderNo: string): Promise<{ 跟进情况图片: string | null }> =>
     api.get(`/refund-1688-follow-up/${encodeURIComponent(orderNo)}/follow-up-image`).then(res => res.data),
+
+  // 同步数据：从采购单信息表同步采购单号和物流单号
+  syncData: (): Promise<{ success: boolean; updatedCount: number; message: string }> =>
+    api.post('/refund-1688-follow-up/sync-data').then(res => res.data),
 };
 
 export default api;

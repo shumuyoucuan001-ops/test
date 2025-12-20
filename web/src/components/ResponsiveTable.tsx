@@ -52,9 +52,10 @@ export default function ResponsiveTable<T extends Record<string, any>>({
     // 移动端卡片式布局
     if (isMobile) {
         // 过滤掉操作列，单独处理
+        // 注意：不再过滤fixed列，因为有些重要字段（如订单编号）需要显示
         const dataColumns = columns.filter(col => {
             const key = (col as any).key || (col as any).dataIndex;
-            return key !== 'action' && !(col as any).fixed;
+            return key !== 'action';
         });
         const actionColumn = columns.find(col => {
             const key = (col as any).key || (col as any).dataIndex;
@@ -106,8 +107,9 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                                 cellValue = record[colKey];
                                             }
 
-                                            // 如果值为空或 undefined，跳过
-                                            if (cellValue === null || cellValue === undefined || cellValue === '') {
+                                            // 如果值为空或 undefined，跳过（除非标记为移动端必须显示）
+                                            const mobileRequired = (col as any).mobileRequired;
+                                            if (!mobileRequired && (cellValue === null || cellValue === undefined || cellValue === '')) {
                                                 return null;
                                             }
 

@@ -54,19 +54,25 @@ export default function Refund1688FollowUpPage() {
     const [followUpImagePreview, setFollowUpImagePreview] = useState<string | undefined>(undefined);
     const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
     const [imageCache, setImageCache] = useState<Record<string, string>>({});
+    const [canEdit, setCanEdit] = useState<boolean>(true); // 默认允许编辑
 
     // 加载数据
-    const loadData = async () => {
+    const loadData = async (overrideParams?: {
+        page?: number;
+        keyword?: string;
+        filters?: typeof searchFilters;
+    }) => {
         setLoading(true);
         try {
             const result = await refund1688Api.getAll({
-                page: currentPage,
+                page: overrideParams?.page ?? currentPage,
                 limit: pageSize,
-                keyword: searchText || undefined,
-                ...searchFilters,
+                keyword: overrideParams?.keyword ?? (searchText || undefined),
+                ...(overrideParams?.filters ?? searchFilters),
             });
             setData(result.data || []);
             setTotal(result.total || 0);
+            setCanEdit(result.canEdit !== false); // 如果返回false则不允许编辑，否则允许
         } catch (error) {
             message.error('加载数据失败');
             console.error(error);
@@ -238,13 +244,6 @@ export default function Refund1688FollowUpPage() {
             width: 150,
         },
         {
-            title: '订单状态',
-            dataIndex: '订单状态',
-            key: '订单状态',
-            width: 120,
-            render: (text) => text ? <Tag color="blue">{text}</Tag> : '-',
-        },
-        {
             title: '订单详情',
             key: '订单详情页',
             width: 120,
@@ -264,6 +263,7 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '请求获取订单状态',
             key: '请求获取订单状态',
             width: 180,
+            ...({ mobileRequired: true } as any), // 移动端必须显示
             render: (text, record) => (
                 <Space>
                     <span>{text || '-'}</span>
@@ -283,9 +283,10 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '请求获取退款状态',
             key: '请求获取退款状态',
             width: 180,
+            ...({ mobileRequired: true } as any), // 移动端必须显示
             render: (text, record) => (
                 <Space>
-                    <span>{text || '-'}</span>
+                    {text ? <Tag color="blue">{text}</Tag> : '-'}
                     <Button
                         size="small"
                         type="link"
@@ -320,6 +321,7 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '采购单号',
             key: '采购单号',
             width: 150,
+            ...({ mobileRequired: true } as any), // 移动端必须显示
         },
         {
             title: '跟进情况/备注',
@@ -327,6 +329,7 @@ export default function Refund1688FollowUpPage() {
             key: '跟进情况备注',
             width: 200,
             ellipsis: true,
+            ...({ mobileRequired: true } as any), // 移动端必须显示
         },
         {
             title: '跟进情况/图片',
@@ -385,6 +388,7 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '牵牛花物流单号',
             key: '牵牛花物流单号',
             width: 150,
+            ...({ mobileRequired: true } as any), // 移动端必须显示
         },
         {
             title: '跟进人',
@@ -405,9 +409,13 @@ export default function Refund1688FollowUpPage() {
             width: 100,
             fixed: 'right',
             render: (_, record) => (
-                <Button type="primary" size="small" onClick={() => handleEdit(record)}>
-                    编辑
-                </Button>
+                canEdit ? (
+                    <Button type="primary" size="small" onClick={() => handleEdit(record)}>
+                        编辑
+                    </Button>
+                ) : (
+                    <span style={{ color: '#999' }}>仅查看</span>
+                )
             ),
         },
     ];
@@ -470,10 +478,31 @@ export default function Refund1688FollowUpPage() {
                             setSearchText('');
                             setSearchFilters({});
                             setCurrentPage(1);
-                            loadData();
+                            // 使用新的参数立即加载数据，避免状态更新延迟问题
+                            loadData({ page: 1, keyword: undefined, filters: {} });
                         }}>重置</Button>
-                        <Button icon={<SyncOutlined />} onClick={loadData} loading={loading}>
-                            刷新
+                        <Button
+                            type="primary"
+                            onClick={async () => {
+                                try {
+                                    message.loading({ content: '正在同步数据...', key: 'syncData' });
+                                    const result = await refund1688Api.syncData();
+                                    message.success({
+                                        content: result.message || `同步成功，共更新 ${result.updatedCount} 条记录`,
+                                        key: 'syncData',
+                                        duration: 5
+                                    });
+                                    await loadData(); // 重新加载数据
+                                } catch (error: any) {
+                                    message.error({
+                                        content: error?.response?.data?.message || '同步数据失败',
+                                        key: 'syncData'
+                                    });
+                                    console.error(error);
+                                }
+                            }}
+                        >
+                            同步数据
                         </Button>
                     </Space>
                 }

@@ -18,7 +18,8 @@ export class Refund1688FollowUpController {
     @Query('牵牛花物流单号') 牵牛花物流单号?: string,
     @Query('进度追踪') 进度追踪?: string,
     @Query('keyword') keyword?: string,
-  ): Promise<{ data: Refund1688FollowUp[]; total: number }> {
+    @Headers('x-user-id') userId?: string,
+  ): Promise<{ data: Refund1688FollowUp[]; total: number; canEdit?: boolean }> {
     const pageNum = Math.max(1, parseInt(page || '1', 10));
     const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 200));
 
@@ -32,11 +33,27 @@ export class Refund1688FollowUpController {
     if (进度追踪) filters.进度追踪 = 进度追踪;
     if (keyword) filters.keyword = keyword;
 
-    return await this.service.findAll(
+    const result = await this.service.findAll(
       pageNum,
       limitNum,
       Object.keys(filters).length > 0 ? filters : undefined
     );
+
+    // 检查用户是否有编辑权限
+    let canEdit = true;
+    if (userId) {
+      try {
+        canEdit = await this.service.checkEditPermission(parseInt(userId, 10));
+      } catch (error) {
+        // 如果检查失败，默认不允许编辑
+        canEdit = false;
+      }
+    }
+
+    return {
+      ...result,
+      canEdit,
+    };
   }
 
   // 更新退款跟进记录
@@ -77,6 +94,12 @@ export class Refund1688FollowUpController {
   @Get(':orderNo/follow-up-image')
   async getFollowUpImage(@Param('orderNo') orderNo: string): Promise<{ 跟进情况图片: string | null }> {
     return await this.service.getFollowUpImage(orderNo);
+  }
+
+  // 同步数据：从采购单信息表同步采购单号和物流单号
+  @Post('sync-data')
+  async syncData(): Promise<{ success: boolean; updatedCount: number; message: string }> {
+    return await this.service.syncDataFromPurchaseOrder();
   }
 }
 

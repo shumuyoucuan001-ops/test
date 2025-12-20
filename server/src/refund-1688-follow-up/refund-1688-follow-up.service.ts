@@ -168,10 +168,54 @@ export class Refund1688FollowUpService {
     }
   }
 
+  // 检查用户是否有编辑权限（department_id不包含'店'或'仓'）
+  async checkEditPermission(userId: number): Promise<boolean> {
+    const connection = await this.getChaigouConnection();
+    try {
+      const [userRows]: any = await connection.execute(
+        `SELECT \`department_id\` FROM \`sm_xitongkaifa\`.\`sys_users\` WHERE \`id\` = ?`,
+        [userId],
+      );
+
+      if (userRows.length === 0) {
+        Logger.warn(`[Refund1688FollowUpService] 用户不存在: userId=${userId}`);
+        return false;
+      }
+
+      const departmentId = userRows[0]['department_id'];
+      if (!departmentId) {
+        // 如果没有department_id，默认允许编辑
+        return true;
+      }
+
+      const departmentIdStr = String(departmentId);
+      // 如果department_id包含'店'或'仓'，则不允许编辑
+      const hasRestriction = departmentIdStr.includes('店') || departmentIdStr.includes('仓');
+
+      Logger.log(`[Refund1688FollowUpService] 权限检查: userId=${userId}, department_id=${departmentId}, 允许编辑=${!hasRestriction}`);
+
+      return !hasRestriction;
+    } catch (error) {
+      Logger.error(`[Refund1688FollowUpService] 检查编辑权限失败: ${error}`);
+      // 出错时默认不允许编辑，保证安全
+      return false;
+    } finally {
+      await connection.end();
+    }
+  }
+
   // 更新退款跟进记录
   async update(orderNo: string, data: Partial<Refund1688FollowUp>, userId?: number): Promise<void> {
     const connection = await this.getChaigouConnection();
     try {
+      // 检查编辑权限
+      if (userId) {
+        const hasPermission = await this.checkEditPermission(userId);
+        if (!hasPermission) {
+          throw new Error('您的账号没有编辑权限，只能查看数据');
+        }
+      }
+
       // 如果提供了userId，自动获取跟进人的display_name
       let followUpPerson: string | undefined;
       if (userId) {
@@ -599,6 +643,57 @@ export class Refund1688FollowUpService {
     });
 
     return updatedRecords;
+  }
+
+  // 同步数据：从采购单信息表同步采购单号和物流单号到1688退款售后表
+  async syncDataFromPurchaseOrder(): Promise<{ success: boolean; updatedCount: number; message: string }> {
+    const connection = await this.getChaigouConnection();
+    try {
+      Logger.log('[Refund1688FollowUpService] 开始同步数据...');
+
+      // 计算3个月前的日期
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const threeMonthsAgoStr = threeMonthsAgo.toISOString().slice(0, 19).replace('T', ' ');
+
+      // 执行UPDATE语句，通过INNER JOIN匹配数据并更新
+      // 条件：采购下单渠道='1688采购平台'，创建时间在3个月以内
+      // 注意：只更新牵牛花物流单号，不更新采购单号（1688退款售后表没有采购单号字段）
+      const updateSql = `
+        UPDATE \`sm_chaigou\`.\`1688退款售后\` r
+        INNER JOIN \`sm_chaigou\`.\`采购单信息\` p
+          ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
+        SET 
+          r.\`牵牛花物流单号\` = p.\`物流单号\`
+        WHERE 
+          p.\`采购下单渠道\` = '1688采购平台'
+          AND p.\`创建时间\` >= ?
+          AND (
+            r.\`牵牛花物流单号\` IS NULL 
+            OR r.\`牵牛花物流单号\` = '' 
+            OR r.\`牵牛花物流单号\` != p.\`物流单号\`
+          )
+      `;
+
+      Logger.log('[Refund1688FollowUpService] 执行同步SQL:', updateSql);
+      Logger.log('[Refund1688FollowUpService] 参数: 三个月前日期 =', threeMonthsAgoStr);
+
+      const [result]: any = await connection.execute(updateSql, [threeMonthsAgoStr]);
+      const updatedCount = result.affectedRows || 0;
+
+      Logger.log(`[Refund1688FollowUpService] 同步完成，共更新 ${updatedCount} 条记录`);
+
+      return {
+        success: true,
+        updatedCount,
+        message: `同步成功，共更新 ${updatedCount} 条记录`,
+      };
+    } catch (error: any) {
+      Logger.error('[Refund1688FollowUpService] 同步数据失败:', error?.message || error);
+      throw new Error(error?.message || '同步数据失败');
+    } finally {
+      await connection.end();
+    }
   }
 }
 
