@@ -132,6 +132,7 @@ export class StoreRejectionService {
 
         // 构建搜索条件：支持 keyword 模糊（OR），以及按字段精确（AND）
         const clauses: string[] = [];
+        const unionClauses: string[] = [];
         const buildLike = (v?: string) => `%${(v || '').trim()}%`;
 
         // keyword/q 模糊匹配（OR across all columns）
@@ -145,39 +146,60 @@ export class StoreRejectionService {
                 mx.\`采购单号\` LIKE ? OR
                 xx.\`关联收货单号\` LIKE ?
             )`);
-            params.push(like, like, like, like, like, like);
+            unionClauses.push(`(
+                \`收货方\` LIKE ? OR
+                \`商品名称\` LIKE ? OR
+                \`SKU\` LIKE ? OR
+                \`UPC\` LIKE ? OR
+                \`关联单号\` LIKE ? OR
+                \`来源单号\` LIKE ?
+            )`);
+            params.push(like, like, like, like, like, like, like, like, like, like, like, like);
         }
 
         // 按字段匹配（AND）
         if (filters?.store?.trim()) {
             clauses.push(`mx.\`门店/仓\` LIKE ?`);
-            params.push(buildLike(filters.store));
+            unionClauses.push(`\`收货方\` LIKE ?`);
+            const like = buildLike(filters.store);
+            params.push(like, like);
         }
         if (filters?.productName?.trim()) {
             clauses.push(`mx.\`商品名称\` LIKE ?`);
-            params.push(buildLike(filters.productName));
+            unionClauses.push(`\`商品名称\` LIKE ?`);
+            const like = buildLike(filters.productName);
+            params.push(like, like);
         }
         if (filters?.skuId?.trim()) {
             clauses.push(`mx.\`sku_id\` LIKE ?`);
-            params.push(buildLike(filters.skuId));
+            unionClauses.push(`\`SKU\` LIKE ?`);
+            const like = buildLike(filters.skuId);
+            params.push(like, like);
         }
         if (filters?.upc?.trim()) {
             clauses.push(`mx.\`upc\` LIKE ?`);
-            params.push(buildLike(filters.upc));
+            unionClauses.push(`\`UPC\` LIKE ?`);
+            const like = buildLike(filters.upc);
+            params.push(like, like);
         }
         if (filters?.purchaseOrderNo?.trim()) {
             clauses.push(`mx.\`采购单号\` LIKE ?`);
-            params.push(buildLike(filters.purchaseOrderNo));
+            unionClauses.push(`\`关联单号\` LIKE ?`);
+            const like = buildLike(filters.purchaseOrderNo);
+            params.push(like, like);
         }
         if (filters?.receiptNo?.trim()) {
             clauses.push(`xx.\`关联收货单号\` LIKE ?`);
-            params.push(buildLike(filters.receiptNo));
+            unionClauses.push(`\`来源单号\` LIKE ?`);
+            const like = buildLike(filters.receiptNo);
+            params.push(like, like);
         }
 
         const searchCondition = clauses.length > 0 ? `AND (${clauses.join(' AND ')})` : '';
+        const unionSearchCondition = unionClauses.length > 0 ? `AND (${unionClauses.join(' AND ')})` : '';
 
-        countSql = `SELECT COUNT(*) as total ${baseFrom} ${baseWhere} ${searchCondition}`;
-        sql = `SELECT 
+        // 主查询
+        const mainQuery = `SELECT 
             mx.\`门店/仓\`,
             mx.\`商品名称\`,
             mx.\`sku_id\`,
@@ -186,8 +208,28 @@ export class StoreRejectionService {
             xx.\`关联收货单号\`
         ${baseFrom}
         ${baseWhere}
-        ${searchCondition}
-        LIMIT ${limit} OFFSET ${offset}`;
+        ${searchCondition}`;
+
+        // UNION 查询：从待处理差异单表查询关联单号包含'DB'的记录
+        const unionQuery = `SELECT 
+            \`收货方\` AS \`门店/仓\`,
+            \`商品名称\`,
+            \`SKU\` AS \`sku_id\`,
+            \`UPC\` AS \`upc\`,
+            \`关联单号\` AS \`采购单号\`,
+            \`来源单号\` AS \`关联收货单号\`
+        FROM \`sm_chaigou\`.\`待处理差异单\`
+        WHERE \`关联单号\` LIKE '%DB%'
+        ${unionSearchCondition}`;
+
+        // 组合查询
+        const combinedQuery = `(${mainQuery}) UNION (${unionQuery})`;
+
+        // 计数查询：使用 UNION 查询计算总数，确保参数顺序一致
+        countSql = `SELECT COUNT(*) as total FROM (${combinedQuery}) AS combined_result`;
+
+        // 数据查询：先 UNION，再分页
+        sql = `SELECT * FROM (${combinedQuery}) AS combined_result LIMIT ${limit} OFFSET ${offset}`;
 
         try {
             Logger.log('[StoreRejectionService] Executing count SQL:', countSql);

@@ -1,18 +1,18 @@
 "use client";
 
 import { refund1688Api, Refund1688FollowUp } from '@/lib/api';
-import { LinkOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { DownOutlined, LinkOutlined, SettingOutlined, SyncOutlined, UpOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
     Checkbox,
-    Dropdown,
     Form,
     Image,
     Input,
-    MenuProps,
     message,
     Modal,
+    Popconfirm,
+    Popover,
     Select,
     Space,
     Tag
@@ -60,8 +60,10 @@ export default function Refund1688FollowUpPage() {
     const [canEdit, setCanEdit] = useState<boolean>(true); // 默认允许编辑
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]); // 选中的行
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set()); // 隐藏的列
+    const [columnOrder, setColumnOrder] = useState<string[]>([]); // 列顺序
+    const [columnSettingsOpen, setColumnSettingsOpen] = useState(false); // 列设置弹窗状态
 
-    // 从 localStorage 加载列显示偏好
+    // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
         const savedHiddenColumns = localStorage.getItem('refund1688_hidden_columns');
         if (savedHiddenColumns) {
@@ -70,6 +72,16 @@ export default function Refund1688FollowUpPage() {
                 setHiddenColumns(new Set(parsed));
             } catch (error) {
                 console.error('加载列显示偏好失败:', error);
+            }
+        }
+
+        const savedColumnOrder = localStorage.getItem('refund1688_column_order');
+        if (savedColumnOrder) {
+            try {
+                const parsed = JSON.parse(savedColumnOrder);
+                setColumnOrder(parsed);
+            } catch (error) {
+                console.error('加载列顺序失败:', error);
             }
         }
     }, []);
@@ -83,6 +95,15 @@ export default function Refund1688FollowUpPage() {
         }
     };
 
+    // 保存列顺序到 localStorage
+    const saveColumnOrder = (order: string[]) => {
+        try {
+            localStorage.setItem('refund1688_column_order', JSON.stringify(order));
+        } catch (error) {
+            console.error('保存列顺序失败:', error);
+        }
+    };
+
     // 切换列的显示/隐藏
     const toggleColumnVisibility = (columnKey: string) => {
         const newHidden = new Set(hiddenColumns);
@@ -93,6 +114,35 @@ export default function Refund1688FollowUpPage() {
         }
         setHiddenColumns(newHidden);
         saveHiddenColumns(newHidden);
+    };
+
+    // 移动列位置（向上或向下）
+    const moveColumn = (columnKey: string, direction: 'up' | 'down', allColumns: ColumnType<Refund1688FollowUp>[]) => {
+        // 获取默认列顺序
+        const getDefaultOrder = (): string[] => {
+            return allColumns
+                .filter(col => {
+                    const key = col.key as string;
+                    return key !== 'selection' && key !== 'action';
+                })
+                .map(col => col.key as string);
+        };
+
+        const currentOrder = columnOrder.length > 0 ? [...columnOrder] : getDefaultOrder();
+        const index = currentOrder.indexOf(columnKey);
+
+        if (index === -1) return; // 列不在顺序列表中
+
+        if (direction === 'up' && index > 0) {
+            // 向上移动
+            [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]];
+        } else if (direction === 'down' && index < currentOrder.length - 1) {
+            // 向下移动
+            [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]];
+        }
+
+        setColumnOrder(currentOrder);
+        saveColumnOrder(currentOrder);
     };
 
     // 加载数据
@@ -260,28 +310,19 @@ export default function Refund1688FollowUpPage() {
     };
 
     // 删除记录
-    const handleDelete = (record: Refund1688FollowUp) => {
+    const handleDelete = async (record: Refund1688FollowUp) => {
         if (!canEdit) {
             message.warning('您没有删除权限');
             return;
         }
 
-        Modal.confirm({
-            title: '确认删除',
-            content: `确定要删除订单编号为 "${record.订单编号}" 的记录吗？此操作不可恢复。`,
-            okText: '确定',
-            okType: 'danger',
-            cancelText: '取消',
-            onOk: async () => {
-                try {
-                    await refund1688Api.delete(record.订单编号);
-                    message.success('删除成功');
-                    await loadData();
-                } catch (error: any) {
-                    message.error(error?.response?.data?.message || '删除失败');
-                }
-            },
-        });
+        try {
+            await refund1688Api.delete(record.订单编号);
+            message.success('删除成功');
+            await loadData();
+        } catch (error: any) {
+            message.error(error?.response?.data?.message || '删除失败');
+        }
     };
 
     // 批量删除记录
@@ -571,13 +612,21 @@ export default function Refund1688FollowUpPage() {
                             <Button type="primary" size="small" onClick={() => handleEdit(record)}>
                                 编辑
                             </Button>
-                            <Button
-                                danger
-                                size="small"
-                                onClick={() => handleDelete(record)}
+                            <Popconfirm
+                                title="确认删除？"
+                                description={`确定要删除订单编号为 "${record.订单编号}" 的记录吗？此操作不可恢复。`}
+                                onConfirm={() => handleDelete(record)}
+                                okText="确定"
+                                cancelText="取消"
+                                okButtonProps={{ danger: true }}
                             >
-                                删除
-                            </Button>
+                                <Button
+                                    danger
+                                    size="small"
+                                >
+                                    删除
+                                </Button>
+                            </Popconfirm>
                         </Space>
                     ) : (
                         <span style={{ color: '#999' }}>仅查看</span>
@@ -587,8 +636,51 @@ export default function Refund1688FollowUpPage() {
         },
     ];
 
+    // 获取可配置的列（排除 selection 和 action）
+    const configurableColumns = columns.filter(col => {
+        const key = col.key as string;
+        return key !== 'selection' && key !== 'action';
+    });
+
+    // 获取默认列顺序
+    const getDefaultColumnOrder = (): string[] => {
+        return configurableColumns.map(col => col.key as string);
+    };
+
+    // 获取列顺序（如果未设置，使用默认顺序）
+    const defaultOrder = getDefaultColumnOrder();
+    const currentColumnOrder = columnOrder.length > 0
+        ? columnOrder
+        : defaultOrder;
+
+    // 如果列顺序为空，初始化默认顺序（仅在首次加载时）
+    useEffect(() => {
+        if (columnOrder.length === 0 && defaultOrder.length > 0) {
+            const savedOrder = localStorage.getItem('refund1688_column_order');
+            if (!savedOrder) {
+                // 首次加载，保存默认顺序
+                const order = getDefaultColumnOrder();
+                saveColumnOrder(order);
+                setColumnOrder(order);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // 根据顺序和隐藏状态排序列
+    const sortedColumns = [
+        // 首先添加 selection 列
+        columns.find(col => col.key === 'selection'),
+        // 然后按照顺序添加可配置的列
+        ...currentColumnOrder
+            .map(key => configurableColumns.find(col => col.key === key))
+            .filter(Boolean) as ColumnType<Refund1688FollowUp>[],
+        // 最后添加 action 列
+        columns.find(col => col.key === 'action'),
+    ].filter(Boolean) as ColumnType<Refund1688FollowUp>[];
+
     // 过滤列：根据隐藏状态过滤，但保留 selection 和 action 列
-    const visibleColumns = columns.filter(col => {
+    const visibleColumns = sortedColumns.filter(col => {
         const key = col.key as string;
         // 始终显示选择列和操作列
         if (key === 'selection' || key === 'action') {
@@ -598,31 +690,64 @@ export default function Refund1688FollowUpPage() {
         return !hiddenColumns.has(key);
     });
 
-    // 构建列显示/隐藏菜单项
-    const columnMenuItems: MenuProps['items'] = columns
-        .filter(col => {
-            const key = col.key as string;
-            // 不显示选择列和操作列的选项（这两个列始终显示）
-            return key !== 'selection' && key !== 'action';
-        })
-        .map(col => {
-            const columnKey = col.key as string;
-            const isVisible = !hiddenColumns.has(columnKey);
-            return {
-                key: columnKey,
-                label: (
-                    <Checkbox
-                        checked={isVisible}
-                        onChange={(e) => {
-                            e.stopPropagation(); // 阻止事件冒泡
-                            toggleColumnVisibility(columnKey);
-                        }}
-                    >
-                        {col.title as string}
-                    </Checkbox>
-                ),
-            };
-        });
+    // 构建列设置内容
+    const columnSettingsContent = (
+        <div style={{ width: 300, maxHeight: 500, overflowY: 'auto' }}>
+            <div style={{ marginBottom: 12, fontWeight: 500 }}>列设置</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {currentColumnOrder.map((columnKey, index) => {
+                    const col = configurableColumns.find(c => c.key === columnKey);
+                    if (!col) return null;
+
+                    const isVisible = !hiddenColumns.has(columnKey);
+                    const isFirst = index === 0;
+                    const isLast = index === currentColumnOrder.length - 1;
+
+                    return (
+                        <div
+                            key={columnKey}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '8px',
+                                borderRadius: 4,
+                                backgroundColor: '#f5f5f5',
+                            }}
+                        >
+                            <Checkbox
+                                checked={isVisible}
+                                onChange={(e) => {
+                                    e.stopPropagation();
+                                    toggleColumnVisibility(columnKey);
+                                }}
+                            >
+                                {col.title as string}
+                            </Checkbox>
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<UpOutlined />}
+                                    disabled={isFirst}
+                                    onClick={() => moveColumn(columnKey, 'up', columns)}
+                                    title="上移"
+                                />
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<DownOutlined />}
+                                    disabled={isLast}
+                                    onClick={() => moveColumn(columnKey, 'down', columns)}
+                                    title="下移"
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 
     return (
         <div style={{ padding: 24 }}>
@@ -728,15 +853,18 @@ export default function Refund1688FollowUpPage() {
                                 批量删除 ({selectedRowKeys.length})
                             </Button>
                         )}
-                        <Dropdown
-                            menu={{ items: columnMenuItems }}
-                            trigger={['click']}
+                        <Popover
+                            content={columnSettingsContent}
+                            title={null}
+                            trigger="click"
                             placement="bottomRight"
+                            open={columnSettingsOpen}
+                            onOpenChange={setColumnSettingsOpen}
                         >
                             <Button icon={<SettingOutlined />}>
                                 列设置
                             </Button>
-                        </Dropdown>
+                        </Popover>
                     </Space>
                 }
             >
