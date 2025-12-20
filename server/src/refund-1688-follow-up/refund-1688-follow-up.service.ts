@@ -415,16 +415,16 @@ export class Refund1688FollowUpService {
         }
       }
 
-      // 清理订单编号（去除前后空格）
+      // 清理订单编号（去除前后空格，确保格式一致）
       const cleanedOrderNo = String(orderNo).trim();
 
       if (!cleanedOrderNo) {
         throw new Error('订单编号不能为空');
       }
 
-      // 检查记录是否存在（使用TRIM匹配，处理可能的空格问题）
+      // 订单编号是主键，直接使用主键匹配（不使用TRIM，以利用主键索引）
       const [existingRecords]: any = await connection.execute(
-        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE TRIM(\`订单编号\`) = ?`,
+        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
         [cleanedOrderNo]
       );
 
@@ -432,9 +432,9 @@ export class Refund1688FollowUpService {
         throw new Error('记录不存在');
       }
 
-      // 删除记录（使用TRIM匹配）
+      // 删除记录（直接使用主键匹配）
       await connection.execute(
-        `DELETE FROM \`sm_chaigou\`.\`1688退款售后\` WHERE TRIM(\`订单编号\`) = ?`,
+        `DELETE FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
         [cleanedOrderNo]
       );
 
@@ -464,22 +464,22 @@ export class Refund1688FollowUpService {
         throw new Error('请选择要删除的记录');
       }
 
-      // 清理订单编号（去除前后空格）
+      // 清理订单编号（去除前后空格，确保格式一致）
       const cleanedOrderNos = orderNos.map(no => String(no).trim()).filter(no => no.length > 0);
 
       if (cleanedOrderNos.length === 0) {
         throw new Error('请选择要删除的记录');
       }
 
-      // 检查记录是否存在（使用TRIM匹配，处理可能的空格问题）
+      // 订单编号是主键，直接使用主键匹配（不使用TRIM，以利用主键索引）
       const placeholders = cleanedOrderNos.map(() => '?').join(',');
       const [existingRecords]: any = await connection.execute(
-        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE TRIM(\`订单编号\`) IN (${placeholders})`,
+        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` IN (${placeholders})`,
         cleanedOrderNos
       );
 
-      const existingOrderNos = existingRecords.map((row: any) => String(row.订单编号 || '').trim()).filter(no => no.length > 0);
-      const notFoundOrderNos = cleanedOrderNos.filter(no => !existingOrderNos.some(existing => existing.trim() === no.trim()));
+      const existingOrderNos = existingRecords.map((row: any) => String(row.订单编号 || '')).filter(no => no.length > 0);
+      const notFoundOrderNos = cleanedOrderNos.filter(no => !existingOrderNos.includes(no));
 
       if (notFoundOrderNos.length > 0) {
         Logger.warn(`[Refund1688FollowUpService] 部分记录不存在: ${notFoundOrderNos.join(', ')}`);
@@ -489,14 +489,14 @@ export class Refund1688FollowUpService {
         throw new Error('没有找到要删除的记录');
       }
 
-      // 批量删除记录（使用TRIM匹配）
+      // 批量删除记录（直接使用主键匹配）
       const deletePlaceholders = existingOrderNos.map(() => '?').join(',');
       const [deleteResult]: any = await connection.execute(
-        `DELETE FROM \`sm_chaigou\`.\`1688退款售后\` WHERE TRIM(\`订单编号\`) IN (${deletePlaceholders})`,
+        `DELETE FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` IN (${deletePlaceholders})`,
         existingOrderNos
       );
 
-      const deletedCount = deleteResult.affectedRows || existingOrderNos.length;
+      const deletedCount = deleteResult.affectedRows || 0;
       Logger.log(`[Refund1688FollowUpService] 批量删除记录成功: 共删除 ${deletedCount} 条记录`);
 
       return {
