@@ -15,13 +15,13 @@ export interface Refund1688FollowUp {
   进度追踪?: string;
   采购单号?: string;
   跟进情况备注?: string;
-  出库单号回库?: string;
   差异单出库单详情?: string;
-  退款详情?: string;
   跟进相关附件?: string;
-  物流单号?: string;
-  发货截图?: string;
+  牵牛花物流单号?: string;
+  跟进情况图片?: string; // 列表查询时不返回，需要通过单独接口查询（原发货截图）
+  有跟进情况图片?: number; // 列表查询时返回，0表示无图片，1表示有图片
   跟进人?: string;
+  跟进时间?: string; // 最后编辑时间
 }
 
 @Injectable()
@@ -46,7 +46,7 @@ export class Refund1688FollowUpService {
       订单状态?: string;
       买家会员名?: string;
       采购单号?: string;
-      物流单号?: string;
+      牵牛花物流单号?: string;
       进度追踪?: string;
       keyword?: string; // 关键词搜索
     }
@@ -70,9 +70,11 @@ export class Refund1688FollowUpService {
           r.\`订单编号\` LIKE ? OR
           r.\`买家会员名\` LIKE ? OR
           r.\`采购单号\` LIKE ? OR
-          r.\`物流单号\` LIKE ?
+          r.\`牵牛花物流单号\` LIKE ? OR
+          r.\`跟进人\` LIKE ? OR
+          r.\`跟进情况/备注\` LIKE ?
         )`);
-        params.push(like, like, like, like, like);
+        params.push(like, like, like, like, like, like, like);
       }
 
       // 按字段精确搜索（AND）
@@ -96,9 +98,9 @@ export class Refund1688FollowUpService {
         clauses.push(`r.\`采购单号\` LIKE ?`);
         params.push(buildLike(filters.采购单号));
       }
-      if (filters?.物流单号?.trim()) {
-        clauses.push(`r.\`物流单号\` LIKE ?`);
-        params.push(buildLike(filters.物流单号));
+      if (filters?.牵牛花物流单号?.trim()) {
+        clauses.push(`r.\`牵牛花物流单号\` LIKE ?`);
+        params.push(buildLike(filters.牵牛花物流单号));
       }
       if (filters?.进度追踪?.trim()) {
         clauses.push(`r.\`进度追踪\` = ?`);
@@ -121,6 +123,7 @@ export class Refund1688FollowUpService {
       Logger.log(`[Refund1688FollowUpService] 总记录数: ${total}`);
 
       // 获取分页数据（只查询1688退款售后表，不JOIN任何其他表）
+      // 优化：不返回图片数据，只返回是否有图片的标识，减少数据传输压力
       const dataSql = `SELECT 
           r.\`订单编号\`,
           r.\`收货人姓名\`,
@@ -133,13 +136,12 @@ export class Refund1688FollowUpService {
           r.\`进度追踪\`,
           r.\`采购单号\`,
           r.\`跟进情况/备注\` as 跟进情况备注,
-          r.\`出库单号（回库）\` as 出库单号回库,
           r.\`差异单/出库单详情\` as 差异单出库单详情,
-          r.\`退款详情\`,
           r.\`跟进相关附件\`,
-          r.\`物流单号\`,
-          CAST(r.\`发货截图\` AS CHAR) as 发货截图,
-          r.\`跟进人\`
+          r.\`牵牛花物流单号\`,
+          CASE WHEN r.\`跟进情况/图片\` IS NOT NULL AND r.\`跟进情况/图片\` != '' THEN 1 ELSE 0 END as 有跟进情况图片,
+          r.\`跟进人\`,
+          r.\`跟进时间\`
         FROM \`sm_chaigou\`.\`1688退款售后\` r
         ${searchCondition}
         ORDER BY r.\`订单编号\` DESC
@@ -197,11 +199,9 @@ export class Refund1688FollowUpService {
         '采购单号': '采购单号',
         '进度追踪': '进度追踪',
         '跟进情况备注': '跟进情况/备注',
-        '出库单号回库': '出库单号（回库）',
         '差异单出库单详情': '差异单/出库单详情',
-        '退款详情': '退款详情',
-        '物流单号': '物流单号',
-        '发货截图': '发货截图',
+        '牵牛花物流单号': '牵牛花物流单号',
+        '跟进情况图片': '跟进情况/图片',
       };
 
       for (const [key, dbField] of Object.entries(fieldMapping)) {
@@ -217,6 +217,11 @@ export class Refund1688FollowUpService {
         updateValues.push(followUpPerson);
       }
 
+      // 自动更新跟进时间（每次编辑时更新为当前时间）
+      // 注意：跟进时间使用NOW()函数，不需要参数，所以不添加到updateValues
+      updateFields.push(`\`跟进时间\` = NOW()`);
+
+      // 即使没有其他字段更新，至少也会更新跟进时间
       if (updateFields.length === 0) {
         Logger.warn('[Refund1688FollowUpService] 没有可更新的字段');
         return;
@@ -338,6 +343,29 @@ export class Refund1688FollowUpService {
     } catch (error: any) {
       Logger.error('[Refund1688FollowUpService] 获取退款状态失败:', error?.message || error);
       throw new Error(error?.message || '获取退款状态失败');
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 根据订单编号获取跟进情况图片（按需查询，原发货截图）
+  async getFollowUpImage(orderNo: string): Promise<{ 跟进情况图片: string | null }> {
+    const connection = await this.getChaigouConnection();
+    try {
+      const [rows] = await connection.execute(
+        `SELECT CAST(\`跟进情况/图片\` AS CHAR) as 跟进情况图片 FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        [orderNo],
+      );
+
+      const record = (rows as any[])[0];
+      const image = record?.跟进情况图片 || null;
+
+      Logger.log(`[Refund1688FollowUpService] 查询跟进情况图片: 订单编号=${orderNo}, 是否有图片=${!!image}`);
+
+      return { 跟进情况图片: image };
+    } catch (error: any) {
+      Logger.error('[Refund1688FollowUpService] 获取跟进情况图片失败:', error?.message || error);
+      throw new Error(error?.message || '获取跟进情况图片失败');
     } finally {
       await connection.end();
     }

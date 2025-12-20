@@ -15,7 +15,7 @@ export class Refund1688FollowUpController {
     @Query('订单状态') 订单状态?: string,
     @Query('买家会员名') 买家会员名?: string,
     @Query('采购单号') 采购单号?: string,
-    @Query('物流单号') 物流单号?: string,
+    @Query('牵牛花物流单号') 牵牛花物流单号?: string,
     @Query('进度追踪') 进度追踪?: string,
     @Query('keyword') keyword?: string,
   ): Promise<{ data: Refund1688FollowUp[]; total: number }> {
@@ -28,7 +28,7 @@ export class Refund1688FollowUpController {
     if (订单状态) filters.订单状态 = 订单状态;
     if (买家会员名) filters.买家会员名 = 买家会员名;
     if (采购单号) filters.采购单号 = 采购单号;
-    if (物流单号) filters.物流单号 = 物流单号;
+    if (牵牛花物流单号) filters.牵牛花物流单号 = 牵牛花物流单号;
     if (进度追踪) filters.进度追踪 = 进度追踪;
     if (keyword) filters.keyword = keyword;
 
@@ -71,6 +71,12 @@ export class Refund1688FollowUpController {
       count,
       message: `成功匹配 ${count} 条记录`,
     };
+  }
+
+  // 获取跟进情况图片（按需查询，原发货截图）
+  @Get(':orderNo/follow-up-image')
+  async getFollowUpImage(@Param('orderNo') orderNo: string): Promise<{ 跟进情况图片: string | null }> {
+    return await this.service.getFollowUpImage(orderNo);
   }
 }
 

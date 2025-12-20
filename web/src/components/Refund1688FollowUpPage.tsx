@@ -51,7 +51,9 @@ export default function Refund1688FollowUpPage() {
         进度追踪?: string;
         采购单号?: string;
     }>({});
-    const [shippingScreenshotPreview, setShippingScreenshotPreview] = useState<string | undefined>(undefined);
+    const [followUpImagePreview, setFollowUpImagePreview] = useState<string | undefined>(undefined);
+    const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
+    const [imageCache, setImageCache] = useState<Record<string, string>>({});
 
     // 加载数据
     const loadData = async () => {
@@ -115,13 +117,66 @@ export default function Refund1688FollowUpPage() {
         }
     };
 
+    // 按需加载跟进情况图片
+    const handleLoadImage = async (record: Refund1688FollowUp) => {
+        const orderNo = record.订单编号;
+
+        // 如果已经缓存，直接使用
+        if (imageCache[orderNo]) {
+            return;
+        }
+
+        // 如果正在加载，不重复请求
+        if (loadingImages[orderNo]) {
+            return;
+        }
+
+        setLoadingImages(prev => ({ ...prev, [orderNo]: true }));
+
+        try {
+            const result = await refund1688Api.getFollowUpImage(orderNo);
+            if (result.跟进情况图片) {
+                setImageCache(prev => ({ ...prev, [orderNo]: result.跟进情况图片! }));
+            } else {
+                message.info('该订单暂无跟进情况图片');
+            }
+        } catch (error: any) {
+            message.error(error?.response?.data?.message || '加载图片失败');
+            console.error(error);
+        } finally {
+            setLoadingImages(prev => ({ ...prev, [orderNo]: false }));
+        }
+    };
+
     // 打开编辑弹窗
-    const handleEdit = (record: Refund1688FollowUp) => {
+    const handleEdit = async (record: Refund1688FollowUp) => {
         setEditingRecord(record);
         form.setFieldsValue({
             ...record,
         });
-        setShippingScreenshotPreview(record.发货截图);
+
+        // 如果有缓存，使用缓存；否则如果有图片标识，按需加载
+        const orderNo = record.订单编号;
+        if (imageCache[orderNo]) {
+            setFollowUpImagePreview(imageCache[orderNo]);
+        } else if (record.有跟进情况图片 === 1) {
+            // 按需加载图片
+            try {
+                const result = await refund1688Api.getFollowUpImage(orderNo);
+                if (result.跟进情况图片) {
+                    setFollowUpImagePreview(result.跟进情况图片);
+                    setImageCache(prev => ({ ...prev, [orderNo]: result.跟进情况图片! }));
+                } else {
+                    setFollowUpImagePreview(undefined);
+                }
+            } catch (error) {
+                console.error('加载图片失败:', error);
+                setFollowUpImagePreview(undefined);
+            }
+        } else {
+            setFollowUpImagePreview(undefined);
+        }
+
         setEditModalVisible(true);
     };
 
@@ -274,10 +329,49 @@ export default function Refund1688FollowUpPage() {
             ellipsis: true,
         },
         {
-            title: '出库单号（回库）',
-            dataIndex: '出库单号回库',
-            key: '出库单号回库',
+            title: '跟进情况/图片',
+            dataIndex: '跟进情况图片',
+            key: '跟进情况图片',
             width: 150,
+            render: (text, record) => {
+                const orderNo = record.订单编号;
+                const hasImage = record.有跟进情况图片 === 1;
+                const cachedImage = imageCache[orderNo];
+                const isLoading = loadingImages[orderNo];
+
+                // 如果已缓存，显示图片
+                if (cachedImage) {
+                    return (
+                        <Image
+                            width={50}
+                            height={50}
+                            src={cachedImage}
+                            alt="跟进情况图片"
+                            style={{ objectFit: 'cover', cursor: 'pointer' }}
+                            preview={{
+                                mask: '点击查看大图'
+                            }}
+                        />
+                    );
+                }
+
+                // 如果有图片但未加载，显示加载按钮
+                if (hasImage) {
+                    return (
+                        <Button
+                            size="small"
+                            type="link"
+                            loading={isLoading}
+                            onClick={() => handleLoadImage(record)}
+                        >
+                            {isLoading ? '加载中...' : '查看图片'}
+                        </Button>
+                    );
+                }
+
+                // 没有图片
+                return '-';
+            },
         },
         {
             title: '差异单/出库单详情',
@@ -287,38 +381,23 @@ export default function Refund1688FollowUpPage() {
             ellipsis: true,
         },
         {
-            title: '退款详情',
-            dataIndex: '退款详情',
-            key: '退款详情',
+            title: '牵牛花物流单号',
+            dataIndex: '牵牛花物流单号',
+            key: '牵牛花物流单号',
             width: 150,
-            ellipsis: true,
-        },
-        {
-            title: '物流单号',
-            dataIndex: '物流单号',
-            key: '物流单号',
-            width: 150,
-        },
-        {
-            title: '发货截图',
-            dataIndex: '发货截图',
-            key: '发货截图',
-            width: 120,
-            render: (text) => text ? (
-                <Image
-                    width={50}
-                    height={50}
-                    src={text}
-                    alt="发货截图"
-                    style={{ objectFit: 'cover' }}
-                />
-            ) : '-',
         },
         {
             title: '跟进人',
             dataIndex: '跟进人',
             key: '跟进人',
             width: 100,
+        },
+        {
+            title: '跟进时间',
+            dataIndex: '跟进时间',
+            key: '跟进时间',
+            width: 180,
+            render: (text) => text ? new Date(text).toLocaleString('zh-CN') : '-',
         },
         {
             title: '操作',
@@ -456,34 +535,18 @@ export default function Refund1688FollowUpPage() {
                         <TextArea rows={4} />
                     </Form.Item>
 
-                    <Form.Item label="出库单号（回库）" name="出库单号回库">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item label="差异单/出库单详情" name="差异单出库单详情">
-                        <TextArea rows={3} />
-                    </Form.Item>
-
-                    <Form.Item label="退款详情" name="退款详情">
-                        <TextArea rows={3} />
-                    </Form.Item>
-
-                    <Form.Item label="物流单号" name="物流单号">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item label="发货截图" name="发货截图">
+                    <Form.Item label="跟进情况/图片" name="跟进情况图片">
                         <Space direction="vertical" style={{ width: '100%' }}>
-                            {shippingScreenshotPreview ? (
+                            {followUpImagePreview ? (
                                 <Image
                                     width={120}
                                     height={120}
-                                    src={shippingScreenshotPreview}
-                                    alt="发货截图预览"
+                                    src={followUpImagePreview}
+                                    alt="跟进情况图片预览"
                                     style={{ objectFit: 'cover' }}
                                 />
                             ) : (
-                                <span style={{ color: '#999' }}>当前暂无截图</span>
+                                <span style={{ color: '#999' }}>当前暂无图片</span>
                             )}
                             <Upload
                                 showUploadList={false}
@@ -492,8 +555,8 @@ export default function Refund1688FollowUpPage() {
                                     const reader = new FileReader();
                                     reader.onload = (e) => {
                                         const base64 = e.target?.result as string;
-                                        form.setFieldsValue({ 发货截图: base64 });
-                                        setShippingScreenshotPreview(base64);
+                                        form.setFieldsValue({ 跟进情况图片: base64 });
+                                        setFollowUpImagePreview(base64);
                                     };
                                     reader.readAsDataURL(file);
                                     // 阻止 Upload 自己上传，改为表单统一提交
@@ -502,19 +565,27 @@ export default function Refund1688FollowUpPage() {
                             >
                                 <Button type="primary">选择图片</Button>
                             </Upload>
-                            {shippingScreenshotPreview && (
+                            {followUpImagePreview && (
                                 <Button
                                     danger
                                     onClick={() => {
                                         // 使用空字符串而不是 undefined，确保提交时会带上该字段，从而真正清空数据库中的值
-                                        form.setFieldsValue({ 发货截图: '' });
-                                        setShippingScreenshotPreview(undefined);
+                                        form.setFieldsValue({ 跟进情况图片: '' });
+                                        setFollowUpImagePreview(undefined);
                                     }}
                                 >
-                                    清除截图
+                                    清除图片
                                 </Button>
                             )}
                         </Space>
+                    </Form.Item>
+
+                    <Form.Item label="差异单/出库单详情" name="差异单出库单详情">
+                        <TextArea rows={3} />
+                    </Form.Item>
+
+                    <Form.Item label="牵牛花物流单号" name="牵牛花物流单号">
+                        <Input />
                     </Form.Item>
                 </Form>
             </Modal>

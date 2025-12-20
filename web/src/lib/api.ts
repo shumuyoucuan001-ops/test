@@ -650,13 +650,13 @@ export interface Refund1688FollowUp {
   进度追踪?: string;
   采购单号?: string;
   跟进情况备注?: string;
-  出库单号回库?: string;
   差异单出库单详情?: string;
-  退款详情?: string;
   跟进相关附件?: string;
-  物流单号?: string;
-  发货截图?: string;
+  牵牛花物流单号?: string;
+  跟进情况图片?: string; // 列表查询时不返回，需要通过单独接口查询（原发货截图）
+  有跟进情况图片?: number; // 列表查询时返回，0表示无图片，1表示有图片
   跟进人?: string;
+  跟进时间?: string; // 最后编辑时间
 }
 
 export const refund1688Api = {
@@ -669,7 +669,7 @@ export const refund1688Api = {
     订单状态?: string;
     买家会员名?: string;
     采购单号?: string;
-    物流单号?: string;
+    牵牛花物流单号?: string;
     进度追踪?: string;
     keyword?: string;
   }): Promise<{ data: Refund1688FollowUp[]; total: number }> =>
@@ -690,6 +690,10 @@ export const refund1688Api = {
   // 自动匹配采购单号
   autoMatchPurchaseOrderNos: (): Promise<{ success: boolean; count: number; message: string }> =>
     api.post('/refund-1688-follow-up/auto-match-purchase-orders').then(res => res.data),
+
+  // 获取跟进情况图片（按需查询，原发货截图）
+  getFollowUpImage: (orderNo: string): Promise<{ 跟进情况图片: string | null }> =>
+    api.get(`/refund-1688-follow-up/${encodeURIComponent(orderNo)}/follow-up-image`).then(res => res.data),
 };
 
 export default api;
