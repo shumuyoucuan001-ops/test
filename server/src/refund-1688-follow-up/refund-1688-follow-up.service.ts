@@ -168,33 +168,36 @@ export class Refund1688FollowUpService {
     }
   }
 
-  // 检查用户是否有编辑权限（department_id不包含'店'或'仓'）
+  // 检查用户是否有编辑权限
+  // 只有当用户的role_id为1、3或4时，才有编辑权限；其他情况都只能查看
   async checkEditPermission(userId: number): Promise<boolean> {
     const connection = await this.getChaigouConnection();
     try {
-      const [userRows]: any = await connection.execute(
-        `SELECT \`department_id\` FROM \`sm_xitongkaifa\`.\`sys_users\` WHERE \`id\` = ?`,
+      // 查询用户的角色ID
+      const [roleRows]: any = await connection.execute(
+        `SELECT \`role_id\` 
+         FROM \`sm_xitongkaifa\`.\`sys_user_roles\` 
+         WHERE \`user_id\` = ?`,
         [userId],
       );
 
-      if (userRows.length === 0) {
-        Logger.warn(`[Refund1688FollowUpService] 用户不存在: userId=${userId}`);
+      if (roleRows.length === 0) {
+        // 如果用户没有分配角色，不允许编辑
+        Logger.log(`[Refund1688FollowUpService] 权限检查: userId=${userId}, 未分配角色, 允许编辑=false`);
         return false;
       }
 
-      const departmentId = userRows[0]['department_id'];
-      if (!departmentId) {
-        // 如果没有department_id，默认允许编辑
-        return true;
-      }
+      // 检查是否有允许编辑的角色（1、3、4）
+      const allowedRoleIds = [1, 3, 4];
+      const hasAllowedRole = roleRows.some((row: any) =>
+        allowedRoleIds.includes(Number(row.role_id))
+      );
 
-      const departmentIdStr = String(departmentId);
-      // 如果department_id包含'店'或'仓'，则不允许编辑
-      const hasRestriction = departmentIdStr.includes('店') || departmentIdStr.includes('仓');
+      const roleIds = roleRows.map((row: any) => row.role_id).join(', ');
+      Logger.log(`[Refund1688FollowUpService] 权限检查: userId=${userId}, role_ids=[${roleIds}], 允许编辑=${hasAllowedRole}`);
 
-      Logger.log(`[Refund1688FollowUpService] 权限检查: userId=${userId}, department_id=${departmentId}, 允许编辑=${!hasRestriction}`);
-
-      return !hasRestriction;
+      // 只有当有允许的角色时，才允许编辑
+      return hasAllowedRole;
     } catch (error) {
       Logger.error(`[Refund1688FollowUpService] 检查编辑权限失败: ${error}`);
       // 出错时默认不允许编辑，保证安全
@@ -656,15 +659,12 @@ export class Refund1688FollowUpService {
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
       const threeMonthsAgoStr = threeMonthsAgo.toISOString().slice(0, 19).replace('T', ' ');
 
-      // 执行UPDATE语句，通过INNER JOIN匹配数据并更新
-      // 条件：采购下单渠道='1688采购平台'，创建时间在3个月以内
-      // 注意：只更新牵牛花物流单号，不更新采购单号（1688退款售后表没有采购单号字段）
-      const updateSql = `
-        UPDATE \`sm_chaigou\`.\`1688退款售后\` r
+      // 优化：先查询需要更新的记录，然后分批更新，避免长时间锁定
+      const selectSql = `
+        SELECT r.\`订单编号\`, p.\`物流单号\`
+        FROM \`sm_chaigou\`.\`1688退款售后\` r
         INNER JOIN \`sm_chaigou\`.\`采购单信息\` p
           ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
-        SET 
-          r.\`牵牛花物流单号\` = p.\`物流单号\`
         WHERE 
           p.\`采购下单渠道\` = '1688采购平台'
           AND p.\`创建时间\` >= ?
@@ -673,20 +673,69 @@ export class Refund1688FollowUpService {
             OR r.\`牵牛花物流单号\` = '' 
             OR r.\`牵牛花物流单号\` != p.\`物流单号\`
           )
+        LIMIT 1000
       `;
 
-      Logger.log('[Refund1688FollowUpService] 执行同步SQL:', updateSql);
-      Logger.log('[Refund1688FollowUpService] 参数: 三个月前日期 =', threeMonthsAgoStr);
+      Logger.log('[Refund1688FollowUpService] 查询需要同步的记录...');
+      const [rows]: any = await connection.execute(selectSql, [threeMonthsAgoStr]);
+      const recordsToUpdate = rows as Array<{ 订单编号: string; 物流单号: string }>;
 
-      const [result]: any = await connection.execute(updateSql, [threeMonthsAgoStr]);
-      const updatedCount = result.affectedRows || 0;
+      if (recordsToUpdate.length === 0) {
+        Logger.log('[Refund1688FollowUpService] 没有需要同步的记录');
+        return {
+          success: true,
+          updatedCount: 0,
+          message: '没有需要同步的记录',
+        };
+      }
 
-      Logger.log(`[Refund1688FollowUpService] 同步完成，共更新 ${updatedCount} 条记录`);
+      Logger.log(`[Refund1688FollowUpService] 找到 ${recordsToUpdate.length} 条需要同步的记录，开始分批更新...`);
+
+      // 分批更新，每批100条，避免长时间锁定
+      const batchSize = 100;
+      let totalUpdated = 0;
+
+      for (let i = 0; i < recordsToUpdate.length; i += batchSize) {
+        const batch = recordsToUpdate.slice(i, i + batchSize);
+
+        // 使用参数化查询，避免SQL注入
+        const placeholders = batch.map(() => '?').join(',');
+        const orderNos = batch.map(r => r.订单编号);
+
+        const updateSql = `
+          UPDATE \`sm_chaigou\`.\`1688退款售后\` r
+          INNER JOIN \`sm_chaigou\`.\`采购单信息\` p
+            ON TRIM(r.\`订单编号\`) = TRIM(p.\`渠道订单号\`)
+          SET 
+            r.\`牵牛花物流单号\` = p.\`物流单号\`
+          WHERE 
+            r.\`订单编号\` IN (${placeholders})
+            AND p.\`采购下单渠道\` = '1688采购平台'
+            AND p.\`创建时间\` >= ?
+        `;
+
+        try {
+          const [result]: any = await connection.execute(updateSql, [...orderNos, threeMonthsAgoStr]);
+          const batchUpdated = result.affectedRows || 0;
+          totalUpdated += batchUpdated;
+          Logger.log(`[Refund1688FollowUpService] 批次 ${Math.floor(i / batchSize) + 1} 完成，更新 ${batchUpdated} 条记录`);
+
+          // 批次之间稍作延迟，减少锁竞争
+          if (i + batchSize < recordsToUpdate.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (error: any) {
+          Logger.error(`[Refund1688FollowUpService] 批次 ${Math.floor(i / batchSize) + 1} 更新失败:`, error?.message || error);
+          // 继续处理下一批，不中断整个流程
+        }
+      }
+
+      Logger.log(`[Refund1688FollowUpService] 同步完成，共更新 ${totalUpdated} 条记录`);
 
       return {
         success: true,
-        updatedCount,
-        message: `同步成功，共更新 ${updatedCount} 条记录`,
+        updatedCount: totalUpdated,
+        message: `同步成功，共更新 ${totalUpdated} 条记录`,
       };
     } catch (error: any) {
       Logger.error('[Refund1688FollowUpService] 同步数据失败:', error?.message || error);

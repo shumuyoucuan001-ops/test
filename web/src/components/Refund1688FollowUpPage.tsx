@@ -64,11 +64,20 @@ export default function Refund1688FollowUpPage() {
     }) => {
         setLoading(true);
         try {
+            // 如果传入了overrideParams，优先使用传入的参数；否则使用状态值
+            const finalPage = overrideParams?.page !== undefined ? overrideParams.page : currentPage;
+            const finalKeyword = overrideParams?.keyword !== undefined
+                ? (overrideParams.keyword === '' ? undefined : overrideParams.keyword)
+                : (searchText || undefined);
+            const finalFilters = overrideParams?.filters !== undefined
+                ? overrideParams.filters
+                : searchFilters;
+
             const result = await refund1688Api.getAll({
-                page: overrideParams?.page ?? currentPage,
+                page: finalPage,
                 limit: pageSize,
-                keyword: overrideParams?.keyword ?? (searchText || undefined),
-                ...(overrideParams?.filters ?? searchFilters),
+                keyword: finalKeyword,
+                ...finalFilters,
             });
             setData(result.data || []);
             setTotal(result.total || 0);
@@ -475,11 +484,16 @@ export default function Refund1688FollowUpPage() {
                         />
                         <Button type="primary" onClick={handleSearch}>搜索</Button>
                         <Button onClick={() => {
+                            // 先清空状态
                             setSearchText('');
                             setSearchFilters({});
                             setCurrentPage(1);
-                            // 使用新的参数立即加载数据，避免状态更新延迟问题
-                            loadData({ page: 1, keyword: undefined, filters: {} });
+                            // 立即使用空参数加载数据，确保使用新参数而不是状态值
+                            loadData({
+                                page: 1,
+                                keyword: '', // 使用空字符串，loadData会将其转换为undefined
+                                filters: {}
+                            });
                         }}>重置</Button>
                         <Button
                             type="primary"
