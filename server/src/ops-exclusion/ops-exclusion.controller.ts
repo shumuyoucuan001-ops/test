@@ -34,4 +34,16 @@ export class OpsExclusionController {
         await this.service.remove(body);
         return { success: true };
     }
+
+    @Post('batch-delete')
+    async batchRemove(@Body() body: { items: OpsExclusionItem[] }) {
+        const result = await this.service.batchRemove(body.items);
+        return result;
+    }
+
+    @Post('batch-create')
+    async batchCreate(@Body() body: { items: OpsExclusionItem[] }) {
+        const result = await this.service.batchCreate(body.items);
+        return result;
+    }
 }

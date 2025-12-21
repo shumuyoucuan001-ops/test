@@ -388,6 +388,10 @@ export const opsExclusionApi = {
     api.patch('/ops-exclusion', { original, data }).then(res => res.data),
   remove: (data: OpsExclusionItem): Promise<{ success: boolean }> =>
     api.delete('/ops-exclusion', { data }).then(res => res.data),
+  batchDelete: (items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    api.post('/ops-exclusion/batch-delete', { items }).then(res => res.data),
+  batchCreate: (items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
+    api.post('/ops-exclusion/batch-create', { items }).then(res => res.data),
 };
 
 // 门店管理 - 驳回差异单

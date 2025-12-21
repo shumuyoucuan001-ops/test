@@ -97,6 +97,80 @@ export class OpsExclusionService {
         }
     }
 
+    async batchRemove(items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> {
+        if (!items || items.length === 0) {
+            throw new BadRequestException('请选择要删除的记录');
+        }
+
+        let deletedCount = 0;
+        const errors: string[] = [];
+
+        for (const item of items) {
+            try {
+                const affected = await this.prisma.$executeRawUnsafe(
+                    `DELETE FROM ${this.table} WHERE \`视图名称\`=? AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') AND COALESCE(\`SKU编码\`, '') = COALESCE(?, '') AND COALESCE(\`SPU编码\`, '') = COALESCE(?, '')`,
+                    item['视图名称'] || '', item['门店编码'] || '', item['SKU编码'] || '', item['SPU编码'] || '',
+                );
+                // @ts-ignore
+                if (affected) {
+                    deletedCount++;
+                }
+            } catch (error: any) {
+                errors.push(`删除失败: ${item['视图名称']} - ${error?.message || '未知错误'}`);
+            }
+        }
+
+        if (deletedCount === 0 && errors.length > 0) {
+            throw new BadRequestException(errors.join('; '));
+        }
+
+        return {
+            success: true,
+            message: errors.length > 0 
+                ? `成功删除 ${deletedCount} 条记录，${errors.length} 条失败` 
+                : `成功删除 ${deletedCount} 条记录`,
+            deletedCount,
+        };
+    }
+
+    async batchCreate(items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
+        if (!items || items.length === 0) {
+            throw new BadRequestException('请提供要创建的数据');
+        }
+
+        // 验证所有数据
+        for (const item of items) {
+            this.validate(item);
+        }
+
+        let createdCount = 0;
+        const errors: string[] = [];
+
+        // 逐条插入，避免批量插入时的错误处理复杂
+        for (const item of items) {
+            try {
+                await this.create(item);
+                createdCount++;
+            } catch (error: any) {
+                const errorMsg = error?.message || '创建失败';
+                errors.push(`${item['视图名称']}: ${errorMsg}`);
+            }
+        }
+
+        if (createdCount === 0 && errors.length > 0) {
+            throw new BadRequestException(errors.join('; '));
+        }
+
+        return {
+            success: createdCount > 0,
+            message: errors.length > 0 
+                ? `成功创建 ${createdCount} 条记录，${errors.length} 条失败` 
+                : `成功创建 ${createdCount} 条记录`,
+            createdCount,
+            errors: errors.length > 0 ? errors : undefined,
+        };
+    }
+
     private validate(item: OpsExclusionItem) {
         if (!item['视图名称']) {
             throw new BadRequestException('视图名称为必填');
