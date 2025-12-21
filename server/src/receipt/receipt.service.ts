@@ -292,10 +292,10 @@ export class ReceiptService {
         'SELECT DISTINCT TRIM(`待收货单号`) AS no FROM `sm_chaigou`.`待收货采购收货单号` WHERE `待收货单号` IS NOT NULL AND TRIM(`待收货单号`) <> "" ORDER BY no DESC LIMIT 1000'
       );
       const list = rows.map(r => String(r.no)).filter(Boolean);
-      // 追加从采购单信息的关联收货单号来源（去重）
+      // 追加从采购单信息的关联收货单号来源（去重），排除已完成、已关闭、收货完成的状态
       try {
         const rows2: any[] = await this.prisma.$queryRawUnsafe(
-          'SELECT DISTINCT TRIM(`关联收货单号`) AS no FROM `sm_chaigou`.`采购单信息` WHERE `关联收货单号` IS NOT NULL AND TRIM(`关联收货单号`) <> "" ORDER BY no DESC LIMIT 1000'
+          'SELECT DISTINCT TRIM(`关联收货单号`) AS no FROM `sm_chaigou`.`采购单信息` WHERE `关联收货单号` IS NOT NULL AND TRIM(`关联收货单号`) <> "" AND (`状态` IS NULL OR `状态` NOT IN (\'已完成\',\'已关闭\',\'收货完成\')) ORDER BY no DESC LIMIT 1000'
         );
         for (const r of rows2) {
           const val = String(r.no);
@@ -320,10 +320,10 @@ export class ReceiptService {
         kw,
       );
       const list = rows.map(r => String(r.no)).filter(Boolean);
-      // 追加从采购单信息的关联收货单号模糊匹配
+      // 追加从采购单信息的关联收货单号模糊匹配，排除已完成、已关闭、收货完成的状态
       try {
         const rows2: any[] = await this.prisma.$queryRawUnsafe(
-          'SELECT DISTINCT TRIM(`关联收货单号`) AS no FROM `sm_chaigou`.`采购单信息` WHERE TRIM(`关联收货单号`) LIKE ? ORDER BY no DESC LIMIT 100',
+          'SELECT DISTINCT TRIM(`关联收货单号`) AS no FROM `sm_chaigou`.`采购单信息` WHERE TRIM(`关联收货单号`) LIKE ? AND (`状态` IS NULL OR `状态` NOT IN (\'已完成\',\'已关闭\',\'收货完成\')) ORDER BY no DESC LIMIT 100',
           kw,
         );
         for (const r of rows2) {
