@@ -1,7 +1,7 @@
 "use client";
 
 import { OpsExclusionItem, opsExclusionApi } from "@/lib/api";
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ResponsiveTable from "./ResponsiveTable";
@@ -17,7 +17,6 @@ export default function OpsExclusionPage() {
     const [data, setData] = useState<OpsExclusionItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [q, setQ] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
     const [modalOpen, setModalOpen] = useState(false);
@@ -27,6 +26,13 @@ export default function OpsExclusionPage() {
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]); // 选中的行
     const [batchModalOpen, setBatchModalOpen] = useState(false); // 批量新增弹窗
     const [batchItems, setBatchItems] = useState<OpsExclusionItem[]>([]); // 批量新增的数据
+    const [searchText, setSearchText] = useState(''); // 总搜索（全字段）
+    const [searchFilters, setSearchFilters] = useState<{
+        视图名称?: string;
+        门店编码?: string;
+        SKU编码?: string;
+        SPU编码?: string;
+    }>({});
 
     // 检测移动端
     useEffect(() => {
@@ -38,12 +44,35 @@ export default function OpsExclusionPage() {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    const load = async (keyword?: string, page: number = currentPage, limit: number = pageSize) => {
+    const load = async (overrideParams?: {
+        page?: number;
+        keyword?: string;
+        filters?: typeof searchFilters;
+    }) => {
         setLoading(true);
         try {
-            const searchKeyword = keyword?.trim() || undefined;
-            const res = await opsExclusionApi.list(searchKeyword, page, limit);
-            // 处理返回格式：可能是 { data, total } 或直接是数组
+            // 如果传入了overrideParams，优先使用传入的参数；否则使用状态值
+            const finalPage = overrideParams?.page !== undefined ? overrideParams.page : currentPage;
+            const finalKeyword = overrideParams?.keyword !== undefined
+                ? (overrideParams.keyword === '' ? undefined : overrideParams.keyword)
+                : (searchText || undefined);
+            const finalFilters = overrideParams?.filters !== undefined
+                ? overrideParams.filters
+                : searchFilters;
+
+            // 过滤掉undefined值，避免API调用问题
+            const cleanFilters = Object.fromEntries(
+                Object.entries(finalFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+            );
+
+            const res = await opsExclusionApi.list({
+                ...cleanFilters,
+                keyword: finalKeyword,
+                page: finalPage,
+                limit: pageSize,
+            });
+
+            // 处理返回格式
             if (Array.isArray(res)) {
                 setData(res || []);
                 setTotal(res?.length || 0);
@@ -64,12 +93,17 @@ export default function OpsExclusionPage() {
     };
 
     useEffect(() => {
-        load(q, currentPage, pageSize);
+        load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 
     const handleSearch = () => {
         setCurrentPage(1);
-        load(q.trim(), 1, pageSize);
+        load({
+            page: 1,
+            keyword: searchText || undefined,
+            filters: searchFilters,
+        });
     };
 
     const openCreate = () => {
@@ -102,7 +136,7 @@ export default function OpsExclusionPage() {
                 message.success("新增成功");
             }
             setModalOpen(false);
-            load(q.trim() || undefined, currentPage, pageSize);
+            load();
         } catch (e: any) {
             if (e?.errorFields) return;
             message.error(e?.message || "保存失败");
@@ -114,7 +148,7 @@ export default function OpsExclusionPage() {
         try {
             await opsExclusionApi.remove(record);
             message.success("删除成功");
-            load(q.trim() || undefined, currentPage, pageSize);
+            load();
         } catch (e) {
             message.error("删除失败");
             console.error(e);
@@ -140,7 +174,7 @@ export default function OpsExclusionPage() {
             const result = await opsExclusionApi.batchDelete(selectedItems);
             message.success(result.message || `成功删除 ${result.deletedCount} 条记录`);
             setSelectedRowKeys([]); // 清空选中
-            load(q.trim() || undefined, currentPage, pageSize);
+            load();
         } catch (error: any) {
             message.error(error?.response?.data?.message || error?.message || '批量删除失败');
             console.error(error);
@@ -255,7 +289,7 @@ export default function OpsExclusionPage() {
 
             setBatchModalOpen(false);
             setBatchItems([]);
-            load(q.trim() || undefined, currentPage, pageSize);
+            load();
         } catch (e: any) {
             message.error(e?.response?.data?.message || e?.message || "批量创建失败");
             console.error(e);
@@ -317,17 +351,54 @@ export default function OpsExclusionPage() {
                     isMobile ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                             <Input
-                                allowClear
-                                placeholder="搜索相关信息"
-                                value={q}
-                                onChange={e => setQ(e.target.value)}
-                                onPressEnter={handleSearch}
+                                placeholder="视图名称"
                                 style={{ width: '100%' }}
-                                prefix={<SearchOutlined />}
+                                value={searchFilters.视图名称}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, 视图名称: e.target.value })}
+                                allowClear
+                            />
+                            <Input
+                                placeholder="门店编码"
+                                style={{ width: '100%' }}
+                                value={searchFilters.门店编码}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
+                                allowClear
+                            />
+                            <Input
+                                placeholder="SKU编码"
+                                style={{ width: '100%' }}
+                                value={searchFilters.SKU编码}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, SKU编码: e.target.value })}
+                                allowClear
+                            />
+                            <Input
+                                placeholder="SPU编码"
+                                style={{ width: '100%' }}
+                                value={searchFilters.SPU编码}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, SPU编码: e.target.value })}
+                                allowClear
+                            />
+                            <Input.Search
+                                placeholder="总搜索（全字段）"
+                                style={{ width: '100%' }}
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                onSearch={handleSearch}
+                                allowClear
                             />
                             <Space style={{ width: '100%' }}>
-                                <Button icon={<SearchOutlined />} onClick={handleSearch} style={{ flex: 1 }}>搜索</Button>
-                                <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }} style={{ flex: 1 }}>刷新</Button>
+                                <Button type="primary" onClick={handleSearch} style={{ flex: 1 }}>搜索</Button>
+                                <Button onClick={() => {
+                                    setSearchText('');
+                                    setSearchFilters({});
+                                    setCurrentPage(1);
+                                    setSelectedRowKeys([]);
+                                    load({
+                                        page: 1,
+                                        keyword: '',
+                                        filters: {}
+                                    });
+                                }} style={{ flex: 1 }}>重置</Button>
                             </Space>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate} block>批量新增</Button>
@@ -347,18 +418,55 @@ export default function OpsExclusionPage() {
                             )}
                         </div>
                     ) : (
-                        <Space>
+                        <Space wrap>
                             <Input
+                                placeholder="视图名称"
+                                style={{ width: 150 }}
+                                value={searchFilters.视图名称}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, 视图名称: e.target.value })}
                                 allowClear
-                                placeholder="搜索相关信息"
-                                value={q}
-                                onChange={e => setQ(e.target.value)}
-                                onPressEnter={handleSearch}
-                                style={{ width: 240 }}
-                                prefix={<SearchOutlined />}
                             />
-                            <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
-                            <Button icon={<ReloadOutlined />} onClick={() => { setQ(''); setCurrentPage(1); load(undefined, 1, pageSize); }}>刷新</Button>
+                            <Input
+                                placeholder="门店编码"
+                                style={{ width: 150 }}
+                                value={searchFilters.门店编码}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
+                                allowClear
+                            />
+                            <Input
+                                placeholder="SKU编码"
+                                style={{ width: 150 }}
+                                value={searchFilters.SKU编码}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, SKU编码: e.target.value })}
+                                allowClear
+                            />
+                            <Input
+                                placeholder="SPU编码"
+                                style={{ width: 150 }}
+                                value={searchFilters.SPU编码}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, SPU编码: e.target.value })}
+                                allowClear
+                            />
+                            <Input.Search
+                                placeholder="总搜索（全字段）"
+                                style={{ width: 200 }}
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                onSearch={handleSearch}
+                                allowClear
+                            />
+                            <Button type="primary" onClick={handleSearch}>搜索</Button>
+                            <Button onClick={() => {
+                                setSearchText('');
+                                setSearchFilters({});
+                                setCurrentPage(1);
+                                setSelectedRowKeys([]);
+                                load({
+                                    page: 1,
+                                    keyword: '',
+                                    filters: {}
+                                });
+                            }}>重置</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate}>批量新增</Button>
                             {selectedRowKeys.length > 0 && (

@@ -8,13 +8,25 @@ export class OpsExclusionController {
 
     @Get()
     async list(
-        @Query('q') q?: string,
+        @Query('视图名称') 视图名称?: string,
+        @Query('门店编码') 门店编码?: string,
+        @Query('SKU编码') SKU编码?: string,
+        @Query('SPU编码') SPU编码?: string,
+        @Query('keyword') keyword?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
     ): Promise<{ data: OpsExclusionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
-        return this.service.list(q, pageNum, limitNum);
+        
+        const filters: any = {};
+        if (视图名称) filters.视图名称 = 视图名称;
+        if (门店编码) filters.门店编码 = 门店编码;
+        if (SKU编码) filters.SKU编码 = SKU编码;
+        if (SPU编码) filters.SPU编码 = SPU编码;
+        if (keyword) filters.keyword = keyword;
+
+        return this.service.list(Object.keys(filters).length > 0 ? filters : undefined, pageNum, limitNum);
     }
 
     @Post()

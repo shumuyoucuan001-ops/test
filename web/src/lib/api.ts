@@ -372,12 +372,24 @@ export interface OpsExclusionItem {
 }
 
 export const opsExclusionApi = {
-  list: (q?: string, page?: number, limit?: number): Promise<{ data: OpsExclusionItem[]; total: number }> => {
-    const params: any = {};
-    if (q) params.q = q;
-    params.page = page || 1;
-    params.limit = limit || 20;
-    return api.get('/ops-exclusion', { params }).then(res => res.data);
+  list: (params?: {
+    视图名称?: string;
+    门店编码?: string;
+    SKU编码?: string;
+    SPU编码?: string;
+    keyword?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: OpsExclusionItem[]; total: number }> => {
+    const queryParams: any = {};
+    if (params?.视图名称) queryParams.视图名称 = params.视图名称;
+    if (params?.门店编码) queryParams.门店编码 = params.门店编码;
+    if (params?.SKU编码) queryParams.SKU编码 = params.SKU编码;
+    if (params?.SPU编码) queryParams.SPU编码 = params.SPU编码;
+    if (params?.keyword) queryParams.keyword = params.keyword;
+    queryParams.page = params?.page || 1;
+    queryParams.limit = params?.limit || 20;
+    return api.get('/ops-exclusion', { params: queryParams }).then(res => res.data);
   },
   create: (data: OpsExclusionItem): Promise<{ success: boolean }> =>
     api.post('/ops-exclusion', data).then(res => res.data),

@@ -15,38 +15,63 @@ export class OpsExclusionService {
 
     private table = '`sm_cuxiaohuodong`.`活动视图排除规则`';
 
-    async list(q?: string, page: number = 1, limit: number = 20): Promise<{ data: OpsExclusionItem[]; total: number }> {
-        const keyword = (q || '').trim();
-        let sql: string;
-        let countSql: string;
-        let countParams: any[] = [];
-        let params: any[] = [];
-
+    async list(
+        filters?: {
+            视图名称?: string;
+            门店编码?: string;
+            SKU编码?: string;
+            SPU编码?: string;
+            keyword?: string; // 关键词搜索（全字段）
+        },
+        page: number = 1,
+        limit: number = 20
+    ): Promise<{ data: OpsExclusionItem[]; total: number }> {
         const offset = (page - 1) * limit;
         const orderBy = `ORDER BY \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\``;
 
-        if (keyword) {
-            const like = `%${keyword}%`;
-            const whereCondition = `WHERE \`视图名称\` LIKE ? OR \`门店编码\` LIKE ? OR \`SKU编码\` LIKE ? OR \`SPU编码\` LIKE ?`;
-            countParams = [like, like, like, like];
+        // 构建搜索条件
+        const clauses: string[] = [];
+        const params: any[] = [];
+        const buildLike = (v?: string) => `%${(v || '').trim()}%`;
 
-            countSql = `SELECT COUNT(*) as total FROM ${this.table} ${whereCondition}`;
-            sql = `SELECT \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`
+        // 关键词搜索（OR across all columns）
+        if (filters?.keyword?.trim()) {
+            const like = buildLike(filters.keyword);
+            const whereCondition = `(\`视图名称\` LIKE ? OR \`门店编码\` LIKE ? OR \`SKU编码\` LIKE ? OR \`SPU编码\` LIKE ?)`;
+            clauses.push(whereCondition);
+            params.push(like, like, like, like);
+        }
+
+        // 按字段精确搜索（AND）
+        if (filters?.视图名称?.trim()) {
+            clauses.push(`\`视图名称\` LIKE ?`);
+            params.push(buildLike(filters.视图名称));
+        }
+        if (filters?.门店编码?.trim()) {
+            clauses.push(`\`门店编码\` LIKE ?`);
+            params.push(buildLike(filters.门店编码));
+        }
+        if (filters?.SKU编码?.trim()) {
+            clauses.push(`\`SKU编码\` LIKE ?`);
+            params.push(buildLike(filters.SKU编码));
+        }
+        if (filters?.SPU编码?.trim()) {
+            clauses.push(`\`SPU编码\` LIKE ?`);
+            params.push(buildLike(filters.SPU编码));
+        }
+
+        // 构建 WHERE 条件
+        const whereCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+
+        // 构建 SQL
+        const countSql = `SELECT COUNT(*) as total FROM ${this.table} ${whereCondition}`;
+        const sql = `SELECT \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`
          FROM ${this.table}
          ${whereCondition}
          ${orderBy}
          LIMIT ${limit} OFFSET ${offset}`;
-            params = countParams;
-        } else {
-            countSql = `SELECT COUNT(*) as total FROM ${this.table}`;
-            sql = `SELECT \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`
-         FROM ${this.table}
-         ${orderBy}
-         LIMIT ${limit} OFFSET ${offset}`;
-            params = [];
-        }
 
-        const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...countParams);
+        const [countRows]: any[] = await this.prisma.$queryRawUnsafe(countSql, ...params);
         const total = Number(countRows?.total || 0);
 
         const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
@@ -126,8 +151,8 @@ export class OpsExclusionService {
 
         return {
             success: true,
-            message: errors.length > 0 
-                ? `成功删除 ${deletedCount} 条记录，${errors.length} 条失败` 
+            message: errors.length > 0
+                ? `成功删除 ${deletedCount} 条记录，${errors.length} 条失败`
                 : `成功删除 ${deletedCount} 条记录`,
             deletedCount,
         };
@@ -163,8 +188,8 @@ export class OpsExclusionService {
 
         return {
             success: createdCount > 0,
-            message: errors.length > 0 
-                ? `成功创建 ${createdCount} 条记录，${errors.length} 条失败` 
+            message: errors.length > 0
+                ? `成功创建 ${createdCount} 条记录，${errors.length} 条失败`
                 : `成功创建 ${createdCount} 条记录`,
             createdCount,
             errors: errors.length > 0 ? errors : undefined,
