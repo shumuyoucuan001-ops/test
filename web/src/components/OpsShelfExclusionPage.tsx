@@ -219,32 +219,45 @@ export default function OpsShelfExclusionPage() {
             return;
         }
 
-        // 解析每行为多个字段（支持制表符、逗号、多个空格分隔）
+        // 检测分隔符类型（优先检测制表符，因为Excel通常使用制表符）
+        let delimiter: string | RegExp = '\t';
+        if (lines[0].includes('\t')) {
+            delimiter = '\t';
+        } else if (lines[0].includes(',')) {
+            delimiter = ',';
+        } else {
+            delimiter = /\s{2,}/;
+        }
+
+        // 解析每行为多个字段，确保保持列的对应关系（空值也要保留）
         const newItems: OpsShelfExclusionItem[] = [];
         for (const line of lines) {
             let parts: string[];
 
-            // 优先使用制表符分隔（Excel 粘贴通常是制表符）
-            if (line.includes('\t')) {
-                parts = line.split('\t').map(p => p.trim());
-            }
-            // 其次使用逗号分隔
-            else if (line.includes(',')) {
-                parts = line.split(',').map(p => p.trim());
-            }
-            // 最后使用多个空格分隔
-            else {
-                parts = line.split(/\s{2,}/).map(p => p.trim());
+            if (delimiter === '\t') {
+                // 使用 split 时保留所有空值，包括开头的空值
+                parts = line.split('\t');
+            } else if (delimiter === ',') {
+                parts = line.split(',');
+            } else {
+                parts = line.split(/\s{2,}/);
             }
 
-            // 允许SPU为空，只要有数据就添加
-            if (parts.length >= 1) {
-                newItems.push({
-                    'SPU': parts[0] || '',
-                    '门店编码': parts[1] || '',
-                    '渠道编码': parts[2] || '',
-                });
+            // 去除每部分的前后空格，但保留空字符串本身
+            parts = parts.map(p => p.trim());
+
+            // 确保至少有3列（SPU、门店编码、渠道编码），不足的用空字符串填充
+            // 这样可以保持列的对应关系，即使第一列是空值也不会被后面的列顶替
+            while (parts.length < 3) {
+                parts.push('');
             }
+
+            // 只取前3列，确保列对应关系正确
+            newItems.push({
+                'SPU': parts[0] || '',
+                '门店编码': parts[1] || '',
+                '渠道编码': parts[2] || '',
+            });
         }
 
         if (newItems.length > 0) {
