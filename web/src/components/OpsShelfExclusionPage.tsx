@@ -229,6 +229,25 @@ export default function OpsShelfExclusionPage() {
             delimiter = /\s{2,}/;
         }
 
+        // 找出所有行中分隔符的最大数量，用于确定应该有多少列
+        // 这样可以正确处理首列为空的情况
+        let maxDelimiterCount = 0;
+        for (const line of lines) {
+            let count = 0;
+            if (delimiter === '\t') {
+                count = (line.match(/\t/g) || []).length;
+            } else if (delimiter === ',') {
+                count = (line.match(/,/g) || []).length;
+            } else {
+                count = (line.match(/\s{2,}/g) || []).length;
+            }
+            // 分隔符数量 + 1 = 列数
+            maxDelimiterCount = Math.max(maxDelimiterCount, count);
+        }
+        const expectedColumnCount = maxDelimiterCount + 1;
+        // 确保至少有3列
+        const targetColumnCount = Math.max(expectedColumnCount, 3);
+
         // 解析每行为多个字段，确保保持列的对应关系（空值也要保留）
         const newItems: OpsShelfExclusionItem[] = [];
         for (const line of lines) {
@@ -246,10 +265,10 @@ export default function OpsShelfExclusionPage() {
             // 去除每部分的前后空格，但保留空字符串本身
             parts = parts.map(p => p.trim());
 
-            // 确保至少有3列（SPU、门店编码、渠道编码），不足的用空字符串填充
+            // 如果列数不足目标列数，说明前面有空列，需要在前面补空值
             // 这样可以保持列的对应关系，即使第一列是空值也不会被后面的列顶替
-            while (parts.length < 3) {
-                parts.push('');
+            while (parts.length < targetColumnCount) {
+                parts.unshift(''); // 在前面插入空值，而不是在后面追加
             }
 
             // 只取前3列，确保列对应关系正确
