@@ -11,6 +11,7 @@ import { LabelPrintModule } from './label-print/label-print.module';
 import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-quantity.module';
 import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
+import { OpsShelfExclusionModule } from './ops-shelf-exclusion/ops-shelf-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
 import { PurchasePassDifferenceModule } from './purchase-pass-difference/purchase-pass-difference.module';
@@ -39,6 +40,7 @@ import { VersionModule } from './version/version.module';
     VersionModule,
     DingTalkModule,
     OpsExclusionModule,
+    OpsShelfExclusionModule,
     StoreRejectionModule,
     MaxPurchaseQuantityModule,
     MaxStoreSkuInventoryModule,

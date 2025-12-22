@@ -406,6 +406,46 @@ export const opsExclusionApi = {
     api.post('/ops-exclusion/batch-create', { items }).then(res => res.data),
 };
 
+// 运营组管理 - 排除上下架商品
+export interface OpsShelfExclusionItem {
+  SPU: string;
+  门店编码: string;
+  渠道编码: string;
+}
+
+export const opsShelfExclusionApi = {
+  list: (params?: {
+    门店编码?: string;
+    SPU?: string;
+    渠道编码?: string;
+    keyword?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: OpsShelfExclusionItem[]; total: number }> => {
+    const queryParams: any = {};
+    if (params?.门店编码) queryParams.门店编码 = params.门店编码;
+    if (params?.SPU) queryParams.SPU = params.SPU;
+    if (params?.渠道编码) queryParams.渠道编码 = params.渠道编码;
+    if (params?.keyword) queryParams.keyword = params.keyword;
+    queryParams.page = params?.page || 1;
+    queryParams.limit = params?.limit || 20;
+    return api.get('/ops-shelf-exclusion', { params: queryParams }).then(res => res.data);
+  },
+  create: (data: OpsShelfExclusionItem): Promise<{ success: boolean }> =>
+    api.post('/ops-shelf-exclusion', data).then(res => res.data),
+  update: (
+    original: OpsShelfExclusionItem,
+    data: OpsShelfExclusionItem
+  ): Promise<{ success: boolean }> =>
+    api.patch('/ops-shelf-exclusion', { original, data }).then(res => res.data),
+  remove: (data: OpsShelfExclusionItem): Promise<{ success: boolean }> =>
+    api.delete('/ops-shelf-exclusion', { data }).then(res => res.data),
+  batchDelete: (items: OpsShelfExclusionItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    api.post('/ops-shelf-exclusion/batch-delete', { items }).then(res => res.data),
+  batchCreate: (items: OpsShelfExclusionItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
+    api.post('/ops-shelf-exclusion/batch-create', { items }).then(res => res.data),
+};
+
 // 门店管理 - 驳回差异单
 export interface StoreRejectionItem {
   '门店/仓': string;

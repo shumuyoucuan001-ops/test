@@ -156,6 +156,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <SettingOutlined />,
     url: '/home/ops-exclusion',
   },
+  'ops-shelf-exclusion': {
+    title: '排除上下架商品',
+    icon: <SettingOutlined />,
+    url: '/home/ops-shelf-exclusion',
+  },
   'store-rejection': {
     title: '驳回差异单',
     icon: <ShopOutlined />,
@@ -607,6 +612,11 @@ export default function HomeLayout({
             key: 'ops-exclusion',
             icon: <SettingOutlined />,
             label: '排除活动商品',
+          },
+          {
+            key: 'ops-shelf-exclusion',
+            icon: <SettingOutlined />,
+            label: '排除上下架商品',
           },
         ],
       },
