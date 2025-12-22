@@ -237,8 +237,8 @@ export default function OpsShelfExclusionPage() {
                 parts = line.split(/\s{2,}/).map(p => p.trim());
             }
 
-            // 确保至少有SPU（必填字段）
-            if (parts.length >= 1 && parts[0]) {
+            // 允许SPU为空，只要有数据就添加
+            if (parts.length >= 1) {
                 newItems.push({
                     'SPU': parts[0] || '',
                     '门店编码': parts[1] || '',
@@ -268,16 +268,8 @@ export default function OpsShelfExclusionPage() {
             return;
         }
 
-        // 过滤掉SPU为空的项
-        const validItems = batchItems.filter(item => item['SPU']);
-
-        if (validItems.length === 0) {
-            message.warning('请至少填写一条有效数据（SPU为必填）');
-            return;
-        }
-
         try {
-            const result = await opsShelfExclusionApi.batchCreate(validItems);
+            const result = await opsShelfExclusionApi.batchCreate(batchItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
@@ -505,7 +497,7 @@ export default function OpsShelfExclusionPage() {
                 destroyOnClose
             >
                 <Form form={form} layout="vertical">
-                    <Form.Item name="SPU" label="SPU" rules={[{ required: true, message: "请输入SPU" }]}>
+                    <Form.Item name="SPU" label="SPU">
                         <Input maxLength={100} />
                     </Form.Item>
                     <Form.Item name="门店编码" label="门店编码">
@@ -563,11 +555,6 @@ export default function OpsShelfExclusionPage() {
                                 title: 'SPU',
                                 dataIndex: 'SPU',
                                 key: 'SPU',
-                                render: (text: string) => (
-                                    <span style={{ color: !text ? 'red' : 'inherit' }}>
-                                        {text || '(必填)'}
-                                    </span>
-                                ),
                             },
                             { title: '门店编码', dataIndex: '门店编码', key: '门店编码' },
                             { title: '渠道编码', dataIndex: '渠道编码', key: '渠道编码' },

@@ -89,7 +89,7 @@ export class OpsShelfExclusionService {
     }
 
     async update(original: OpsShelfExclusionItem, data: OpsShelfExclusionItem): Promise<void> {
-        this.validate(data);
+        this.validate(data, true); // 更新时，SPU不是必填项
         const affected = await this.prisma.$executeRawUnsafe(
             `UPDATE ${this.table}
        SET \`SPU\`=?, \`门店编码\`=?, \`渠道编码\`=?
@@ -155,9 +155,9 @@ export class OpsShelfExclusionService {
             throw new BadRequestException('请提供要创建的数据');
         }
 
-        // 验证所有数据
+        // 验证所有数据（批量新增时，SPU不是必填项）
         for (const item of items) {
-            this.validate(item);
+            this.validate(item, true);
         }
 
         let createdCount = 0;

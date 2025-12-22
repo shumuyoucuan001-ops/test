@@ -78,7 +78,7 @@ export class Refund1688FollowUpService {
           r.\`差异单/出库单详情\` LIKE ? OR
           r.\`牵牛花物流单号\` LIKE ? OR
           r.\`跟进人\` LIKE ? OR
-          r.\`跟进时间\` LIKE ?
+          (r.\`跟进时间\` IS NOT NULL AND r.\`跟进时间\` LIKE ?)
         )`);
         params.push(like, like, like, like, like, like, like, like, like, like, like, like, like);
       }
@@ -163,9 +163,11 @@ export class Refund1688FollowUpService {
       // 同步更新订单状态和退款状态（等待更新完成再返回，但已优化性能）
       const updatedData = await this.autoUpdateOrderAndRefundStatus(data);
 
-      // 为进度追踪为null的数据设置默认值：等待商家同意退换
+      // 为进度追踪为null的数据设置默认值并更新到数据库：等待商家同意退换
+      const recordsToUpdate: string[] = [];
       const processedData = updatedData.map(record => {
         if (!record.进度追踪 || record.进度追踪.trim() === '') {
+          recordsToUpdate.push(record.订单编号);
           return {
             ...record,
             进度追踪: '等待商家同意退换'
@@ -173,6 +175,24 @@ export class Refund1688FollowUpService {
         }
         return record;
       });
+
+      // 批量更新数据库中进度追踪为null的记录
+      if (recordsToUpdate.length > 0) {
+        try {
+          const placeholders = recordsToUpdate.map(() => '?').join(',');
+          await connection.execute(
+            `UPDATE \`sm_chaigou\`.\`1688退款售后\` 
+             SET \`进度追踪\` = '等待商家同意退换' 
+             WHERE \`订单编号\` IN (${placeholders}) 
+             AND (\`进度追踪\` IS NULL OR \`进度追踪\` = '')`,
+            recordsToUpdate
+          );
+          Logger.log(`[Refund1688FollowUpService] 已更新 ${recordsToUpdate.length} 条记录的进度追踪默认值`);
+        } catch (error) {
+          Logger.error('[Refund1688FollowUpService] 更新进度追踪默认值失败:', error);
+          // 即使更新失败，也继续返回数据
+        }
+      }
 
       return { data: processedData, total };
     } catch (error) {
