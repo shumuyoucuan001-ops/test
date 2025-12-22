@@ -17,7 +17,7 @@ export class OpsShelfExclusionController {
     ): Promise<{ data: OpsShelfExclusionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
-        
+
         const filters: any = {};
         if (门店编码) filters.门店编码 = 门店编码;
         if (SPU) filters.SPU = SPU;

@@ -79,7 +79,7 @@ export class OpsShelfExclusionService {
     }
 
     async create(item: OpsShelfExclusionItem): Promise<void> {
-        this.validate(item);
+        this.validate(item, true); // 单独新增时，SPU不是必填项
         await this.prisma.$executeRawUnsafe(
             `INSERT INTO ${this.table} (\`SPU\`, \`门店编码\`, \`渠道编码\`) VALUES (?, ?, ?)`,
             item['SPU'] || '',
@@ -188,8 +188,8 @@ export class OpsShelfExclusionService {
         };
     }
 
-    private validate(item: OpsShelfExclusionItem) {
-        if (!item['SPU']) {
+    private validate(item: OpsShelfExclusionItem, allowEmptySPU: boolean = false) {
+        if (!allowEmptySPU && !item['SPU']) {
             throw new BadRequestException('SPU为必填');
         }
     }

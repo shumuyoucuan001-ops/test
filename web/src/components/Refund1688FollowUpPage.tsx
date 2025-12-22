@@ -263,6 +263,8 @@ export default function Refund1688FollowUpPage() {
         setEditingRecord(record);
         form.setFieldsValue({
             ...record,
+            // 如果进度追踪为null或空，设置默认值
+            进度追踪: record.进度追踪 || '等待商家同意退换',
         });
 
         // 如果有缓存，使用缓存；否则如果有图片标识，按需加载
@@ -498,6 +500,8 @@ export default function Refund1688FollowUpPage() {
             key: '进度追踪',
             width: 180,
             render: (text) => {
+                // 如果进度追踪为null或空，显示默认值
+                const displayText = text || '等待商家同意退换';
                 const colors: Record<string, string> = {
                     '等待商家同意退换': 'orange',
                     '商家拒退-修改后申请': 'red',
@@ -507,7 +511,7 @@ export default function Refund1688FollowUpPage() {
                     '申请售后流程(已收货)': 'purple',
                     '投诉商家(退换不成功)': 'volcano',
                 };
-                return text ? <Tag color={colors[text] || 'default'}>{text}</Tag> : '-';
+                return <Tag color={colors[displayText] || 'default'}>{displayText}</Tag>;
             },
         },
         {
@@ -769,7 +773,7 @@ export default function Refund1688FollowUpPage() {
                             allowClear
                         />
                         <Input
-                            placeholder="订单状态"
+                            placeholder="请求获取退款状态"
                             style={{ width: 150 }}
                             value={searchFilters.订单状态}
                             onChange={(e) => setSearchFilters({ ...searchFilters, 订单状态: e.target.value })}
@@ -914,6 +918,14 @@ export default function Refund1688FollowUpPage() {
             >
                 <Form form={form} layout="vertical">
                     <Form.Item label="订单编号" name="订单编号">
+                        <Input disabled />
+                    </Form.Item>
+
+                    <Form.Item label="请求获取订单状态" name="请求获取订单状态">
+                        <Input disabled />
+                    </Form.Item>
+
+                    <Form.Item label="请求获取退款状态" name="请求获取退款状态">
                         <Input disabled />
                     </Form.Item>
 

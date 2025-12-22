@@ -69,12 +69,18 @@ export class Refund1688FollowUpService {
           r.\`收货人姓名\` LIKE ? OR
           r.\`订单编号\` LIKE ? OR
           r.\`买家会员名\` LIKE ? OR
+          r.\`订单详情页\` LIKE ? OR
+          r.\`请求获取订单状态\` LIKE ? OR
+          r.\`请求获取退款状态\` LIKE ? OR
+          r.\`进度追踪\` LIKE ? OR
           r.\`采购单号\` LIKE ? OR
+          r.\`跟进情况/备注\` LIKE ? OR
+          r.\`差异单/出库单详情\` LIKE ? OR
           r.\`牵牛花物流单号\` LIKE ? OR
           r.\`跟进人\` LIKE ? OR
-          r.\`跟进情况/备注\` LIKE ?
+          r.\`跟进时间\` LIKE ?
         )`);
-        params.push(like, like, like, like, like, like, like);
+        params.push(like, like, like, like, like, like, like, like, like, like, like, like, like);
       }
 
       // 按字段精确搜索（AND）
@@ -87,7 +93,8 @@ export class Refund1688FollowUpService {
         params.push(buildLike(filters.订单编号));
       }
       if (filters?.订单状态?.trim()) {
-        clauses.push(`r.\`订单状态\` LIKE ?`);
+        // 订单状态搜索框改为搜索请求获取退款状态字段
+        clauses.push(`r.\`请求获取退款状态\` LIKE ?`);
         params.push(buildLike(filters.订单状态));
       }
       if (filters?.买家会员名?.trim()) {
@@ -156,7 +163,18 @@ export class Refund1688FollowUpService {
       // 同步更新订单状态和退款状态（等待更新完成再返回，但已优化性能）
       const updatedData = await this.autoUpdateOrderAndRefundStatus(data);
 
-      return { data: updatedData, total };
+      // 为进度追踪为null的数据设置默认值：等待商家同意退换
+      const processedData = updatedData.map(record => {
+        if (!record.进度追踪 || record.进度追踪.trim() === '') {
+          return {
+            ...record,
+            进度追踪: '等待商家同意退换'
+          };
+        }
+        return record;
+      });
+
+      return { data: processedData, total };
     } catch (error) {
       Logger.error('[Refund1688FollowUpService] 查询失败，详细错误:', error);
       Logger.error('[Refund1688FollowUpService] 错误消息:', (error as any)?.message);
