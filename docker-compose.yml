@@ -32,6 +32,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_BASE=/api
       - NODE_ENV=production
+      - API_URL=http://api:5000
     depends_on:
       api:
         condition: service_healthy
