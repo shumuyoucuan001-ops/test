@@ -3,10 +3,29 @@ import { NextRequest, NextResponse } from 'next/server';
 // 后端服务地址配置
 // Docker 环境：通过容器名称访问
 // 本地开发：使用 localhost
-const BACKEND_URL = process.env.API_URL ||
-  (process.env.NODE_ENV === 'production'
-    ? 'http://api:5000'  // Docker 环境
-    : 'http://127.0.0.1:5002');  // 本地开发
+function getBackendUrl(): string {
+  // 优先使用环境变量
+  if (process.env.API_URL) {
+    return process.env.API_URL;
+  }
+
+  // 生产环境使用容器名称
+  if (process.env.NODE_ENV === 'production') {
+    return 'http://api:5000';
+  }
+
+  // 本地开发环境
+  return 'http://127.0.0.1:5002';
+}
+
+const BACKEND_URL = getBackendUrl();
+
+// 在启动时记录配置（仅生产环境）
+if (process.env.NODE_ENV === 'production' && typeof window === 'undefined') {
+  console.log('[API Proxy] 后端地址配置:', BACKEND_URL);
+  console.log('[API Proxy] NODE_ENV:', process.env.NODE_ENV);
+  console.log('[API Proxy] API_URL:', process.env.API_URL || '未设置');
+}
 
 export async function GET(
   request: NextRequest,
@@ -74,10 +93,20 @@ async function proxyRequest(
     const queryString = searchParams.toString();
     const fullUrl = queryString ? `${url}?${queryString}` : url;
 
+    // 记录请求信息（生产环境记录首次请求的配置）
+    const isFirstRequest = !(global as any).__api_proxy_initialized;
+    if (isFirstRequest) {
+      (global as any).__api_proxy_initialized = true;
+      console.log(`[API Proxy] ========== 初始化配置 ==========`);
+      console.log(`[API Proxy] 后端地址: ${BACKEND_URL}`);
+      console.log(`[API Proxy] NODE_ENV: ${process.env.NODE_ENV}`);
+      console.log(`[API Proxy] API_URL: ${process.env.API_URL || '未设置'}`);
+      console.log(`[API Proxy] ===============================`);
+    }
+
     // 开发环境详细日志
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[API Proxy] ${method} ${fullUrl}`);
-      console.log(`[API Proxy] 后端地址: ${BACKEND_URL}`);
     }
 
     const headers: HeadersInit = {

@@ -1094,18 +1094,18 @@ export default function HomeLayout({
 
           <Content style={{
             flex: 1,
-            margin: isMobile ? '4px 8px 8px' : '8px 16px 16px',
+            margin: isMobile ? '4px 4px 8px' : '8px 16px 16px',
             overflow: 'hidden',
             background: '#ffffff',
             borderRadius: isMobile ? 4 : 8,
             display: 'flex',
             flexDirection: 'column',
-            width: isMobile ? 'calc(100% - 16px)' : 'auto',
+            width: isMobile ? 'calc(100% - 8px)' : 'auto',
             maxWidth: '100%',
             boxSizing: 'border-box',
           }}>
             <div style={{
-              padding: isMobile ? 8 : 16,
+              padding: isMobile ? 4 : 16,
               minHeight: 360,
               height: '100%',
               overflow: 'auto',

@@ -74,7 +74,12 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                         暂无数据
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                        width: '100%',
+                    }}>
                         {dataSource.map((record, index) => {
                             const key = getRowKey(record, index);
                             return (
@@ -84,6 +89,7 @@ export default function ResponsiveTable<T extends Record<string, any>>({
                                     style={{
                                         marginBottom: 0,
                                         borderRadius: 4,
+                                        width: '100%',
                                     }}
                                     bodyStyle={{
                                         padding: '12px',
