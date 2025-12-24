@@ -2,7 +2,7 @@
 
 import { OpsExclusionItem, opsExclusionApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Table, message } from "antd";
+import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ColumnSettings from "./ColumnSettings";
@@ -430,21 +430,36 @@ export default function OpsExclusionPage() {
                 fixed: 'left',
             },
             {
-                title: '商品名称',
+                title: (
+                    <span>
+                        商品名称{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
                 dataIndex: '商品名称',
                 key: '商品名称',
                 width: 200,
                 ellipsis: true,
             },
             {
-                title: '商品条码',
+                title: (
+                    <span>
+                        商品条码{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
                 dataIndex: '商品条码',
                 key: '商品条码',
                 width: 180,
                 ellipsis: true,
             },
             {
-                title: '规格名称',
+                title: (
+                    <span>
+                        规格名称{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
                 dataIndex: '规格名称',
                 key: '规格名称',
                 width: 150,
