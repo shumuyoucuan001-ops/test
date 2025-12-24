@@ -117,10 +117,10 @@ export default function Refund1688FollowUpPage() {
     };
 
     // 移动列位置（向上或向下）
-    const moveColumn = (columnKey: string, direction: 'up' | 'down', allColumns: ColumnType<Refund1688FollowUp>[]) => {
+    const moveColumn = (columnKey: string, direction: 'up' | 'down') => {
         // 获取默认列顺序
         const getDefaultOrder = (): string[] => {
-            return allColumns
+            return columns
                 .filter(col => {
                     const key = col.key as string;
                     return key !== 'selection' && key !== 'action';
@@ -693,63 +693,19 @@ export default function Refund1688FollowUpPage() {
         return !hiddenColumns.has(key);
     });
 
-    // 构建列设置内容
+    // 列设置内容使用独立组件
     const columnSettingsContent = (
-        <div style={{ width: 300, maxHeight: 500, overflowY: 'auto' }}>
-            <div style={{ marginBottom: 12, fontWeight: 500 }}>列设置</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {currentColumnOrder.map((columnKey, index) => {
-                    const col = configurableColumns.find(c => c.key === columnKey);
-                    if (!col) return null;
-
-                    const isVisible = !hiddenColumns.has(columnKey);
-                    const isFirst = index === 0;
-                    const isLast = index === currentColumnOrder.length - 1;
-
-                    return (
-                        <div
-                            key={columnKey}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                padding: '8px',
-                                borderRadius: 4,
-                                backgroundColor: '#f5f5f5',
-                            }}
-                        >
-                            <Checkbox
-                                checked={isVisible}
-                                onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleColumnVisibility(columnKey);
-                                }}
-                            >
-                                {col.title as string}
-                            </Checkbox>
-                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<UpOutlined />}
-                                    disabled={isFirst}
-                                    onClick={() => moveColumn(columnKey, 'up', columns)}
-                                    title="上移"
-                                />
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<DownOutlined />}
-                                    disabled={isLast}
-                                    onClick={() => moveColumn(columnKey, 'down', columns)}
-                                    title="下移"
-                                />
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
+        <ColumnSettings
+            columns={columns}
+            hiddenColumns={hiddenColumns}
+            columnOrder={currentColumnOrder}
+            onToggleVisibility={toggleColumnVisibility}
+            onMoveColumn={moveColumn}
+            onColumnOrderChange={(newOrder) => {
+                setColumnOrder(newOrder);
+                saveColumnOrder(newOrder);
+            }}
+        />
     );
 
     return (

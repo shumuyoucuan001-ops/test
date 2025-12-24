@@ -156,6 +156,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <SettingOutlined />,
     url: '/home/ops-exclusion',
   },
+  'ops-activity-dispatch': {
+    title: '手动强制活动分发',
+    icon: <SettingOutlined />,
+    url: '/home/ops-activity-dispatch',
+  },
   'ops-shelf-exclusion': {
     title: '排除上下架商品',
     icon: <SettingOutlined />,
@@ -612,6 +617,11 @@ export default function HomeLayout({
             key: 'ops-exclusion',
             icon: <SettingOutlined />,
             label: '排除活动商品',
+          },
+          {
+            key: 'ops-activity-dispatch',
+            icon: <SettingOutlined />,
+            label: '手动强制活动分发',
           },
           {
             key: 'ops-shelf-exclusion',
@@ -1094,18 +1104,18 @@ export default function HomeLayout({
 
           <Content style={{
             flex: 1,
-            margin: isMobile ? '4px 4px 8px' : '8px 16px 16px',
+            margin: isMobile ? '4px 2px 8px' : '8px 16px 16px',
             overflow: 'hidden',
             background: '#ffffff',
             borderRadius: isMobile ? 4 : 8,
             display: 'flex',
             flexDirection: 'column',
-            width: isMobile ? 'calc(100% - 8px)' : 'auto',
+            width: isMobile ? 'calc(100% - 4px)' : 'auto',
             maxWidth: '100%',
             boxSizing: 'border-box',
           }}>
             <div style={{
-              padding: isMobile ? 4 : 16,
+              padding: isMobile ? '4px 2px' : 16,
               minHeight: 360,
               height: '100%',
               overflow: 'auto',

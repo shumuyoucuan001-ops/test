@@ -10,6 +10,7 @@ import { LabelDataModule } from './label-data/label-data.module';
 import { LabelPrintModule } from './label-print/label-print.module';
 import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-quantity.module';
 import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
+import { OpsActivityDispatchModule } from './ops-activity-dispatch/ops-activity-dispatch.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { OpsShelfExclusionModule } from './ops-shelf-exclusion/ops-shelf-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -41,6 +42,7 @@ import { VersionModule } from './version/version.module';
     DingTalkModule,
     OpsExclusionModule,
     OpsShelfExclusionModule,
+    OpsActivityDispatchModule,
     StoreRejectionModule,
     MaxPurchaseQuantityModule,
     MaxStoreSkuInventoryModule,
