@@ -727,6 +727,7 @@ export default function OpsActivityDispatchPage() {
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
+                    scroll={{ x: 2500 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

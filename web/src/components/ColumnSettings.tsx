@@ -26,18 +26,19 @@ export default function ColumnSettings<T = any>({
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     // 获取可配置的列（排除 selection 和 action）
-    const configurableColumns = columns.filter(col => {
-        const key = col.key as string;
-        return key !== 'selection' && key !== 'action';
+    const configurableColumns = (columns || []).filter(col => {
+        const key = col?.key as string;
+        return key && key !== 'selection' && key !== 'action';
     });
 
     // 获取默认列顺序
     const getDefaultOrder = (): string[] => {
-        return configurableColumns.map(col => col.key as string);
+        return configurableColumns.map(col => col.key as string).filter(Boolean);
     };
 
     // 使用传入的列顺序，如果为空则使用默认顺序
-    const currentColumnOrder = columnOrder.length > 0 ? columnOrder : getDefaultOrder();
+    const defaultOrder = getDefaultOrder();
+    const currentColumnOrder = columnOrder.length > 0 ? columnOrder : defaultOrder;
 
     // 处理拖拽开始
     const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -81,7 +82,21 @@ export default function ColumnSettings<T = any>({
             return;
         }
 
+        // 安全检查
+        if (draggedIndex < 0 || draggedIndex >= currentColumnOrder.length ||
+            dropIndex < 0 || dropIndex >= currentColumnOrder.length) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
         const sourceColumnKey = currentColumnOrder[draggedIndex];
+        if (!sourceColumnKey) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
         const targetIndex = dropIndex;
 
         // 如果提供了直接设置列顺序的回调，使用它（更高效）
