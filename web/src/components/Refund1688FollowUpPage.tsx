@@ -1,7 +1,7 @@
 "use client";
 
 import { refund1688Api, Refund1688FollowUp } from '@/lib/api';
-import { DownOutlined, LinkOutlined, SettingOutlined, SyncOutlined, UpOutlined } from '@ant-design/icons';
+import { LinkOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import {
     Button,
     Card,
@@ -20,7 +20,8 @@ import {
 import { ColumnType } from 'antd/es/table';
 import Upload from 'antd/es/upload';
 import type { RcFile } from 'antd/es/upload/interface';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
 const { TextArea } = Input;
@@ -394,7 +395,7 @@ export default function Refund1688FollowUpPage() {
         loadData();
     };
 
-    const columns: ColumnType<Refund1688FollowUp>[] = [
+    const columns: ColumnType<Refund1688FollowUp>[] = useMemo(() => [
         {
             title: (
                 <Checkbox
@@ -637,7 +638,7 @@ export default function Refund1688FollowUpPage() {
                 );
             },
         },
-    ];
+    ], [selectedRowKeys, data.length, imageCache, loadingImages, canEdit]);
 
     // 获取可配置的列（排除 selection 和 action）
     const configurableColumns = columns.filter(col => {
