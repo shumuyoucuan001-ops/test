@@ -7,6 +7,9 @@ export interface OpsExclusionItem {
     '门店编码': string;
     'SKU编码': string;
     'SPU编码': string;
+    '商品名称'?: string | null;
+    '商品条码'?: string | null;
+    '规格名称'?: string | null;
 }
 
 @Injectable()
@@ -65,8 +68,16 @@ export class OpsExclusionService {
 
         // 构建 SQL
         const countSql = `SELECT COUNT(*) as total FROM ${this.table} ${whereCondition}`;
-        const sql = `SELECT \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`
-         FROM ${this.table}
+        const sql = `SELECT 
+            t.\`视图名称\`, 
+            t.\`门店编码\`, 
+            t.\`SKU编码\`, 
+            t.\`SPU编码\`,
+            p.\`商品名称\`,
+            p.\`商品条码\`,
+            p.\`规格名称\`
+         FROM ${this.table} t
+         LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON t.\`SKU编码\` = p.\`SKU编码\`
          ${whereCondition}
          ${orderBy}
          LIMIT ${limit} OFFSET ${offset}`;
@@ -80,6 +91,9 @@ export class OpsExclusionService {
             '门店编码': String(r['门店编码'] || ''),
             'SKU编码': String(r['SKU编码'] || ''),
             'SPU编码': String(r['SPU编码'] || ''),
+            '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+            '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+            '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
         }));
 
         return { data, total };

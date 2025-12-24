@@ -369,6 +369,9 @@ export interface OpsExclusionItem {
   门店编码: string;
   SKU编码: string;
   SPU编码: string;
+  商品名称?: string | null;
+  商品条码?: string | null;
+  规格名称?: string | null;
 }
 
 export const opsExclusionApi = {
@@ -559,6 +562,9 @@ export interface MaxPurchaseQuantityItem {
   'SKU': string;
   '单次最高采购量(基本单位)': number;
   '修改人': string;
+  '商品名称'?: string | null;
+  '商品条码'?: string | null;
+  '规格名称'?: string | null;
 }
 
 export const maxPurchaseQuantityApi = {
@@ -629,6 +635,9 @@ export interface MaxStoreSkuInventoryItem {
   '最高库存量（基础单位）': number;
   '备注（说明设置原因）': string;
   '修改人': string;
+  '商品名称'?: string | null;
+  '商品条码'?: string | null;
+  '规格名称'?: string | null;
 }
 
 export const maxStoreSkuInventoryApi = {

@@ -7,6 +7,9 @@ export interface MaxPurchaseQuantityItem {
     'SKU': string;
     '单次最高采购量(基本单位)': number;
     '修改人': string;
+    '商品名称'?: string | null;
+    '商品条码'?: string | null;
+    '规格名称'?: string | null;
 }
 
 @Injectable()
@@ -253,40 +256,44 @@ export class MaxPurchaseQuantityService {
 
         // 按字段匹配（AND）
         if (filters?.storeName?.trim()) {
-            clauses.push(`\`仓店名称\` LIKE ?`);
+            clauses.push(`t.\`仓店名称\` LIKE ?`);
             params.push(buildLike(filters.storeName));
         }
         if (filters?.sku?.trim()) {
-            clauses.push(`\`SKU\` LIKE ?`);
+            clauses.push(`t.\`SKU\` LIKE ?`);
             params.push(buildLike(filters.sku));
         }
         if (filters?.maxQuantity?.trim()) {
             // 尝试转换为数字进行精确匹配，如果转换失败则使用LIKE模糊匹配
             const quantityValue = parseFloat(filters.maxQuantity.trim());
             if (!isNaN(quantityValue)) {
-                clauses.push(`\`单次最高采购量(基本单位)\` = ?`);
+                clauses.push(`t.\`单次最高采购量(基本单位)\` = ?`);
                 params.push(quantityValue);
             } else {
-                clauses.push(`CAST(\`单次最高采购量(基本单位)\` AS CHAR) LIKE ?`);
+                clauses.push(`CAST(t.\`单次最高采购量(基本单位)\` AS CHAR) LIKE ?`);
                 params.push(buildLike(filters.maxQuantity));
             }
         }
         if (filters?.modifier?.trim()) {
-            clauses.push(`\`修改人\` LIKE ?`);
+            clauses.push(`t.\`修改人\` LIKE ?`);
             params.push(buildLike(filters.modifier));
         }
 
         const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
-        countSql = `SELECT COUNT(*) as total ${baseFrom} ${searchCondition}`;
+        countSql = `SELECT COUNT(*) as total FROM ${this.table} t ${searchCondition}`;
         sql = `SELECT 
-            \`仓店名称\`,
-            \`SKU\`,
-            \`单次最高采购量(基本单位)\`,
-            \`修改人\`
-        ${baseFrom}
+            t.\`仓店名称\`,
+            t.\`SKU\`,
+            t.\`单次最高采购量(基本单位)\`,
+            t.\`修改人\`,
+            p.\`商品名称\`,
+            p.\`商品条码\`,
+            p.\`规格名称\`
+        FROM ${this.table} t
+        LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON t.\`SKU\` = p.\`SKU编码\`
         ${searchCondition}
-        ORDER BY \`仓店名称\`, \`SKU\`
+        ORDER BY t.\`仓店名称\`, t.\`SKU\`
         LIMIT ${limit} OFFSET ${offset}`;
 
         try {
@@ -340,6 +347,9 @@ export class MaxPurchaseQuantityService {
                 'SKU': String(r['SKU'] || ''),
                 '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
                 '修改人': String(r['修改人'] || ''),
+                '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
             }));
 
             return { data, total };
@@ -433,6 +443,9 @@ export class MaxPurchaseQuantityService {
                     'SKU': String(r['SKU'] || ''),
                     '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
                     '修改人': String(r['修改人'] || ''),
+                    '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                    '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                    '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
                 };
             }
 
@@ -570,6 +583,9 @@ export class MaxPurchaseQuantityService {
                     'SKU': String(r['SKU'] || ''),
                     '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
                     '修改人': String(r['修改人'] || ''),
+                    '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                    '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                    '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
                 };
             }
 

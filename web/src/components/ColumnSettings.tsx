@@ -123,7 +123,10 @@ export default function ColumnSettings<T = any>({
 
     return (
         <div style={{ width: 300, maxHeight: 500, overflowY: 'auto' }}>
-            <div style={{ marginBottom: 12, fontWeight: 500 }}>列设置</div>
+            <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 500, marginBottom: 4 }}>列设置</div>
+                <div style={{ fontSize: 12, color: '#999' }}>长按列名并拖动进行调序</div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {currentColumnOrder.map((columnKey, index) => {
                     const col = configurableColumns.find(c => c.key === columnKey);

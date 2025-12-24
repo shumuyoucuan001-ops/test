@@ -1,9 +1,11 @@
 "use client";
 
 import { OpsExclusionItem, opsExclusionApi } from "@/lib/api";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
+import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
+import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Table, message } from "antd";
+import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import ColumnSettings from "./ColumnSettings";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof OpsExclusionItem, string> = {
@@ -11,6 +13,9 @@ const fieldLabels: Record<keyof OpsExclusionItem, string> = {
     "门店编码": "门店编码",
     "SKU编码": "SKU编码",
     "SPU编码": "SPU编码",
+    "商品名称": "商品名称",
+    "商品条码": "商品条码",
+    "规格名称": "规格名称",
 };
 
 export default function OpsExclusionPage() {
@@ -33,6 +38,94 @@ export default function OpsExclusionPage() {
         SKU编码?: string;
         SPU编码?: string;
     }>({});
+    const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+    const [columnOrder, setColumnOrder] = useState<string[]>([]);
+    const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+    // 从 localStorage 加载列显示偏好和顺序
+    useEffect(() => {
+        const savedHiddenColumns = localStorage.getItem('ops_exclusion_hidden_columns');
+        if (savedHiddenColumns) {
+            try {
+                const parsed = JSON.parse(savedHiddenColumns);
+                setHiddenColumns(new Set(parsed));
+            } catch (error) {
+                console.error('加载列显示偏好失败:', error);
+            }
+        }
+
+        const savedColumnOrder = localStorage.getItem('ops_exclusion_column_order');
+        if (savedColumnOrder) {
+            try {
+                const parsed = JSON.parse(savedColumnOrder);
+                setColumnOrder(parsed);
+            } catch (error) {
+                console.error('加载列顺序失败:', error);
+            }
+        }
+    }, []);
+
+    // 保存列显示偏好到 localStorage
+    const saveHiddenColumns = (hidden: Set<string>) => {
+        try {
+            localStorage.setItem('ops_exclusion_hidden_columns', JSON.stringify(Array.from(hidden)));
+        } catch (error) {
+            console.error('保存列显示偏好失败:', error);
+        }
+    };
+
+    // 保存列顺序到 localStorage
+    const saveColumnOrder = (order: string[]) => {
+        try {
+            localStorage.setItem('ops_exclusion_column_order', JSON.stringify(order));
+        } catch (error) {
+            console.error('保存列顺序失败:', error);
+        }
+    };
+
+    // 切换列的显示/隐藏
+    const toggleColumnVisibility = (columnKey: string) => {
+        const newHidden = new Set(hiddenColumns);
+        if (newHidden.has(columnKey)) {
+            newHidden.delete(columnKey);
+        } else {
+            newHidden.add(columnKey);
+        }
+        setHiddenColumns(newHidden);
+        saveHiddenColumns(newHidden);
+    };
+
+    // 移动列位置
+    const moveColumn = (columnKey: string, direction: 'up' | 'down') => {
+        const getDefaultOrder = (): string[] => {
+            return columns
+                .filter(col => {
+                    const key = col.key as string;
+                    return key !== 'selection' && key !== 'action';
+                })
+                .map(col => col.key as string);
+        };
+
+        const currentOrder = columnOrder.length > 0 ? [...columnOrder] : getDefaultOrder();
+        const index = currentOrder.indexOf(columnKey);
+
+        if (index === -1) return;
+
+        if (direction === 'up' && index > 0) {
+            [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]];
+        } else if (direction === 'down' && index < currentOrder.length - 1) {
+            [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]];
+        }
+
+        setColumnOrder(currentOrder);
+        saveColumnOrder(currentOrder);
+    };
+
+    // 直接设置列顺序（用于拖拽）
+    const handleColumnOrderChange = (newOrder: string[]) => {
+        setColumnOrder(newOrder);
+        saveColumnOrder(newOrder);
+    };
 
     // 检测移动端
     useEffect(() => {
@@ -316,11 +409,64 @@ export default function OpsExclusionPage() {
             ),
         };
 
-        const baseCols = (Object.keys(fieldLabels) as (keyof OpsExclusionItem)[]).map((key) => ({
-            title: fieldLabels[key],
-            dataIndex: key,
-            key,
-        }));
+        const baseCols: ColumnType<OpsExclusionItem>[] = [
+            {
+                title: '视图名称',
+                dataIndex: '视图名称',
+                key: '视图名称',
+                width: 150,
+            },
+            {
+                title: '门店编码',
+                dataIndex: '门店编码',
+                key: '门店编码',
+                width: 150,
+            },
+            {
+                title: 'SKU编码',
+                dataIndex: 'SKU编码',
+                key: 'SKU编码',
+                width: 220,
+                fixed: 'left',
+            },
+            {
+                title: '商品名称',
+                dataIndex: '商品名称',
+                key: '商品名称',
+                width: 200,
+                ellipsis: true,
+            },
+            {
+                title: '商品条码',
+                dataIndex: '商品条码',
+                key: '商品条码',
+                width: 180,
+                ellipsis: true,
+            },
+            {
+                title: '规格名称',
+                dataIndex: '规格名称',
+                key: '规格名称',
+                width: 150,
+                ellipsis: true,
+            },
+            {
+                title: 'SPU编码',
+                dataIndex: 'SPU编码',
+                key: 'SPU编码',
+                width: 220,
+            },
+        ];
+
+        // 根据列顺序和隐藏状态过滤列
+        const getDefaultOrder = (): string[] => {
+            return baseCols.map(col => col.key as string);
+        };
+        const currentOrder = columnOrder.length > 0 ? columnOrder : getDefaultOrder();
+        const orderedCols = currentOrder
+            .map(key => baseCols.find(col => col.key === key))
+            .filter((col): col is ColumnType<OpsExclusionItem> => col !== undefined && !hiddenColumns.has(col.key as string));
+
         const actionCol = {
             title: "操作",
             key: "action" as const,
@@ -340,8 +486,8 @@ export default function OpsExclusionPage() {
                 </Space>
             ),
         };
-        return [selectionCol, ...baseCols, actionCol];
-    }, [data, selectedRowKeys]);
+        return [selectionCol, ...orderedCols, actionCol];
+    }, [data, selectedRowKeys, hiddenColumns, columnOrder]);
 
     return (
         <div style={{ padding: 24 }}>
@@ -402,6 +548,25 @@ export default function OpsExclusionPage() {
                             </Space>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate} block>批量新增</Button>
+                            <Popover
+                                content={
+                                    <ColumnSettings
+                                        columns={columns}
+                                        hiddenColumns={hiddenColumns}
+                                        columnOrder={columnOrder}
+                                        onToggleVisibility={toggleColumnVisibility}
+                                        onMoveColumn={moveColumn}
+                                        onColumnOrderChange={handleColumnOrderChange}
+                                    />
+                                }
+                                title="列设置"
+                                trigger="click"
+                                open={columnSettingsOpen}
+                                onOpenChange={setColumnSettingsOpen}
+                                placement="bottomRight"
+                            >
+                                <Button icon={<SettingOutlined />} block>列设置</Button>
+                            </Popover>
                             {selectedRowKeys.length > 0 && (
                                 <Popconfirm
                                     title="确认批量删除？"
@@ -469,6 +634,25 @@ export default function OpsExclusionPage() {
                             }}>重置</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate}>批量新增</Button>
+                            <Popover
+                                content={
+                                    <ColumnSettings
+                                        columns={columns}
+                                        hiddenColumns={hiddenColumns}
+                                        columnOrder={columnOrder}
+                                        onToggleVisibility={toggleColumnVisibility}
+                                        onMoveColumn={moveColumn}
+                                        onColumnOrderChange={handleColumnOrderChange}
+                                    />
+                                }
+                                title="列设置"
+                                trigger="click"
+                                open={columnSettingsOpen}
+                                onOpenChange={setColumnSettingsOpen}
+                                placement="bottomRight"
+                            >
+                                <Button icon={<SettingOutlined />}>列设置</Button>
+                            </Popover>
                             {selectedRowKeys.length > 0 && (
                                 <Popconfirm
                                     title="确认批量删除？"

@@ -8,6 +8,9 @@ export interface MaxStoreSkuInventoryItem {
     '最高库存量（基础单位）': number;
     '备注（说明设置原因）': string;
     '修改人': string;
+    '商品名称'?: string | null;
+    '商品条码'?: string | null;
+    '规格名称'?: string | null;
 }
 
 @Injectable()
@@ -209,12 +212,12 @@ export class MaxStoreSkuInventoryService {
 
         // 按字段匹配（AND）
         if (filters?.storeName?.trim()) {
-            clauses.push(`\`仓店名称\` LIKE ?`);
+            clauses.push(`t.\`仓店名称\` LIKE ?`);
             params.push(buildLike(filters.storeName));
             Logger.log('[MaxStoreSkuInventoryService] 添加 storeName 条件:', buildLike(filters.storeName));
         }
         if (filters?.sku?.trim()) {
-            clauses.push(`\`SKU编码\` LIKE ?`);
+            clauses.push(`t.\`SKU编码\` LIKE ?`);
             params.push(buildLike(filters.sku));
             Logger.log('[MaxStoreSkuInventoryService] 添加 sku 条件:', buildLike(filters.sku));
         }
@@ -223,22 +226,22 @@ export class MaxStoreSkuInventoryService {
             const maxInventoryStr = filters.maxInventory.trim();
             const inventoryValue = parseFloat(maxInventoryStr);
             if (!isNaN(inventoryValue)) {
-                clauses.push(`\`最高库存量（基础单位）\` = ?`);
+                clauses.push(`t.\`最高库存量（基础单位）\` = ?`);
                 params.push(inventoryValue);
                 Logger.log('[MaxStoreSkuInventoryService] 添加 maxInventory 精确匹配条件:', inventoryValue);
             } else {
-                clauses.push(`CAST(\`最高库存量（基础单位）\` AS CHAR) LIKE ?`);
+                clauses.push(`CAST(t.\`最高库存量（基础单位）\` AS CHAR) LIKE ?`);
                 params.push(buildLike(maxInventoryStr));
                 Logger.log('[MaxStoreSkuInventoryService] 添加 maxInventory 模糊匹配条件:', buildLike(maxInventoryStr));
             }
         }
         if (filters?.remark?.trim()) {
-            clauses.push(`\`备注（说明设置原因）\` LIKE ?`);
+            clauses.push(`t.\`备注（说明设置原因）\` LIKE ?`);
             params.push(buildLike(filters.remark));
             Logger.log('[MaxStoreSkuInventoryService] 添加 remark 条件:', buildLike(filters.remark));
         }
         if (filters?.modifier?.trim()) {
-            clauses.push(`\`修改人\` LIKE ?`);
+            clauses.push(`t.\`修改人\` LIKE ?`);
             params.push(buildLike(filters.modifier));
             Logger.log('[MaxStoreSkuInventoryService] 添加 modifier 条件:', buildLike(filters.modifier));
         }
@@ -247,16 +250,20 @@ export class MaxStoreSkuInventoryService {
         Logger.log('[MaxStoreSkuInventoryService] 搜索条件数量:', clauses.length);
         Logger.log('[MaxStoreSkuInventoryService] searchCondition:', searchCondition);
 
-        countSql = `SELECT COUNT(*) as total ${baseFrom} ${searchCondition}`;
+        countSql = `SELECT COUNT(*) as total FROM ${this.table} t ${searchCondition}`;
         sql = `SELECT 
-            \`仓店名称\`,
-            \`SKU编码\`,
-            \`最高库存量（基础单位）\`,
-            \`备注（说明设置原因）\`,
-            \`修改人\`
-        ${baseFrom}
+            t.\`仓店名称\`,
+            t.\`SKU编码\`,
+            t.\`最高库存量（基础单位）\`,
+            t.\`备注（说明设置原因）\`,
+            t.\`修改人\`,
+            p.\`商品名称\`,
+            p.\`商品条码\`,
+            p.\`规格名称\`
+        FROM ${this.table} t
+        LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON t.\`SKU编码\` = p.\`SKU编码\`
         ${searchCondition}
-        ORDER BY \`仓店名称\`, \`SKU编码\`
+        ORDER BY t.\`仓店名称\`, t.\`SKU编码\`
         LIMIT ${limit} OFFSET ${offset}`;
 
         try {
@@ -322,6 +329,9 @@ export class MaxStoreSkuInventoryService {
                 '最高库存量（基础单位）': Number(r['最高库存量（基础单位）'] || 0),
                 '备注（说明设置原因）': String(r['备注（说明设置原因）'] || ''),
                 '修改人': String(r['修改人'] || ''),
+                '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
             }));
 
             Logger.log('[MaxStoreSkuInventoryService] 处理后的数据行数:', data.length);
@@ -428,6 +438,9 @@ export class MaxStoreSkuInventoryService {
                     '最高库存量（基础单位）': Number(r['最高库存量（基础单位）'] || 0),
                     '备注（说明设置原因）': String(r['备注（说明设置原因）'] || ''),
                     '修改人': String(r['修改人'] || ''),
+                    '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                    '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                    '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
                 };
             }
 
@@ -576,6 +589,9 @@ export class MaxStoreSkuInventoryService {
                     '最高库存量（基础单位）': Number(r['最高库存量（基础单位）'] || 0),
                     '备注（说明设置原因）': String(r['备注（说明设置原因）'] || ''),
                     '修改人': String(r['修改人'] || ''),
+                    '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                    '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                    '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
                 };
             }
 
