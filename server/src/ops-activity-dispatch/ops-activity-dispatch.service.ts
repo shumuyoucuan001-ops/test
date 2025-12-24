@@ -276,6 +276,23 @@ export class OpsActivityDispatchService {
         };
     }
 
+    async getStoreNames(): Promise<string[]> {
+        try {
+            const sql = `SELECT DISTINCT \`门店名称\` 
+                        FROM \`sm_shangping\`.\`全部门店商品\` 
+                        WHERE \`门店名称\` IS NOT NULL AND TRIM(\`门店名称\`) <> '' 
+                        GROUP BY \`门店名称\`
+                        ORDER BY \`门店名称\``;
+            const rows: any[] = await this.prisma.$queryRawUnsafe(sql);
+            const storeNames = (rows || []).map(r => String(r['门店名称'] || '').trim()).filter(Boolean);
+            // 添加"全部门店"选项
+            return ['全部门店', ...storeNames];
+        } catch (error) {
+            console.error('[OpsActivityDispatchService] 获取门店名称列表失败:', error);
+            throw error;
+        }
+    }
+
     private validate(item: OpsActivityDispatchItem) {
         if (!item['SKU'] || !item['SKU'].trim()) {
             throw new BadRequestException('SKU为必填');

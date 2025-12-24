@@ -2,7 +2,7 @@
 
 import { OpsActivityDispatchItem, opsActivityDispatchApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ColumnSettings from "./ColumnSettings";
@@ -50,6 +50,8 @@ export default function OpsActivityDispatchPage() {
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+    const [storeNames, setStoreNames] = useState<string[]>([]);
+    const [loadingStoreNames, setLoadingStoreNames] = useState(false);
 
     // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
@@ -184,6 +186,23 @@ export default function OpsActivityDispatchPage() {
             setLoading(false);
         }
     };
+
+    // 加载门店名称列表
+    useEffect(() => {
+        const loadStoreNames = async () => {
+            setLoadingStoreNames(true);
+            try {
+                const names = await opsActivityDispatchApi.getStoreNames();
+                setStoreNames(names);
+            } catch (error) {
+                console.error('加载门店名称列表失败:', error);
+                message.error('加载门店名称列表失败');
+            } finally {
+                setLoadingStoreNames(false);
+            }
+        };
+        loadStoreNames();
+    }, []);
 
     useEffect(() => {
         load();
@@ -788,7 +807,16 @@ export default function OpsActivityDispatchPage() {
                         <Input maxLength={100} />
                     </Form.Item>
                     <Form.Item name="门店名称" label="门店名称">
-                        <Input maxLength={100} />
+                        <Select
+                            placeholder="请选择门店名称"
+                            loading={loadingStoreNames}
+                            showSearch
+                            allowClear
+                            filterOption={(input, option) =>
+                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                            options={storeNames.map(name => ({ label: name, value: name }))}
+                        />
                     </Form.Item>
                     <Form.Item name="活动备注" label="活动备注">
                         <Input.TextArea rows={3} maxLength={500} />

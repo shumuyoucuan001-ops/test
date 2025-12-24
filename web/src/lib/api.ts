@@ -466,6 +466,8 @@ export const opsActivityDispatchApi = {
     api.post('/ops-activity-dispatch/batch-delete', { items }).then(res => res.data),
   batchCreate: (items: OpsActivityDispatchItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
     api.post('/ops-activity-dispatch/batch-create', { items }).then(res => res.data),
+  getStoreNames: (): Promise<string[]> =>
+    api.get('/ops-activity-dispatch/store-names').then(res => res.data),
 };
 
 // 运营组管理 - 排除上下架商品

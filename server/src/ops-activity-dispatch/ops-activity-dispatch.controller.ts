@@ -66,5 +66,10 @@ export class OpsActivityDispatchController {
         const result = await this.service.batchCreate(body.items);
         return result;
     }
+
+    @Get('store-names')
+    async getStoreNames(): Promise<string[]> {
+        return this.service.getStoreNames();
+    }
 }
 
