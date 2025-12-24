@@ -12,6 +12,7 @@ import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-
 import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
 import { OpsActivityDispatchModule } from './ops-activity-dispatch/ops-activity-dispatch.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
+import { OpsRegularActivityDispatchModule } from './ops-regular-activity-dispatch/ops-regular-activity-dispatch.module';
 import { OpsShelfExclusionModule } from './ops-shelf-exclusion/ops-shelf-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
@@ -43,6 +44,7 @@ import { VersionModule } from './version/version.module';
     OpsExclusionModule,
     OpsShelfExclusionModule,
     OpsActivityDispatchModule,
+    OpsRegularActivityDispatchModule,
     StoreRejectionModule,
     MaxPurchaseQuantityModule,
     MaxStoreSkuInventoryModule,

@@ -470,6 +470,56 @@ export const opsActivityDispatchApi = {
     api.get('/ops-activity-dispatch/store-names').then(res => res.data),
 };
 
+// 运营组管理 - 手动常规活动分发
+export interface OpsRegularActivityDispatchItem {
+  SKU: string;
+  活动价: string | number | null;
+  活动类型: string | null;
+  活动备注: string | null;
+  活动确认人: string | null;
+  数据更新时间: string | null;
+  商品名称?: string | null;
+  商品条码?: string | null;
+  规格名称?: string | null;
+}
+
+export const opsRegularActivityDispatchApi = {
+  list: (params?: {
+    SKU?: string;
+    活动价?: string;
+    活动类型?: string;
+    活动备注?: string;
+    活动确认人?: string;
+    keyword?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: OpsRegularActivityDispatchItem[]; total: number }> => {
+    const queryParams: any = {};
+    if (params?.SKU) queryParams.SKU = params.SKU;
+    if (params?.活动价) queryParams.活动价 = params.活动价;
+    if (params?.活动类型) queryParams.活动类型 = params.活动类型;
+    if (params?.活动备注) queryParams.活动备注 = params.活动备注;
+    if (params?.活动确认人) queryParams.活动确认人 = params.活动确认人;
+    if (params?.keyword) queryParams.keyword = params.keyword;
+    queryParams.page = params?.page || 1;
+    queryParams.limit = params?.limit || 20;
+    return api.get('/ops-regular-activity-dispatch', { params: queryParams }).then(res => res.data);
+  },
+  create: (data: OpsRegularActivityDispatchItem): Promise<{ success: boolean }> =>
+    api.post('/ops-regular-activity-dispatch', data).then(res => res.data),
+  update: (
+    original: OpsRegularActivityDispatchItem,
+    data: OpsRegularActivityDispatchItem
+  ): Promise<{ success: boolean }> =>
+    api.patch('/ops-regular-activity-dispatch', { original, data }).then(res => res.data),
+  remove: (data: OpsRegularActivityDispatchItem): Promise<{ success: boolean }> =>
+    api.delete('/ops-regular-activity-dispatch', { data }).then(res => res.data),
+  batchDelete: (items: OpsRegularActivityDispatchItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    api.post('/ops-regular-activity-dispatch/batch-delete', { items }).then(res => res.data),
+  batchCreate: (items: OpsRegularActivityDispatchItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
+    api.post('/ops-regular-activity-dispatch/batch-create', { items }).then(res => res.data),
+};
+
 // 运营组管理 - 排除上下架商品
 export interface OpsShelfExclusionItem {
   SPU: string;

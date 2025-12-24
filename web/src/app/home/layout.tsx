@@ -161,6 +161,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <SettingOutlined />,
     url: '/home/ops-activity-dispatch',
   },
+  'ops-regular-activity-dispatch': {
+    title: '手动常规活动分发',
+    icon: <SettingOutlined />,
+    url: '/home/ops-regular-activity-dispatch',
+  },
   'ops-shelf-exclusion': {
     title: '排除上下架商品',
     icon: <SettingOutlined />,
@@ -611,7 +616,7 @@ export default function HomeLayout({
       {
         key: 'ops',
         icon: <SettingOutlined />,
-        label: '运营组管理',
+        label: '运营管理',
         children: [
           {
             key: 'ops-exclusion',
@@ -622,6 +627,11 @@ export default function HomeLayout({
             key: 'ops-activity-dispatch',
             icon: <SettingOutlined />,
             label: '手动强制活动分发',
+          },
+          {
+            key: 'ops-regular-activity-dispatch',
+            icon: <SettingOutlined />,
+            label: '手动常规活动分发',
           },
           {
             key: 'ops-shelf-exclusion',
