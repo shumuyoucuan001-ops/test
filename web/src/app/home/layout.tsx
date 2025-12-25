@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AccountBookOutlined,
   ClearOutlined,
   FileTextOutlined,
   HomeOutlined,
@@ -205,6 +206,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     title: '1688退款(退货)跟进情况',
     icon: <ShoppingOutlined />,
     url: '/home/refund-1688-follow-up',
+  },
+  'finance-management': {
+    title: '财务管理',
+    icon: <AccountBookOutlined />,
+    url: '/home/finance-management',
   },
 };
 
@@ -659,6 +665,18 @@ export default function HomeLayout({
             key: 'max-store-sku-inventory',
             icon: <ShopOutlined />,
             label: '仓店sku最高库存',
+          },
+        ],
+      },
+      {
+        key: 'finance-management',
+        icon: <AccountBookOutlined />,
+        label: '财务管理',
+        children: [
+          {
+            key: 'finance-management',
+            icon: <AccountBookOutlined />,
+            label: '财务管理',
           },
         ],
       },

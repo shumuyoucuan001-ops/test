@@ -5,6 +5,7 @@ import { AclModule } from './acl/acl.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DingTalkModule } from './dingtalk/dingtalk.module';
+import { FinanceManagementModule } from './finance-management/finance-management.module';
 import { HealthController } from './health/health.controller';
 import { LabelDataModule } from './label-data/label-data.module';
 import { LabelPrintModule } from './label-print/label-print.module';
@@ -50,6 +51,7 @@ import { VersionModule } from './version/version.module';
     MaxStoreSkuInventoryModule,
     PurchasePassDifferenceModule,
     Refund1688FollowUpModule,
+    FinanceManagementModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

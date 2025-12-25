@@ -899,4 +899,49 @@ export const refund1688Api = {
     api.post('/refund-1688-follow-up/batch-delete', { orderNos }).then(res => res.data),
 };
 
+// 财务管理接口
+export interface FinanceBill {
+  id?: number;
+  transactionNumber: string; // 交易单号
+  qianniuhuaPurchaseNumber?: string; // 牵牛花采购单号
+  importExceptionRemark?: string; // 导入异常备注
+  image?: string; // 图片（base64）
+  modifier?: string; // 修改人
+  modifyTime?: string; // 修改时间
+}
+
+export const financeManagementApi = {
+  // 获取所有账单（分页）
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{ data: FinanceBill[]; total: number }> =>
+    api.get('/finance-management', { params }).then(res => res.data),
+
+  // 获取单个账单
+  getById: (id: number): Promise<FinanceBill | null> =>
+    api.get(`/finance-management/${id}`).then(res => res.data),
+
+  // 创建账单
+  create: (data: FinanceBill): Promise<FinanceBill> =>
+    api.post('/finance-management', data).then(res => res.data),
+
+  // 批量创建账单
+  batchCreate: (bills: FinanceBill[]): Promise<{ success: number; failed: number; errors: string[] }> =>
+    api.post('/finance-management/batch', { bills }).then(res => res.data),
+
+  // 更新账单
+  update: (id: number, data: Partial<FinanceBill>): Promise<FinanceBill> =>
+    api.put(`/finance-management/${id}`, data).then(res => res.data),
+
+  // 删除账单
+  delete: (id: number): Promise<boolean> =>
+    api.delete(`/finance-management/${id}`).then(res => res.data),
+
+  // 批量删除账单
+  batchDelete: (ids: number[]): Promise<{ success: number; failed: number }> =>
+    api.delete('/finance-management/batch', { data: { ids } }).then(res => res.data),
+};
+
 export default api;
