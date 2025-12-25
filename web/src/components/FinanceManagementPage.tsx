@@ -13,11 +13,11 @@ import {
   Button,
   Card,
   Col,
-  Drawer,
   Form,
   Input,
   Modal,
   Popconfirm,
+  Popover,
   Row,
   Space,
   Tag,
@@ -489,12 +489,25 @@ export default function FinanceManagementPage() {
               style={{ width: 250 }}
               onSearch={handleSearch}
             />
-            <Button
-              icon={<SettingOutlined />}
-              onClick={() => setColumnSettingsOpen(true)}
+            <Popover
+              content={
+                <ColumnSettings
+                  columns={allColumns}
+                  hiddenColumns={hiddenColumns}
+                  columnOrder={columnOrder}
+                  onToggleVisibility={handleToggleColumnVisibility}
+                  onMoveColumn={() => {}}
+                  onColumnOrderChange={handleColumnOrderChange}
+                />
+              }
+              title="列设置"
+              trigger="click"
+              open={columnSettingsOpen}
+              onOpenChange={setColumnSettingsOpen}
+              placement="bottomRight"
             >
-              列设置
-            </Button>
+              <Button icon={<SettingOutlined />}>列设置</Button>
+            </Popover>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -559,23 +572,6 @@ export default function FinanceManagementPage() {
         />
       </Card>
 
-      {/* 列设置抽屉 */}
-      <Drawer
-        title="列设置"
-        placement="right"
-        onClose={() => setColumnSettingsOpen(false)}
-        open={columnSettingsOpen}
-        width={400}
-      >
-        <ColumnSettings
-          columns={allColumns}
-          hiddenColumns={hiddenColumns}
-          columnOrder={columnOrder}
-          onToggleVisibility={handleToggleColumnVisibility}
-          onMoveColumn={() => {}}
-          onColumnOrderChange={handleColumnOrderChange}
-        />
-      </Drawer>
 
       {/* 新增/编辑模态框 */}
       <Modal

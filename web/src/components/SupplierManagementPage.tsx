@@ -12,12 +12,12 @@ import {
   Button,
   Card,
   Col,
-  Drawer,
   Form,
   Input,
   InputNumber,
   Modal,
   Popconfirm,
+  Popover,
   Row,
   Space,
   Tabs,
@@ -352,7 +352,7 @@ export default function SupplierManagementPage() {
 
   // 供应商管理标签组件
   const ManagementTag = () => (
-    <Tag color="#52c41a" style={{ marginLeft: 4, fontSize: 11 }}>
+    <Tag color="green" style={{ marginLeft: 4 }}>
       (供应商管理)
     </Tag>
   );
@@ -534,12 +534,25 @@ export default function SupplierManagementPage() {
               style={{ width: 250 }}
               onSearch={handleSearch}
             />
-            <Button
-              icon={<SettingOutlined />}
-              onClick={() => setColumnSettingsOpen(true)}
+            <Popover
+              content={
+                <ColumnSettings
+                  columns={allColumns}
+                  hiddenColumns={hiddenColumns}
+                  columnOrder={columnOrder}
+                  onToggleVisibility={handleToggleColumnVisibility}
+                  onMoveColumn={handleMoveColumn}
+                  onColumnOrderChange={handleColumnOrderChange}
+                />
+              }
+              title="列设置"
+              trigger="click"
+              open={columnSettingsOpen}
+              onOpenChange={setColumnSettingsOpen}
+              placement="bottomRight"
             >
-              列设置
-            </Button>
+              <Button icon={<SettingOutlined />}>列设置</Button>
+            </Popover>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -582,23 +595,6 @@ export default function SupplierManagementPage() {
         />
       </Card>
 
-      {/* 列设置抽屉 */}
-      <Drawer
-        title="列设置"
-        placement="right"
-        onClose={() => setColumnSettingsOpen(false)}
-        open={columnSettingsOpen}
-        width={400}
-      >
-        <ColumnSettings
-          columns={allColumns}
-          hiddenColumns={hiddenColumns}
-          columnOrder={columnOrder}
-          onToggleVisibility={handleToggleColumnVisibility}
-          onMoveColumn={handleMoveColumn}
-          onColumnOrderChange={handleColumnOrderChange}
-        />
-      </Drawer>
 
       {/* 编辑模态框 */}
       <Modal

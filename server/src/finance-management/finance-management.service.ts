@@ -19,7 +19,7 @@ export class FinanceManagementService {
             host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
             user: process.env.DB_USER || 'xitongquanju',
             password: process.env.DB_PASSWORD || 'b4FFS6kVGKV4jV',
-            database: 'sm_chaigou',
+            database: 'sm_zhangdan_caiwu',
             port: parseInt(process.env.DB_PORT || '3306'),
         });
     }
@@ -37,7 +37,7 @@ export class FinanceManagementService {
     // 确保表存在
     private async ensureTableExists(connection: any): Promise<void> {
         const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS sm_zhangdan_caiwu (
+      CREATE TABLE IF NOT EXISTS \`手动绑定对账单号\` (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
         交易单号 VARCHAR(128) NOT NULL UNIQUE COMMENT '交易单号',
         牵牛花采购单号 VARCHAR(128) NULL COMMENT '牵牛花采购单号',
@@ -97,7 +97,7 @@ export class FinanceManagementService {
             // 获取总数
             const totalQuery = `
         SELECT COUNT(*) as count 
-        FROM sm_zhangdan_caiwu 
+        FROM \`手动绑定对账单号\` 
         WHERE ${whereClause}
       `;
             const [totalResult]: any = await connection.execute(totalQuery, queryParams);
@@ -112,7 +112,7 @@ export class FinanceManagementService {
           导入异常备注 as importExceptionRemark,
           修改人 as modifier,
           修改时间 as modifyTime
-        FROM sm_zhangdan_caiwu
+        FROM \`手动绑定对账单号\`
         WHERE ${whereClause}
         ORDER BY 修改时间 DESC, id DESC
         LIMIT ? OFFSET ?
@@ -155,7 +155,7 @@ export class FinanceManagementService {
           图片 as image,
           修改人 as modifier,
           修改时间 as modifyTime
-        FROM sm_zhangdan_caiwu
+        FROM \`手动绑定对账单号\`
         WHERE id = ?
       `;
 
@@ -210,7 +210,7 @@ export class FinanceManagementService {
             }
 
             const insertQuery = `
-        INSERT INTO sm_zhangdan_caiwu 
+        INSERT INTO \`手动绑定对账单号\` 
         (交易单号, 牵牛花采购单号, 导入异常备注, 图片, 修改人)
         VALUES (?, ?, ?, ?, ?)
       `;
@@ -225,7 +225,7 @@ export class FinanceManagementService {
 
             // 获取插入的记录
             const [result]: any = await connection.execute(
-                'SELECT id FROM sm_zhangdan_caiwu WHERE 交易单号 = ?',
+                'SELECT id FROM `手动绑定对账单号` WHERE 交易单号 = ?',
                 [data.transactionNumber]
             );
 
@@ -274,7 +274,7 @@ export class FinanceManagementService {
                     }
 
                     const insertQuery = `
-            INSERT INTO sm_zhangdan_caiwu 
+            INSERT INTO \`手动绑定对账单号\` 
             (交易单号, 牵牛花采购单号, 导入异常备注, 图片, 修改人)
             VALUES (?, ?, ?, ?, ?)
           `;
@@ -362,7 +362,7 @@ export class FinanceManagementService {
             updateValues.push(id);
 
             const updateQuery = `
-        UPDATE sm_zhangdan_caiwu 
+        UPDATE \`手动绑定对账单号\` 
         SET ${updateFields.join(', ')}
         WHERE id = ?
       `;
@@ -386,7 +386,7 @@ export class FinanceManagementService {
         try {
             await this.ensureTableExists(connection);
 
-            const deleteQuery = `DELETE FROM sm_zhangdan_caiwu WHERE id = ?`;
+            const deleteQuery = `DELETE FROM \`手动绑定对账单号\` WHERE id = ?`;
 
             await connection.execute(deleteQuery, [id]);
             return true;
@@ -407,7 +407,7 @@ export class FinanceManagementService {
             }
 
             const placeholders = ids.map(() => '?').join(',');
-            const deleteQuery = `DELETE FROM sm_zhangdan_caiwu WHERE id IN (${placeholders})`;
+            const deleteQuery = `DELETE FROM \`手动绑定对账单号\` WHERE id IN (${placeholders})`;
 
             const [result]: any = await connection.execute(deleteQuery, ids);
 
