@@ -5,12 +5,14 @@ import {
   EditOutlined,
   HistoryOutlined,
   PlusOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import {
   Button,
   Card,
   Col,
+  Drawer,
   Form,
   Input,
   InputNumber,
@@ -25,6 +27,7 @@ import {
   message
 } from 'antd';
 import { useEffect, useState } from 'react';
+import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
 const { Search } = Input;
@@ -45,6 +48,7 @@ interface SupplierFullInfo extends SupplierBasicInfo {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
+  wangwangMessage?: string;
 }
 
 interface SupplierManagement {
@@ -52,6 +56,7 @@ interface SupplierManagement {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
+  wangwangMessage?: string;
 }
 
 interface Statistics {
@@ -164,6 +169,11 @@ export default function SupplierManagementPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('edit');
 
+  // 列设置相关状态
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
   // 加载供应商列表
   const loadSuppliers = async (page: number = currentPage, search?: string) => {
     try {
@@ -201,6 +211,60 @@ export default function SupplierManagementPage() {
     loadSuppliers();
   }, []);
 
+  // 从 localStorage 加载列显示偏好和顺序
+  useEffect(() => {
+    const savedHiddenColumns = localStorage.getItem('supplier_management_hidden_columns');
+    if (savedHiddenColumns) {
+      try {
+        const parsed = JSON.parse(savedHiddenColumns);
+        setHiddenColumns(new Set(parsed));
+      } catch (error) {
+        console.error('加载列显示偏好失败:', error);
+      }
+    }
+
+    const savedColumnOrder = localStorage.getItem('supplier_management_column_order');
+    if (savedColumnOrder) {
+      try {
+        const parsed = JSON.parse(savedColumnOrder);
+        setColumnOrder(parsed);
+      } catch (error) {
+        console.error('加载列顺序失败:', error);
+      }
+    }
+  }, []);
+
+  // 保存列显示偏好到 localStorage
+  const saveHiddenColumns = (hidden: Set<string>) => {
+    localStorage.setItem('supplier_management_hidden_columns', JSON.stringify(Array.from(hidden)));
+  };
+
+  // 保存列顺序到 localStorage
+  const saveColumnOrder = (order: string[]) => {
+    localStorage.setItem('supplier_management_column_order', JSON.stringify(order));
+  };
+
+  // 切换列显示/隐藏
+  const handleToggleColumnVisibility = (columnKey: string) => {
+    const newHidden = new Set(hiddenColumns);
+    if (newHidden.has(columnKey)) {
+      newHidden.delete(columnKey);
+    } else {
+      newHidden.add(columnKey);
+    }
+    setHiddenColumns(newHidden);
+    saveHiddenColumns(newHidden);
+  };
+
+  // 移动列函数（将在allColumns定义后重新实现）
+  let handleMoveColumn: (columnKey: string, direction: 'up' | 'down') => void = () => { };
+
+  // 列顺序变更
+  const handleColumnOrderChange = (newOrder: string[]) => {
+    setColumnOrder(newOrder);
+    saveColumnOrder(newOrder);
+  };
+
   // 搜索处理
   const handleSearch = (value: string) => {
     setSearchText(value);
@@ -218,6 +282,7 @@ export default function SupplierManagementPage() {
       minOrderAmount: supplier.minOrderAmount,
       minOrderQuantity: supplier.minOrderQuantity,
       orderRemarks: supplier.orderRemarks,
+      wangwangMessage: supplier.wangwangMessage,
     });
     setModalVisible(true);
     // 加载修改日志
@@ -285,8 +350,15 @@ export default function SupplierManagementPage() {
     }
   };
 
+  // 供应商管理标签组件
+  const ManagementTag = () => (
+    <Tag color="#52c41a" style={{ marginLeft: 4, fontSize: 11 }}>
+      (供应商管理)
+    </Tag>
+  );
+
   // 表格列定义
-  const columns = [
+  const allColumns = [
     {
       title: '供应商编码',
       dataIndex: 'supplierCode',
@@ -332,18 +404,54 @@ export default function SupplierManagementPage() {
       ),
     },
     {
-      title: '最小订货金额',
+      title: (
+        <span>
+          最小订货金额
+          <ManagementTag />
+        </span>
+      ),
       dataIndex: 'minOrderAmount',
       key: 'minOrderAmount',
-      width: 120,
+      width: 150,
       render: (amount: number) => amount ? `¥${amount.toLocaleString()}` : '-',
     },
     {
-      title: '最小订货数量',
+      title: (
+        <span>
+          最小订货数量
+          <ManagementTag />
+        </span>
+      ),
       dataIndex: 'minOrderQuantity',
       key: 'minOrderQuantity',
-      width: 120,
+      width: 150,
       render: (quantity: number) => quantity ? quantity.toLocaleString() : '-',
+    },
+    {
+      title: (
+        <span>
+          供应商下单备注
+          <ManagementTag />
+        </span>
+      ),
+      dataIndex: 'orderRemarks',
+      key: 'orderRemarks',
+      width: 200,
+      ellipsis: true,
+      render: (text: string) => text || '-',
+    },
+    {
+      title: (
+        <span>
+          下单后联系供应商话术
+          <ManagementTag />
+        </span>
+      ),
+      dataIndex: 'wangwangMessage',
+      key: 'wangwangMessage',
+      width: 200,
+      ellipsis: true,
+      render: (text: string) => text || '-',
     },
     {
       title: '管理状态',
@@ -392,6 +500,23 @@ export default function SupplierManagementPage() {
     },
   ];
 
+  // 根据列设置过滤和排序列
+  const getFilteredColumns = () => {
+    const currentOrder = columnOrder.length > 0
+      ? columnOrder
+      : allColumns.map(col => col.key as string).filter(Boolean);
+
+    // 按照保存的顺序排列
+    const orderedColumns = currentOrder
+      .map(key => allColumns.find(col => col.key === key))
+      .filter(Boolean) as typeof allColumns;
+
+    // 过滤隐藏的列
+    return orderedColumns.filter(col => !hiddenColumns.has(col.key as string));
+  };
+
+  const columns = getFilteredColumns();
+
   return (
     <div style={{ padding: 0 }}>
       {/* 主要内容 */}
@@ -409,6 +534,12 @@ export default function SupplierManagementPage() {
               style={{ width: 250 }}
               onSearch={handleSearch}
             />
+            <Button
+              icon={<SettingOutlined />}
+              onClick={() => setColumnSettingsOpen(true)}
+            >
+              列设置
+            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -434,6 +565,7 @@ export default function SupplierManagementPage() {
           rowKey="supplierCode"
           loading={loading}
           isMobile={false}
+          scroll={{ x: 2000 }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,
@@ -449,6 +581,24 @@ export default function SupplierManagementPage() {
           }}
         />
       </Card>
+
+      {/* 列设置抽屉 */}
+      <Drawer
+        title="列设置"
+        placement="right"
+        onClose={() => setColumnSettingsOpen(false)}
+        open={columnSettingsOpen}
+        width={400}
+      >
+        <ColumnSettings
+          columns={allColumns}
+          hiddenColumns={hiddenColumns}
+          columnOrder={columnOrder}
+          onToggleVisibility={handleToggleColumnVisibility}
+          onMoveColumn={handleMoveColumn}
+          onColumnOrderChange={handleColumnOrderChange}
+        />
+      </Drawer>
 
       {/* 编辑模态框 */}
       <Modal
@@ -484,6 +634,7 @@ export default function SupplierManagementPage() {
                     minOrderAmount: undefined,
                     minOrderQuantity: undefined,
                     orderRemarks: '',
+                    wangwangMessage: '',
                   }}
                 >
                   <Form.Item name="supplierCode" hidden>
@@ -524,12 +675,24 @@ export default function SupplierManagementPage() {
                   </Row>
 
                   <Form.Item
-                    label="订货备注"
+                    label="供应商下单备注"
                     name="orderRemarks"
                   >
                     <TextArea
                       rows={4}
                       placeholder="请输入订货相关的备注信息"
+                      maxLength={500}
+                      showCount
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label="下单后联系供应商话术"
+                    name="wangwangMessage"
+                  >
+                    <TextArea
+                      rows={4}
+                      placeholder="请输入下单后联系供应商的话术"
                       maxLength={500}
                       showCount
                     />
@@ -574,7 +737,8 @@ export default function SupplierManagementPage() {
                         const fieldNameMap: Record<string, string> = {
                           minOrderAmount: '最小订货金额',
                           minOrderQuantity: '最小订货数量',
-                          orderRemarks: '订货备注',
+                          orderRemarks: '供应商下单备注',
+                          wangwangMessage: '下单后联系供应商话术',
                         };
 
                         return {

@@ -15,12 +15,14 @@ export interface SupplierManagement {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
+  wangwangMessage?: string;
 }
 
 export interface SupplierFullInfo extends SupplierBasicInfo {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
+  wangwangMessage?: string;
 }
 
 @Controller('suppliers')
