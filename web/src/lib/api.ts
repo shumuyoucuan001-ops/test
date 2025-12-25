@@ -416,19 +416,19 @@ export const opsExclusionApi = {
 
 // 运营组管理 - 手动强制活动分发
 export interface OpsActivityDispatchItem {
-  SKU: string;
-  活动价: string | number | null;
-  最低活动价: string | number | null;
-  活动类型: string | null;
-  门店名称: string | null;
-  活动备注: string | null;
-  剩余活动天数: string | number | null;
-  活动确认人: string | null;
-  结束时间: string | null;
-  数据更新时间: string | null;
-  商品名称?: string | null;
-  商品UPC?: string | null;
-  规格?: string | null;
+  'SKU': string;
+  '活动价': string | number | null;
+  '最低活动价': string | number | null;
+  '活动类型': string | null;
+  '门店名称': string | null;
+  '活动备注': string | null;
+  '剩余活动天数': string | number | null;
+  '活动确认人': string | null;
+  '结束时间': string | null;
+  '数据更新时间': string | null;
+  '商品名称'?: string | null;
+  '商品UPC'?: string | null;
+  '规格'?: string | null;
   '采购单价 (基础单位)'?: string | number | null;
   '采购单价 (采购单位)'?: string | number | null;
 }
@@ -480,15 +480,15 @@ export const opsActivityDispatchApi = {
 
 // 运营组管理 - 手动常规活动分发
 export interface OpsRegularActivityDispatchItem {
-  SKU: string;
-  活动价: string | number | null;
-  活动类型: string | null;
-  活动备注: string | null;
-  活动确认人: string | null;
-  数据更新时间: string | null;
-  商品名称?: string | null;
-  商品UPC?: string | null;
-  规格?: string | null;
+  'SKU': string;
+  '活动价': string | number | null;
+  '活动类型': string | null;
+  '活动备注': string | null;
+  '活动确认人': string | null;
+  '数据更新时间': string | null;
+  '商品名称'?: string | null;
+  '商品UPC'?: string | null;
+  '规格'?: string | null;
   '采购单价 (基础单位)'?: string | number | null;
   '采购单价 (采购单位)'?: string | number | null;
 }
