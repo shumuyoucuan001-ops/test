@@ -6,6 +6,7 @@ import {
   HistoryOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
   SettingOutlined
 } from '@ant-design/icons';
 import {
@@ -30,7 +31,6 @@ import { useEffect, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
-const { Search } = Input;
 const { Title } = Typography;
 const { TextArea } = Input;
 
@@ -266,10 +266,18 @@ export default function SupplierManagementPage() {
   };
 
   // 搜索处理
-  const handleSearch = (value: string) => {
-    setSearchText(value);
+  const handleSearch = (value?: string) => {
+    const searchValue = value !== undefined ? value : searchText;
+    setSearchText(searchValue);
     setCurrentPage(1);
-    loadSuppliers(1, value);
+    loadSuppliers(1, searchValue);
+  };
+
+  // 重置处理
+  const handleReset = () => {
+    setSearchText('');
+    setCurrentPage(1);
+    loadSuppliers(1, '');
   };
 
   // 打开编辑模态框
@@ -528,12 +536,21 @@ export default function SupplierManagementPage() {
         }
         extra={
           <Space>
-            <Search
+            <Input
               placeholder="搜索供应商名称或编码"
               allowClear
               style={{ width: 250 }}
-              onSearch={handleSearch}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onPressEnter={() => handleSearch()}
             />
+            <Button
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={() => handleSearch()}
+            >
+              搜索
+            </Button>
             <Popover
               content={
                 <ColumnSettings
@@ -562,12 +579,9 @@ export default function SupplierManagementPage() {
             </Button>
             <Button
               icon={<ReloadOutlined />}
-              onClick={() => {
-                setSearchText('');
-                loadSuppliers();
-              }}
+              onClick={handleReset}
             >
-              刷新
+              重置
             </Button>
           </Space>
         }
