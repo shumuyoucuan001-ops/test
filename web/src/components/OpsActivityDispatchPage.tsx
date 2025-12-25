@@ -705,6 +705,32 @@ export default function OpsActivityDispatchPage() {
                 const order = getDefaultColumnOrder();
                 saveColumnOrder(order);
                 setColumnOrder(order);
+            } else {
+                try {
+                    const parsed = JSON.parse(savedOrder);
+                    // 合并保存的顺序和默认顺序，确保新列也会显示
+                    const mergedOrder = [...parsed];
+                    const defaultKeys = defaultOrder;
+                    // 添加默认顺序中存在但保存顺序中不存在的列
+                    defaultKeys.forEach(key => {
+                        if (!mergedOrder.includes(key)) {
+                            mergedOrder.push(key);
+                        }
+                    });
+                    // 移除已不存在的列
+                    const validOrder = mergedOrder.filter(key => defaultKeys.includes(key));
+                    if (JSON.stringify(validOrder) !== JSON.stringify(parsed)) {
+                        saveColumnOrder(validOrder);
+                        setColumnOrder(validOrder);
+                    } else {
+                        setColumnOrder(parsed);
+                    }
+                } catch (error) {
+                    console.error('加载列顺序失败:', error);
+                    const order = getDefaultColumnOrder();
+                    saveColumnOrder(order);
+                    setColumnOrder(order);
+                }
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
