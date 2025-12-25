@@ -108,17 +108,42 @@ export class OpsRegularActivityDispatchService {
         const total = Number(countRows?.total || 0);
 
         const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
-        const data = (rows || []).map(r => ({
-            'SKU': String(r['SKU'] || ''),
-            '活动价': r['活动价'] !== null && r['活动价'] !== undefined ? r['活动价'] : null,
-            '活动类型': r['活动类型'] ? String(r['活动类型']) : null,
-            '活动备注': r['活动备注'] ? String(r['活动备注']) : null,
-            '活动确认人': r['活动确认人'] ? String(r['活动确认人']) : null,
-            '数据更新时间': r['数据更新时间'] ? (r['数据更新时间'] instanceof Date ? r['数据更新时间'].toISOString() : String(r['数据更新时间'])) : null,
-            '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
-            '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
-            '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
-        }));
+        const data = (rows || []).map(r => {
+            // 处理数据更新时间，转换为中国时区（UTC+8）
+            let 数据更新时间: string | null = null;
+            if (r['数据更新时间']) {
+                let date: Date;
+                if (r['数据更新时间'] instanceof Date) {
+                    // Prisma返回的Date对象通常是UTC时间，需要加上8小时转换为中国时区
+                    date = new Date(r['数据更新时间'].getTime() + 8 * 60 * 60 * 1000);
+                } else {
+                    // 如果是字符串，先转换为Date对象
+                    date = new Date(r['数据更新时间']);
+                    // 如果字符串已经是本地时间格式，不需要再加8小时
+                    // 但为了统一处理，我们假设所有时间都是UTC，统一加上8小时
+                    date = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+                }
+                // 格式化为 YYYY-MM-DD HH:mm:ss（使用UTC方法，因为已经加过8小时）
+                const year = date.getUTCFullYear();
+                const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(date.getUTCDate()).padStart(2, '0');
+                const hours = String(date.getUTCHours()).padStart(2, '0');
+                const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+                数据更新时间 = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+            }
+            return {
+                'SKU': String(r['SKU'] || ''),
+                '活动价': r['活动价'] !== null && r['活动价'] !== undefined ? r['活动价'] : null,
+                '活动类型': r['活动类型'] ? String(r['活动类型']) : null,
+                '活动备注': r['活动备注'] ? String(r['活动备注']) : null,
+                '活动确认人': r['活动确认人'] ? String(r['活动确认人']) : null,
+                '数据更新时间': 数据更新时间,
+                '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
+            };
+        });
 
         return { data, total };
     }

@@ -11,6 +11,7 @@ export interface OpsActivityDispatchItem {
     '活动备注': string | null;
     '剩余活动天数': string | number | null;
     '活动确认人': string | null;
+    '结束时间': string | Date | null;
     '数据更新时间': string | Date | null;
     // 从商品主档销售规格表关联的字段
     '商品名称'?: string | null;
@@ -118,6 +119,7 @@ export class OpsActivityDispatchService {
             a.\`活动备注\`,
             a.\`剩余活动天数\`,
             a.\`活动确认人\`,
+            a.\`结束时间\`,
             a.\`数据更新时间\`,
             p.\`商品名称\`,
             p.\`商品条码\`,
@@ -132,57 +134,132 @@ export class OpsActivityDispatchService {
         const total = Number(countRows?.total || 0);
 
         const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
-        const data = (rows || []).map(r => ({
-            'SKU': String(r['SKU'] || ''),
-            '活动价': r['活动价'] !== null && r['活动价'] !== undefined ? r['活动价'] : null,
-            '最低活动价': r['最低活动价'] !== null && r['最低活动价'] !== undefined ? r['最低活动价'] : null,
-            '活动类型': r['活动类型'] ? String(r['活动类型']) : null,
-            '门店名称': r['门店名称'] ? String(r['门店名称']) : null,
-            '活动备注': r['活动备注'] ? String(r['活动备注']) : null,
-            '剩余活动天数': r['剩余活动天数'] !== null && r['剩余活动天数'] !== undefined ? r['剩余活动天数'] : null,
-            '活动确认人': r['活动确认人'] ? String(r['活动确认人']) : null,
-            '数据更新时间': r['数据更新时间'] ? (r['数据更新时间'] instanceof Date ? r['数据更新时间'].toISOString() : String(r['数据更新时间'])) : null,
-            '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
-            '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
-            '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
-        }));
+        const data = (rows || []).map(r => {
+            // 处理数据更新时间，转换为中国时区（UTC+8）
+            let 数据更新时间: string | null = null;
+            if (r['数据更新时间']) {
+                let date: Date;
+                if (r['数据更新时间'] instanceof Date) {
+                    // Prisma返回的Date对象通常是UTC时间，需要加上8小时转换为中国时区
+                    date = new Date(r['数据更新时间'].getTime() + 8 * 60 * 60 * 1000);
+                } else {
+                    // 如果是字符串，先转换为Date对象
+                    date = new Date(r['数据更新时间']);
+                    // 如果字符串已经是本地时间格式，不需要再加8小时
+                    // 但为了统一处理，我们假设所有时间都是UTC，统一加上8小时
+                    date = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+                }
+                // 格式化为 YYYY-MM-DD HH:mm:ss（使用UTC方法，因为已经加过8小时）
+                const year = date.getUTCFullYear();
+                const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(date.getUTCDate()).padStart(2, '0');
+                const hours = String(date.getUTCHours()).padStart(2, '0');
+                const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+                数据更新时间 = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+            }
+
+            // 处理结束时间，转换为 YYYY-MM-DD HH:mm:ss 格式
+            let 结束时间: string | null = null;
+            if (r['结束时间']) {
+                let endDate: Date;
+                if (r['结束时间'] instanceof Date) {
+                    endDate = new Date(r['结束时间'].getTime() + 8 * 60 * 60 * 1000);
+                } else {
+                    endDate = new Date(r['结束时间']);
+                    endDate = new Date(endDate.getTime() + 8 * 60 * 60 * 1000);
+                }
+                const year = endDate.getUTCFullYear();
+                const month = String(endDate.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(endDate.getUTCDate()).padStart(2, '0');
+                const hours = String(endDate.getUTCHours()).padStart(2, '0');
+                const minutes = String(endDate.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(endDate.getUTCSeconds()).padStart(2, '0');
+                结束时间 = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+            }
+
+            return {
+                'SKU': String(r['SKU'] || ''),
+                '活动价': r['活动价'] !== null && r['活动价'] !== undefined ? r['活动价'] : null,
+                '最低活动价': r['最低活动价'] !== null && r['最低活动价'] !== undefined ? r['最低活动价'] : null,
+                '活动类型': r['活动类型'] ? String(r['活动类型']) : null,
+                '门店名称': r['门店名称'] ? String(r['门店名称']) : null,
+                '活动备注': r['活动备注'] ? String(r['活动备注']) : null,
+                '剩余活动天数': r['剩余活动天数'] !== null && r['剩余活动天数'] !== undefined ? r['剩余活动天数'] : null,
+                '活动确认人': r['活动确认人'] ? String(r['活动确认人']) : null,
+                '结束时间': 结束时间,
+                '数据更新时间': 数据更新时间,
+                '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
+                '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
+                '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
+            };
+        });
 
         return { data, total };
     }
 
     async create(item: OpsActivityDispatchItem): Promise<void> {
         this.validate(item);
+
+        // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数
+        let 剩余活动天数 = item['剩余活动天数'];
+        if (item['结束时间']) {
+            const endDate = new Date(item['结束时间']);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            const diffTime = endDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            剩余活动天数 = diffDays >= 0 ? diffDays : null;
+        }
+
         await this.prisma.$executeRawUnsafe(
             `INSERT INTO ${this.table} (
                 \`SKU\`, \`活动价\`, \`最低活动价\`, \`活动类型\`, 
-                \`门店名称\`, \`活动备注\`, \`剩余活动天数\`, \`活动确认人\`, \`数据更新时间\`
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                \`门店名称\`, \`活动备注\`, \`剩余活动天数\`, \`活动确认人\`, \`结束时间\`, \`数据更新时间\`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             item['SKU'] || '',
             item['活动价'] !== null && item['活动价'] !== undefined ? item['活动价'] : null,
             item['最低活动价'] !== null && item['最低活动价'] !== undefined ? item['最低活动价'] : null,
             item['活动类型'] || null,
             item['门店名称'] || null,
             item['活动备注'] || null,
-            item['剩余活动天数'] !== null && item['剩余活动天数'] !== undefined ? item['剩余活动天数'] : null,
+            剩余活动天数 !== null && 剩余活动天数 !== undefined ? 剩余活动天数 : null,
             item['活动确认人'] || null,
+            item['结束时间'] ? new Date(item['结束时间']) : null,
         );
     }
 
     async update(original: OpsActivityDispatchItem, data: OpsActivityDispatchItem): Promise<void> {
         this.validate(data);
+
+        // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数；如果结束时间为空，则不修改剩余活动天数
+        let 剩余活动天数 = data['剩余活动天数'];
+        if (data['结束时间']) {
+            const endDate = new Date(data['结束时间']);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            const diffTime = endDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            剩余活动天数 = diffDays >= 0 ? diffDays : null;
+        }
+        // 如果结束时间为空，保持原有的剩余活动天数不变（不更新该字段）
+
         // SKU是主键，更新时不应该修改SKU字段
         const affected = await this.prisma.$executeRawUnsafe(
             `UPDATE ${this.table}
        SET \`活动价\`=?, \`最低活动价\`=?, \`活动类型\`=?, 
-           \`门店名称\`=?, \`活动备注\`=?, \`剩余活动天数\`=?, \`活动确认人\`=?, \`数据更新时间\`=NOW()
+           \`门店名称\`=?, \`活动备注\`=?, \`剩余活动天数\`=?, \`活动确认人\`=?, \`结束时间\`=?, \`数据更新时间\`=NOW()
        WHERE \`SKU\`=?`,
             data['活动价'] !== null && data['活动价'] !== undefined ? data['活动价'] : null,
             data['最低活动价'] !== null && data['最低活动价'] !== undefined ? data['最低活动价'] : null,
             data['活动类型'] || null,
             data['门店名称'] || null,
             data['活动备注'] || null,
-            data['剩余活动天数'] !== null && data['剩余活动天数'] !== undefined ? data['剩余活动天数'] : null,
+            剩余活动天数 !== null && 剩余活动天数 !== undefined ? 剩余活动天数 : null,
             data['活动确认人'] || null,
+            data['结束时间'] ? new Date(data['结束时间']) : null,
             original['SKU'] || '',
         );
         // @ts-ignore Prisma returns number for executeRawUnsafe
@@ -296,6 +373,20 @@ export class OpsActivityDispatchService {
     private validate(item: OpsActivityDispatchItem) {
         if (!item['SKU'] || !item['SKU'].trim()) {
             throw new BadRequestException('SKU为必填');
+        }
+
+        // 验证结束时间不能超过今天之后31天
+        if (item['结束时间']) {
+            const endDate = new Date(item['结束时间']);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const maxDate = new Date(today);
+            maxDate.setDate(maxDate.getDate() + 31);
+            maxDate.setHours(23, 59, 59, 999);
+
+            if (endDate > maxDate) {
+                throw new BadRequestException('结束时间不能超过今天之后31天');
+            }
         }
     }
 }

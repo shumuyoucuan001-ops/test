@@ -1,6 +1,6 @@
 "use client";
 
-import { OpsExclusionItem, opsExclusionApi } from "@/lib/api";
+import { OpsExclusionItem, opsExclusionApi, productMasterApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
@@ -530,6 +530,7 @@ export default function OpsExclusionPage() {
                                 style={{ width: '100%' }}
                                 value={searchFilters.SKU编码}
                                 onChange={(e) => setSearchFilters({ ...searchFilters, SKU编码: e.target.value })}
+                                onPressEnter={handleSearch}
                                 allowClear
                             />
                             <Input
@@ -618,6 +619,7 @@ export default function OpsExclusionPage() {
                                 style={{ width: 150 }}
                                 value={searchFilters.SKU编码}
                                 onChange={(e) => setSearchFilters({ ...searchFilters, SKU编码: e.target.value })}
+                                onPressEnter={handleSearch}
                                 allowClear
                             />
                             <Input
@@ -729,7 +731,37 @@ export default function OpsExclusionPage() {
                         <Input maxLength={50} />
                     </Form.Item>
                     <Form.Item name="SKU编码" label="SKU编码">
-                        <Input maxLength={64} />
+                        <Input
+                            maxLength={64}
+                            onChange={async (e) => {
+                                if (!editing) {
+                                    const sku = e.target.value.trim();
+                                    if (sku.length === 19) {
+                                        try {
+                                            const productInfo = await productMasterApi.getProductInfo(sku);
+                                            if (productInfo) {
+                                                form.setFieldsValue({
+                                                    '商品名称': productInfo.productName,
+                                                    '商品条码': productInfo.productCode,
+                                                    '规格名称': productInfo.specName,
+                                                });
+                                            }
+                                        } catch (error) {
+                                            console.error('查询商品信息失败:', error);
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                    </Form.Item>
+                    <Form.Item name="商品名称" label="商品名称">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="商品条码" label="商品条码">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="规格名称" label="规格名称">
+                        <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item name="SPU编码" label="SPU编码">
                         <Input maxLength={64} />

@@ -30,7 +30,7 @@ export class OpsExclusionService {
         limit: number = 20
     ): Promise<{ data: OpsExclusionItem[]; total: number }> {
         const offset = (page - 1) * limit;
-        const orderBy = `ORDER BY \`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\``;
+        const orderBy = `ORDER BY t.\`视图名称\`, t.\`门店编码\`, t.\`SKU编码\`, t.\`SPU编码\``;
 
         // 构建搜索条件
         const clauses: string[] = [];
@@ -40,34 +40,42 @@ export class OpsExclusionService {
         // 关键词搜索（OR across all columns）
         if (filters?.keyword?.trim()) {
             const like = buildLike(filters.keyword);
-            const whereCondition = `(\`视图名称\` LIKE ? OR \`门店编码\` LIKE ? OR \`SKU编码\` LIKE ? OR \`SPU编码\` LIKE ?)`;
+            const whereCondition = `(t.\`视图名称\` LIKE ? OR t.\`门店编码\` LIKE ? OR t.\`SKU编码\` LIKE ? OR t.\`SPU编码\` LIKE ?)`;
             clauses.push(whereCondition);
             params.push(like, like, like, like);
         }
 
         // 按字段精确搜索（AND）
         if (filters?.视图名称?.trim()) {
-            clauses.push(`\`视图名称\` LIKE ?`);
-            params.push(buildLike(filters.视图名称));
+            const like = buildLike(filters.视图名称);
+            clauses.push(`t.\`视图名称\` LIKE ?`);
+            params.push(like);
         }
         if (filters?.门店编码?.trim()) {
-            clauses.push(`\`门店编码\` LIKE ?`);
-            params.push(buildLike(filters.门店编码));
+            const like = buildLike(filters.门店编码);
+            clauses.push(`t.\`门店编码\` LIKE ?`);
+            params.push(like);
         }
         if (filters?.SKU编码?.trim()) {
-            clauses.push(`\`SKU编码\` LIKE ?`);
-            params.push(buildLike(filters.SKU编码));
+            const like = buildLike(filters.SKU编码);
+            clauses.push(`t.\`SKU编码\` LIKE ?`);
+            params.push(like);
         }
         if (filters?.SPU编码?.trim()) {
-            clauses.push(`\`SPU编码\` LIKE ?`);
-            params.push(buildLike(filters.SPU编码));
+            const like = buildLike(filters.SPU编码);
+            clauses.push(`t.\`SPU编码\` LIKE ?`);
+            params.push(like);
         }
 
-        // 构建 WHERE 条件
+        // 构建 WHERE 条件（主查询使用表别名，count查询去掉表别名）
         const whereCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+        // countSql需要去掉表别名t.
+        const countWhereCondition = clauses.length > 0
+            ? `WHERE ${clauses.join(' AND ').replace(/t\.`/g, '`')}`
+            : '';
 
         // 构建 SQL
-        const countSql = `SELECT COUNT(*) as total FROM ${this.table} ${whereCondition}`;
+        const countSql = `SELECT COUNT(*) as total FROM ${this.table} ${countWhereCondition}`;
         const sql = `SELECT 
             t.\`视图名称\`, 
             t.\`门店编码\`, 

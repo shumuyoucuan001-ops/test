@@ -1,6 +1,6 @@
 "use client";
 
-import { MaxStoreSkuInventoryItem, maxStoreSkuInventoryApi } from "@/lib/api";
+import { MaxStoreSkuInventoryItem, maxStoreSkuInventoryApi, productMasterApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
 import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag } from "antd";
 import { ColumnType } from "antd/es/table";
@@ -96,15 +96,84 @@ export default function MaxStoreSkuInventoryPage() {
         saveHiddenColumns(newHidden);
     };
 
+    // 基础列定义（包含所有列，不进行过滤）
+    const baseColumns = useMemo(() => {
+        return [
+            {
+                title: '仓店名称',
+                dataIndex: '仓店名称',
+                key: '仓店名称',
+                width: 200,
+            },
+            {
+                title: 'SKU编码',
+                dataIndex: 'SKU编码',
+                key: 'SKU编码',
+                width: 220,
+                fixed: 'left',
+            },
+            {
+                title: (
+                    <span>
+                        商品名称{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
+                dataIndex: '商品名称',
+                key: '商品名称',
+                width: 200,
+                ellipsis: true,
+            },
+            {
+                title: (
+                    <span>
+                        商品条码{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
+                dataIndex: '商品条码',
+                key: '商品条码',
+                width: 180,
+                ellipsis: true,
+            },
+            {
+                title: (
+                    <span>
+                        规格名称{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
+                dataIndex: '规格名称',
+                key: '规格名称',
+                width: 150,
+                ellipsis: true,
+            },
+            {
+                title: '最高库存量（基础单位）',
+                dataIndex: '最高库存量（基础单位）',
+                key: '最高库存量（基础单位）',
+                width: 180,
+            },
+            {
+                title: '备注（说明设置原因）',
+                dataIndex: '备注（说明设置原因）',
+                key: '备注（说明设置原因）',
+                width: 250,
+                ellipsis: true,
+            },
+            {
+                title: '修改人',
+                dataIndex: '修改人',
+                key: '修改人',
+                width: 120,
+            },
+        ] as ColumnType<MaxStoreSkuInventoryItem>[];
+    }, []);
+
     // 移动列位置
     const moveColumn = (columnKey: string, direction: 'up' | 'down') => {
         const getDefaultOrder = (): string[] => {
-            return columns
-                .filter(col => {
-                    const key = col.key as string;
-                    return key !== 'action';
-                })
-                .map(col => col.key as string);
+            return baseColumns.map(col => col.key as string);
         };
 
         const currentOrder = columnOrder.length > 0 ? [...columnOrder] : getDefaultOrder();
@@ -207,6 +276,9 @@ export default function MaxStoreSkuInventoryPage() {
             sku: record['SKU编码'],
             maxInventory: record['最高库存量（基础单位）'],
             remark: record['备注（说明设置原因）'],
+            '商品名称': record['商品名称'],
+            '商品条码': record['商品条码'],
+            '规格名称': record['规格名称'],
         });
         setModalVisible(true);
     };
@@ -277,84 +349,13 @@ export default function MaxStoreSkuInventoryPage() {
     };
 
     const columns = useMemo(() => {
-        const baseCols: ColumnType<MaxStoreSkuInventoryItem>[] = [
-            {
-                title: '仓店名称',
-                dataIndex: '仓店名称',
-                key: '仓店名称',
-                width: 200,
-            },
-            {
-                title: 'SKU编码',
-                dataIndex: 'SKU编码',
-                key: 'SKU编码',
-                width: 220,
-                fixed: 'left',
-            },
-            {
-                title: (
-                    <span>
-                        商品名称{' '}
-                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
-                    </span>
-                ),
-                dataIndex: '商品名称',
-                key: '商品名称',
-                width: 200,
-                ellipsis: true,
-            },
-            {
-                title: (
-                    <span>
-                        商品条码{' '}
-                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
-                    </span>
-                ),
-                dataIndex: '商品条码',
-                key: '商品条码',
-                width: 180,
-                ellipsis: true,
-            },
-            {
-                title: (
-                    <span>
-                        规格名称{' '}
-                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
-                    </span>
-                ),
-                dataIndex: '规格名称',
-                key: '规格名称',
-                width: 150,
-                ellipsis: true,
-            },
-            {
-                title: '最高库存量（基础单位）',
-                dataIndex: '最高库存量（基础单位）',
-                key: '最高库存量（基础单位）',
-                width: 180,
-            },
-            {
-                title: '备注（说明设置原因）',
-                dataIndex: '备注（说明设置原因）',
-                key: '备注（说明设置原因）',
-                width: 250,
-                ellipsis: true,
-            },
-            {
-                title: '修改人',
-                dataIndex: '修改人',
-                key: '修改人',
-                width: 120,
-            },
-        ];
-
         // 根据列顺序和隐藏状态过滤列
         const getDefaultOrder = (): string[] => {
-            return baseCols.map(col => col.key as string);
+            return baseColumns.map(col => col.key as string);
         };
         const currentOrder = columnOrder.length > 0 ? columnOrder : getDefaultOrder();
         const orderedCols = currentOrder
-            .map(key => baseCols.find(col => col.key === key))
+            .map(key => baseColumns.find(col => col.key === key))
             .filter((col): col is ColumnType<MaxStoreSkuInventoryItem> => col !== undefined && !hiddenColumns.has(col.key as string));
 
         // 添加操作列
@@ -393,7 +394,7 @@ export default function MaxStoreSkuInventoryPage() {
         };
 
         return [...orderedCols, actionColumn];
-    }, [hiddenColumns, columnOrder]);
+    }, [hiddenColumns, columnOrder, baseColumns]);
 
     return (
         <div style={{ padding: 24 }}>
@@ -409,7 +410,7 @@ export default function MaxStoreSkuInventoryPage() {
                         <Popover
                             content={
                                 <ColumnSettings
-                                    columns={columns}
+                                    columns={baseColumns}
                                     hiddenColumns={hiddenColumns}
                                     columnOrder={columnOrder}
                                     onToggleVisibility={toggleColumnVisibility}
@@ -546,7 +547,38 @@ export default function MaxStoreSkuInventoryPage() {
                             { required: true, message: 'SKU编码不能为空' },
                         ]}
                     >
-                        <Input placeholder="请输入SKU编码" />
+                        <Input 
+                            placeholder="请输入SKU编码"
+                            disabled={!!editingRecord}
+                            onChange={async (e) => {
+                                if (!editingRecord) {
+                                    const sku = e.target.value.trim();
+                                    if (sku.length === 19) {
+                                        try {
+                                            const productInfo = await productMasterApi.getProductInfo(sku);
+                                            if (productInfo) {
+                                                form.setFieldsValue({
+                                                    '商品名称': productInfo.productName,
+                                                    '商品条码': productInfo.productCode,
+                                                    '规格名称': productInfo.specName,
+                                                });
+                                            }
+                                        } catch (error) {
+                                            console.error('查询商品信息失败:', error);
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                    </Form.Item>
+                    <Form.Item name="商品名称" label="商品名称">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="商品条码" label="商品条码">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="规格名称" label="规格名称">
+                        <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item
                         label="最高库存量（基础单位）"

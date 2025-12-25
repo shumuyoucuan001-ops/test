@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('product-master')
 export class ProductMasterController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   @Get('columns')
   async columns() {
@@ -43,6 +43,24 @@ export class ProductMasterController {
       sku,
     );
     return rows?.[0] || null;
+  }
+
+  @Get(':sku/product-info')
+  async getProductInfo(@Param('sku') sku: string) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT \`商品名称\` AS productName, \`商品条码\` AS productCode, \`规格名称\` AS specName
+       FROM \`sm_shangping\`.\`商品主档销售规格\`
+       WHERE \`SKU编码\` = ? LIMIT 1`,
+      sku,
+    );
+    if (rows && rows.length > 0) {
+      return {
+        productName: rows[0].productName || null,
+        productCode: rows[0].productCode || null,
+        specName: rows[0].specName || null,
+      };
+    }
+    return null;
   }
 }
 

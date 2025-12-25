@@ -356,6 +356,8 @@ export const productMasterApi = {
     api.get('/product-master', { params }).then(res => res.data),
   detail: (sku: string): Promise<Record<string, any>> =>
     api.get(`/product-master/${sku}`).then(res => res.data),
+  getProductInfo: (sku: string): Promise<{ productName: string | null; productCode: string | null; specName: string | null } | null> =>
+    api.get(`/product-master/${sku}/product-info`).then(res => res.data),
 };
 
 // 商品标签打印 API
@@ -419,6 +421,7 @@ export interface OpsActivityDispatchItem {
   活动备注: string | null;
   剩余活动天数: string | number | null;
   活动确认人: string | null;
+  结束时间: string | null;
   数据更新时间: string | null;
   商品名称?: string | null;
   商品条码?: string | null;

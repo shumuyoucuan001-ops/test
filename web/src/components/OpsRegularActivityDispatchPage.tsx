@@ -1,6 +1,6 @@
 "use client";
 
-import { OpsRegularActivityDispatchItem, opsRegularActivityDispatchApi } from "@/lib/api";
+import { OpsRegularActivityDispatchItem, opsRegularActivityDispatchApi, productMasterApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
@@ -464,7 +464,7 @@ export default function OpsRegularActivityDispatchPage() {
                 dataIndex: '数据更新时间',
                 key: '数据更新时间',
                 width: 180,
-                render: (text: string) => text ? new Date(text).toLocaleString('zh-CN') : '-',
+                render: (text: string) => text || '-',
             },
         ];
 
@@ -741,7 +741,38 @@ export default function OpsRegularActivityDispatchPage() {
             >
                 <Form form={form} layout="vertical">
                     <Form.Item name="SKU" label="SKU" rules={[{ required: true, message: "请输入SKU" }]}>
-                        <Input maxLength={100} disabled={!!editing} />
+                        <Input 
+                            maxLength={100} 
+                            disabled={!!editing}
+                            onChange={async (e) => {
+                                if (!editing) {
+                                    const sku = e.target.value.trim();
+                                    if (sku.length === 19) {
+                                        try {
+                                            const productInfo = await productMasterApi.getProductInfo(sku);
+                                            if (productInfo) {
+                                                form.setFieldsValue({
+                                                    '商品名称': productInfo.productName,
+                                                    '商品条码': productInfo.productCode,
+                                                    '规格名称': productInfo.specName,
+                                                });
+                                            }
+                                        } catch (error) {
+                                            console.error('查询商品信息失败:', error);
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                    </Form.Item>
+                    <Form.Item name="商品名称" label="商品名称">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="商品条码" label="商品条码">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="规格名称" label="规格名称">
+                        <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item name="活动价" label="活动价">
                         <InputNumber style={{ width: '100%' }} precision={2} />

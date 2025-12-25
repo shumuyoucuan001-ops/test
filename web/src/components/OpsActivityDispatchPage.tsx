@@ -1,9 +1,10 @@
 "use client";
 
-import { OpsActivityDispatchItem, opsActivityDispatchApi } from "@/lib/api";
+import { OpsActivityDispatchItem, opsActivityDispatchApi, productMasterApi } from "@/lib/api";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
+import dayjs, { Dayjs } from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ColumnSettings from "./ColumnSettings";
 import ResponsiveTable from "./ResponsiveTable";
@@ -17,6 +18,7 @@ const fieldLabels: Record<keyof OpsActivityDispatchItem, string> = {
     "活动备注": "活动备注",
     "剩余活动天数": "剩余活动天数",
     "活动确认人": "活动确认人",
+    "结束时间": "结束时间",
     "数据更新时间": "数据更新时间",
     "商品名称": "商品名称",
     "商品条码": "商品条码",
@@ -226,12 +228,16 @@ export default function OpsActivityDispatchPage() {
 
     const openEdit = (record: OpsActivityDispatchItem) => {
         setEditing(record);
-        form.setFieldsValue({
+        const formValues: any = {
             ...record,
             活动价: record.活动价 !== null && record.活动价 !== undefined ? Number(record.活动价) : undefined,
             最低活动价: record.最低活动价 !== null && record.最低活动价 !== undefined ? Number(record.最低活动价) : undefined,
             剩余活动天数: record.剩余活动天数 !== null && record.剩余活动天数 !== undefined ? Number(record.剩余活动天数) : undefined,
-        });
+        };
+        if (record.结束时间) {
+            formValues.结束时间 = dayjs(record.结束时间);
+        }
+        form.setFieldsValue(formValues);
         setModalOpen(true);
     };
 
@@ -247,6 +253,7 @@ export default function OpsActivityDispatchPage() {
                 '活动备注': values['活动备注']?.trim() || null,
                 '剩余活动天数': values['剩余活动天数'] !== undefined && values['剩余活动天数'] !== null ? Number(values['剩余活动天数']) : null,
                 '活动确认人': values['活动确认人']?.trim() || null,
+                '结束时间': values['结束时间'] ? (values['结束时间'] as unknown as Dayjs).format('YYYY-MM-DD HH:mm:ss') : null,
                 '数据更新时间': null, // 由数据库自动更新
             };
             if (editing) {
@@ -321,6 +328,11 @@ export default function OpsActivityDispatchPage() {
     };
 
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        // 确保门店名称列表已加载
+        if (storeNames.length === 0) {
+            message.warning('门店名称列表正在加载中，请稍后再试');
+            return;
+        }
         e.preventDefault();
         const pastedText = e.clipboardData.getData('text');
         const lines = pastedText
@@ -345,15 +357,48 @@ export default function OpsActivityDispatchPage() {
             }
 
             if (parts.length >= 1 && parts[0]) {
+                // 验证活动类型是否为"折扣商品"或"爆品活动"
+                if (parts[3] && parts[3].trim() !== '' && parts[3] !== '折扣商品' && parts[3] !== '爆品活动') {
+                    message.warning(`SKU ${parts[0]} 的活动类型无效（应为"折扣商品"或"爆品活动"），已跳过该条数据`);
+                    continue;
+                }
+
+                // 验证门店名称是否在选择范围内
+                if (parts[4] && parts[4].trim() !== '' && !storeNames.includes(parts[4].trim())) {
+                    message.warning(`SKU ${parts[0]} 的门店名称"${parts[4]}"不在选择范围内，已跳过该条数据`);
+                    continue;
+                }
+
+                // 验证结束时间不能超过今天之后31天
+                if (parts[8]) {
+                    const endDate = dayjs(parts[8]);
+                    const today = dayjs().startOf('day');
+                    const maxDate = today.add(31, 'day');
+                    if (endDate.isAfter(maxDate)) {
+                        message.warning(`SKU ${parts[0]} 的结束时间超过今天之后31天，已跳过该条数据`);
+                        continue;
+                    }
+                }
+
+                // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数
+                let 剩余活动天数 = parts[6] ? Number(parts[6]) : null;
+                if (parts[8]) {
+                    const endDate = dayjs(parts[8]);
+                    const today = dayjs().startOf('day');
+                    const diffDays = endDate.startOf('day').diff(today, 'day');
+                    剩余活动天数 = diffDays >= 0 ? diffDays : null;
+                }
+
                 newItems.push({
                     'SKU': parts[0] || '',
                     '活动价': parts[1] ? Number(parts[1]) : null,
                     '最低活动价': parts[2] ? Number(parts[2]) : null,
-                    '活动类型': parts[3] || null,
+                    '活动类型': parts[3] && (parts[3] === '折扣商品' || parts[3] === '爆品活动') ? parts[3] : null,
                     '门店名称': parts[4] || null,
                     '活动备注': parts[5] || null,
-                    '剩余活动天数': parts[6] ? Number(parts[6]) : null,
+                    '剩余活动天数': 剩余活动天数,
                     '活动确认人': parts[7] || null,
+                    '结束时间': parts[8] || null,
                     '数据更新时间': null, // 由数据库自动更新
                 });
             }
@@ -370,7 +415,7 @@ export default function OpsActivityDispatchPage() {
         if (target) {
             target.value = '';
         }
-    }, []);
+    }, [storeNames, message]);
 
     const handleBatchSave = async () => {
         if (batchItems.length === 0) {
@@ -378,7 +423,42 @@ export default function OpsActivityDispatchPage() {
             return;
         }
 
-        const validItems = batchItems.filter(item => item['SKU']);
+        // 验证活动类型和结束时间
+        const today = dayjs().startOf('day');
+        const maxDate = today.add(31, 'day');
+        const invalidActivityTypeItems: string[] = [];
+        const invalidEndTimeItems: string[] = [];
+        const validItems = batchItems.filter(item => {
+            if (!item['SKU']) {
+                return false;
+            }
+
+            // 验证活动类型
+            if (item['活动类型'] && item['活动类型'] !== '折扣商品' && item['活动类型'] !== '爆品活动') {
+                invalidActivityTypeItems.push(item['SKU']);
+                return false;
+            }
+
+            // 验证结束时间
+            if (item['结束时间']) {
+                const endDate = dayjs(item['结束时间']);
+                if (endDate.isAfter(maxDate)) {
+                    invalidEndTimeItems.push(item['SKU']);
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        if (invalidActivityTypeItems.length > 0) {
+            message.error(`以下SKU的活动类型无效（应为"折扣商品"或"爆品活动"），无法保存：${invalidActivityTypeItems.join(', ')}`);
+            return;
+        }
+
+        if (invalidEndTimeItems.length > 0) {
+            message.error(`以下SKU的结束时间超过今天之后31天，无法保存：${invalidEndTimeItems.join(', ')}`);
+            return;
+        }
 
         if (validItems.length === 0) {
             message.warning('请至少填写一条有效数据（SKU为必填）');
@@ -514,11 +594,18 @@ export default function OpsActivityDispatchPage() {
                 ellipsis: true,
             },
             {
+                title: '结束时间',
+                dataIndex: '结束时间',
+                key: '结束时间',
+                width: 180,
+                render: (text: string) => text || '-',
+            },
+            {
                 title: '数据更新时间',
                 dataIndex: '数据更新时间',
                 key: '数据更新时间',
                 width: 180,
-                render: (text: string) => text ? new Date(text).toLocaleString('zh-CN') : '-',
+                render: (text: string) => text || '-',
             },
         ];
 
@@ -795,7 +882,38 @@ export default function OpsActivityDispatchPage() {
             >
                 <Form form={form} layout="vertical">
                     <Form.Item name="SKU" label="SKU" rules={[{ required: true, message: "请输入SKU" }]}>
-                        <Input maxLength={100} disabled={!!editing} />
+                        <Input
+                            maxLength={100}
+                            disabled={!!editing}
+                            onChange={async (e) => {
+                                if (!editing) {
+                                    const sku = e.target.value.trim();
+                                    if (sku.length === 19) {
+                                        try {
+                                            const productInfo = await productMasterApi.getProductInfo(sku);
+                                            if (productInfo) {
+                                                form.setFieldsValue({
+                                                    '商品名称': productInfo.productName,
+                                                    '商品条码': productInfo.productCode,
+                                                    '规格名称': productInfo.specName,
+                                                });
+                                            }
+                                        } catch (error) {
+                                            console.error('查询商品信息失败:', error);
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                    </Form.Item>
+                    <Form.Item name="商品名称" label="商品名称">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="商品条码" label="商品条码">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="规格名称" label="规格名称">
+                        <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item name="活动价" label="活动价">
                         <InputNumber style={{ width: '100%' }} precision={2} />
@@ -804,7 +922,14 @@ export default function OpsActivityDispatchPage() {
                         <InputNumber style={{ width: '100%' }} precision={2} />
                     </Form.Item>
                     <Form.Item name="活动类型" label="活动类型">
-                        <Input maxLength={100} />
+                        <Select
+                            placeholder="请选择活动类型"
+                            allowClear
+                            options={[
+                                { label: '折扣商品', value: '折扣商品' },
+                                { label: '爆品活动', value: '爆品活动' },
+                            ]}
+                        />
                     </Form.Item>
                     <Form.Item name="门店名称" label="门店名称">
                         <Select
@@ -821,8 +946,51 @@ export default function OpsActivityDispatchPage() {
                     <Form.Item name="活动备注" label="活动备注">
                         <Input.TextArea rows={3} maxLength={500} />
                     </Form.Item>
+                    <Form.Item
+                        name="结束时间"
+                        label="结束时间"
+                        rules={[
+                            {
+                                validator: (_rule, value: Dayjs) => {
+                                    if (value) {
+                                        const today = dayjs().startOf('day');
+                                        const maxDate = today.add(31, 'day');
+                                        if (value.isAfter(maxDate)) {
+                                            return Promise.reject('结束时间不能超过今天之后31天');
+                                        }
+                                    }
+                                    return Promise.resolve();
+                                },
+                            },
+                        ]}
+                    >
+                        <DatePicker
+                            style={{ width: '100%' }}
+                            showTime
+                            format="YYYY-MM-DD HH:mm:ss"
+                            onChange={(date: Dayjs | null) => {
+                                if (date) {
+                                    // 自动计算剩余活动天数：结束时间 - 今天
+                                    const today = dayjs().startOf('day');
+                                    const endDate = date.startOf('day');
+                                    const diffDays = endDate.diff(today, 'day');
+                                    if (diffDays >= 0) {
+                                        form.setFieldsValue({
+                                            '剩余活动天数': diffDays,
+                                        });
+                                    } else {
+                                        form.setFieldsValue({
+                                            '剩余活动天数': null,
+                                        });
+                                    }
+                                } else {
+                                    // 如果结束时间为空，不修改剩余活动天数
+                                }
+                            }}
+                        />
+                    </Form.Item>
                     <Form.Item name="剩余活动天数" label="剩余活动天数">
-                        <InputNumber style={{ width: '100%' }} min={0} />
+                        <InputNumber style={{ width: '100%' }} min={0} disabled />
                     </Form.Item>
                     <Form.Item name="活动确认人" label="活动确认人">
                         <Input maxLength={100} />
@@ -855,10 +1023,10 @@ export default function OpsActivityDispatchPage() {
                         color: '#666',
                         fontSize: 14,
                     }}>
-                        提示：您可以从 Excel 中复制数据（包含SKU、活动价、最低活动价、活动类型、门店名称、活动备注、剩余活动天数、活动确认人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
+                        提示：您可以从 Excel 中复制数据（包含SKU、活动价、最低活动价、活动类型、门店名称、活动备注、剩余活动天数、活动确认人、结束时间列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
                     </div>
                     <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SKU	活动价	最低活动价	活动类型	门店名称	活动备注	剩余活动天数	活动确认人&#10;示例：SKU001	100.00	90.00	促销	门店A	备注	30	张三"
+                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SKU	活动价	最低活动价	活动类型	门店名称	活动备注	剩余活动天数	活动确认人	结束时间&#10;示例：SKU001	100.00	90.00	促销	门店A	备注	30	张三	2024-12-31 23:59:59"
                         rows={4}
                         onPaste={handlePaste}
                         style={{
@@ -889,6 +1057,7 @@ export default function OpsActivityDispatchPage() {
                             { title: '活动备注', dataIndex: '活动备注', key: '活动备注' },
                             { title: '剩余活动天数', dataIndex: '剩余活动天数', key: '剩余活动天数', render: (v: any) => v !== null ? Number(v) : '-' },
                             { title: '活动确认人', dataIndex: '活动确认人', key: '活动确认人' },
+                            { title: '结束时间', dataIndex: '结束时间', key: '结束时间', render: (v: any) => v || '-' },
                             {
                                 title: '操作',
                                 key: 'action',
