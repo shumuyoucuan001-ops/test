@@ -19,9 +19,12 @@ export class FinanceManagementController {
   }
 
   // 获取单个账单
-  @Get(':id')
-  async getBillById(@Param('id') id: string): Promise<FinanceBill | null> {
-    return this.service.getBillById(parseInt(id, 10));
+  @Get('by-transaction')
+  async getBill(
+    @Query('transactionNumber') transactionNumber: string,
+    @Query('qianniuhuaPurchaseNumber') qianniuhuaPurchaseNumber?: string,
+  ): Promise<FinanceBill | null> {
+    return this.service.getBill(transactionNumber, qianniuhuaPurchaseNumber);
   }
 
   // 创建账单
@@ -45,28 +48,29 @@ export class FinanceManagementController {
   }
 
   // 更新账单
-  @Put(':id')
+  @Put()
   async updateBill(
-    @Param('id') id: string,
-    @Body() data: Partial<FinanceBill>,
+    @Body() body: { transactionNumber: string; qianniuhuaPurchaseNumber?: string; data: Partial<FinanceBill> },
     @Headers('x-user-id') userId?: string,
   ): Promise<FinanceBill> {
     const userIdNum = userId ? parseInt(userId, 10) : undefined;
-    return this.service.updateBill(parseInt(id, 10), data, userIdNum);
+    return this.service.updateBill(body.transactionNumber, body.qianniuhuaPurchaseNumber, body.data, userIdNum);
   }
 
   // 删除账单
-  @Delete(':id')
-  async deleteBill(@Param('id') id: string): Promise<boolean> {
-    return this.service.deleteBill(parseInt(id, 10));
+  @Delete()
+  async deleteBill(
+    @Body() body: { transactionNumber: string; qianniuhuaPurchaseNumber?: string },
+  ): Promise<boolean> {
+    return this.service.deleteBill(body.transactionNumber, body.qianniuhuaPurchaseNumber);
   }
 
   // 批量删除账单
   @Delete('batch')
   async deleteBills(
-    @Body() body: { ids: number[] },
+    @Body() body: { bills: Array<{ transactionNumber: string; qianniuhuaPurchaseNumber?: string }> },
   ): Promise<{ success: number; failed: number }> {
-    return this.service.deleteBills(body.ids);
+    return this.service.deleteBills(body.bills);
   }
 }
 

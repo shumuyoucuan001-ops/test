@@ -317,14 +317,14 @@ export default function SupplierManagementPage() {
     }
   };
 
-  // 删除供应商管理信息
+  // 清空供应商管理状态
   const handleDelete = async (supplierCode: string) => {
     try {
       await supplierApi.deleteSupplierManagement(supplierCode);
-      message.success('删除成功');
+      message.success('清空管理信息成功');
       loadSuppliers();
     } catch (error) {
-      message.error('删除失败');
+      message.error('清空管理信息失败');
       console.error(error);
     }
   };
@@ -480,7 +480,7 @@ export default function SupplierManagementPage() {
           </Button>
           {(record.minOrderAmount || record.minOrderQuantity) && (
             <Popconfirm
-              title="确定要删除这个供应商的管理信息吗？"
+              title="确定要清空这个供应商的管理信息吗？"
               onConfirm={() => handleDelete(record.supplierCode)}
               okText="确定"
               cancelText="取消"
@@ -491,7 +491,7 @@ export default function SupplierManagementPage() {
                 danger
                 icon={<DeleteOutlined />}
               >
-                删除
+                清空管理信息
               </Button>
             </Popconfirm>
           )}

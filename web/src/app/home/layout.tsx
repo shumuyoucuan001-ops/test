@@ -208,7 +208,7 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     url: '/home/refund-1688-follow-up',
   },
   'finance-management': {
-    title: '财务管理',
+    title: '账单手动绑定采购单',
     icon: <AccountBookOutlined />,
     url: '/home/finance-management',
   },
@@ -676,7 +676,7 @@ export default function HomeLayout({
           {
             key: 'finance-management',
             icon: <AccountBookOutlined />,
-            label: '财务管理',
+            label: '账单手动绑定采购单',
           },
         ],
       },

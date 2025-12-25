@@ -237,9 +237,13 @@ export default function FinanceManagementPage() {
         image: imageBase64,
       };
 
-      if (editingBill && editingBill.id) {
+      if (editingBill && editingBill.transactionNumber) {
         // 更新
-        await financeManagementApi.update(editingBill.id, billData);
+        await financeManagementApi.update(
+          editingBill.transactionNumber,
+          editingBill.qianniuhuaPurchaseNumber,
+          billData
+        );
         message.success('更新成功');
       } else {
         // 新增
@@ -256,9 +260,9 @@ export default function FinanceManagementPage() {
   };
 
   // 删除账单
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (transactionNumber: string, qianniuhuaPurchaseNumber?: string) => {
     try {
-      await financeManagementApi.delete(id);
+      await financeManagementApi.delete(transactionNumber, qianniuhuaPurchaseNumber);
       message.success('删除成功');
       loadBills();
     } catch (error: any) {
@@ -275,8 +279,18 @@ export default function FinanceManagementPage() {
     }
 
     try {
-      const ids = selectedRowKeys.map(key => Number(key));
-      const result = await financeManagementApi.batchDelete(ids);
+      // selectedRowKeys 是 rowKey 的数组，格式为 "交易单号_牵牛花采购单号"
+      // 需要解析这些值来获取交易单号和牵牛花采购单号
+      const billsToDelete = selectedRowKeys.map((key: React.Key) => {
+        const keyStr = String(key);
+        const parts = keyStr.split('_');
+        return {
+          transactionNumber: parts[0],
+          qianniuhuaPurchaseNumber: parts[1] || undefined
+        };
+      });
+      
+      const result = await financeManagementApi.batchDelete(billsToDelete);
       message.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       setSelectedRowKeys([]);
       loadBills();
@@ -335,10 +349,10 @@ export default function FinanceManagementPage() {
 
   // 查看图片
   const handleViewImage = async (bill: FinanceBill) => {
-    if (!bill.image && bill.id) {
+    if (!bill.image && bill.transactionNumber) {
       // 如果没有图片，尝试从服务器获取
       try {
-        const fullBill = await financeManagementApi.getById(bill.id);
+        const fullBill = await financeManagementApi.get(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
         if (fullBill && fullBill.image) {
           setPreviewImage(`data:image/png;base64,${fullBill.image}`);
           setPreviewVisible(true);
@@ -386,7 +400,7 @@ export default function FinanceManagementPage() {
       key: 'image',
       width: 100,
       render: (record: FinanceBill) => (
-        record.image || record.id ? (
+        record.image || record.transactionNumber ? (
           <Button
             type="link"
             size="small"
@@ -429,7 +443,7 @@ export default function FinanceManagementPage() {
           </Button>
           <Popconfirm
             title="确定要删除这条记录吗？"
-            onConfirm={() => record.id && handleDelete(record.id)}
+            onConfirm={() => handleDelete(record.transactionNumber, record.qianniuhuaPurchaseNumber)}
             okText="确定"
             cancelText="取消"
           >
@@ -478,7 +492,7 @@ export default function FinanceManagementPage() {
       <Card
         title={
           <Space>
-            <Title level={4} style={{ margin: 0 }}>财务管理</Title>
+            <Title level={4} style={{ margin: 0 }}>账单手动绑定采购单</Title>
           </Space>
         }
         extra={
@@ -551,7 +565,7 @@ export default function FinanceManagementPage() {
         <ResponsiveTable<FinanceBill>
           columns={columns as any}
           dataSource={bills}
-          rowKey="id"
+          rowKey={(record) => `${record.transactionNumber}_${record.qianniuhuaPurchaseNumber || ''}`}
           loading={loading}
           isMobile={false}
           scroll={{ x: 2000 }}

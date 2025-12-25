@@ -3,9 +3,8 @@ import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
 export interface FinanceBill {
-    id?: number;
-    transactionNumber: string; // 交易单号
-    qianniuhuaPurchaseNumber?: string; // 牵牛花采购单号
+    transactionNumber: string; // 交易单号（主键之一）
+    qianniuhuaPurchaseNumber?: string; // 牵牛花采购单号（主键之一）
     importExceptionRemark?: string; // 导入异常备注
     image?: Buffer | string; // 图片（longblob）
     modifier?: string; // 修改人
@@ -34,24 +33,10 @@ export class FinanceManagementService {
         });
     }
 
-    // 确保表存在
+    // 确保表存在（如果表不存在则创建，但不修改已存在的表结构）
     private async ensureTableExists(connection: any): Promise<void> {
-        const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS \`手动绑定对账单号\` (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        交易单号 VARCHAR(128) NOT NULL UNIQUE COMMENT '交易单号',
-        牵牛花采购单号 VARCHAR(128) NULL COMMENT '牵牛花采购单号',
-        导入异常备注 TEXT NULL COMMENT '导入异常备注',
-        图片 LONGBLOB NULL COMMENT '图片',
-        修改人 VARCHAR(128) NULL COMMENT '修改人',
-        修改时间 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
-        INDEX idx_交易单号 (交易单号),
-        INDEX idx_牵牛花采购单号 (牵牛花采购单号),
-        INDEX idx_修改时间 (修改时间)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='财务账单表'
-    `;
-
-        await connection.execute(createTableQuery);
+        // 不创建表，因为表已存在，只是确保连接正常
+        // 如果表不存在，会在查询时出错，由调用方处理
     }
 
     // 根据用户ID获取display_name
@@ -106,7 +91,6 @@ export class FinanceManagementService {
             // 获取数据（不包含图片，图片太大）
             const dataQuery = `
         SELECT 
-          id,
           交易单号 as transactionNumber,
           牵牛花采购单号 as qianniuhuaPurchaseNumber,
           导入异常备注 as importExceptionRemark,
@@ -114,7 +98,7 @@ export class FinanceManagementService {
           修改时间 as modifyTime
         FROM \`手动绑定对账单号\`
         WHERE ${whereClause}
-        ORDER BY 修改时间 DESC, id DESC
+        ORDER BY 修改时间 DESC
         LIMIT ? OFFSET ?
       `;
 
@@ -125,7 +109,6 @@ export class FinanceManagementService {
 
             return {
                 data: data.map((row: any) => ({
-                    id: row.id,
                     transactionNumber: row.transactionNumber,
                     qianniuhuaPurchaseNumber: row.qianniuhuaPurchaseNumber,
                     importExceptionRemark: row.importExceptionRemark,
@@ -139,27 +122,47 @@ export class FinanceManagementService {
         }
     }
 
-    // 获取单个账单（包含图片）
-    async getBillById(id: number): Promise<FinanceBill | null> {
+    // 获取单个账单（根据交易单号和牵牛花采购单号，包含图片）
+    async getBill(transactionNumber: string, qianniuhuaPurchaseNumber?: string): Promise<FinanceBill | null> {
         const connection = await this.getConnection();
 
         try {
             await this.ensureTableExists(connection);
 
-            const query = `
-        SELECT 
-          id,
-          交易单号 as transactionNumber,
-          牵牛花采购单号 as qianniuhuaPurchaseNumber,
-          导入异常备注 as importExceptionRemark,
-          图片 as image,
-          修改人 as modifier,
-          修改时间 as modifyTime
-        FROM \`手动绑定对账单号\`
-        WHERE id = ?
-      `;
+            let query: string;
+            let params: any[];
 
-            const [result]: any = await connection.execute(query, [id]);
+            if (qianniuhuaPurchaseNumber) {
+                // 使用复合主键查询
+                query = `
+          SELECT 
+            交易单号 as transactionNumber,
+            牵牛花采购单号 as qianniuhuaPurchaseNumber,
+            导入异常备注 as importExceptionRemark,
+            图片 as image,
+            修改人 as modifier,
+            修改时间 as modifyTime
+          FROM \`手动绑定对账单号\`
+          WHERE 交易单号 = ? AND 牵牛花采购单号 = ?
+        `;
+                params = [transactionNumber, qianniuhuaPurchaseNumber];
+            } else {
+                // 只根据交易单号查询
+                query = `
+          SELECT 
+            交易单号 as transactionNumber,
+            牵牛花采购单号 as qianniuhuaPurchaseNumber,
+            导入异常备注 as importExceptionRemark,
+            图片 as image,
+            修改人 as modifier,
+            修改时间 as modifyTime
+          FROM \`手动绑定对账单号\`
+          WHERE 交易单号 = ?
+        `;
+                params = [transactionNumber];
+            }
+
+            const [result]: any = await connection.execute(query, params);
 
             if (result.length === 0) {
                 return null;
@@ -167,7 +170,6 @@ export class FinanceManagementService {
 
             const row = result[0];
             return {
-                id: row.id,
                 transactionNumber: row.transactionNumber,
                 qianniuhuaPurchaseNumber: row.qianniuhuaPurchaseNumber,
                 importExceptionRemark: row.importExceptionRemark,
@@ -224,12 +226,7 @@ export class FinanceManagementService {
             ]);
 
             // 获取插入的记录
-            const [result]: any = await connection.execute(
-                'SELECT id FROM `手动绑定对账单号` WHERE 交易单号 = ?',
-                [data.transactionNumber]
-            );
-
-            const bill = await this.getBillById(result[0].id);
+            const bill = await this.getBill(data.transactionNumber, data.qianniuhuaPurchaseNumber || undefined);
             if (!bill) {
                 throw new Error('创建账单失败');
             }
@@ -300,8 +297,8 @@ export class FinanceManagementService {
         }
     }
 
-    // 更新账单
-    async updateBill(id: number, data: Partial<FinanceBill>, userId?: number): Promise<FinanceBill> {
+    // 更新账单（根据交易单号和牵牛花采购单号）
+    async updateBill(transactionNumber: string, qianniuhuaPurchaseNumber: string | undefined, data: Partial<FinanceBill>, userId?: number): Promise<FinanceBill> {
         const connection = await this.getConnection();
 
         try {
@@ -317,10 +314,6 @@ export class FinanceManagementService {
             const updateFields: string[] = [];
             const updateValues: any[] = [];
 
-            if (data.transactionNumber !== undefined) {
-                updateFields.push('交易单号 = ?');
-                updateValues.push(data.transactionNumber);
-            }
             if (data.qianniuhuaPurchaseNumber !== undefined) {
                 updateFields.push('牵牛花采购单号 = ?');
                 updateValues.push(data.qianniuhuaPurchaseNumber || null);
@@ -359,17 +352,25 @@ export class FinanceManagementService {
                 throw new Error('没有需要更新的字段');
             }
 
-            updateValues.push(id);
+            // 构建WHERE条件（使用复合主键）
+            let whereClause: string;
+            if (qianniuhuaPurchaseNumber) {
+                whereClause = '交易单号 = ? AND 牵牛花采购单号 = ?';
+                updateValues.push(transactionNumber, qianniuhuaPurchaseNumber);
+            } else {
+                whereClause = '交易单号 = ? AND (牵牛花采购单号 IS NULL OR 牵牛花采购单号 = \'\')';
+                updateValues.push(transactionNumber);
+            }
 
             const updateQuery = `
         UPDATE \`手动绑定对账单号\` 
         SET ${updateFields.join(', ')}
-        WHERE id = ?
+        WHERE ${whereClause}
       `;
 
             await connection.execute(updateQuery, updateValues);
 
-            const bill = await this.getBillById(id);
+            const bill = await this.getBill(transactionNumber, data.qianniuhuaPurchaseNumber || qianniuhuaPurchaseNumber);
             if (!bill) {
                 throw new Error('更新账单失败');
             }
@@ -379,42 +380,57 @@ export class FinanceManagementService {
         }
     }
 
-    // 删除账单
-    async deleteBill(id: number): Promise<boolean> {
+    // 删除账单（根据交易单号和牵牛花采购单号）
+    async deleteBill(transactionNumber: string, qianniuhuaPurchaseNumber?: string): Promise<boolean> {
         const connection = await this.getConnection();
 
         try {
             await this.ensureTableExists(connection);
 
-            const deleteQuery = `DELETE FROM \`手动绑定对账单号\` WHERE id = ?`;
+            let deleteQuery: string;
+            let params: any[];
 
-            await connection.execute(deleteQuery, [id]);
+            if (qianniuhuaPurchaseNumber) {
+                // 使用复合主键删除
+                deleteQuery = `DELETE FROM \`手动绑定对账单号\` WHERE 交易单号 = ? AND 牵牛花采购单号 = ?`;
+                params = [transactionNumber, qianniuhuaPurchaseNumber];
+            } else {
+                // 只根据交易单号删除
+                deleteQuery = `DELETE FROM \`手动绑定对账单号\` WHERE 交易单号 = ? AND (牵牛花采购单号 IS NULL OR 牵牛花采购单号 = '')`;
+                params = [transactionNumber];
+            }
+
+            await connection.execute(deleteQuery, params);
             return true;
         } finally {
             await connection.end();
         }
     }
 
-    // 批量删除账单
-    async deleteBills(ids: number[]): Promise<{ success: number; failed: number }> {
+    // 批量删除账单（根据交易单号和牵牛花采购单号列表）
+    async deleteBills(bills: Array<{ transactionNumber: string; qianniuhuaPurchaseNumber?: string }>): Promise<{ success: number; failed: number }> {
         const connection = await this.getConnection();
 
         try {
             await this.ensureTableExists(connection);
 
-            if (ids.length === 0) {
+            if (bills.length === 0) {
                 return { success: 0, failed: 0 };
             }
 
-            const placeholders = ids.map(() => '?').join(',');
-            const deleteQuery = `DELETE FROM \`手动绑定对账单号\` WHERE id IN (${placeholders})`;
+            let success = 0;
+            let failed = 0;
 
-            const [result]: any = await connection.execute(deleteQuery, ids);
+            for (const bill of bills) {
+                try {
+                    await this.deleteBill(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
+                    success++;
+                } catch (error) {
+                    failed++;
+                }
+            }
 
-            return {
-                success: result.affectedRows || 0,
-                failed: ids.length - (result.affectedRows || 0),
-            };
+            return { success, failed };
         } finally {
             await connection.end();
         }

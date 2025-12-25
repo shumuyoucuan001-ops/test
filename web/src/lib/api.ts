@@ -901,9 +901,8 @@ export const refund1688Api = {
 
 // 财务管理接口
 export interface FinanceBill {
-  id?: number;
-  transactionNumber: string; // 交易单号
-  qianniuhuaPurchaseNumber?: string; // 牵牛花采购单号
+  transactionNumber: string; // 交易单号（主键之一）
+  qianniuhuaPurchaseNumber?: string; // 牵牛花采购单号（主键之一）
   importExceptionRemark?: string; // 导入异常备注
   image?: string; // 图片（base64）
   modifier?: string; // 修改人
@@ -920,8 +919,10 @@ export const financeManagementApi = {
     api.get('/finance-management', { params }).then(res => res.data),
 
   // 获取单个账单
-  getById: (id: number): Promise<FinanceBill | null> =>
-    api.get(`/finance-management/${id}`).then(res => res.data),
+  get: (transactionNumber: string, qianniuhuaPurchaseNumber?: string): Promise<FinanceBill | null> =>
+    api.get('/finance-management/by-transaction', {
+      params: { transactionNumber, qianniuhuaPurchaseNumber }
+    }).then(res => res.data),
 
   // 创建账单
   create: (data: FinanceBill): Promise<FinanceBill> =>
@@ -932,16 +933,22 @@ export const financeManagementApi = {
     api.post('/finance-management/batch', { bills }).then(res => res.data),
 
   // 更新账单
-  update: (id: number, data: Partial<FinanceBill>): Promise<FinanceBill> =>
-    api.put(`/finance-management/${id}`, data).then(res => res.data),
+  update: (transactionNumber: string, qianniuhuaPurchaseNumber: string | undefined, data: Partial<FinanceBill>): Promise<FinanceBill> =>
+    api.put('/finance-management', {
+      transactionNumber,
+      qianniuhuaPurchaseNumber,
+      data
+    }).then(res => res.data),
 
   // 删除账单
-  delete: (id: number): Promise<boolean> =>
-    api.delete(`/finance-management/${id}`).then(res => res.data),
+  delete: (transactionNumber: string, qianniuhuaPurchaseNumber?: string): Promise<boolean> =>
+    api.delete('/finance-management', {
+      data: { transactionNumber, qianniuhuaPurchaseNumber }
+    }).then(res => res.data),
 
   // 批量删除账单
-  batchDelete: (ids: number[]): Promise<{ success: number; failed: number }> =>
-    api.delete('/finance-management/batch', { data: { ids } }).then(res => res.data),
+  batchDelete: (bills: Array<{ transactionNumber: string; qianniuhuaPurchaseNumber?: string }>): Promise<{ success: number; failed: number }> =>
+    api.delete('/finance-management/batch', { data: { bills } }).then(res => res.data),
 };
 
 export default api;
