@@ -372,8 +372,10 @@ export interface OpsExclusionItem {
   SKU编码: string;
   SPU编码: string;
   商品名称?: string | null;
-  商品条码?: string | null;
-  规格名称?: string | null;
+  商品UPC?: string | null;
+  规格?: string | null;
+  '采购单价 (基础单位)'?: string | number | null;
+  '采购单价 (采购单位)'?: string | number | null;
   备注?: string | null;
 }
 
@@ -425,8 +427,10 @@ export interface OpsActivityDispatchItem {
   结束时间: string | null;
   数据更新时间: string | null;
   商品名称?: string | null;
-  商品条码?: string | null;
-  规格名称?: string | null;
+  商品UPC?: string | null;
+  规格?: string | null;
+  '采购单价 (基础单位)'?: string | number | null;
+  '采购单价 (采购单位)'?: string | number | null;
 }
 
 export const opsActivityDispatchApi = {
@@ -483,8 +487,10 @@ export interface OpsRegularActivityDispatchItem {
   活动确认人: string | null;
   数据更新时间: string | null;
   商品名称?: string | null;
-  商品条码?: string | null;
-  规格名称?: string | null;
+  商品UPC?: string | null;
+  规格?: string | null;
+  '采购单价 (基础单位)'?: string | number | null;
+  '采购单价 (采购单位)'?: string | number | null;
 }
 
 export const opsRegularActivityDispatchApi = {
@@ -620,8 +626,10 @@ export interface MaxPurchaseQuantityItem {
   '单次最高采购量(基本单位)': number;
   '修改人': string;
   '商品名称'?: string | null;
-  '商品条码'?: string | null;
-  '规格名称'?: string | null;
+  '商品UPC'?: string | null;
+  '规格'?: string | null;
+  '采购单价 (基础单位)'?: string | number | null;
+  '采购单价 (采购单位)'?: string | number | null;
 }
 
 export const maxPurchaseQuantityApi = {
@@ -693,8 +701,10 @@ export interface MaxStoreSkuInventoryItem {
   '备注（说明设置原因）': string;
   '修改人': string;
   '商品名称'?: string | null;
-  '商品条码'?: string | null;
-  '规格名称'?: string | null;
+  '商品UPC'?: string | null;
+  '规格'?: string | null;
+  '采购单价 (基础单位)'?: string | number | null;
+  '采购单价 (采购单位)'?: string | number | null;
 }
 
 export const maxStoreSkuInventoryApi = {

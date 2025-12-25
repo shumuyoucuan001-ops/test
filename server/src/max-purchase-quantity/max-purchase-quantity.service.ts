@@ -8,8 +8,10 @@ export interface MaxPurchaseQuantityItem {
     '单次最高采购量(基本单位)': number;
     '修改人': string;
     '商品名称'?: string | null;
-    '商品条码'?: string | null;
-    '规格名称'?: string | null;
+    '商品UPC'?: string | null;
+    '规格'?: string | null;
+    '采购单价 (基础单位)'?: string | number | null;
+    '采购单价 (采购单位)'?: string | number | null;
 }
 
 @Injectable()
@@ -281,17 +283,42 @@ export class MaxPurchaseQuantityService {
 
         const searchCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
-        countSql = `SELECT COUNT(*) as total FROM ${this.table} t ${searchCondition}`;
+        countSql = `SELECT COUNT(*) as total 
+            FROM ${this.table} t
+            LEFT JOIN (
+                SELECT 
+                    \`商品SKU\`,
+                    MAX(\`采购单价 (基础单位)\`) AS \`采购单价 (基础单位)\`,
+                    MAX(\`采购单价 (采购单位)\`) AS \`采购单价 (采购单位)\`,
+                    MAX(\`商品名称\`) AS \`商品名称\`,
+                    MAX(\`商品UPC\`) AS \`商品UPC\`,
+                    MAX(\`规格\`) AS \`规格\`
+                FROM \`sm_chaigou\`.\`仓店补货参考\`
+                GROUP BY \`商品SKU\`
+            ) p ON t.\`SKU\` = p.\`商品SKU\`
+            ${searchCondition}`;
         sql = `SELECT 
             t.\`仓店名称\`,
             t.\`SKU\`,
             t.\`单次最高采购量(基本单位)\`,
             t.\`修改人\`,
+            p.\`采购单价 (基础单位)\`,
+            p.\`采购单价 (采购单位)\`,
             p.\`商品名称\`,
-            p.\`商品条码\`,
-            p.\`规格名称\`
+            p.\`商品UPC\`,
+            p.\`规格\`
         FROM ${this.table} t
-        LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON t.\`SKU\` = p.\`SKU编码\`
+        LEFT JOIN (
+            SELECT 
+                \`商品SKU\`,
+                MAX(\`采购单价 (基础单位)\`) AS \`采购单价 (基础单位)\`,
+                MAX(\`采购单价 (采购单位)\`) AS \`采购单价 (采购单位)\`,
+                MAX(\`商品名称\`) AS \`商品名称\`,
+                MAX(\`商品UPC\`) AS \`商品UPC\`,
+                MAX(\`规格\`) AS \`规格\`
+            FROM \`sm_chaigou\`.\`仓店补货参考\`
+            GROUP BY \`商品SKU\`
+        ) p ON t.\`SKU\` = p.\`商品SKU\`
         ${searchCondition}
         ORDER BY t.\`仓店名称\`, t.\`SKU\`
         LIMIT ${limit} OFFSET ${offset}`;
@@ -347,9 +374,11 @@ export class MaxPurchaseQuantityService {
                 'SKU': String(r['SKU'] || ''),
                 '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
                 '修改人': String(r['修改人'] || ''),
+                '采购单价 (基础单位)': r['采购单价 (基础单位)'] !== null && r['采购单价 (基础单位)'] !== undefined ? r['采购单价 (基础单位)'] : null,
+                '采购单价 (采购单位)': r['采购单价 (采购单位)'] !== null && r['采购单价 (采购单位)'] !== undefined ? r['采购单价 (采购单位)'] : null,
                 '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
-                '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
-                '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
+                '商品UPC': r['商品UPC'] ? String(r['商品UPC']) : null,
+                '规格': r['规格'] ? String(r['规格']) : null,
             }));
 
             return { data, total };
@@ -443,9 +472,11 @@ export class MaxPurchaseQuantityService {
                     'SKU': String(r['SKU'] || ''),
                     '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
                     '修改人': String(r['修改人'] || ''),
-                    '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
-                    '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
-                    '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
+                    '采购单价 (基础单位)': null,
+                    '采购单价 (采购单位)': null,
+                    '商品名称': null,
+                    '商品UPC': null,
+                    '规格': null,
                 };
             }
 
@@ -583,9 +614,11 @@ export class MaxPurchaseQuantityService {
                     'SKU': String(r['SKU'] || ''),
                     '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
                     '修改人': String(r['修改人'] || ''),
-                    '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
-                    '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
-                    '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
+                    '采购单价 (基础单位)': null,
+                    '采购单价 (采购单位)': null,
+                    '商品名称': null,
+                    '商品UPC': null,
+                    '规格': null,
                 };
             }
 

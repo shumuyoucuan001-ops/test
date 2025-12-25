@@ -13,10 +13,12 @@ export interface OpsActivityDispatchItem {
     '活动确认人': string | null;
     '结束时间': string | Date | null;
     '数据更新时间': string | Date | null;
-    // 从商品主档销售规格表关联的字段
+    // 从仓店补货参考表关联的字段
     '商品名称'?: string | null;
-    '商品条码'?: string | null;
-    '规格名称'?: string | null;
+    '商品UPC'?: string | null;
+    '规格'?: string | null;
+    '采购单价 (基础单位)'?: string | number | null;
+    '采购单价 (采购单位)'?: string | number | null;
 }
 
 @Injectable()
@@ -60,9 +62,9 @@ export class OpsActivityDispatchService {
                 a.\`活动备注\` LIKE ? OR 
                 a.\`剩余活动天数\` LIKE ? OR 
                 a.\`活动确认人\` LIKE ? OR
-                p.\`商品名称\` LIKE ? OR
-                p.\`商品条码\` LIKE ? OR
-                p.\`规格名称\` LIKE ?
+                c.\`商品名称\` LIKE ? OR
+                c.\`商品UPC\` LIKE ? OR
+                c.\`规格\` LIKE ?
             )`;
             clauses.push(whereCondition);
             params.push(like, like, like, like, like, like, like, like, like, like, like);
@@ -105,10 +107,20 @@ export class OpsActivityDispatchService {
         // 构建 WHERE 条件
         const whereCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
-        // 构建 SQL - 左连接商品主档销售规格表
+        // 构建 SQL - 左连接仓店补货参考表
         const countSql = `SELECT COUNT(*) as total 
             FROM ${this.table} a
-            LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON a.\`SKU\` = p.\`SKU编码\`
+            LEFT JOIN (
+                SELECT 
+                    \`商品SKU\`,
+                    MAX(\`采购单价 (基础单位)\`) AS \`采购单价 (基础单位)\`,
+                    MAX(\`采购单价 (采购单位)\`) AS \`采购单价 (采购单位)\`,
+                    MAX(\`商品名称\`) AS \`商品名称\`,
+                    MAX(\`商品UPC\`) AS \`商品UPC\`,
+                    MAX(\`规格\`) AS \`规格\`
+                FROM \`sm_chaigou\`.\`仓店补货参考\`
+                GROUP BY \`商品SKU\`
+            ) c ON a.\`SKU\` = c.\`商品SKU\`
             ${whereCondition}`;
         const sql = `SELECT 
             a.\`SKU\`,
@@ -121,11 +133,23 @@ export class OpsActivityDispatchService {
             a.\`活动确认人\`,
             a.\`结束时间\`,
             a.\`数据更新时间\`,
-            p.\`商品名称\`,
-            p.\`商品条码\`,
-            p.\`规格名称\`
+            c.\`采购单价 (基础单位)\`,
+            c.\`采购单价 (采购单位)\`,
+            c.\`商品名称\`,
+            c.\`商品UPC\`,
+            c.\`规格\`
          FROM ${this.table} a
-         LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON a.\`SKU\` = p.\`SKU编码\`
+         LEFT JOIN (
+             SELECT 
+                 \`商品SKU\`,
+                 MAX(\`采购单价 (基础单位)\`) AS \`采购单价 (基础单位)\`,
+                 MAX(\`采购单价 (采购单位)\`) AS \`采购单价 (采购单位)\`,
+                 MAX(\`商品名称\`) AS \`商品名称\`,
+                 MAX(\`商品UPC\`) AS \`商品UPC\`,
+                 MAX(\`规格\`) AS \`规格\`
+             FROM \`sm_chaigou\`.\`仓店补货参考\`
+             GROUP BY \`商品SKU\`
+         ) c ON a.\`SKU\` = c.\`商品SKU\`
          ${whereCondition}
          ${orderBy}
          LIMIT ${limit} OFFSET ${offset}`;
@@ -189,9 +213,11 @@ export class OpsActivityDispatchService {
                 '活动确认人': r['活动确认人'] ? String(r['活动确认人']) : null,
                 '结束时间': 结束时间,
                 '数据更新时间': 数据更新时间,
+                '采购单价 (基础单位)': r['采购单价 (基础单位)'] !== null && r['采购单价 (基础单位)'] !== undefined ? r['采购单价 (基础单位)'] : null,
+                '采购单价 (采购单位)': r['采购单价 (采购单位)'] !== null && r['采购单价 (采购单位)'] !== undefined ? r['采购单价 (采购单位)'] : null,
                 '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
-                '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
-                '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
+                '商品UPC': r['商品UPC'] ? String(r['商品UPC']) : null,
+                '规格': r['规格'] ? String(r['规格']) : null,
             };
         });
 

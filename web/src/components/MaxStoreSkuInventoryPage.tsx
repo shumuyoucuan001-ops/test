@@ -15,8 +15,10 @@ const fieldLabels: Record<keyof MaxStoreSkuInventoryItem, string> = {
     "备注（说明设置原因）": "备注（说明设置原因）",
     "修改人": "修改人",
     "商品名称": "商品名称",
-    "商品条码": "商品条码",
-    "规格名称": "规格名称",
+    "商品UPC": "商品UPC",
+    "规格": "规格",
+    "采购单价 (基础单位)": "采购单价 (基础单位)",
+    "采购单价 (采购单位)": "采购单价 (采购单位)",
 };
 
 export default function MaxStoreSkuInventoryPage() {
@@ -127,24 +129,48 @@ export default function MaxStoreSkuInventoryPage() {
             {
                 title: (
                     <span>
-                        商品条码{' '}
+                        采购单价 (基础单位){' '}
                         <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
                     </span>
                 ),
-                dataIndex: '商品条码',
-                key: '商品条码',
+                dataIndex: '采购单价 (基础单位)',
+                key: '采购单价 (基础单位)',
+                width: 150,
+                render: (value: any) => value !== null && value !== undefined ? Number(value).toFixed(2) : '-',
+            },
+            {
+                title: (
+                    <span>
+                        采购单价 (采购单位){' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
+                dataIndex: '采购单价 (采购单位)',
+                key: '采购单价 (采购单位)',
+                width: 150,
+                render: (value: any) => value !== null && value !== undefined ? Number(value).toFixed(2) : '-',
+            },
+            {
+                title: (
+                    <span>
+                        商品UPC{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
+                dataIndex: '商品UPC',
+                key: '商品UPC',
                 width: 180,
                 ellipsis: true,
             },
             {
                 title: (
                     <span>
-                        规格名称{' '}
+                        规格{' '}
                         <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
                     </span>
                 ),
-                dataIndex: '规格名称',
-                key: '规格名称',
+                dataIndex: '规格',
+                key: '规格',
                 width: 150,
                 ellipsis: true,
             },
@@ -277,8 +303,10 @@ export default function MaxStoreSkuInventoryPage() {
             maxInventory: record['最高库存量（基础单位）'],
             remark: record['备注（说明设置原因）'],
             '商品名称': record['商品名称'],
-            '商品条码': record['商品条码'],
-            '规格名称': record['规格名称'],
+            '商品UPC': record['商品UPC'],
+            '规格': record['规格'],
+            '采购单价 (基础单位)': record['采购单价 (基础单位)'],
+            '采购单价 (采购单位)': record['采购单价 (采购单位)'],
         });
         setModalVisible(true);
     };
@@ -559,8 +587,8 @@ export default function MaxStoreSkuInventoryPage() {
                                             if (productInfo) {
                                                 form.setFieldsValue({
                                                     '商品名称': productInfo.productName,
-                                                    '商品条码': productInfo.productCode,
-                                                    '规格名称': productInfo.specName,
+                                                    '商品UPC': productInfo.productCode,
+                                                    '规格': productInfo.specName,
                                                 });
                                             }
                                         } catch (error) {
@@ -574,10 +602,16 @@ export default function MaxStoreSkuInventoryPage() {
                     <Form.Item name="商品名称" label="商品名称">
                         <Input maxLength={200} disabled />
                     </Form.Item>
-                    <Form.Item name="商品条码" label="商品条码">
+                    <Form.Item name="采购单价 (基础单位)" label="采购单价 (基础单位)">
                         <Input maxLength={200} disabled />
                     </Form.Item>
-                    <Form.Item name="规格名称" label="规格名称">
+                    <Form.Item name="采购单价 (采购单位)" label="采购单价 (采购单位)">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="商品UPC" label="商品UPC">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="规格" label="规格">
                         <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item
