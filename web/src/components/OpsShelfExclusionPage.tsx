@@ -10,6 +10,7 @@ const fieldLabels: Record<keyof OpsShelfExclusionItem, string> = {
     "SPU": "SPU",
     "门店编码": "门店编码",
     "渠道编码": "渠道编码",
+    "备注": "备注",
 };
 
 export default function OpsShelfExclusionPage() {
@@ -124,6 +125,7 @@ export default function OpsShelfExclusionPage() {
                 'SPU': values['SPU'] || '',
                 '门店编码': values['门店编码']?.trim() || '',
                 '渠道编码': values['渠道编码']?.trim() || '',
+                '备注': values['备注']?.trim() || null,
             };
             if (editing) {
                 await opsShelfExclusionApi.update(editing, submitData);
@@ -245,8 +247,8 @@ export default function OpsShelfExclusionPage() {
             maxDelimiterCount = Math.max(maxDelimiterCount, count);
         }
         const expectedColumnCount = maxDelimiterCount + 1;
-        // 确保至少有3列
-        const targetColumnCount = Math.max(expectedColumnCount, 3);
+        // 确保至少有4列（SPU、门店编码、渠道编码、备注）
+        const targetColumnCount = Math.max(expectedColumnCount, 4);
 
         // 解析每行为多个字段，确保保持列的对应关系（空值也要保留）
         const newItems: OpsShelfExclusionItem[] = [];
@@ -265,17 +267,17 @@ export default function OpsShelfExclusionPage() {
             // 去除每部分的前后空格，但保留空字符串本身
             parts = parts.map(p => p.trim());
 
-            // 如果列数不足目标列数，说明前面有空列，需要在前面补空值
-            // 这样可以保持列的对应关系，即使第一列是空值也不会被后面的列顶替
+            // 如果列数不足目标列数，在后面补空值，确保至少有4列（SPU、门店编码、渠道编码、备注）
             while (parts.length < targetColumnCount) {
-                parts.unshift(''); // 在前面插入空值，而不是在后面追加
+                parts.push(''); // 在后面追加空值
             }
 
-            // 只取前3列，确保列对应关系正确
+            // 只取前4列，确保列对应关系正确（SPU、门店编码、渠道编码、备注）
             newItems.push({
                 'SPU': parts[0] || '',
                 '门店编码': parts[1] || '',
                 '渠道编码': parts[2] || '',
+                '备注': parts[3] || null,
             });
         }
 
@@ -538,6 +540,9 @@ export default function OpsShelfExclusionPage() {
                     <Form.Item name="渠道编码" label="渠道编码">
                         <Input maxLength={64} />
                     </Form.Item>
+                    <Form.Item name="备注" label="备注">
+                        <Input.TextArea rows={3} maxLength={500} placeholder="请输入备注信息" />
+                    </Form.Item>
                 </Form>
             </Modal>
 
@@ -566,10 +571,10 @@ export default function OpsShelfExclusionPage() {
                         color: '#666',
                         fontSize: 14,
                     }}>
-                        提示：您可以从 Excel 中复制数据（包含SPU、门店编码、渠道编码列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
+                        提示：您可以从 Excel 中复制数据（包含SPU、门店编码、渠道编码、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
                     </div>
                     <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SPU	门店编码	渠道编码&#10;示例：SPU1	门店1	渠道1"
+                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SPU	门店编码	渠道编码	备注&#10;示例：SPU1	门店1	渠道1	备注1"
                         rows={4}
                         onPaste={handlePaste}
                         style={{
@@ -590,6 +595,7 @@ export default function OpsShelfExclusionPage() {
                             },
                             { title: '门店编码', dataIndex: '门店编码', key: '门店编码' },
                             { title: '渠道编码', dataIndex: '渠道编码', key: '渠道编码' },
+                            { title: '备注', dataIndex: '备注', key: '备注' },
                             {
                                 title: '操作',
                                 key: 'action',

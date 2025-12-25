@@ -6,6 +6,7 @@ export interface OpsShelfExclusionItem {
     'SPU': string;
     '门店编码': string;
     '渠道编码': string;
+    '备注'?: string | null;
 }
 
 @Injectable()
@@ -35,9 +36,9 @@ export class OpsShelfExclusionService {
         // 关键词搜索（OR across all columns）
         if (filters?.keyword?.trim()) {
             const like = buildLike(filters.keyword);
-            const whereCondition = `(\`SPU\` LIKE ? OR \`门店编码\` LIKE ? OR \`渠道编码\` LIKE ?)`;
+            const whereCondition = `(\`SPU\` LIKE ? OR \`门店编码\` LIKE ? OR \`渠道编码\` LIKE ? OR \`备注\` LIKE ?)`;
             clauses.push(whereCondition);
-            params.push(like, like, like);
+            params.push(like, like, like, like);
         }
 
         // 按字段精确搜索（AND）
@@ -59,7 +60,7 @@ export class OpsShelfExclusionService {
 
         // 构建 SQL
         const countSql = `SELECT COUNT(*) as total FROM ${this.table} ${whereCondition}`;
-        const sql = `SELECT \`SPU\`, \`门店编码\`, \`渠道编码\`
+        const sql = `SELECT \`SPU\`, \`门店编码\`, \`渠道编码\`, \`备注\`
          FROM ${this.table}
          ${whereCondition}
          ${orderBy}
@@ -73,6 +74,7 @@ export class OpsShelfExclusionService {
             'SPU': String(r['SPU'] || ''),
             '门店编码': String(r['门店编码'] || ''),
             '渠道编码': String(r['渠道编码'] || ''),
+            '备注': r['备注'] ? String(r['备注']) : null,
         }));
 
         return { data, total };
@@ -81,10 +83,11 @@ export class OpsShelfExclusionService {
     async create(item: OpsShelfExclusionItem): Promise<void> {
         this.validate(item, true); // 单独新增时，SPU不是必填项
         await this.prisma.$executeRawUnsafe(
-            `INSERT INTO ${this.table} (\`SPU\`, \`门店编码\`, \`渠道编码\`) VALUES (?, ?, ?)`,
+            `INSERT INTO ${this.table} (\`SPU\`, \`门店编码\`, \`渠道编码\`, \`备注\`) VALUES (?, ?, ?, ?)`,
             item['SPU'] || '',
             item['门店编码'] || '',
             item['渠道编码'] || '',
+            item['备注'] || null,
         );
     }
 
@@ -92,9 +95,9 @@ export class OpsShelfExclusionService {
         this.validate(data, true); // 更新时，SPU不是必填项
         const affected = await this.prisma.$executeRawUnsafe(
             `UPDATE ${this.table}
-       SET \`SPU\`=?, \`门店编码\`=?, \`渠道编码\`=?
+       SET \`SPU\`=?, \`门店编码\`=?, \`渠道编码\`=?, \`备注\`=?
        WHERE \`SPU\`=? AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') AND COALESCE(\`渠道编码\`, '') = COALESCE(?, '')`,
-            data['SPU'] || '', data['门店编码'] || '', data['渠道编码'] || '',
+            data['SPU'] || '', data['门店编码'] || '', data['渠道编码'] || '', data['备注'] || null,
             original['SPU'] || '', original['门店编码'] || '', original['渠道编码'] || '',
         );
         // @ts-ignore Prisma returns number for executeRawUnsafe

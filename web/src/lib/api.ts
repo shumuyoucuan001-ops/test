@@ -374,6 +374,7 @@ export interface OpsExclusionItem {
   商品名称?: string | null;
   商品条码?: string | null;
   规格名称?: string | null;
+  备注?: string | null;
 }
 
 export const opsExclusionApi = {
@@ -528,6 +529,7 @@ export interface OpsShelfExclusionItem {
   SPU: string;
   门店编码: string;
   渠道编码: string;
+  备注?: string | null;
 }
 
 export const opsShelfExclusionApi = {

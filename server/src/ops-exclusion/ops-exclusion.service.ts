@@ -10,6 +10,7 @@ export interface OpsExclusionItem {
     '商品名称'?: string | null;
     '商品条码'?: string | null;
     '规格名称'?: string | null;
+    '备注'?: string | null;
 }
 
 @Injectable()
@@ -40,9 +41,9 @@ export class OpsExclusionService {
         // 关键词搜索（OR across all columns）
         if (filters?.keyword?.trim()) {
             const like = buildLike(filters.keyword);
-            const whereCondition = `(t.\`视图名称\` LIKE ? OR t.\`门店编码\` LIKE ? OR t.\`SKU编码\` LIKE ? OR t.\`SPU编码\` LIKE ?)`;
+            const whereCondition = `(t.\`视图名称\` LIKE ? OR t.\`门店编码\` LIKE ? OR t.\`SKU编码\` LIKE ? OR t.\`SPU编码\` LIKE ? OR t.\`备注\` LIKE ?)`;
             clauses.push(whereCondition);
-            params.push(like, like, like, like);
+            params.push(like, like, like, like, like);
         }
 
         // 按字段精确搜索（AND）
@@ -81,6 +82,7 @@ export class OpsExclusionService {
             t.\`门店编码\`, 
             t.\`SKU编码\`, 
             t.\`SPU编码\`,
+            t.\`备注\`,
             p.\`商品名称\`,
             p.\`商品条码\`,
             p.\`规格名称\`
@@ -99,6 +101,7 @@ export class OpsExclusionService {
             '门店编码': String(r['门店编码'] || ''),
             'SKU编码': String(r['SKU编码'] || ''),
             'SPU编码': String(r['SPU编码'] || ''),
+            '备注': r['备注'] ? String(r['备注']) : null,
             '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
             '商品条码': r['商品条码'] ? String(r['商品条码']) : null,
             '规格名称': r['规格名称'] ? String(r['规格名称']) : null,
@@ -110,11 +113,12 @@ export class OpsExclusionService {
     async create(item: OpsExclusionItem): Promise<void> {
         this.validate(item);
         await this.prisma.$executeRawUnsafe(
-            `INSERT INTO ${this.table} (\`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`) VALUES (?, ?, ?, ?)`,
+            `INSERT INTO ${this.table} (\`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`, \`备注\`) VALUES (?, ?, ?, ?, ?)`,
             item['视图名称'] || '',
             item['门店编码'] || '',
             item['SKU编码'] || '',
             item['SPU编码'] || '',
+            item['备注'] || null,
         );
     }
 
@@ -122,9 +126,9 @@ export class OpsExclusionService {
         this.validate(data);
         const affected = await this.prisma.$executeRawUnsafe(
             `UPDATE ${this.table}
-       SET \`视图名称\`=?, \`门店编码\`=?, \`SKU编码\`=?, \`SPU编码\`=?
+       SET \`视图名称\`=?, \`门店编码\`=?, \`SKU编码\`=?, \`SPU编码\`=?, \`备注\`=?
        WHERE \`视图名称\`=? AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') AND COALESCE(\`SKU编码\`, '') = COALESCE(?, '') AND COALESCE(\`SPU编码\`, '') = COALESCE(?, '')`,
-            data['视图名称'] || '', data['门店编码'] || '', data['SKU编码'] || '', data['SPU编码'] || '',
+            data['视图名称'] || '', data['门店编码'] || '', data['SKU编码'] || '', data['SPU编码'] || '', data['备注'] || null,
             original['视图名称'] || '', original['门店编码'] || '', original['SKU编码'] || '', original['SPU编码'] || '',
         );
         // @ts-ignore Prisma returns number for executeRawUnsafe

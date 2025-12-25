@@ -13,6 +13,7 @@ const fieldLabels: Record<keyof OpsExclusionItem, string> = {
     "门店编码": "门店编码",
     "SKU编码": "SKU编码",
     "SPU编码": "SPU编码",
+    "备注": "备注",
     "商品名称": "商品名称",
     "商品条码": "商品条码",
     "规格名称": "规格名称",
@@ -220,6 +221,7 @@ export default function OpsExclusionPage() {
                 '门店编码': values['门店编码']?.trim() || '',
                 'SKU编码': values['SKU编码']?.trim() || '',
                 'SPU编码': values['SPU编码']?.trim() || '',
+                '备注': values['备注']?.trim() || null,
             };
             if (editing) {
                 await opsExclusionApi.update(editing, submitData);
@@ -340,6 +342,7 @@ export default function OpsExclusionPage() {
                     '门店编码': parts[1] || '',
                     'SKU编码': parts[2] || '',
                     'SPU编码': parts[3] || '',
+                    '备注': parts[4] || null,
                 });
             }
         }
@@ -766,6 +769,9 @@ export default function OpsExclusionPage() {
                     <Form.Item name="SPU编码" label="SPU编码">
                         <Input maxLength={64} />
                     </Form.Item>
+                    <Form.Item name="备注" label="备注">
+                        <Input.TextArea rows={3} maxLength={500} placeholder="请输入备注信息" />
+                    </Form.Item>
                 </Form>
             </Modal>
 
@@ -794,10 +800,10 @@ export default function OpsExclusionPage() {
                         color: '#666',
                         fontSize: 14,
                     }}>
-                        提示：您可以从 Excel 中复制数据（包含视图名称、门店编码、SKU编码、SPU编码列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
+                        提示：您可以从 Excel 中复制数据（包含视图名称、门店编码、SKU编码、SPU编码、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
                     </div>
                     <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：视图名称	门店编码	SKU编码	SPU编码&#10;示例：视图1	门店1	SKU1	SPU1"
+                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：视图名称	门店编码	SKU编码	SPU编码	备注&#10;示例：视图1	门店1	SKU1	SPU1	备注1"
                         rows={4}
                         onPaste={handlePaste}
                         style={{
@@ -824,6 +830,7 @@ export default function OpsExclusionPage() {
                             { title: '门店编码', dataIndex: '门店编码', key: '门店编码' },
                             { title: 'SKU编码', dataIndex: 'SKU编码', key: 'SKU编码' },
                             { title: 'SPU编码', dataIndex: 'SPU编码', key: 'SPU编码' },
+                            { title: '备注', dataIndex: '备注', key: '备注' },
                             {
                                 title: '操作',
                                 key: 'action',
