@@ -356,7 +356,7 @@ export const productMasterApi = {
     api.get('/product-master', { params }).then(res => res.data),
   detail: (sku: string): Promise<Record<string, any>> =>
     api.get(`/product-master/${sku}`).then(res => res.data),
-  getProductInfo: (sku: string): Promise<{ productName: string | null; productCode: string | null; specName: string | null } | null> =>
+  getProductInfo: (sku: string): Promise<{ productName: string | null; productCode: string | null; specName: string | null; purchasePriceBase?: string | number | null; purchasePriceUnit?: string | number | null } | null> =>
     api.get(`/product-master/${sku}/product-info`).then(res => res.data),
 };
 

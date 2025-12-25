@@ -571,6 +571,7 @@ export default function MaxPurchaseQuantityPage() {
                     dataSource={data}
                     rowKey={(r) => `${r["仓店名称"]}_${r["SKU"]}`}
                     loading={loading}
+                    scroll={{ x: 2500 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,
@@ -647,6 +648,8 @@ export default function MaxPurchaseQuantityPage() {
                                                     '商品名称': productInfo.productName,
                                                     '商品UPC': productInfo.productCode,
                                                     '规格': productInfo.specName,
+                                                    '采购单价 (基础单位)': productInfo.purchasePriceBase,
+                                                    '采购单价 (采购单位)': productInfo.purchasePriceUnit,
                                                 });
                                             }
                                         } catch (error) {

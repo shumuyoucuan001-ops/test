@@ -500,6 +500,13 @@ export default function OpsExclusionPage() {
                 key: 'SPU编码',
                 width: 220,
             },
+            {
+                title: '备注',
+                dataIndex: '备注',
+                key: '备注',
+                width: 200,
+                ellipsis: true,
+            },
         ];
 
         // 根据列顺序和隐藏状态过滤列
@@ -722,6 +729,7 @@ export default function OpsExclusionPage() {
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
+                    scroll={{ x: 2500 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,
@@ -773,6 +781,8 @@ export default function OpsExclusionPage() {
                                                     '商品名称': productInfo.productName,
                                                     '商品UPC': productInfo.productCode,
                                                     '规格': productInfo.specName,
+                                                    '采购单价 (基础单位)': productInfo.purchasePriceBase,
+                                                    '采购单价 (采购单位)': productInfo.purchasePriceUnit,
                                                 });
                                             }
                                         } catch (error) {

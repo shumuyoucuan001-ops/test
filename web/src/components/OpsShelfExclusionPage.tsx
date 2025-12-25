@@ -500,6 +500,7 @@ export default function OpsShelfExclusionPage() {
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
+                    scroll={{ x: 1500 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

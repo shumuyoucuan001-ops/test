@@ -47,10 +47,18 @@ export class ProductMasterController {
 
   @Get(':sku/product-info')
   async getProductInfo(@Param('sku') sku: string) {
+    // 从仓店补货参考表查询数据（使用聚合查询）
     const rows: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT \`商品名称\` AS productName, \`商品条码\` AS productCode, \`规格名称\` AS specName
-       FROM \`sm_shangping\`.\`商品主档销售规格\`
-       WHERE \`SKU编码\` = ? LIMIT 1`,
+      `SELECT 
+        MAX(\`商品名称\`) AS productName, 
+        MAX(\`商品UPC\`) AS productCode, 
+        MAX(\`规格\`) AS specName,
+        MAX(\`采购单价 (基础单位)\`) AS purchasePriceBase,
+        MAX(\`采购单价 (采购单位)\`) AS purchasePriceUnit
+       FROM \`sm_chaigou\`.\`仓店补货参考\`
+       WHERE \`商品SKU\` = ? 
+       GROUP BY \`商品SKU\`
+       LIMIT 1`,
       sku,
     );
     if (rows && rows.length > 0) {
@@ -58,6 +66,8 @@ export class ProductMasterController {
         productName: rows[0].productName || null,
         productCode: rows[0].productCode || null,
         specName: rows[0].specName || null,
+        purchasePriceBase: rows[0].purchasePriceBase || null,
+        purchasePriceUnit: rows[0].purchasePriceUnit || null,
       };
     }
     return null;

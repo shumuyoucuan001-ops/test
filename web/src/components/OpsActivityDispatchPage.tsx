@@ -946,6 +946,8 @@ export default function OpsActivityDispatchPage() {
                                                     '商品名称': productInfo.productName,
                                                     '商品UPC': productInfo.productCode,
                                                     '规格': productInfo.specName,
+                                                    '采购单价 (基础单位)': productInfo.purchasePriceBase,
+                                                    '采购单价 (采购单位)': productInfo.purchasePriceUnit,
                                                 });
                                             }
                                         } catch (error) {
