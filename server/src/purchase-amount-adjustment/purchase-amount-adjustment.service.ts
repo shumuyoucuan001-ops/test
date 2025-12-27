@@ -108,7 +108,7 @@ export class PurchaseAmountAdjustmentService {
             return {
                 data: data.map((row: any) => ({
                     purchaseOrderNumber: row.purchaseOrderNumber,
-                    adjustmentAmount: row.adjustmentAmount ? parseFloat(row.adjustmentAmount) : null,
+                    adjustmentAmount: row.adjustmentAmount ? parseFloat(row.adjustmentAmount) : undefined,
                     adjustmentReason: row.adjustmentReason,
                     financeReviewRemark: row.financeReviewRemark,
                     financeReviewStatus: row.financeReviewStatus,
@@ -152,7 +152,7 @@ export class PurchaseAmountAdjustmentService {
             const row = result[0];
             return {
                 purchaseOrderNumber: row.purchaseOrderNumber,
-                adjustmentAmount: row.adjustmentAmount ? parseFloat(row.adjustmentAmount) : null,
+                adjustmentAmount: row.adjustmentAmount ? parseFloat(row.adjustmentAmount) : undefined,
                 adjustmentReason: row.adjustmentReason,
                 image: row.image ? row.image.toString('base64') : null,
                 financeReviewRemark: row.financeReviewRemark,
