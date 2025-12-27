@@ -231,54 +231,48 @@ export default function OpsShelfExclusionPage() {
             delimiter = /\s{2,}/;
         }
 
-        // 找出所有行中分隔符的最大数量，用于确定应该有多少列
-        // 这样可以正确处理首列为空的情况
-        let maxDelimiterCount = 0;
-        for (const line of lines) {
-            let count = 0;
-            if (delimiter === '\t') {
-                count = (line.match(/\t/g) || []).length;
-            } else if (delimiter === ',') {
-                count = (line.match(/,/g) || []).length;
-            } else {
-                count = (line.match(/\s{2,}/g) || []).length;
-            }
-            // 分隔符数量 + 1 = 列数
-            maxDelimiterCount = Math.max(maxDelimiterCount, count);
-        }
-        const expectedColumnCount = maxDelimiterCount + 1;
-        // 确保至少有4列（SPU、门店编码、渠道编码、备注）
-        const targetColumnCount = Math.max(expectedColumnCount, 4);
-
-        // 解析每行为多个字段，确保保持列的对应关系（空值也要保留）
+        // 解析每行为多个字段
+        // 注意：备注列可能包含分隔符，需要特殊处理，只分割前3个字段，剩余部分作为备注
         const newItems: OpsShelfExclusionItem[] = [];
         for (const line of lines) {
             let parts: string[];
 
             if (delimiter === '\t') {
-                // 使用 split 时保留所有空值，包括开头的空值
-                parts = line.split('\t');
+                // 限制分割次数为4，确保备注列（第4列）包含所有剩余内容
+                parts = line.split('\t', 4).map(p => p.trim());
             } else if (delimiter === ',') {
-                parts = line.split(',');
+                // 限制分割次数为4，确保备注列（第4列）包含所有剩余内容
+                parts = line.split(',', 4).map(p => p.trim());
             } else {
-                parts = line.split(/\s{2,}/);
+                // 对于空格分隔，先尝试分割前3个字段，剩余作为备注
+                const spaceParts = line.split(/\s{2,}/);
+                if (spaceParts.length > 3) {
+                    // 前3个字段，剩余部分合并作为备注
+                    parts = [
+                        ...spaceParts.slice(0, 3).map(p => p.trim()),
+                        spaceParts.slice(3).join('  ').trim()
+                    ];
+                } else {
+                    parts = spaceParts.map(p => p.trim());
+                }
             }
 
-            // 去除每部分的前后空格，但保留空字符串本身
-            parts = parts.map(p => p.trim());
+            // 确保至少有SPU（必填字段）
+            if (parts.length >= 1 && parts[0]) {
+                // 如果列数不足4列，在后面补空值
+                while (parts.length < 4) {
+                    parts.push('');
+                }
 
-            // 如果列数不足目标列数，在后面补空值，确保至少有4列（SPU、门店编码、渠道编码、备注）
-            while (parts.length < targetColumnCount) {
-                parts.push(''); // 在后面追加空值
+                // 只取前4列，确保列对应关系正确（SPU、门店编码、渠道编码、备注）
+                newItems.push({
+                    'SPU': parts[0] || '',
+                    '门店编码': parts[1] || '',
+                    '渠道编码': parts[2] || '',
+                    // 备注列：如果分割后只有3列，则备注为空；如果有第4列，则使用第4列（已包含所有剩余内容）
+                    '备注': parts[3] || null,
+                });
             }
-
-            // 只取前4列，确保列对应关系正确（SPU、门店编码、渠道编码、备注）
-            newItems.push({
-                'SPU': parts[0] || '',
-                '门店编码': parts[1] || '',
-                '渠道编码': parts[2] || '',
-                '备注': parts[3] || null,
-            });
         }
 
         if (newItems.length > 0) {

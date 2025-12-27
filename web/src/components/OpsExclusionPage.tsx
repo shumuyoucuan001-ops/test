@@ -320,21 +320,35 @@ export default function OpsExclusionPage() {
         }
 
         // 解析每行为多个字段（支持制表符、逗号、多个空格分隔）
+        // 注意：备注列可能包含分隔符，需要特殊处理
+        // 字段顺序：视图名称、门店编码、SKU编码、SPU编码、备注（备注是第5列，索引4）
         const newItems: OpsExclusionItem[] = [];
         for (const line of lines) {
             let parts: string[];
 
             // 优先使用制表符分隔（Excel 粘贴通常是制表符）
             if (line.includes('\t')) {
-                parts = line.split('\t').map(p => p.trim());
+                // 限制分割次数为5，确保备注列（第5列）包含所有剩余内容
+                parts = line.split('\t', 5).map(p => p.trim());
             }
             // 其次使用逗号分隔
             else if (line.includes(',')) {
-                parts = line.split(',').map(p => p.trim());
+                // 限制分割次数为5，确保备注列（第5列）包含所有剩余内容
+                parts = line.split(',', 5).map(p => p.trim());
             }
             // 最后使用多个空格分隔
             else {
-                parts = line.split(/\s{2,}/).map(p => p.trim());
+                // 对于空格分隔，先尝试分割前4个字段，剩余作为备注
+                const spaceParts = line.split(/\s{2,}/);
+                if (spaceParts.length > 4) {
+                    // 前4个字段，剩余部分合并作为备注
+                    parts = [
+                        ...spaceParts.slice(0, 4).map(p => p.trim()),
+                        spaceParts.slice(4).join('  ').trim()
+                    ];
+                } else {
+                    parts = spaceParts.map(p => p.trim());
+                }
             }
 
             // 确保至少有视图名称（必填字段）
@@ -344,6 +358,7 @@ export default function OpsExclusionPage() {
                     '门店编码': parts[1] || '',
                     'SKU编码': parts[2] || '',
                     'SPU编码': parts[3] || '',
+                    // 备注列：如果分割后只有4列，则备注为空；如果有第5列，则使用第5列（已包含所有剩余内容）
                     '备注': parts[4] || null,
                 });
             }
