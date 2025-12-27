@@ -322,19 +322,67 @@ export default function OpsExclusionPage() {
         // 解析每行为多个字段（支持制表符、逗号、多个空格分隔）
         // 注意：备注列可能包含分隔符，需要特殊处理
         // 字段顺序：视图名称、门店编码、SKU编码、SPU编码、备注（备注是第5列，索引4）
+        // 使用正则表达式精确匹配前4列，剩余所有内容（包括分隔符）都作为备注列
         const newItems: OpsExclusionItem[] = [];
         for (const line of lines) {
-            let parts: string[];
+            let parts: string[] = [];
 
             // 优先使用制表符分隔（Excel 粘贴通常是制表符）
             if (line.includes('\t')) {
-                // 限制分割次数为5，确保备注列（第5列）包含所有剩余内容
-                parts = line.split('\t', 5).map(p => p.trim());
+                // 使用正则表达式匹配：前4个字段（每个字段后跟一个制表符），然后剩余所有内容作为备注
+                // 格式：字段1\t字段2\t字段3\t字段4\t备注（备注可能包含制表符）
+                const match = line.match(/^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$/);
+                if (match) {
+                    parts = [
+                        match[1].trim(),
+                        match[2].trim(),
+                        match[3].trim(),
+                        match[4].trim(),
+                        match[5] // 备注列不trim，保留原始内容（可能包含制表符）
+                    ];
+                } else {
+                    // 如果匹配失败，尝试用split作为后备方案
+                    const splitParts = line.split('\t');
+                    if (splitParts.length >= 4) {
+                        parts = [
+                            splitParts[0].trim(),
+                            splitParts[1].trim(),
+                            splitParts[2].trim(),
+                            splitParts[3].trim(),
+                            splitParts.slice(4).join('\t') // 剩余部分合并作为备注
+                        ];
+                    } else {
+                        parts = splitParts.map(p => p.trim());
+                    }
+                }
             }
             // 其次使用逗号分隔
             else if (line.includes(',')) {
-                // 限制分割次数为5，确保备注列（第5列）包含所有剩余内容
-                parts = line.split(',', 5).map(p => p.trim());
+                // 使用正则表达式匹配：前4个字段（每个字段后跟一个逗号），然后剩余所有内容作为备注
+                const match = line.match(/^([^,]*),([^,]*),([^,]*),([^,]*),(.*)$/);
+                if (match) {
+                    parts = [
+                        match[1].trim(),
+                        match[2].trim(),
+                        match[3].trim(),
+                        match[4].trim(),
+                        match[5] // 备注列不trim，保留原始内容（可能包含逗号）
+                    ];
+                } else {
+                    // 如果匹配失败，尝试用split作为后备方案
+                    const splitParts = line.split(',');
+                    if (splitParts.length >= 4) {
+                        parts = [
+                            splitParts[0].trim(),
+                            splitParts[1].trim(),
+                            splitParts[2].trim(),
+                            splitParts[3].trim(),
+                            splitParts.slice(4).join(',') // 剩余部分合并作为备注
+                        ];
+                    } else {
+                        parts = splitParts.map(p => p.trim());
+                    }
+                }
             }
             // 最后使用多个空格分隔
             else {
@@ -353,6 +401,11 @@ export default function OpsExclusionPage() {
 
             // 确保至少有视图名称（必填字段）
             if (parts.length >= 1 && parts[0]) {
+                // 如果列数不足5列，在后面补空值
+                while (parts.length < 5) {
+                    parts.push('');
+                }
+
                 newItems.push({
                     '视图名称': parts[0] || '',
                     '门店编码': parts[1] || '',

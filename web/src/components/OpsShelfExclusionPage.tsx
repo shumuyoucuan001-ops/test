@@ -232,17 +232,61 @@ export default function OpsShelfExclusionPage() {
         }
 
         // 解析每行为多个字段
-        // 注意：备注列可能包含分隔符，需要特殊处理，只分割前3个字段，剩余部分作为备注
+        // 注意：备注列可能包含分隔符，需要特殊处理
+        // 使用正则表达式精确匹配前3列，剩余所有内容（包括分隔符）都作为备注列
         const newItems: OpsShelfExclusionItem[] = [];
         for (const line of lines) {
-            let parts: string[];
+            let parts: string[] = [];
 
             if (delimiter === '\t') {
-                // 限制分割次数为4，确保备注列（第4列）包含所有剩余内容
-                parts = line.split('\t', 4).map(p => p.trim());
+                // 使用正则表达式匹配：前3个字段（每个字段后跟一个制表符），然后剩余所有内容作为备注
+                // 格式：字段1\t字段2\t字段3\t备注（备注可能包含制表符）
+                const match = line.match(/^([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$/);
+                if (match) {
+                    parts = [
+                        match[1].trim(),
+                        match[2].trim(),
+                        match[3].trim(),
+                        match[4] // 备注列不trim，保留原始内容（可能包含制表符）
+                    ];
+                } else {
+                    // 如果匹配失败，尝试用split作为后备方案
+                    const splitParts = line.split('\t');
+                    if (splitParts.length >= 3) {
+                        parts = [
+                            splitParts[0].trim(),
+                            splitParts[1].trim(),
+                            splitParts[2].trim(),
+                            splitParts.slice(3).join('\t') // 剩余部分合并作为备注
+                        ];
+                    } else {
+                        parts = splitParts.map(p => p.trim());
+                    }
+                }
             } else if (delimiter === ',') {
-                // 限制分割次数为4，确保备注列（第4列）包含所有剩余内容
-                parts = line.split(',', 4).map(p => p.trim());
+                // 使用正则表达式匹配：前3个字段（每个字段后跟一个逗号），然后剩余所有内容作为备注
+                const match = line.match(/^([^,]*),([^,]*),([^,]*),(.*)$/);
+                if (match) {
+                    parts = [
+                        match[1].trim(),
+                        match[2].trim(),
+                        match[3].trim(),
+                        match[4] // 备注列不trim，保留原始内容（可能包含逗号）
+                    ];
+                } else {
+                    // 如果匹配失败，尝试用split作为后备方案
+                    const splitParts = line.split(',');
+                    if (splitParts.length >= 3) {
+                        parts = [
+                            splitParts[0].trim(),
+                            splitParts[1].trim(),
+                            splitParts[2].trim(),
+                            splitParts.slice(3).join(',') // 剩余部分合并作为备注
+                        ];
+                    } else {
+                        parts = splitParts.map(p => p.trim());
+                    }
+                }
             } else {
                 // 对于空格分隔，先尝试分割前3个字段，剩余作为备注
                 const spaceParts = line.split(/\s{2,}/);
