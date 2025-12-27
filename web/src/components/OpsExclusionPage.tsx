@@ -322,66 +322,71 @@ export default function OpsExclusionPage() {
         // 解析每行为多个字段（支持制表符、逗号、多个空格分隔）
         // 注意：备注列可能包含分隔符，需要特殊处理
         // 字段顺序：视图名称、门店编码、SKU编码、SPU编码、备注（备注是第5列，索引4）
-        // 使用正则表达式精确匹配前4列，剩余所有内容（包括分隔符）都作为备注列
+        // 方法：找到前4个分隔符的位置，从第5个分隔符开始的所有内容都作为备注列
         const newItems: OpsExclusionItem[] = [];
         for (const line of lines) {
             let parts: string[] = [];
 
             // 优先使用制表符分隔（Excel 粘贴通常是制表符）
             if (line.includes('\t')) {
-                // 使用正则表达式匹配：前4个字段（每个字段后跟一个制表符），然后剩余所有内容作为备注
-                // 格式：字段1\t字段2\t字段3\t字段4\t备注（备注可能包含制表符）
-                const match = line.match(/^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$/);
-                if (match) {
+                // 找到前4个制表符的位置
+                const tabIndices: number[] = [];
+                for (let i = 0; i < line.length && tabIndices.length < 4; i++) {
+                    if (line[i] === '\t') {
+                        tabIndices.push(i);
+                    }
+                }
+
+                if (tabIndices.length >= 4) {
+                    // 前4个字段正常提取
                     parts = [
-                        match[1].trim(),
-                        match[2].trim(),
-                        match[3].trim(),
-                        match[4].trim(),
-                        match[5] // 备注列不trim，保留原始内容（可能包含制表符）
+                        line.substring(0, tabIndices[0]).trim(),
+                        line.substring(tabIndices[0] + 1, tabIndices[1]).trim(),
+                        line.substring(tabIndices[1] + 1, tabIndices[2]).trim(),
+                        line.substring(tabIndices[2] + 1, tabIndices[3]).trim(),
+                        line.substring(tabIndices[3] + 1) // 从第5个制表符开始的所有内容作为备注（包含制表符）
                     ];
                 } else {
-                    // 如果匹配失败，尝试用split作为后备方案
+                    // 如果制表符少于4个，使用split作为后备方案
                     const splitParts = line.split('\t');
-                    if (splitParts.length >= 4) {
-                        parts = [
-                            splitParts[0].trim(),
-                            splitParts[1].trim(),
-                            splitParts[2].trim(),
-                            splitParts[3].trim(),
-                            splitParts.slice(4).join('\t') // 剩余部分合并作为备注
-                        ];
-                    } else {
-                        parts = splitParts.map(p => p.trim());
-                    }
+                    parts = [
+                        splitParts[0]?.trim() || '',
+                        splitParts[1]?.trim() || '',
+                        splitParts[2]?.trim() || '',
+                        splitParts[3]?.trim() || '',
+                        splitParts.slice(4).join('\t') || '' // 剩余部分合并作为备注
+                    ];
                 }
             }
             // 其次使用逗号分隔
             else if (line.includes(',')) {
-                // 使用正则表达式匹配：前4个字段（每个字段后跟一个逗号），然后剩余所有内容作为备注
-                const match = line.match(/^([^,]*),([^,]*),([^,]*),([^,]*),(.*)$/);
-                if (match) {
+                // 找到前4个逗号的位置
+                const commaIndices: number[] = [];
+                for (let i = 0; i < line.length && commaIndices.length < 4; i++) {
+                    if (line[i] === ',') {
+                        commaIndices.push(i);
+                    }
+                }
+
+                if (commaIndices.length >= 4) {
+                    // 前4个字段正常提取
                     parts = [
-                        match[1].trim(),
-                        match[2].trim(),
-                        match[3].trim(),
-                        match[4].trim(),
-                        match[5] // 备注列不trim，保留原始内容（可能包含逗号）
+                        line.substring(0, commaIndices[0]).trim(),
+                        line.substring(commaIndices[0] + 1, commaIndices[1]).trim(),
+                        line.substring(commaIndices[1] + 1, commaIndices[2]).trim(),
+                        line.substring(commaIndices[2] + 1, commaIndices[3]).trim(),
+                        line.substring(commaIndices[3] + 1) // 从第5个逗号开始的所有内容作为备注（包含逗号）
                     ];
                 } else {
-                    // 如果匹配失败，尝试用split作为后备方案
+                    // 如果逗号少于4个，使用split作为后备方案
                     const splitParts = line.split(',');
-                    if (splitParts.length >= 4) {
-                        parts = [
-                            splitParts[0].trim(),
-                            splitParts[1].trim(),
-                            splitParts[2].trim(),
-                            splitParts[3].trim(),
-                            splitParts.slice(4).join(',') // 剩余部分合并作为备注
-                        ];
-                    } else {
-                        parts = splitParts.map(p => p.trim());
-                    }
+                    parts = [
+                        splitParts[0]?.trim() || '',
+                        splitParts[1]?.trim() || '',
+                        splitParts[2]?.trim() || '',
+                        splitParts[3]?.trim() || '',
+                        splitParts.slice(4).join(',') || '' // 剩余部分合并作为备注
+                    ];
                 }
             }
             // 最后使用多个空格分隔

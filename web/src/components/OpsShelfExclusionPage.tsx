@@ -233,59 +233,64 @@ export default function OpsShelfExclusionPage() {
 
         // 解析每行为多个字段
         // 注意：备注列可能包含分隔符，需要特殊处理
-        // 使用正则表达式精确匹配前3列，剩余所有内容（包括分隔符）都作为备注列
+        // 方法：找到前3个分隔符的位置，从第4个分隔符开始的所有内容都作为备注列
         const newItems: OpsShelfExclusionItem[] = [];
         for (const line of lines) {
             let parts: string[] = [];
 
             if (delimiter === '\t') {
-                // 使用正则表达式匹配：前3个字段（每个字段后跟一个制表符），然后剩余所有内容作为备注
-                // 格式：字段1\t字段2\t字段3\t备注（备注可能包含制表符）
-                const match = line.match(/^([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$/);
-                if (match) {
-                    parts = [
-                        match[1].trim(),
-                        match[2].trim(),
-                        match[3].trim(),
-                        match[4] // 备注列不trim，保留原始内容（可能包含制表符）
-                    ];
-                } else {
-                    // 如果匹配失败，尝试用split作为后备方案
-                    const splitParts = line.split('\t');
-                    if (splitParts.length >= 3) {
-                        parts = [
-                            splitParts[0].trim(),
-                            splitParts[1].trim(),
-                            splitParts[2].trim(),
-                            splitParts.slice(3).join('\t') // 剩余部分合并作为备注
-                        ];
-                    } else {
-                        parts = splitParts.map(p => p.trim());
+                // 找到前3个制表符的位置
+                const tabIndices: number[] = [];
+                for (let i = 0; i < line.length && tabIndices.length < 3; i++) {
+                    if (line[i] === '\t') {
+                        tabIndices.push(i);
                     }
                 }
-            } else if (delimiter === ',') {
-                // 使用正则表达式匹配：前3个字段（每个字段后跟一个逗号），然后剩余所有内容作为备注
-                const match = line.match(/^([^,]*),([^,]*),([^,]*),(.*)$/);
-                if (match) {
+
+                if (tabIndices.length >= 3) {
+                    // 前3个字段正常提取
                     parts = [
-                        match[1].trim(),
-                        match[2].trim(),
-                        match[3].trim(),
-                        match[4] // 备注列不trim，保留原始内容（可能包含逗号）
+                        line.substring(0, tabIndices[0]).trim(),
+                        line.substring(tabIndices[0] + 1, tabIndices[1]).trim(),
+                        line.substring(tabIndices[1] + 1, tabIndices[2]).trim(),
+                        line.substring(tabIndices[2] + 1) // 从第4个制表符开始的所有内容作为备注（包含制表符）
                     ];
                 } else {
-                    // 如果匹配失败，尝试用split作为后备方案
-                    const splitParts = line.split(',');
-                    if (splitParts.length >= 3) {
-                        parts = [
-                            splitParts[0].trim(),
-                            splitParts[1].trim(),
-                            splitParts[2].trim(),
-                            splitParts.slice(3).join(',') // 剩余部分合并作为备注
-                        ];
-                    } else {
-                        parts = splitParts.map(p => p.trim());
+                    // 如果制表符少于3个，使用split作为后备方案
+                    const splitParts = line.split('\t');
+                    parts = [
+                        splitParts[0]?.trim() || '',
+                        splitParts[1]?.trim() || '',
+                        splitParts[2]?.trim() || '',
+                        splitParts.slice(3).join('\t') || '' // 剩余部分合并作为备注
+                    ];
+                }
+            } else if (delimiter === ',') {
+                // 找到前3个逗号的位置
+                const commaIndices: number[] = [];
+                for (let i = 0; i < line.length && commaIndices.length < 3; i++) {
+                    if (line[i] === ',') {
+                        commaIndices.push(i);
                     }
+                }
+
+                if (commaIndices.length >= 3) {
+                    // 前3个字段正常提取
+                    parts = [
+                        line.substring(0, commaIndices[0]).trim(),
+                        line.substring(commaIndices[0] + 1, commaIndices[1]).trim(),
+                        line.substring(commaIndices[1] + 1, commaIndices[2]).trim(),
+                        line.substring(commaIndices[2] + 1) // 从第4个逗号开始的所有内容作为备注（包含逗号）
+                    ];
+                } else {
+                    // 如果逗号少于3个，使用split作为后备方案
+                    const splitParts = line.split(',');
+                    parts = [
+                        splitParts[0]?.trim() || '',
+                        splitParts[1]?.trim() || '',
+                        splitParts[2]?.trim() || '',
+                        splitParts.slice(3).join(',') || '' // 剩余部分合并作为备注
+                    ];
                 }
             } else {
                 // 对于空格分隔，先尝试分割前3个字段，剩余作为备注
