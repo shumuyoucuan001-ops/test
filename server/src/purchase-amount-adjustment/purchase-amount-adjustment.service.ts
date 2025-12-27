@@ -12,6 +12,7 @@ export interface PurchaseAmountAdjustment {
     creator?: string; // 创建人
     financeReviewer?: string; // 财务审核人
     dataUpdateTime?: Date; // 数据更新时间
+    hasImage?: number; // 是否有图片（0: 无, 1: 有）
 }
 
 @Injectable()
@@ -83,7 +84,7 @@ export class PurchaseAmountAdjustmentService {
             const [totalResult]: any = await connection.execute(totalQuery, queryParams);
             const total = totalResult[0].count;
 
-            // 获取数据（不包含图片，图片太大）
+            // 获取数据（不包含图片，图片太大，但返回是否有图片的标记）
             const dataQuery = `
         SELECT 
           \`采购单号(牵牛花)\` as purchaseOrderNumber,
@@ -93,7 +94,8 @@ export class PurchaseAmountAdjustmentService {
           \`财务审核状态\` as financeReviewStatus,
           \`创建人\` as creator,
           \`财务审核人\` as financeReviewer,
-          \`数据更新时间\` as dataUpdateTime
+          \`数据更新时间\` as dataUpdateTime,
+          CASE WHEN \`图片\` IS NULL THEN 0 ELSE 1 END as hasImage
         FROM \`采购单收货金额异常调整\`
         WHERE ${whereClause}
         ORDER BY \`数据更新时间\` DESC
@@ -115,6 +117,7 @@ export class PurchaseAmountAdjustmentService {
                     creator: row.creator,
                     financeReviewer: row.financeReviewer,
                     dataUpdateTime: row.dataUpdateTime,
+                    hasImage: row.hasImage || 0,
                 })),
                 total,
             };

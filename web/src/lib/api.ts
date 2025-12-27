@@ -907,6 +907,7 @@ export interface FinanceBill {
   image?: string; // 图片（base64）
   modifier?: string; // 修改人
   modifyTime?: string; // 修改时间
+  hasImage?: number; // 是否有图片（0: 无, 1: 有）
 }
 
 export const financeManagementApi = {
@@ -962,6 +963,7 @@ export interface PurchaseAmountAdjustment {
   creator?: string; // 创建人
   financeReviewer?: string; // 财务审核人
   dataUpdateTime?: string; // 数据更新时间
+  hasImage?: number; // 是否有图片（0: 无, 1: 有）
 }
 
 export const purchaseAmountAdjustmentApi = {

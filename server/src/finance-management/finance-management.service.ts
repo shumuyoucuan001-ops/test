@@ -9,6 +9,7 @@ export interface FinanceBill {
     image?: Buffer | string; // 图片（longblob）
     modifier?: string; // 修改人
     modifyTime?: Date; // 修改时间
+    hasImage?: number; // 是否有图片（0: 无, 1: 有）
 }
 
 @Injectable()
@@ -88,14 +89,15 @@ export class FinanceManagementService {
             const [totalResult]: any = await connection.execute(totalQuery, queryParams);
             const total = totalResult[0].count;
 
-            // 获取数据（不包含图片，图片太大）
+            // 获取数据（不包含图片，图片太大，但返回是否有图片的标记）
             const dataQuery = `
         SELECT 
           交易单号 as transactionNumber,
           牵牛花采购单号 as qianniuhuaPurchaseNumber,
           导入异常备注 as importExceptionRemark,
           修改人 as modifier,
-          修改时间 as modifyTime
+          修改时间 as modifyTime,
+          CASE WHEN 图片 IS NULL THEN 0 ELSE 1 END as hasImage
         FROM \`手动绑定对账单号\`
         WHERE ${whereClause}
         ORDER BY 修改时间 DESC
@@ -114,6 +116,7 @@ export class FinanceManagementService {
                     importExceptionRemark: row.importExceptionRemark,
                     modifier: row.modifier,
                     modifyTime: row.modifyTime,
+                    hasImage: row.hasImage || 0,
                 })),
                 total,
             };

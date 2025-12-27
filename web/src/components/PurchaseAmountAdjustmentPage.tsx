@@ -19,13 +19,15 @@ import {
   Popconfirm,
   Popover,
   Space,
+  Table,
+  Tag,
   Typography,
   message,
   Upload,
   Image,
   Select,
 } from 'antd';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 import { purchaseAmountAdjustmentApi, PurchaseAmountAdjustment } from '../lib/api';
@@ -54,8 +56,8 @@ export default function PurchaseAmountAdjustmentPage() {
 
   // 批量新增模态框状态
   const [batchModalVisible, setBatchModalVisible] = useState(false);
-  const [batchForm] = Form.useForm();
-  const [batchImageFileList, setBatchImageFileList] = useState<UploadFile[]>([]);
+  const [batchItems, setBatchItems] = useState<PurchaseAmountAdjustment[]>([]);
+  const [invalidItems, setInvalidItems] = useState<Array<{ item: PurchaseAmountAdjustment; reasons: string[] }>>([]);
 
   // 列设置相关状态
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
@@ -299,58 +301,144 @@ export default function PurchaseAmountAdjustmentPage() {
 
   // 打开批量新增模态框
   const handleBatchAdd = () => {
-    batchForm.resetFields();
-    setBatchImageFileList([]);
     setBatchModalVisible(true);
+    setBatchItems([]);
+    setInvalidItems([]);
   };
+
+  // 处理粘贴事件
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    const lines = pastedText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    if (lines.length === 0) {
+      message.warning('粘贴的内容为空');
+      return;
+    }
+
+    const newItems: PurchaseAmountAdjustment[] = [];
+    const newInvalidItems: Array<{ item: PurchaseAmountAdjustment; reasons: string[] }> = [];
+
+    for (const line of lines) {
+      let parts: string[];
+      if (line.includes('\t')) {
+        parts = line.split('\t').map(p => p.trim());
+      } else if (line.includes(',')) {
+        parts = line.split(',').map(p => p.trim());
+      } else {
+        parts = line.split(/\s{2,}/).map(p => p.trim());
+      }
+
+      if (parts.length >= 1 && parts[0]) {
+        const reasons: string[] = [];
+
+        // 验证采购单号必填
+        if (!parts[0] || parts[0].trim() === '') {
+          reasons.push('采购单号(牵牛花)为必填');
+        }
+
+        // 解析调整金额
+        let adjustmentAmount: number | undefined;
+        if (parts[1] && parts[1].trim() !== '') {
+          const amount = Number(parts[1]);
+          if (isNaN(amount)) {
+            reasons.push(`调整金额格式无效: ${parts[1]}`);
+          } else {
+            adjustmentAmount = amount;
+          }
+        }
+
+        const item: PurchaseAmountAdjustment = {
+          purchaseOrderNumber: parts[0] || '',
+          adjustmentAmount: adjustmentAmount,
+          adjustmentReason: parts[2] && parts[2].trim() !== '' ? parts[2].trim() : undefined,
+          image: undefined, // 图片列忽略，设为空值
+          financeReviewRemark: parts[3] && parts[3].trim() !== '' ? parts[3].trim() : undefined,
+          financeReviewStatus: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
+          financeReviewer: parts[5] && parts[5].trim() !== '' ? parts[5].trim() : undefined,
+        };
+
+        if (reasons.length > 0) {
+          newInvalidItems.push({ item, reasons });
+        } else {
+          newItems.push(item);
+        }
+      }
+    }
+
+    if (newItems.length > 0 || newInvalidItems.length > 0) {
+      setBatchItems(prev => [...prev, ...newItems]);
+      setInvalidItems(prev => [...prev, ...newInvalidItems]);
+      if (newItems.length > 0 && newInvalidItems.length > 0) {
+        message.warning(`已粘贴 ${newItems.length} 条有效数据，${newInvalidItems.length} 条数据验证失败，请查看下方验证失败列表`);
+      } else if (newItems.length > 0) {
+        message.success(`已粘贴 ${newItems.length} 条数据`);
+      } else {
+        message.error(`粘贴的 ${newInvalidItems.length} 条数据全部验证失败，请查看下方验证失败列表`);
+      }
+    } else {
+      message.warning('未能解析出有效数据，请检查格式');
+    }
+
+    const target = e.target as HTMLTextAreaElement;
+    if (target) {
+      target.value = '';
+    }
+  }, [message]);
 
   // 批量新增保存
   const handleBatchSave = async () => {
+    if (batchItems.length === 0 && invalidItems.length === 0) {
+      message.warning('请先粘贴数据');
+      return;
+    }
+
+    // 验证数据
+    const newInvalidItems: Array<{ item: PurchaseAmountAdjustment; reasons: string[] }> = [];
+
+    const validItems = batchItems.filter(item => {
+      if (!item.purchaseOrderNumber || item.purchaseOrderNumber.trim() === '') {
+        newInvalidItems.push({ item, reasons: ['采购单号(牵牛花)为必填'] });
+        return false;
+      }
+      return true;
+    });
+
+    // 更新验证失败的数据列表
+    if (newInvalidItems.length > 0) {
+      setInvalidItems(prev => [...prev, ...newInvalidItems]);
+      message.error(`有 ${newInvalidItems.length} 条数据验证失败，请查看下方验证失败列表`);
+      return;
+    }
+
+    if (validItems.length === 0) {
+      message.warning('请至少填写一条有效数据（采购单号(牵牛花)为必填）');
+      return;
+    }
+
     try {
-      const values = await batchForm.validateFields();
-      const purchaseOrderNumbers = values.purchaseOrderNumbers
-        .split('\n')
-        .map((s: string) => s.trim())
-        .filter((s: string) => s.length > 0);
-
-      if (purchaseOrderNumbers.length === 0) {
-        message.error('请输入至少一个采购单号');
-        return;
-      }
-
-      // 处理图片
-      let imageBase64: string | undefined;
-      if (batchImageFileList.length > 0 && batchImageFileList[0].originFileObj) {
-        imageBase64 = await fileToBase64(batchImageFileList[0].originFileObj);
-      }
-
-      const adjustments: PurchaseAmountAdjustment[] = purchaseOrderNumbers.map((pn: string) => ({
-        purchaseOrderNumber: pn,
-        adjustmentAmount: values.adjustmentAmount,
-        adjustmentReason: values.adjustmentReason || undefined,
-        image: imageBase64,
-        financeReviewRemark: values.financeReviewRemark || undefined,
-        financeReviewStatus: values.financeReviewStatus || undefined,
-        financeReviewer: values.financeReviewer || undefined,
-      }));
-
-      const result = await purchaseAmountAdjustmentApi.batchCreate(adjustments);
+      const result = await purchaseAmountAdjustmentApi.batchCreate(validItems);
       message.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
-      if (result.errors.length > 0) {
-        message.warning(result.errors.join('; '));
+      if (result.errors && result.errors.length > 0) {
+        message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
       setBatchModalVisible(false);
+      setBatchItems([]);
+      setInvalidItems([]);
       loadAdjustments();
-    } catch (error: any) {
-      message.error(error.message || '批量创建失败');
-      console.error(error);
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || e?.message || "批量创建失败");
+      console.error(e);
     }
   };
 
   // 查看图片
   const handleViewImage = async (adjustment: PurchaseAmountAdjustment) => {
-    if (!adjustment.image && adjustment.purchaseOrderNumber) {
-      // 如果没有图片，尝试从服务器获取
+    if (adjustment.purchaseOrderNumber) {
       try {
         const fullAdjustment = await purchaseAmountAdjustmentApi.get(adjustment.purchaseOrderNumber);
         if (fullAdjustment && fullAdjustment.image) {
@@ -362,11 +450,6 @@ export default function PurchaseAmountAdjustmentPage() {
       } catch (error) {
         message.error('获取图片失败');
       }
-    } else if (adjustment.image) {
-      setPreviewImage(`data:image/png;base64,${adjustment.image}`);
-      setPreviewVisible(true);
-    } else {
-      message.info('该记录没有图片');
     }
   };
 
@@ -397,16 +480,16 @@ export default function PurchaseAmountAdjustmentPage() {
     {
       title: '图片',
       key: 'image',
-      width: 100,
+      width: 120,
       render: (record: PurchaseAmountAdjustment) => (
-        record.image ? (
+        record.hasImage === 1 ? (
           <Button
             type="link"
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleViewImage(record)}
           >
-            查看
+            查看图片
           </Button>
         ) : '-'
       ),
@@ -666,24 +749,37 @@ export default function PurchaseAmountAdjustmentPage() {
             label="图片"
             help="支持上传图片，大小不超过10MB"
           >
-            <Upload
-              listType="picture-card"
-              fileList={imageFileList}
-              beforeUpload={beforeUpload}
-              onChange={handleImageChange}
-              onRemove={() => {
-                setImageFileList([]);
-                return true;
-              }}
-              maxCount={1}
-            >
-              {imageFileList.length < 1 && (
-                <div>
-                  <PlusOutlined />
-                  <div style={{ marginTop: 8 }}>上传图片</div>
-                </div>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                listType="picture-card"
+                fileList={imageFileList}
+                beforeUpload={beforeUpload}
+                onChange={handleImageChange}
+                onRemove={() => {
+                  setImageFileList([]);
+                  return true;
+                }}
+                maxCount={1}
+              >
+                {imageFileList.length < 1 && (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>上传图片</div>
+                  </div>
+                )}
+              </Upload>
+              {imageFileList.length > 0 && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setImageFileList([]);
+                  }}
+                >
+                  清空图片
+                </Button>
               )}
-            </Upload>
+            </Space>
           </Form.Item>
 
           <Form.Item
@@ -721,101 +817,214 @@ export default function PurchaseAmountAdjustmentPage() {
         onOk={handleBatchSave}
         onCancel={() => {
           setBatchModalVisible(false);
-          batchForm.resetFields();
-          setBatchImageFileList([]);
+          setBatchItems([]);
+          setInvalidItems([]);
         }}
-        width={800}
-        okText="创建"
+        okText="确定创建"
         cancelText="取消"
+        width={900}
+        destroyOnClose
       >
-        <Form
-          form={batchForm}
-          layout="vertical"
-        >
-          <Form.Item
-            label="采购单号（每行一个）"
-            name="purchaseOrderNumbers"
-            rules={[
-              { required: true, message: '请输入采购单号' },
-            ]}
-          >
-            <TextArea
-              rows={10}
-              placeholder="请输入采购单号，每行一个"
+        <div style={{
+          marginBottom: 16,
+          padding: '16px',
+          background: '#f5f5f5',
+          borderRadius: '4px',
+        }}>
+          <div style={{
+            marginBottom: 8,
+            color: '#666',
+            fontSize: 14,
+          }}>
+            提示：您可以从 Excel 中复制数据（包含采购单号(牵牛花)、调整金额、异常调整原因备注、财务审核意见备注、财务审核状态、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）。注意：图片列会被忽略，设为空值。
+          </div>
+          <Input.TextArea
+            placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：采购单号(牵牛花)	调整金额	异常调整原因备注	财务审核意见备注	财务审核状态	财务审核人&#10;示例：PO001	100.00	备注	审核意见	已审核	张三"
+            rows={4}
+            onPaste={handlePaste}
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 14,
+            }}
+          />
+        </div>
+
+        {/* 有效数据预览表格 */}
+        {batchItems.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, fontWeight: 'bold', color: '#52c41a' }}>
+              ✓ 有效数据 ({batchItems.length} 条)
+            </div>
+            <Table
+              columns={[
+                {
+                  title: '采购单号(牵牛花)',
+                  dataIndex: 'purchaseOrderNumber',
+                  key: 'purchaseOrderNumber',
+                  render: (text: string) => (
+                    <span style={{ color: !text ? 'red' : 'inherit' }}>
+                      {text || '(必填)'}
+                    </span>
+                  ),
+                },
+                {
+                  title: '调整金额',
+                  dataIndex: 'adjustmentAmount',
+                  key: 'adjustmentAmount',
+                  render: (v: any) => v !== null && v !== undefined ? `¥${Number(v).toFixed(2)}` : '-',
+                },
+                {
+                  title: '异常调整原因备注',
+                  dataIndex: 'adjustmentReason',
+                  key: 'adjustmentReason',
+                  render: (v: any) => v || '-',
+                },
+                {
+                  title: '财务审核意见备注',
+                  dataIndex: 'financeReviewRemark',
+                  key: 'financeReviewRemark',
+                  render: (v: any) => v || '-',
+                },
+                {
+                  title: '财务审核状态',
+                  dataIndex: 'financeReviewStatus',
+                  key: 'financeReviewStatus',
+                  render: (v: any) => v || '-',
+                },
+                {
+                  title: '财务审核人',
+                  dataIndex: 'financeReviewer',
+                  key: 'financeReviewer',
+                  render: (v: any) => v || '-',
+                },
+                {
+                  title: '操作',
+                  key: 'action',
+                  width: 100,
+                  render: (_: any, record: PurchaseAmountAdjustment, index: number) => (
+                    <Button
+                      type="link"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        setBatchItems(prev => prev.filter((_, i) => i !== index));
+                      }}
+                    >
+                      删除
+                    </Button>
+                  ),
+                },
+              ]}
+              dataSource={batchItems.map((item, index) => ({ ...item, key: index }))}
+              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
+              size="small"
             />
-          </Form.Item>
+          </div>
+        )}
 
-          <Form.Item
-            label="调整金额（可选，将应用到所有记录）"
-            name="adjustmentAmount"
-          >
-            <InputNumber
-              placeholder="请输入调整金额"
-              style={{ width: '100%' }}
-              precision={2}
-              min={-999999999.99}
-              max={999999999.99}
+        {/* 验证失败数据表格 */}
+        {invalidItems.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, fontWeight: 'bold', color: '#ff4d4f' }}>
+              ✗ 验证失败数据 ({invalidItems.length} 条)
+            </div>
+            <Table
+              columns={[
+                {
+                  title: '采购单号(牵牛花)',
+                  key: 'purchaseOrderNumber',
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) => (
+                    <span style={{ color: !record.item.purchaseOrderNumber ? 'red' : 'inherit' }}>
+                      {record.item.purchaseOrderNumber || '(必填)'}
+                    </span>
+                  ),
+                },
+                {
+                  title: '调整金额',
+                  key: 'adjustmentAmount',
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) =>
+                    record.item.adjustmentAmount !== null && record.item.adjustmentAmount !== undefined
+                      ? `¥${Number(record.item.adjustmentAmount).toFixed(2)}` : '-'
+                },
+                {
+                  title: '异常调整原因备注',
+                  key: 'adjustmentReason',
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) =>
+                    record.item.adjustmentReason || '-'
+                },
+                {
+                  title: '财务审核意见备注',
+                  key: 'financeReviewRemark',
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) =>
+                    record.item.financeReviewRemark || '-'
+                },
+                {
+                  title: '财务审核状态',
+                  key: 'financeReviewStatus',
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) =>
+                    record.item.financeReviewStatus || '-'
+                },
+                {
+                  title: '财务审核人',
+                  key: 'financeReviewer',
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) =>
+                    record.item.financeReviewer || '-'
+                },
+                {
+                  title: '失败原因',
+                  key: 'reasons',
+                  width: 300,
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }) => (
+                    <div>
+                      {record.reasons.map((reason, idx) => (
+                        <Tag key={idx} color="error" style={{ marginBottom: 4, display: 'block' }}>
+                          {reason}
+                        </Tag>
+                      ))}
+                    </div>
+                  ),
+                },
+                {
+                  title: '操作',
+                  key: 'action',
+                  width: 100,
+                  render: (_: any, record: { item: PurchaseAmountAdjustment; reasons: string[] }, index: number) => (
+                    <Button
+                      type="link"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        setInvalidItems(prev => prev.filter((_, i) => i !== index));
+                      }}
+                    >
+                      删除
+                    </Button>
+                  ),
+                },
+              ]}
+              dataSource={invalidItems.map((item, index) => ({ ...item, key: index }))}
+              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
+              size="small"
+              style={{
+                backgroundColor: '#fff1f0',
+              }}
             />
-          </Form.Item>
+          </div>
+        )}
 
-          <Form.Item
-            label="异常调整原因备注（可选，将应用到所有记录）"
-            name="adjustmentReason"
-          >
-            <TextArea
-              rows={4}
-              placeholder="请输入异常调整原因备注"
-              maxLength={245}
-              showCount
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="图片（可选，将应用到所有记录）"
-            help="支持上传图片，大小不超过10MB"
-          >
-            <Upload
-              listType="picture-card"
-              fileList={batchImageFileList}
-              beforeUpload={beforeUpload}
-              onChange={(info) => setBatchImageFileList(info.fileList)}
-              maxCount={1}
-            >
-              {batchImageFileList.length < 1 && (
-                <div>
-                  <PlusOutlined />
-                  <div style={{ marginTop: 8 }}>上传图片</div>
-                </div>
-              )}
-            </Upload>
-          </Form.Item>
-
-          <Form.Item
-            label="财务审核意见备注（可选，将应用到所有记录）"
-            name="financeReviewRemark"
-          >
-            <TextArea
-              rows={4}
-              placeholder="请输入财务审核意见备注"
-              maxLength={245}
-              showCount
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="财务审核状态（可选，将应用到所有记录）"
-            name="financeReviewStatus"
-          >
-            <Input placeholder="请输入财务审核状态" maxLength={20} />
-          </Form.Item>
-
-          <Form.Item
-            label="财务审核人（可选，将应用到所有记录）"
-            name="financeReviewer"
-          >
-            <Input placeholder="请输入财务审核人" maxLength={20} />
-          </Form.Item>
-        </Form>
+        {/* 无数据提示 */}
+        {batchItems.length === 0 && invalidItems.length === 0 && (
+          <div style={{
+            padding: 40,
+            textAlign: 'center',
+            color: '#999',
+            fontSize: 14
+          }}>
+            暂无数据，请粘贴数据到上方输入框
+          </div>
+        )}
       </Modal>
 
       {/* 图片预览 */}
