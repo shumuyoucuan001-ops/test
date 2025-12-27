@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -761,7 +762,7 @@ export default function SupplierManagementPage() {
                                 操作人：{log.userName || '系统'}
                               </div>
                               <div style={{ fontSize: 12, color: '#999' }}>
-                                时间：{log.createdAt}
+                                时间：{formatDateTime(log.createdAt)}
                               </div>
                               {log.changes && Object.keys(log.changes).length > 0 && (
                                 <div style={{ marginTop: 8, fontSize: 12 }}>

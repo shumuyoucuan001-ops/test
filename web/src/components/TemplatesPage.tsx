@@ -1,6 +1,7 @@
 "use client";
 
 import { CreateTemplateDto, LabelTemplate, templateApi, UpdateTemplateDto } from '@/lib/api';
+import { formatDateTime } from '@/lib/dateUtils';
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   Button,
@@ -123,7 +124,7 @@ export default function TemplatesPage() {
       title: '创建时间',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (text: string) => new Date(text).toLocaleString(),
+      render: (text: string) => formatDateTime(text),
     },
     {
       title: '操作',

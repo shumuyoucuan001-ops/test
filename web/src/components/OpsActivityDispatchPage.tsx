@@ -1,6 +1,7 @@
 "use client";
 
 import { OpsActivityDispatchItem, opsActivityDispatchApi, productMasterApi } from "@/lib/api";
+import { formatDateTime } from "@/lib/dateUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
@@ -648,14 +649,14 @@ export default function OpsActivityDispatchPage() {
                 dataIndex: '结束时间',
                 key: '结束时间',
                 width: 180,
-                render: (text: string) => text || '-',
+                render: (text: string) => formatDateTime(text),
             },
             {
                 title: '数据更新时间',
                 dataIndex: '数据更新时间',
                 key: '数据更新时间',
                 width: 180,
-                render: (text: string) => text || '-',
+                render: (text: string) => formatDateTime(text),
             },
         ];
 
@@ -1146,7 +1147,7 @@ export default function OpsActivityDispatchPage() {
                                 { title: '活动备注', dataIndex: '活动备注', key: '活动备注' },
                                 { title: '剩余活动天数', dataIndex: '剩余活动天数', key: '剩余活动天数', render: (v: any) => v !== null ? Number(v) : '-' },
                                 { title: '活动确认人', dataIndex: '活动确认人', key: '活动确认人' },
-                                { title: '结束时间', dataIndex: '结束时间', key: '结束时间', render: (v: any) => v || '-' },
+                                { title: '结束时间', dataIndex: '结束时间', key: '结束时间', render: (v: any) => formatDateTime(v) },
                                 {
                                     title: '操作',
                                     key: 'action',

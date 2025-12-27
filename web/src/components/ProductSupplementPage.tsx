@@ -1,6 +1,7 @@
 "use client";
 
 import { LabelDataRecord, labelDataApi } from '@/lib/api';
+import { formatDateTime } from '@/lib/dateUtils';
 import { DeleteOutlined, EditOutlined, HistoryOutlined } from '@ant-design/icons';
 import {
   App,
@@ -435,7 +436,7 @@ export default function ProductSupplementPage() {
                       fontSize: 13,
                       color: '#666'
                     }}>
-                      创建时间：{editing.createdAt}
+                      创建时间：{formatDateTime(editing.createdAt)}
                     </div>
                   )}
                   {logsLoading ? (
@@ -467,7 +468,7 @@ export default function ProductSupplementPage() {
                                 操作人：{log.userName || log.userId || '系统'}
                               </div>
                               <div style={{ fontSize: 12, color: '#999' }}>
-                                时间：{log.createdAt}
+                                时间：{formatDateTime(log.createdAt)}
                               </div>
                               {log.changes && Object.keys(log.changes).length > 0 && (
                                 <div style={{ marginTop: 8, fontSize: 12 }}>

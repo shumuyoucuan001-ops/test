@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -597,7 +598,7 @@ export default function PurchaseAmountAdjustmentPage() {
       dataIndex: 'dataUpdateTime',
       key: 'dataUpdateTime',
       width: 180,
-      render: (text: string) => text ? new Date(text).toLocaleString('zh-CN') : '-',
+      render: (text: string) => formatDateTime(text),
     },
     {
       title: '操作',

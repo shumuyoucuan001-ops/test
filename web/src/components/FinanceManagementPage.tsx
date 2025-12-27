@@ -10,6 +10,7 @@ import {
   UploadOutlined,
   EyeOutlined,
 } from '@ant-design/icons';
+import { formatDateTime } from '@/lib/dateUtils';
 import {
   Button,
   Card,
@@ -562,7 +563,7 @@ export default function FinanceManagementPage() {
       dataIndex: 'modifyTime',
       key: 'modifyTime',
       width: 180,
-      render: (text: string) => text ? new Date(text).toLocaleString('zh-CN') : '-',
+      render: (text: string) => formatDateTime(text),
     },
     {
       title: '操作',

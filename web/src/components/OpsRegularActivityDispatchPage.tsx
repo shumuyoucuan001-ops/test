@@ -1,6 +1,7 @@
 "use client";
 
 import { OpsRegularActivityDispatchItem, opsRegularActivityDispatchApi, productMasterApi } from "@/lib/api";
+import { formatDateTime } from "@/lib/dateUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
@@ -490,7 +491,7 @@ export default function OpsRegularActivityDispatchPage() {
                 dataIndex: '数据更新时间',
                 key: '数据更新时间',
                 width: 180,
-                render: (text: string) => text || '-',
+                render: (text: string) => formatDateTime(text),
             },
         ];
 

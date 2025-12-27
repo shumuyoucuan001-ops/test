@@ -1,6 +1,7 @@
 "use client";
 
 import { refund1688Api, Refund1688FollowUp } from '@/lib/api';
+import { formatDateTime } from '@/lib/dateUtils';
 import { LinkOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import {
     Button,
@@ -601,7 +602,7 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '跟进时间',
             key: '跟进时间',
             width: 180,
-            render: (text) => text ? new Date(text).toLocaleString('zh-CN') : '-',
+            render: (text) => formatDateTime(text),
         },
         {
             title: '操作',
