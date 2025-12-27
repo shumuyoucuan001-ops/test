@@ -5,6 +5,7 @@ import {
   EditOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SearchOutlined,
   SettingOutlined,
   UploadOutlined,
   EyeOutlined,
@@ -158,24 +159,41 @@ export default function FinanceManagementPage() {
   };
 
   // 打开编辑模态框
-  const handleEdit = (bill: FinanceBill) => {
+  const handleEdit = async (bill: FinanceBill) => {
     setEditingBill(bill);
     form.setFieldsValue({
       transactionNumber: bill.transactionNumber,
       qianniuhuaPurchaseNumber: bill.qianniuhuaPurchaseNumber,
       importExceptionRemark: bill.importExceptionRemark,
     });
-    // 如果有图片，设置预览
-    if (bill.image) {
-      setImageFileList([{
-        uid: '-1',
-        name: 'image.png',
-        status: 'done',
-        url: `data:image/png;base64,${bill.image}`,
-      }]);
+    
+    // 如果有图片标识，异步加载图片
+    if (bill.hasImage === 1 && bill.transactionNumber) {
+      try {
+        const fullBill = await financeManagementApi.get(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
+        if (fullBill && fullBill.image) {
+          setImageFileList([{
+            uid: '-1',
+            name: 'image.png',
+            status: 'done',
+            url: `data:image/png;base64,${fullBill.image}`,
+          }]);
+          // 在表单中设置图片字段（用于判断是否清空）
+          form.setFieldsValue({ image: fullBill.image });
+        } else {
+          setImageFileList([]);
+          form.setFieldsValue({ image: undefined });
+        }
+      } catch (error) {
+        console.error('加载图片失败:', error);
+        setImageFileList([]);
+        form.setFieldsValue({ image: undefined });
+      }
     } else {
       setImageFileList([]);
+      form.setFieldsValue({ image: undefined });
     }
+    
     setModalVisible(true);
   };
 
@@ -222,6 +240,7 @@ export default function FinanceManagementPage() {
       // 处理图片
       let imageBase64: string | undefined;
       if (imageFileList.length > 0 && imageFileList[0].originFileObj) {
+        // 新上传的图片
         imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
       } else if (imageFileList.length > 0 && imageFileList[0].url) {
         // 编辑时，如果图片没有变化，使用原有的base64
@@ -229,9 +248,20 @@ export default function FinanceManagementPage() {
         if (url.startsWith('data:image')) {
           imageBase64 = url.split(',')[1];
         }
-      } else if (editingBill && editingBill.hasImage === 1 && imageFileList.length === 0) {
-        // 编辑时，如果原来有图片但现在清空了，使用空字符串来清空数据库中的值
-        imageBase64 = '';
+      } else {
+        // 图片被清空或没有图片
+        // 检查表单中的image字段，如果存在且是空字符串，说明原来有图片但被清空了
+        const formImageValue = form.getFieldValue('image');
+        if (formImageValue === '') {
+          // 明确设置为空字符串，表示要清空数据库中的图片
+          imageBase64 = '';
+        } else if (editingBill && editingBill.hasImage === 1 && imageFileList.length === 0) {
+          // 编辑时，原来有图片但现在清空了，使用空字符串来清空数据库中的值
+          imageBase64 = '';
+        } else {
+          // 原来就没有图片，不设置image字段
+          imageBase64 = undefined;
+        }
       }
 
       const billData: FinanceBill = {
@@ -571,12 +601,21 @@ export default function FinanceManagementPage() {
         }
         extra={
           <Space>
-            <Search
+            <Input
               placeholder="搜索交易单号或牵牛花采购单号"
               allowClear
               style={{ width: 250 }}
-              onSearch={handleSearch}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onPressEnter={() => handleSearch(searchText)}
             />
+            <Button
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={() => handleSearch(searchText)}
+            >
+              搜索
+            </Button>
             <Popover
               content={
                 <ColumnSettings
@@ -628,10 +667,11 @@ export default function FinanceManagementPage() {
               icon={<ReloadOutlined />}
               onClick={() => {
                 setSearchText('');
-                loadBills();
+                setCurrentPage(1);
+                loadBills(1, undefined);
               }}
             >
-              刷新
+              重置
             </Button>
           </Space>
         }
@@ -713,6 +753,14 @@ export default function FinanceManagementPage() {
           <Form.Item
             label="图片"
             help="支持上传图片，大小不超过10MB"
+            name="image"
+            style={{ display: 'none' }}
+          >
+            <Input type="hidden" />
+          </Form.Item>
+          <Form.Item
+            label=" "
+            colon={false}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
               <Upload
@@ -722,6 +770,8 @@ export default function FinanceManagementPage() {
                 onChange={handleImageChange}
                 onRemove={() => {
                   setImageFileList([]);
+                  // 使用空字符串，确保提交时会带上该字段，从而真正清空数据库中的值
+                  form.setFieldValue('image', '');
                   return true;
                 }}
                 maxCount={1}
@@ -739,6 +789,8 @@ export default function FinanceManagementPage() {
                   size="small"
                   onClick={() => {
                     setImageFileList([]);
+                    // 使用空字符串，确保提交时会带上该字段，从而真正清空数据库中的值
+                    form.setFieldValue('image', '');
                   }}
                 >
                   清空图片
