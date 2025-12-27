@@ -60,6 +60,11 @@ export class PurchaseAmountAdjustmentService {
         page: number = 1,
         limit: number = 20,
         search?: string,
+        purchaseOrderNumber?: string,
+        adjustmentAmount?: string,
+        creator?: string,
+        financeReviewer?: string,
+        dataUpdateTime?: string,
     ): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> {
         const connection = await this.getConnection();
 
@@ -70,9 +75,33 @@ export class PurchaseAmountAdjustmentService {
             let whereClause = '1=1';
             const queryParams: any[] = [];
 
+            // 综合搜索（搜索所有字段，除了图片）
             if (search) {
-                whereClause += ' AND (`采购单号(牵牛花)` LIKE ? OR `异常调整原因备注` LIKE ? OR `财务审核意见备注` LIKE ?)';
-                queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+                whereClause += ' AND (`采购单号(牵牛花)` LIKE ? OR `异常调整原因备注` LIKE ? OR `财务审核意见备注` LIKE ? OR `创建人` LIKE ? OR `财务审核人` LIKE ?)';
+                queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+            }
+
+            // 单独的字段搜索
+            if (purchaseOrderNumber) {
+                whereClause += ' AND `采购单号(牵牛花)` LIKE ?';
+                queryParams.push(`%${purchaseOrderNumber}%`);
+            }
+            if (adjustmentAmount) {
+                whereClause += ' AND `调整金额` LIKE ?';
+                queryParams.push(`%${adjustmentAmount}%`);
+            }
+            if (creator) {
+                whereClause += ' AND `创建人` LIKE ?';
+                queryParams.push(`%${creator}%`);
+            }
+            if (financeReviewer) {
+                whereClause += ' AND `财务审核人` LIKE ?';
+                queryParams.push(`%${financeReviewer}%`);
+            }
+            if (dataUpdateTime) {
+                // 支持日期时间搜索，使用 LIKE 匹配日期时间字符串
+                whereClause += ' AND DATE_FORMAT(`数据更新时间`, \'%Y-%m-%d %H:%i:%s\') LIKE ?';
+                queryParams.push(`%${dataUpdateTime}%`);
             }
 
             // 获取总数

@@ -12,10 +12,14 @@ export class FinanceManagementController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
     @Query('search') search?: string,
+    @Query('transactionNumber') transactionNumber?: string,
+    @Query('qianniuhuaPurchaseNumber') qianniuhuaPurchaseNumber?: string,
+    @Query('importExceptionRemark') importExceptionRemark?: string,
+    @Query('modifier') modifier?: string,
   ): Promise<{ data: FinanceBill[]; total: number }> {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    return this.service.getAllBills(pageNum, limitNum, search);
+    return this.service.getAllBills(pageNum, limitNum, search, transactionNumber, qianniuhuaPurchaseNumber, importExceptionRemark, modifier);
   }
 
   // 获取单个账单

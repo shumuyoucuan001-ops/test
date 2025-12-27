@@ -63,6 +63,10 @@ export class FinanceManagementService {
         page: number = 1,
         limit: number = 20,
         search?: string,
+        transactionNumber?: string,
+        qianniuhuaPurchaseNumber?: string,
+        importExceptionRemark?: string,
+        modifier?: string,
     ): Promise<{ data: FinanceBill[]; total: number }> {
         const connection = await this.getConnection();
 
@@ -75,9 +79,28 @@ export class FinanceManagementService {
             let whereClause = '1=1';
             const queryParams: any[] = [];
 
+            // 综合搜索（搜索所有字段，除了图片）
             if (search) {
-                whereClause += ' AND (交易单号 LIKE ? OR 牵牛花采购单号 LIKE ?)';
-                queryParams.push(`%${search}%`, `%${search}%`);
+                whereClause += ' AND (交易单号 LIKE ? OR 牵牛花采购单号 LIKE ? OR 导入异常备注 LIKE ? OR 修改人 LIKE ?)';
+                queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+            }
+
+            // 单独的字段搜索
+            if (transactionNumber) {
+                whereClause += ' AND 交易单号 LIKE ?';
+                queryParams.push(`%${transactionNumber}%`);
+            }
+            if (qianniuhuaPurchaseNumber) {
+                whereClause += ' AND 牵牛花采购单号 LIKE ?';
+                queryParams.push(`%${qianniuhuaPurchaseNumber}%`);
+            }
+            if (importExceptionRemark) {
+                whereClause += ' AND 导入异常备注 LIKE ?';
+                queryParams.push(`%${importExceptionRemark}%`);
+            }
+            if (modifier) {
+                whereClause += ' AND 修改人 LIKE ?';
+                queryParams.push(`%${modifier}%`);
             }
 
             // 获取总数

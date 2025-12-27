@@ -46,6 +46,11 @@ export default function FinanceManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
+  // 单独的搜索字段
+  const [searchTransactionNumber, setSearchTransactionNumber] = useState('');
+  const [searchQianniuhuaPurchaseNumber, setSearchQianniuhuaPurchaseNumber] = useState('');
+  const [searchImportExceptionRemark, setSearchImportExceptionRemark] = useState('');
+  const [searchModifier, setSearchModifier] = useState('');
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -69,13 +74,24 @@ export default function FinanceManagementPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // 加载账单列表
-  const loadBills = async (page: number = currentPage, search?: string) => {
+  const loadBills = async (
+    page: number = currentPage,
+    search?: string,
+    transactionNumber?: string,
+    qianniuhuaPurchaseNumber?: string,
+    importExceptionRemark?: string,
+    modifier?: string,
+  ) => {
     try {
       setLoading(true);
       const result = await financeManagementApi.getAll({
         page,
         limit: pageSize,
         search,
+        transactionNumber,
+        qianniuhuaPurchaseNumber,
+        importExceptionRemark,
+        modifier,
       });
       setBills(result.data);
       setTotal(result.total);
@@ -143,11 +159,29 @@ export default function FinanceManagementPage() {
     saveColumnOrder(newOrder);
   };
 
-  // 搜索处理
-  const handleSearch = (value: string) => {
-    setSearchText(value);
+  // 执行搜索（使用所有搜索条件）
+  const handleSearchAll = () => {
     setCurrentPage(1);
-    loadBills(1, value);
+    loadBills(
+      1,
+      searchText || undefined,
+      searchTransactionNumber || undefined,
+      searchQianniuhuaPurchaseNumber || undefined,
+      searchImportExceptionRemark || undefined,
+      searchModifier || undefined,
+    );
+  };
+
+  // 使用当前搜索条件刷新数据
+  const refreshBills = () => {
+    loadBills(
+      currentPage,
+      searchText || undefined,
+      searchTransactionNumber || undefined,
+      searchQianniuhuaPurchaseNumber || undefined,
+      searchImportExceptionRemark || undefined,
+      searchModifier || undefined,
+    );
   };
 
   // 打开新增模态框
@@ -286,7 +320,7 @@ export default function FinanceManagementPage() {
       }
 
       setModalVisible(false);
-      loadBills();
+      refreshBills();
     } catch (error: any) {
       message.error(error.message || '保存失败');
       console.error(error);
@@ -298,7 +332,7 @@ export default function FinanceManagementPage() {
     try {
       await financeManagementApi.delete(transactionNumber, qianniuhuaPurchaseNumber);
       message.success('删除成功');
-      loadBills();
+      refreshBills();
     } catch (error: any) {
       message.error(error.message || '删除失败');
       console.error(error);
@@ -327,7 +361,7 @@ export default function FinanceManagementPage() {
       const result = await financeManagementApi.batchDelete(billsToDelete);
       message.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       setSelectedRowKeys([]);
-      loadBills();
+      refreshBills();
     } catch (error: any) {
       message.error(error.message || '批量删除失败');
       console.error(error);
@@ -450,7 +484,7 @@ export default function FinanceManagementPage() {
       setBatchModalVisible(false);
       setBatchItems([]);
       setInvalidItems([]);
-      loadBills();
+      refreshBills();
     } catch (e: any) {
       message.error(e?.response?.data?.message || e?.message || "批量创建失败");
       console.error(e);
@@ -571,13 +605,25 @@ export default function FinanceManagementPage() {
       ? columnOrder
       : allColumns.map(col => col.key as string).filter(Boolean);
 
+    // 确保操作列在顺序中
+    if (!currentOrder.includes('action')) {
+      currentOrder.push('action');
+    }
+
     // 按照保存的顺序排列
     const orderedColumns = currentOrder
       .map(key => allColumns.find(col => col.key === key))
       .filter(Boolean) as typeof allColumns;
 
-    // 过滤隐藏的列
-    return orderedColumns.filter(col => !hiddenColumns.has(col.key as string));
+    // 过滤隐藏的列，但始终显示操作列
+    return orderedColumns.filter(col => {
+      const colKey = col.key as string;
+      // 操作列始终显示
+      if (colKey === 'action') {
+        return true;
+      }
+      return !hiddenColumns.has(colKey);
+    });
   };
 
   const columns = getFilteredColumns();
@@ -601,18 +647,19 @@ export default function FinanceManagementPage() {
         }
         extra={
           <Space>
+            {/* 综合搜索框 */}
             <Input
-              placeholder="搜索交易单号或牵牛花采购单号"
+              placeholder="综合搜索（所有字段，除图片）"
               allowClear
-              style={{ width: 250 }}
+              style={{ width: 220 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              onPressEnter={() => handleSearch(searchText)}
+              onPressEnter={handleSearchAll}
             />
             <Button
               type="primary"
               icon={<SearchOutlined />}
-              onClick={() => handleSearch(searchText)}
+              onClick={handleSearchAll}
             >
               搜索
             </Button>
@@ -667,6 +714,10 @@ export default function FinanceManagementPage() {
               icon={<ReloadOutlined />}
               onClick={() => {
                 setSearchText('');
+                setSearchTransactionNumber('');
+                setSearchQianniuhuaPurchaseNumber('');
+                setSearchImportExceptionRemark('');
+                setSearchModifier('');
                 setCurrentPage(1);
                 loadBills(1, undefined);
               }}
@@ -676,6 +727,46 @@ export default function FinanceManagementPage() {
           </Space>
         }
       >
+        {/* 搜索区域 */}
+        <div style={{ marginBottom: 16, padding: '16px', backgroundColor: '#fafafa', borderRadius: 4 }}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
+            <Space wrap>
+              <Input
+                placeholder="交易单号"
+                allowClear
+                style={{ width: 180 }}
+                value={searchTransactionNumber}
+                onChange={(e) => setSearchTransactionNumber(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="牵牛花采购单号"
+                allowClear
+                style={{ width: 180 }}
+                value={searchQianniuhuaPurchaseNumber}
+                onChange={(e) => setSearchQianniuhuaPurchaseNumber(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="导入异常备注"
+                allowClear
+                style={{ width: 180 }}
+                value={searchImportExceptionRemark}
+                onChange={(e) => setSearchImportExceptionRemark(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="修改人"
+                allowClear
+                style={{ width: 180 }}
+                value={searchModifier}
+                onChange={(e) => setSearchModifier(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+            </Space>
+          </Space>
+        </div>
         <ResponsiveTable<FinanceBill>
           columns={columns as any}
           dataSource={bills}
@@ -694,7 +785,14 @@ export default function FinanceManagementPage() {
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size || 20);
-              loadBills(page, searchText);
+              loadBills(
+                page,
+                searchText || undefined,
+                searchTransactionNumber || undefined,
+                searchQianniuhuaPurchaseNumber || undefined,
+                searchImportExceptionRemark || undefined,
+                searchModifier || undefined,
+              );
             },
           }}
         />

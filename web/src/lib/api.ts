@@ -916,6 +916,10 @@ export const financeManagementApi = {
     page?: number;
     limit?: number;
     search?: string;
+    transactionNumber?: string;
+    qianniuhuaPurchaseNumber?: string;
+    importExceptionRemark?: string;
+    modifier?: string;
   }): Promise<{ data: FinanceBill[]; total: number }> =>
     api.get('/finance-management', { params }).then(res => res.data),
 
@@ -972,6 +976,11 @@ export const purchaseAmountAdjustmentApi = {
     page?: number;
     limit?: number;
     search?: string;
+    purchaseOrderNumber?: string;
+    adjustmentAmount?: string;
+    creator?: string;
+    financeReviewer?: string;
+    dataUpdateTime?: string;
   }): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> =>
     api.get('/purchase-amount-adjustment', { params }).then(res => res.data),
 

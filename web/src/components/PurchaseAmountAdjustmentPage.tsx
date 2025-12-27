@@ -46,6 +46,12 @@ export default function PurchaseAmountAdjustmentPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
+  // 单独的搜索字段
+  const [searchPurchaseOrderNumber, setSearchPurchaseOrderNumber] = useState('');
+  const [searchAdjustmentAmount, setSearchAdjustmentAmount] = useState('');
+  const [searchCreator, setSearchCreator] = useState('');
+  const [searchFinanceReviewer, setSearchFinanceReviewer] = useState('');
+  const [searchDataUpdateTime, setSearchDataUpdateTime] = useState('');
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -69,13 +75,26 @@ export default function PurchaseAmountAdjustmentPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // 加载调整记录列表
-  const loadAdjustments = async (page: number = currentPage, search?: string) => {
+  const loadAdjustments = async (
+    page: number = currentPage,
+    search?: string,
+    purchaseOrderNumber?: string,
+    adjustmentAmount?: string,
+    creator?: string,
+    financeReviewer?: string,
+    dataUpdateTime?: string,
+  ) => {
     try {
       setLoading(true);
       const result = await purchaseAmountAdjustmentApi.getAll({
         page,
         limit: pageSize,
         search,
+        purchaseOrderNumber,
+        adjustmentAmount,
+        creator,
+        financeReviewer,
+        dataUpdateTime,
       });
       setAdjustments(result.data);
       setTotal(result.total);
@@ -143,11 +162,31 @@ export default function PurchaseAmountAdjustmentPage() {
     saveColumnOrder(newOrder);
   };
 
-  // 搜索处理
-  const handleSearch = (value: string) => {
-    setSearchText(value);
+  // 执行搜索（使用所有搜索条件）
+  const handleSearchAll = () => {
     setCurrentPage(1);
-    loadAdjustments(1, value);
+    loadAdjustments(
+      1,
+      searchText || undefined,
+      searchPurchaseOrderNumber || undefined,
+      searchAdjustmentAmount || undefined,
+      searchCreator || undefined,
+      searchFinanceReviewer || undefined,
+      searchDataUpdateTime || undefined,
+    );
+  };
+
+  // 使用当前搜索条件刷新数据
+  const refreshAdjustments = () => {
+    loadAdjustments(
+      currentPage,
+      searchText || undefined,
+      searchPurchaseOrderNumber || undefined,
+      searchAdjustmentAmount || undefined,
+      searchCreator || undefined,
+      searchFinanceReviewer || undefined,
+      searchDataUpdateTime || undefined,
+    );
   };
 
   // 打开新增模态框
@@ -291,7 +330,7 @@ export default function PurchaseAmountAdjustmentPage() {
       }
 
       setModalVisible(false);
-      loadAdjustments();
+      refreshAdjustments();
     } catch (error: any) {
       message.error(error.message || '保存失败');
       console.error(error);
@@ -303,7 +342,7 @@ export default function PurchaseAmountAdjustmentPage() {
     try {
       await purchaseAmountAdjustmentApi.delete(purchaseOrderNumber);
       message.success('删除成功');
-      loadAdjustments();
+      refreshAdjustments();
     } catch (error: any) {
       message.error(error.message || '删除失败');
       console.error(error);
@@ -322,7 +361,7 @@ export default function PurchaseAmountAdjustmentPage() {
       const result = await purchaseAmountAdjustmentApi.batchDelete(purchaseOrderNumbers);
       message.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       setSelectedRowKeys([]);
-      loadAdjustments();
+      refreshAdjustments();
     } catch (error: any) {
       message.error(error.message || '批量删除失败');
       console.error(error);
@@ -459,7 +498,7 @@ export default function PurchaseAmountAdjustmentPage() {
       setBatchModalVisible(false);
       setBatchItems([]);
       setInvalidItems([]);
-      loadAdjustments();
+      refreshAdjustments();
     } catch (e: any) {
       message.error(e?.response?.data?.message || e?.message || "批量创建失败");
       console.error(e);
@@ -601,13 +640,25 @@ export default function PurchaseAmountAdjustmentPage() {
       ? columnOrder
       : allColumns.map(col => col.key as string).filter(Boolean);
 
+    // 确保操作列在顺序中
+    if (!currentOrder.includes('action')) {
+      currentOrder.push('action');
+    }
+
     // 按照保存的顺序排列
     const orderedColumns = currentOrder
       .map(key => allColumns.find(col => col.key === key))
       .filter(Boolean) as typeof allColumns;
 
-    // 过滤隐藏的列
-    return orderedColumns.filter(col => !hiddenColumns.has(col.key as string));
+    // 过滤隐藏的列，但始终显示操作列
+    return orderedColumns.filter(col => {
+      const colKey = col.key as string;
+      // 操作列始终显示
+      if (colKey === 'action') {
+        return true;
+      }
+      return !hiddenColumns.has(colKey);
+    });
   };
 
   const columns = getFilteredColumns();
@@ -631,18 +682,19 @@ export default function PurchaseAmountAdjustmentPage() {
         }
         extra={
           <Space>
+            {/* 综合搜索框 */}
             <Input
-              placeholder="搜索采购单号、异常调整原因备注或财务审核意见备注"
+              placeholder="综合搜索（所有字段，除图片）"
               allowClear
-              style={{ width: 300 }}
+              style={{ width: 220 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              onPressEnter={() => handleSearch(searchText)}
+              onPressEnter={handleSearchAll}
             />
             <Button
               type="primary"
               icon={<SearchOutlined />}
-              onClick={() => handleSearch(searchText)}
+              onClick={handleSearchAll}
             >
               搜索
             </Button>
@@ -697,6 +749,11 @@ export default function PurchaseAmountAdjustmentPage() {
               icon={<ReloadOutlined />}
               onClick={() => {
                 setSearchText('');
+                setSearchPurchaseOrderNumber('');
+                setSearchAdjustmentAmount('');
+                setSearchCreator('');
+                setSearchFinanceReviewer('');
+                setSearchDataUpdateTime('');
                 setCurrentPage(1);
                 loadAdjustments(1, undefined);
               }}
@@ -706,6 +763,54 @@ export default function PurchaseAmountAdjustmentPage() {
           </Space>
         }
       >
+        {/* 搜索区域 */}
+        <div style={{ marginBottom: 16, padding: '16px', backgroundColor: '#fafafa', borderRadius: 4 }}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
+            <Space wrap>
+              <Input
+                placeholder="采购单号(牵牛花)"
+                allowClear
+                style={{ width: 180 }}
+                value={searchPurchaseOrderNumber}
+                onChange={(e) => setSearchPurchaseOrderNumber(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="调整金额"
+                allowClear
+                style={{ width: 180 }}
+                value={searchAdjustmentAmount}
+                onChange={(e) => setSearchAdjustmentAmount(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="创建人"
+                allowClear
+                style={{ width: 180 }}
+                value={searchCreator}
+                onChange={(e) => setSearchCreator(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="财务审核人"
+                allowClear
+                style={{ width: 180 }}
+                value={searchFinanceReviewer}
+                onChange={(e) => setSearchFinanceReviewer(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+              <Input
+                placeholder="数据更新时间"
+                allowClear
+                style={{ width: 180 }}
+                value={searchDataUpdateTime}
+                onChange={(e) => setSearchDataUpdateTime(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
+            </Space>
+          </Space>
+        </div>
         <ResponsiveTable<PurchaseAmountAdjustment>
           columns={columns as any}
           dataSource={adjustments}
@@ -724,7 +829,15 @@ export default function PurchaseAmountAdjustmentPage() {
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size || 20);
-              loadAdjustments(page, searchText);
+              loadAdjustments(
+                page,
+                searchText || undefined,
+                searchPurchaseOrderNumber || undefined,
+                searchAdjustmentAmount || undefined,
+                searchCreator || undefined,
+                searchFinanceReviewer || undefined,
+                searchDataUpdateTime || undefined,
+              );
             },
           }}
         />

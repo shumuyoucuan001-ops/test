@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Headers } from '@nestjs/common';
-import { PurchaseAmountAdjustmentService } from './purchase-amount-adjustment.service';
+import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 import type { PurchaseAmountAdjustment } from './purchase-amount-adjustment.service';
+import { PurchaseAmountAdjustmentService } from './purchase-amount-adjustment.service';
 
 @Controller('purchase-amount-adjustment')
 export class PurchaseAmountAdjustmentController {
-  constructor(private readonly service: PurchaseAmountAdjustmentService) {}
+  constructor(private readonly service: PurchaseAmountAdjustmentService) { }
 
   // 获取所有调整记录（分页）
   @Get()
@@ -12,10 +12,15 @@ export class PurchaseAmountAdjustmentController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
     @Query('search') search?: string,
+    @Query('purchaseOrderNumber') purchaseOrderNumber?: string,
+    @Query('adjustmentAmount') adjustmentAmount?: string,
+    @Query('creator') creator?: string,
+    @Query('financeReviewer') financeReviewer?: string,
+    @Query('dataUpdateTime') dataUpdateTime?: string,
   ): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    return this.service.getAllAdjustments(pageNum, limitNum, search);
+    return this.service.getAllAdjustments(pageNum, limitNum, search, purchaseOrderNumber, adjustmentAmount, creator, financeReviewer, dataUpdateTime);
   }
 
   // 获取单个调整记录
