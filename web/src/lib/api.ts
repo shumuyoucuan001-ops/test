@@ -951,4 +951,51 @@ export const financeManagementApi = {
     api.delete('/finance-management/batch', { data: { bills } }).then(res => res.data),
 };
 
+// 采购单金额调整接口
+export interface PurchaseAmountAdjustment {
+  purchaseOrderNumber: string; // 采购单号(牵牛花)（主键）
+  adjustmentAmount?: number; // 调整金额
+  adjustmentReason?: string; // 异常调整原因备注
+  image?: string; // 图片（base64）
+  financeReviewRemark?: string; // 财务审核意见备注
+  financeReviewStatus?: string; // 财务审核状态
+  creator?: string; // 创建人
+  financeReviewer?: string; // 财务审核人
+  dataUpdateTime?: string; // 数据更新时间
+}
+
+export const purchaseAmountAdjustmentApi = {
+  // 获取所有调整记录（分页）
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> =>
+    api.get('/purchase-amount-adjustment', { params }).then(res => res.data),
+
+  // 获取单个调整记录
+  get: (purchaseOrderNumber: string): Promise<PurchaseAmountAdjustment | null> =>
+    api.get(`/purchase-amount-adjustment/${encodeURIComponent(purchaseOrderNumber)}`).then(res => res.data),
+
+  // 创建调整记录
+  create: (data: PurchaseAmountAdjustment): Promise<PurchaseAmountAdjustment> =>
+    api.post('/purchase-amount-adjustment', data).then(res => res.data),
+
+  // 批量创建调整记录
+  batchCreate: (adjustments: PurchaseAmountAdjustment[]): Promise<{ success: number; failed: number; errors: string[] }> =>
+    api.post('/purchase-amount-adjustment/batch', { adjustments }).then(res => res.data),
+
+  // 更新调整记录
+  update: (purchaseOrderNumber: string, data: Partial<PurchaseAmountAdjustment>): Promise<PurchaseAmountAdjustment> =>
+    api.put(`/purchase-amount-adjustment/${encodeURIComponent(purchaseOrderNumber)}`, data).then(res => res.data),
+
+  // 删除调整记录
+  delete: (purchaseOrderNumber: string): Promise<boolean> =>
+    api.delete(`/purchase-amount-adjustment/${encodeURIComponent(purchaseOrderNumber)}`).then(res => res.data),
+
+  // 批量删除调整记录
+  batchDelete: (purchaseOrderNumbers: string[]): Promise<{ success: number; failed: number }> =>
+    api.delete('/purchase-amount-adjustment/batch', { data: { purchaseOrderNumbers } }).then(res => res.data),
+};
+
 export default api;

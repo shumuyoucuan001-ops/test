@@ -212,6 +212,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <AccountBookOutlined />,
     url: '/home/finance-management',
   },
+  'purchase-amount-adjustment': {
+    title: '采购单金额调整',
+    icon: <AccountBookOutlined />,
+    url: '/home/purchase-amount-adjustment',
+  },
 };
 
 // 允许无需权限展示的路径格式['/home/ops-exclusion'];
@@ -677,6 +682,11 @@ export default function HomeLayout({
             key: 'finance-management',
             icon: <AccountBookOutlined />,
             label: '账单手动绑定采购单',
+          },
+          {
+            key: 'purchase-amount-adjustment',
+            icon: <AccountBookOutlined />,
+            label: '采购单金额调整',
           },
         ],
       },

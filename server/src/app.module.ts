@@ -17,6 +17,7 @@ import { OpsRegularActivityDispatchModule } from './ops-regular-activity-dispatc
 import { OpsShelfExclusionModule } from './ops-shelf-exclusion/ops-shelf-exclusion.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
+import { PurchaseAmountAdjustmentModule } from './purchase-amount-adjustment/purchase-amount-adjustment.module';
 import { PurchasePassDifferenceModule } from './purchase-pass-difference/purchase-pass-difference.module';
 import { ReceiptModule } from './receipt/receipt.module';
 import { Refund1688FollowUpModule } from './refund-1688-follow-up/refund-1688-follow-up.module';
@@ -52,6 +53,7 @@ import { VersionModule } from './version/version.module';
     PurchasePassDifferenceModule,
     Refund1688FollowUpModule,
     FinanceManagementModule,
+    PurchaseAmountAdjustmentModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
