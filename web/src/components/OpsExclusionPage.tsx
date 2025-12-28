@@ -372,32 +372,59 @@ export default function OpsExclusionPage() {
         e.preventDefault();
         const pastedText = e.clipboardData.getData('text');
 
-        // 将粘贴的内容按行分割，过滤空行
-        const lines = pastedText
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
+        // 将粘贴的内容按行分割（不trim，保留原始格式，因为备注列可能包含换行）
+        const rawLines = pastedText.split(/\r?\n/);
 
-        if (lines.length === 0) {
+        if (rawLines.length === 0) {
             message.warning('粘贴的内容为空');
             return;
         }
 
-        // 解析每行为多个字段（支持制表符、逗号、多个空格分隔）
-        // 注意：备注列可能包含分隔符，需要特殊处理
-        // 字段顺序：视图名称、门店编码、SKU编码、SPU编码、备注（备注是第5列，索引4）
-        // 方法：使用转义机制，先找到前4个分隔符，将后面的分隔符临时替换为占位符，分割后再恢复
+        // 检测分隔符类型（使用第一行）
+        const firstLine = rawLines[0].trim();
+        if (!firstLine) {
+            message.warning('粘贴的内容为空');
+            return;
+        }
+
+        // 合并多行：如果某行的列数不足，说明是上一行备注列的延续
+        const mergedLines: string[] = [];
+        for (let i = 0; i < rawLines.length; i++) {
+            const line = rawLines[i];
+            if (!line.trim()) continue; // 跳过空行
+
+            // 检测当前行的列数（通过统计分隔符数量）
+            let columnCount = 1; // 至少1列
+            if (line.includes('\t')) {
+                columnCount = (line.match(/\t/g) || []).length + 1;
+            } else if (line.includes(',')) {
+                columnCount = (line.match(/,/g) || []).length + 1;
+            } else {
+                columnCount = line.split(/\s{2,}/).length;
+            }
+
+            // 如果列数不足5列，且上一行有数据，则合并到上一行
+            if (columnCount < 5 && mergedLines.length > 0) {
+                // 这是备注列的延续，合并到上一行（用空格连接，替换换行符）
+                mergedLines[mergedLines.length - 1] += ' ' + line.trim();
+            } else {
+                // 这是新的一行数据
+                mergedLines.push(line);
+            }
+        }
+
+        // 解析合并后的行
         const newItems: OpsExclusionItem[] = [];
-        for (const line of lines) {
+        for (const line of mergedLines) {
             let parts: string[] = [];
 
             // 优先使用制表符分隔（Excel 粘贴通常是制表符）
             if (line.includes('\t')) {
-                parts = parseLineWithEscapedDelimiter(line, '\t', 4);
+                parts = parseLineWithEscapedDelimiter(line, '\t', 5);
             }
             // 其次使用逗号分隔
             else if (line.includes(',')) {
-                parts = parseLineWithEscapedDelimiter(line, ',', 4);
+                parts = parseLineWithEscapedDelimiter(line, ',', 5);
             }
             // 最后使用多个空格分隔
             else {
@@ -421,13 +448,15 @@ export default function OpsExclusionPage() {
                     parts.push('');
                 }
 
+                // 备注列中的换行符替换为空格
+                const remark = parts[4] ? parts[4].replace(/\r?\n/g, ' ').trim() : null;
                 newItems.push({
                     '视图名称': parts[0] || '',
                     '门店编码': parts[1] || '',
                     'SKU编码': parts[2] || '',
                     'SPU编码': parts[3] || '',
-                    // 备注列：如果分割后只有4列，则备注为空；如果有第5列，则使用第5列（已包含所有剩余内容）
-                    '备注': parts[4] || null,
+                    // 备注列：如果分割后只有4列，则备注为空；如果有第5列，则使用第5列（已包含所有剩余内容，换行符已替换为空格）
+                    '备注': remark,
                 });
             }
         }

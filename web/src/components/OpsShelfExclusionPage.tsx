@@ -303,23 +303,51 @@ export default function OpsShelfExclusionPage() {
         e.preventDefault();
         const pastedText = e.clipboardData.getData('text');
 
-        // 将粘贴的内容按行分割，过滤空行
-        const lines = pastedText
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
+        // 将粘贴的内容按行分割（不trim，保留原始格式，因为备注列可能包含换行）
+        const rawLines = pastedText.split(/\r?\n/);
 
-        if (lines.length === 0) {
+        if (rawLines.length === 0) {
             message.warning('粘贴的内容为空');
             return;
         }
 
-        // 检测分隔符类型
-        const delimiter = detectDelimiter(lines[0]);
+        // 检测分隔符类型（使用第一行）
+        const firstLine = rawLines[0].trim();
+        if (!firstLine) {
+            message.warning('粘贴的内容为空');
+            return;
+        }
+        const delimiter = detectDelimiter(firstLine);
 
-        // 解析每行为多个字段
+        // 合并多行：如果某行的列数不足，说明是上一行备注列的延续
+        const mergedLines: string[] = [];
+        for (let i = 0; i < rawLines.length; i++) {
+            const line = rawLines[i];
+            if (!line.trim()) continue; // 跳过空行
+
+            // 检测当前行的列数（通过统计分隔符数量）
+            let columnCount = 1; // 至少1列
+            if (delimiter === '\t') {
+                columnCount = (line.match(/\t/g) || []).length + 1;
+            } else if (delimiter === ',') {
+                columnCount = (line.match(/,/g) || []).length + 1;
+            } else {
+                columnCount = line.split(/\s{2,}/).length;
+            }
+
+            // 如果列数不足4列，且上一行有数据，则合并到上一行
+            if (columnCount < 4 && mergedLines.length > 0) {
+                // 这是备注列的延续，合并到上一行（用空格连接，替换换行符）
+                mergedLines[mergedLines.length - 1] += ' ' + line.trim();
+            } else {
+                // 这是新的一行数据
+                mergedLines.push(line);
+            }
+        }
+
+        // 解析合并后的行
         const newItems: OpsShelfExclusionItem[] = [];
-        for (const line of lines) {
+        for (const line of mergedLines) {
             let parts = parseLine(line, delimiter);
 
             // 确保至少有SPU（必填字段）
@@ -330,11 +358,13 @@ export default function OpsShelfExclusionPage() {
                 }
 
                 // 只取前4列，确保列对应关系正确（SPU、门店编码、渠道编码、备注）
+                // 备注列中的换行符替换为空格
+                const remark = parts[3] ? parts[3].replace(/\r?\n/g, ' ').trim() : null;
                 newItems.push({
                     'SPU': parts[0] || '',
                     '门店编码': parts[1] || '',
                     '渠道编码': parts[2] || '',
-                    '备注': parts[3] || null,
+                    '备注': remark,
                 });
             }
         }
