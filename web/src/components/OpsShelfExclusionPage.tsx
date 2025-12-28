@@ -43,23 +43,21 @@ export default function OpsShelfExclusionPage() {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    const load = async (overrideParams?: {
+    const load = useCallback(async (overrideParams?: {
         page?: number;
         keyword?: string;
         filters?: typeof searchFilters;
     }) => {
         setLoading(true);
         try {
-            // 如果传入了overrideParams，优先使用传入的参数；否则使用状态值
-            const finalPage = overrideParams?.page !== undefined ? overrideParams.page : currentPage;
+            // 使用传入参数或当前状态值
+            const finalPage = overrideParams?.page ?? currentPage;
             const finalKeyword = overrideParams?.keyword !== undefined
-                ? (overrideParams.keyword === '' ? undefined : overrideParams.keyword)
+                ? (overrideParams.keyword || undefined)
                 : (searchText || undefined);
-            const finalFilters = overrideParams?.filters !== undefined
-                ? overrideParams.filters
-                : searchFilters;
+            const finalFilters = overrideParams?.filters ?? searchFilters;
 
-            // 过滤掉undefined值，避免API调用问题
+            // 过滤掉空值
             const cleanFilters = Object.fromEntries(
                 Object.entries(finalFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
             );
@@ -89,12 +87,11 @@ export default function OpsShelfExclusionPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, pageSize, searchText, searchFilters]);
 
     useEffect(() => {
         load();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage, pageSize]);
+    }, [load]);
 
     const handleSearch = () => {
         setCurrentPage(1);
@@ -105,24 +102,37 @@ export default function OpsShelfExclusionPage() {
         });
     };
 
-    const openCreate = () => {
+    // 重置搜索条件
+    const handleReset = () => {
+        setSearchText('');
+        setSearchFilters({});
+        setCurrentPage(1);
+        setSelectedRowKeys([]);
+        load({
+            page: 1,
+            keyword: '',
+            filters: {}
+        });
+    };
+
+    const openCreate = useCallback(() => {
         setEditing(null);
         form.resetFields();
         setModalOpen(true);
-    };
+    }, [form]);
 
-    const openEdit = (record: OpsShelfExclusionItem) => {
+    const openEdit = useCallback((record: OpsShelfExclusionItem) => {
         setEditing(record);
         form.setFieldsValue(record);
         setModalOpen(true);
-    };
+    }, [form]);
 
     const handleSave = async () => {
         try {
             const values = await form.validateFields();
-            // 确保只传SPU（必填），其他字段为空字符串时转为 undefined/null
+            // 处理表单数据：trim 字符串字段，空字符串转为 null
             const submitData: OpsShelfExclusionItem = {
-                'SPU': values['SPU'] || '',
+                'SPU': values['SPU']?.trim() || '',
                 '门店编码': values['门店编码']?.trim() || '',
                 '渠道编码': values['渠道编码']?.trim() || '',
                 '备注': values['备注']?.trim() || null,
@@ -143,7 +153,7 @@ export default function OpsShelfExclusionPage() {
         }
     };
 
-    const handleDelete = async (record: OpsShelfExclusionItem) => {
+    const handleDelete = useCallback(async (record: OpsShelfExclusionItem) => {
         try {
             await opsShelfExclusionApi.remove(record);
             message.success("删除成功");
@@ -152,12 +162,12 @@ export default function OpsShelfExclusionPage() {
             message.error("删除失败");
             console.error(e);
         }
-    };
+    }, [load]);
 
     // 获取行的唯一标识
-    const getRowKey = (record: OpsShelfExclusionItem): string => {
+    const getRowKey = useCallback((record: OpsShelfExclusionItem): string => {
         return `${record["SPU"]}_${record["门店编码"]}_${record["渠道编码"]}`;
-    };
+    }, []);
 
     // 批量删除记录
     const handleBatchDelete = async () => {
@@ -181,23 +191,23 @@ export default function OpsShelfExclusionPage() {
     };
 
     // 全选/取消全选
-    const handleSelectAll = (checked: boolean) => {
+    const handleSelectAll = useCallback((checked: boolean) => {
         if (checked) {
             setSelectedRowKeys(data.map(item => getRowKey(item)));
         } else {
             setSelectedRowKeys([]);
         }
-    };
+    }, [data, getRowKey]);
 
     // 单行选择
-    const handleSelect = (record: OpsShelfExclusionItem, checked: boolean) => {
+    const handleSelect = useCallback((record: OpsShelfExclusionItem, checked: boolean) => {
         const rowKey = getRowKey(record);
         if (checked) {
-            setSelectedRowKeys([...selectedRowKeys, rowKey]);
+            setSelectedRowKeys(prev => [...prev, rowKey]);
         } else {
-            setSelectedRowKeys(selectedRowKeys.filter(key => key !== rowKey));
+            setSelectedRowKeys(prev => prev.filter(key => key !== rowKey));
         }
-    };
+    }, [getRowKey]);
 
     // 打开批量新增弹窗
     const openBatchCreate = () => {
@@ -205,7 +215,90 @@ export default function OpsShelfExclusionPage() {
         setBatchItems([]);
     };
 
-    // 处理粘贴事件（参考 purchase-pass-difference 的方式）
+    // 检测分隔符类型
+    const detectDelimiter = (line: string): string | RegExp => {
+        if (line.includes('\t')) return '\t';
+        if (line.includes(',')) return ',';
+        return /\s{2,}/;
+    };
+
+    // 解析单行数据（处理备注列可能包含分隔符的情况）
+    // 方法：先找到前N-1个分隔符，将后面的分隔符临时替换为占位符，分割后再恢复
+    const parseLine = (line: string, delimiter: string | RegExp): string[] => {
+        if (delimiter === '\t' || delimiter === ',') {
+            return parseWithDelimiterEscaped(line, delimiter as string);
+        } else {
+            // 空格分隔
+            const spaceParts = line.split(/\s{2,}/);
+            if (spaceParts.length > 3) {
+                return [
+                    ...spaceParts.slice(0, 3).map(p => p.trim()),
+                    spaceParts.slice(3).join('  ').trim()
+                ];
+            }
+            return spaceParts.map(p => p.trim());
+        }
+    };
+
+    // 通用分隔符解析函数（使用转义机制处理备注列中的分隔符）
+    const parseWithDelimiterEscaped = (line: string, delimiter: string): string[] => {
+        // 占位符：使用一个不太可能出现在数据中的字符串
+        const PLACEHOLDER_TAB = '___TAB_PLACEHOLDER___';
+        const PLACEHOLDER_COMMA = '___COMMA_PLACEHOLDER___';
+        const placeholder = delimiter === '\t' ? PLACEHOLDER_TAB : PLACEHOLDER_COMMA;
+
+        // 找到前3个分隔符的位置
+        const indices: number[] = [];
+        for (let i = 0; i < line.length && indices.length < 3; i++) {
+            if (line[i] === delimiter) {
+                indices.push(i);
+            }
+        }
+
+        if (indices.length >= 3) {
+            // 将第4个分隔符之后的所有分隔符替换为占位符
+            let processedLine = line;
+            if (indices.length < line.split(delimiter).length - 1) {
+                // 说明备注列中还有分隔符，需要转义
+                const beforeRemark = line.substring(0, indices[2] + 1);
+                const remarkPart = line.substring(indices[2] + 1);
+                // 将备注部分的分隔符替换为占位符
+                const escapedRemark = remarkPart.replace(new RegExp(delimiter === '\t' ? '\\t' : ',', 'g'), placeholder);
+                processedLine = beforeRemark + escapedRemark;
+            }
+
+            // 现在可以安全地分割了
+            const parts = processedLine.split(delimiter);
+
+            // 恢复备注列中的占位符
+            if (parts.length > 3) {
+                parts[3] = parts[3].replace(new RegExp(placeholder, 'g'), delimiter);
+                // 如果备注被分割成多部分，合并它们
+                if (parts.length > 4) {
+                    parts[3] = [parts[3], ...parts.slice(4)].join(delimiter);
+                    parts.splice(4);
+                }
+            }
+
+            return [
+                parts[0]?.trim() || '',
+                parts[1]?.trim() || '',
+                parts[2]?.trim() || '',
+                parts[3]?.trim() || ''
+            ];
+        } else {
+            // 如果分隔符少于3个，直接使用split
+            const splitParts = line.split(delimiter);
+            return [
+                splitParts[0]?.trim() || '',
+                splitParts[1]?.trim() || '',
+                splitParts[2]?.trim() || '',
+                splitParts.slice(3).join(delimiter) || ''
+            ];
+        }
+    };
+
+    // 处理粘贴事件
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
         e.preventDefault();
         const pastedText = e.clipboardData.getData('text');
@@ -221,90 +314,13 @@ export default function OpsShelfExclusionPage() {
             return;
         }
 
-        // 检测分隔符类型（优先检测制表符，因为Excel通常使用制表符）
-        let delimiter: string | RegExp = '\t';
-        if (lines[0].includes('\t')) {
-            delimiter = '\t';
-        } else if (lines[0].includes(',')) {
-            delimiter = ',';
-        } else {
-            delimiter = /\s{2,}/;
-        }
+        // 检测分隔符类型
+        const delimiter = detectDelimiter(lines[0]);
 
         // 解析每行为多个字段
-        // 注意：备注列可能包含分隔符，需要特殊处理
-        // 方法：找到前3个分隔符的位置，从第4个分隔符开始的所有内容都作为备注列
         const newItems: OpsShelfExclusionItem[] = [];
         for (const line of lines) {
-            let parts: string[] = [];
-
-            if (delimiter === '\t') {
-                // 找到前3个制表符的位置
-                const tabIndices: number[] = [];
-                for (let i = 0; i < line.length && tabIndices.length < 3; i++) {
-                    if (line[i] === '\t') {
-                        tabIndices.push(i);
-                    }
-                }
-
-                if (tabIndices.length >= 3) {
-                    // 前3个字段正常提取
-                    parts = [
-                        line.substring(0, tabIndices[0]).trim(),
-                        line.substring(tabIndices[0] + 1, tabIndices[1]).trim(),
-                        line.substring(tabIndices[1] + 1, tabIndices[2]).trim(),
-                        line.substring(tabIndices[2] + 1) // 从第4个制表符开始的所有内容作为备注（包含制表符）
-                    ];
-                } else {
-                    // 如果制表符少于3个，使用split作为后备方案
-                    const splitParts = line.split('\t');
-                    parts = [
-                        splitParts[0]?.trim() || '',
-                        splitParts[1]?.trim() || '',
-                        splitParts[2]?.trim() || '',
-                        splitParts.slice(3).join('\t') || '' // 剩余部分合并作为备注
-                    ];
-                }
-            } else if (delimiter === ',') {
-                // 找到前3个逗号的位置
-                const commaIndices: number[] = [];
-                for (let i = 0; i < line.length && commaIndices.length < 3; i++) {
-                    if (line[i] === ',') {
-                        commaIndices.push(i);
-                    }
-                }
-
-                if (commaIndices.length >= 3) {
-                    // 前3个字段正常提取
-                    parts = [
-                        line.substring(0, commaIndices[0]).trim(),
-                        line.substring(commaIndices[0] + 1, commaIndices[1]).trim(),
-                        line.substring(commaIndices[1] + 1, commaIndices[2]).trim(),
-                        line.substring(commaIndices[2] + 1) // 从第4个逗号开始的所有内容作为备注（包含逗号）
-                    ];
-                } else {
-                    // 如果逗号少于3个，使用split作为后备方案
-                    const splitParts = line.split(',');
-                    parts = [
-                        splitParts[0]?.trim() || '',
-                        splitParts[1]?.trim() || '',
-                        splitParts[2]?.trim() || '',
-                        splitParts.slice(3).join(',') || '' // 剩余部分合并作为备注
-                    ];
-                }
-            } else {
-                // 对于空格分隔，先尝试分割前3个字段，剩余作为备注
-                const spaceParts = line.split(/\s{2,}/);
-                if (spaceParts.length > 3) {
-                    // 前3个字段，剩余部分合并作为备注
-                    parts = [
-                        ...spaceParts.slice(0, 3).map(p => p.trim()),
-                        spaceParts.slice(3).join('  ').trim()
-                    ];
-                } else {
-                    parts = spaceParts.map(p => p.trim());
-                }
-            }
+            let parts = parseLine(line, delimiter);
 
             // 确保至少有SPU（必填字段）
             if (parts.length >= 1 && parts[0]) {
@@ -318,7 +334,6 @@ export default function OpsShelfExclusionPage() {
                     'SPU': parts[0] || '',
                     '门店编码': parts[1] || '',
                     '渠道编码': parts[2] || '',
-                    // 备注列：如果分割后只有3列，则备注为空；如果有第4列，则使用第4列（已包含所有剩余内容）
                     '备注': parts[3] || null,
                 });
             }
@@ -336,7 +351,7 @@ export default function OpsShelfExclusionPage() {
         if (target) {
             target.value = '';
         }
-    }, [message]);
+    }, []);
 
     // 批量保存
     const handleBatchSave = async () => {
@@ -406,137 +421,102 @@ export default function OpsShelfExclusionPage() {
             ),
         };
         return [selectionCol, ...baseCols, actionCol];
-    }, [data, selectedRowKeys]);
+    }, [data, selectedRowKeys, handleSelectAll, handleSelect, getRowKey, openEdit, handleDelete]);
+
+    // 渲染搜索和操作区域
+    const renderSearchAndActions = () => {
+        const searchInputs = (
+            <>
+                <Input
+                    placeholder="SPU"
+                    style={isMobile ? { width: '100%' } : { width: 150 }}
+                    value={searchFilters.SPU}
+                    onChange={(e) => setSearchFilters({ ...searchFilters, SPU: e.target.value })}
+                    allowClear
+                />
+                <Input
+                    placeholder="门店编码"
+                    style={isMobile ? { width: '100%' } : { width: 150 }}
+                    value={searchFilters.门店编码}
+                    onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
+                    allowClear
+                />
+                <Input
+                    placeholder="渠道编码"
+                    style={isMobile ? { width: '100%' } : { width: 150 }}
+                    value={searchFilters.渠道编码}
+                    onChange={(e) => setSearchFilters({ ...searchFilters, 渠道编码: e.target.value })}
+                    allowClear
+                />
+                <Input.Search
+                    placeholder="总搜索（全字段）"
+                    style={isMobile ? { width: '100%' } : { width: 200 }}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    onSearch={handleSearch}
+                    allowClear
+                />
+            </>
+        );
+
+        if (isMobile) {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                    {searchInputs}
+                    <Space style={{ width: '100%' }}>
+                        <Button type="primary" onClick={handleSearch} style={{ flex: 1 }}>搜索</Button>
+                        <Button onClick={handleReset} style={{ flex: 1 }}>重置</Button>
+                    </Space>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate} block>批量新增</Button>
+                    {selectedRowKeys.length > 0 && (
+                        <Popconfirm
+                            title="确认批量删除？"
+                            description={`确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`}
+                            onConfirm={handleBatchDelete}
+                            okText="确定"
+                            cancelText="取消"
+                            okButtonProps={{ danger: true }}
+                        >
+                            <Button danger block>
+                                批量删除 ({selectedRowKeys.length})
+                            </Button>
+                        </Popconfirm>
+                    )}
+                </div>
+            );
+        }
+
+        return (
+            <Space wrap>
+                {searchInputs}
+                <Button type="primary" onClick={handleSearch}>搜索</Button>
+                <Button onClick={handleReset}>重置</Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate}>批量新增</Button>
+                {selectedRowKeys.length > 0 && (
+                    <Popconfirm
+                        title="确认批量删除？"
+                        description={`确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`}
+                        onConfirm={handleBatchDelete}
+                        okText="确定"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                    >
+                        <Button danger>
+                            批量删除 ({selectedRowKeys.length})
+                        </Button>
+                    </Popconfirm>
+                )}
+            </Space>
+        );
+    };
 
     return (
         <div style={{ padding: 24 }}>
             <Card
                 title="运营组管理 - 排除上下架商品"
-                extra={
-                    isMobile ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-                            <Input
-                                placeholder="SPU"
-                                style={{ width: '100%' }}
-                                value={searchFilters.SPU}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, SPU: e.target.value })}
-                                allowClear
-                            />
-                            <Input
-                                placeholder="门店编码"
-                                style={{ width: '100%' }}
-                                value={searchFilters.门店编码}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
-                                allowClear
-                            />
-                            <Input
-                                placeholder="渠道编码"
-                                style={{ width: '100%' }}
-                                value={searchFilters.渠道编码}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 渠道编码: e.target.value })}
-                                allowClear
-                            />
-                            <Input.Search
-                                placeholder="总搜索（全字段）"
-                                style={{ width: '100%' }}
-                                value={searchText}
-                                onChange={(e) => setSearchText(e.target.value)}
-                                onSearch={handleSearch}
-                                allowClear
-                            />
-                            <Space style={{ width: '100%' }}>
-                                <Button type="primary" onClick={handleSearch} style={{ flex: 1 }}>搜索</Button>
-                                <Button onClick={() => {
-                                    setSearchText('');
-                                    setSearchFilters({});
-                                    setCurrentPage(1);
-                                    setSelectedRowKeys([]);
-                                    load({
-                                        page: 1,
-                                        keyword: '',
-                                        filters: {}
-                                    });
-                                }} style={{ flex: 1 }}>重置</Button>
-                            </Space>
-                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
-                            <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate} block>批量新增</Button>
-                            {selectedRowKeys.length > 0 && (
-                                <Popconfirm
-                                    title="确认批量删除？"
-                                    description={`确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`}
-                                    onConfirm={handleBatchDelete}
-                                    okText="确定"
-                                    cancelText="取消"
-                                    okButtonProps={{ danger: true }}
-                                >
-                                    <Button danger block>
-                                        批量删除 ({selectedRowKeys.length})
-                                    </Button>
-                                </Popconfirm>
-                            )}
-                        </div>
-                    ) : (
-                        <Space wrap>
-                            <Input
-                                placeholder="SPU"
-                                style={{ width: 150 }}
-                                value={searchFilters.SPU}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, SPU: e.target.value })}
-                                allowClear
-                            />
-                            <Input
-                                placeholder="门店编码"
-                                style={{ width: 150 }}
-                                value={searchFilters.门店编码}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
-                                allowClear
-                            />
-                            <Input
-                                placeholder="渠道编码"
-                                style={{ width: 150 }}
-                                value={searchFilters.渠道编码}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 渠道编码: e.target.value })}
-                                allowClear
-                            />
-                            <Input.Search
-                                placeholder="总搜索（全字段）"
-                                style={{ width: 200 }}
-                                value={searchText}
-                                onChange={(e) => setSearchText(e.target.value)}
-                                onSearch={handleSearch}
-                                allowClear
-                            />
-                            <Button type="primary" onClick={handleSearch}>搜索</Button>
-                            <Button onClick={() => {
-                                setSearchText('');
-                                setSearchFilters({});
-                                setCurrentPage(1);
-                                setSelectedRowKeys([]);
-                                load({
-                                    page: 1,
-                                    keyword: '',
-                                    filters: {}
-                                });
-                            }}>重置</Button>
-                            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
-                            <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate}>批量新增</Button>
-                            {selectedRowKeys.length > 0 && (
-                                <Popconfirm
-                                    title="确认批量删除？"
-                                    description={`确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作不可恢复。`}
-                                    onConfirm={handleBatchDelete}
-                                    okText="确定"
-                                    cancelText="取消"
-                                    okButtonProps={{ danger: true }}
-                                >
-                                    <Button danger>
-                                        批量删除 ({selectedRowKeys.length})
-                                    </Button>
-                                </Popconfirm>
-                            )}
-                        </Space>
-                    )
-                }
+                extra={renderSearchAndActions()}
             >
                 <ResponsiveTable<OpsShelfExclusionItem>
                     columns={columns as any}
@@ -632,19 +612,16 @@ export default function OpsShelfExclusionPage() {
                 {batchItems.length > 0 ? (
                     <Table
                         columns={[
-                            {
-                                title: 'SPU',
-                                dataIndex: 'SPU',
-                                key: 'SPU',
-                            },
-                            { title: '门店编码', dataIndex: '门店编码', key: '门店编码' },
-                            { title: '渠道编码', dataIndex: '渠道编码', key: '渠道编码' },
-                            { title: '备注', dataIndex: '备注', key: '备注' },
+                            ...(Object.keys(fieldLabels) as (keyof OpsShelfExclusionItem)[]).map((key) => ({
+                                title: fieldLabels[key],
+                                dataIndex: key,
+                                key,
+                            })),
                             {
                                 title: '操作',
                                 key: 'action',
                                 width: 100,
-                                render: (_: any, record: OpsShelfExclusionItem, index: number) => (
+                                render: (_: any, _record: OpsShelfExclusionItem, index: number) => (
                                     <Button
                                         type="link"
                                         danger

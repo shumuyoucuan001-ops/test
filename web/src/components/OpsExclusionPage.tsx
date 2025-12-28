@@ -303,6 +303,70 @@ export default function OpsExclusionPage() {
         setBatchItems([]);
     };
 
+    // 使用转义机制解析行数据（处理备注列中的分隔符）
+    const parseLineWithEscapedDelimiter = (line: string, delimiter: string, expectedColumns: number): string[] => {
+        // 占位符：使用一个不太可能出现在数据中的字符串
+        const PLACEHOLDER_TAB = '___TAB_PLACEHOLDER___';
+        const PLACEHOLDER_COMMA = '___COMMA_PLACEHOLDER___';
+        const placeholder = delimiter === '\t' ? PLACEHOLDER_TAB : PLACEHOLDER_COMMA;
+
+        // 找到前N-1个分隔符的位置
+        const indices: number[] = [];
+        for (let i = 0; i < line.length && indices.length < expectedColumns - 1; i++) {
+            if (line[i] === delimiter) {
+                indices.push(i);
+            }
+        }
+
+        if (indices.length >= expectedColumns - 1) {
+            // 将第N个分隔符之后的所有分隔符替换为占位符
+            const beforeRemark = line.substring(0, indices[indices.length - 1] + 1);
+            const remarkPart = line.substring(indices[indices.length - 1] + 1);
+            // 将备注部分的分隔符替换为占位符
+            const escapedRemark = remarkPart.replace(new RegExp(delimiter === '\t' ? '\\t' : ',', 'g'), placeholder);
+            const processedLine = beforeRemark + escapedRemark;
+
+            // 现在可以安全地分割了
+            const parts = processedLine.split(delimiter);
+
+            // 恢复备注列中的占位符
+            if (parts.length >= expectedColumns) {
+                parts[expectedColumns - 1] = parts[expectedColumns - 1].replace(new RegExp(placeholder, 'g'), delimiter);
+                // 如果备注被分割成多部分，合并它们
+                if (parts.length > expectedColumns) {
+                    parts[expectedColumns - 1] = [parts[expectedColumns - 1], ...parts.slice(expectedColumns)].join(delimiter);
+                    parts.splice(expectedColumns);
+                }
+            }
+
+            // 确保返回的数组长度正确
+            while (parts.length < expectedColumns) {
+                parts.push('');
+            }
+
+            return parts.map((p, idx) => {
+                // 最后一列（备注）不trim，保留原始格式
+                if (idx === expectedColumns - 1) {
+                    return p;
+                }
+                return p.trim();
+            });
+        } else {
+            // 如果分隔符少于预期，直接使用split
+            const splitParts = line.split(delimiter);
+            const result: string[] = [];
+            for (let i = 0; i < expectedColumns; i++) {
+                if (i < expectedColumns - 1) {
+                    result.push(splitParts[i]?.trim() || '');
+                } else {
+                    // 最后一列（备注）合并剩余部分
+                    result.push(splitParts.slice(i).join(delimiter) || '');
+                }
+            }
+            return result;
+        }
+    };
+
     // 处理粘贴事件（参考 purchase-pass-difference 的方式）
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
         e.preventDefault();
@@ -322,72 +386,18 @@ export default function OpsExclusionPage() {
         // 解析每行为多个字段（支持制表符、逗号、多个空格分隔）
         // 注意：备注列可能包含分隔符，需要特殊处理
         // 字段顺序：视图名称、门店编码、SKU编码、SPU编码、备注（备注是第5列，索引4）
-        // 方法：找到前4个分隔符的位置，从第5个分隔符开始的所有内容都作为备注列
+        // 方法：使用转义机制，先找到前4个分隔符，将后面的分隔符临时替换为占位符，分割后再恢复
         const newItems: OpsExclusionItem[] = [];
         for (const line of lines) {
             let parts: string[] = [];
 
             // 优先使用制表符分隔（Excel 粘贴通常是制表符）
             if (line.includes('\t')) {
-                // 找到前4个制表符的位置
-                const tabIndices: number[] = [];
-                for (let i = 0; i < line.length && tabIndices.length < 4; i++) {
-                    if (line[i] === '\t') {
-                        tabIndices.push(i);
-                    }
-                }
-
-                if (tabIndices.length >= 4) {
-                    // 前4个字段正常提取
-                    parts = [
-                        line.substring(0, tabIndices[0]).trim(),
-                        line.substring(tabIndices[0] + 1, tabIndices[1]).trim(),
-                        line.substring(tabIndices[1] + 1, tabIndices[2]).trim(),
-                        line.substring(tabIndices[2] + 1, tabIndices[3]).trim(),
-                        line.substring(tabIndices[3] + 1) // 从第5个制表符开始的所有内容作为备注（包含制表符）
-                    ];
-                } else {
-                    // 如果制表符少于4个，使用split作为后备方案
-                    const splitParts = line.split('\t');
-                    parts = [
-                        splitParts[0]?.trim() || '',
-                        splitParts[1]?.trim() || '',
-                        splitParts[2]?.trim() || '',
-                        splitParts[3]?.trim() || '',
-                        splitParts.slice(4).join('\t') || '' // 剩余部分合并作为备注
-                    ];
-                }
+                parts = parseLineWithEscapedDelimiter(line, '\t', 4);
             }
             // 其次使用逗号分隔
             else if (line.includes(',')) {
-                // 找到前4个逗号的位置
-                const commaIndices: number[] = [];
-                for (let i = 0; i < line.length && commaIndices.length < 4; i++) {
-                    if (line[i] === ',') {
-                        commaIndices.push(i);
-                    }
-                }
-
-                if (commaIndices.length >= 4) {
-                    // 前4个字段正常提取
-                    parts = [
-                        line.substring(0, commaIndices[0]).trim(),
-                        line.substring(commaIndices[0] + 1, commaIndices[1]).trim(),
-                        line.substring(commaIndices[1] + 1, commaIndices[2]).trim(),
-                        line.substring(commaIndices[2] + 1, commaIndices[3]).trim(),
-                        line.substring(commaIndices[3] + 1) // 从第5个逗号开始的所有内容作为备注（包含逗号）
-                    ];
-                } else {
-                    // 如果逗号少于4个，使用split作为后备方案
-                    const splitParts = line.split(',');
-                    parts = [
-                        splitParts[0]?.trim() || '',
-                        splitParts[1]?.trim() || '',
-                        splitParts[2]?.trim() || '',
-                        splitParts[3]?.trim() || '',
-                        splitParts.slice(4).join(',') || '' // 剩余部分合并作为备注
-                    ];
-                }
+                parts = parseLineWithEscapedDelimiter(line, ',', 4);
             }
             // 最后使用多个空格分隔
             else {
