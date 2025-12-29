@@ -251,6 +251,36 @@ export class OpsExclusionService {
         };
     }
 
+    async checkExists(item: OpsExclusionItem): Promise<boolean> {
+        const checkSql = `SELECT * FROM ${this.table} 
+            WHERE \`视图名称\` = ? 
+            AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') 
+            AND COALESCE(\`SKU编码\`, '') = COALESCE(?, '') 
+            AND COALESCE(\`SPU编码\`, '') = COALESCE(?, '')`;
+        const existing: any[] = await this.prisma.$queryRawUnsafe(
+            checkSql,
+            item['视图名称'] || '',
+            item['门店编码'] || '',
+            item['SKU编码'] || '',
+            item['SPU编码'] || ''
+        );
+        return existing && existing.length > 0;
+    }
+
+    async checkBatchExists(items: OpsExclusionItem[]): Promise<{ exists: boolean; duplicateItems: OpsExclusionItem[] }> {
+        const duplicateItems: OpsExclusionItem[] = [];
+        for (const item of items) {
+            const exists = await this.checkExists(item);
+            if (exists) {
+                duplicateItems.push(item);
+            }
+        }
+        return {
+            exists: duplicateItems.length > 0,
+            duplicateItems
+        };
+    }
+
     private validate(item: OpsExclusionItem) {
         if (!item['视图名称']) {
             throw new BadRequestException('视图名称为必填');
