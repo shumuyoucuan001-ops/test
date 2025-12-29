@@ -212,6 +212,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <AccountBookOutlined />,
     url: '/home/finance-management',
   },
+  'finance-reconciliation-difference': {
+    title: '账单对账汇总差异',
+    icon: <AccountBookOutlined />,
+    url: '/home/finance-reconciliation-difference',
+  },
   'purchase-amount-adjustment': {
     title: '采购单金额调整',
     icon: <AccountBookOutlined />,
@@ -682,6 +687,11 @@ export default function HomeLayout({
             key: 'finance-management',
             icon: <AccountBookOutlined />,
             label: '账单手动绑定采购单',
+          },
+          {
+            key: 'finance-reconciliation-difference',
+            icon: <AccountBookOutlined />,
+            label: '账单对账汇总差异',
           },
           {
             key: 'purchase-amount-adjustment',

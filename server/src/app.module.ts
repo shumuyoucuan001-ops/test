@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DingTalkModule } from './dingtalk/dingtalk.module';
 import { FinanceManagementModule } from './finance-management/finance-management.module';
+import { FinanceReconciliationDifferenceModule } from './finance-reconciliation-difference/finance-reconciliation-difference.module';
 import { HealthController } from './health/health.controller';
 import { LabelDataModule } from './label-data/label-data.module';
 import { LabelPrintModule } from './label-print/label-print.module';
@@ -53,6 +54,7 @@ import { VersionModule } from './version/version.module';
     PurchasePassDifferenceModule,
     Refund1688FollowUpModule,
     FinanceManagementModule,
+    FinanceReconciliationDifferenceModule,
     PurchaseAmountAdjustmentModule,
   ],
   controllers: [AppController, HealthController],

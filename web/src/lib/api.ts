@@ -956,6 +956,40 @@ export const financeManagementApi = {
     api.delete('/finance-management/batch', { data: { bills } }).then(res => res.data),
 };
 
+// 账单对账汇总差异接口
+export interface FinanceReconciliationDifference {
+  对账单号?: string;
+  交易单号: string; // 主键
+  牵牛花采购单号: string; // 主键
+  采购单金额?: number;
+  采购单调整金额?: number;
+  调整后采购单金额?: number;
+  采购单状态?: string;
+  对账单收货状态?: string;
+  门店仓?: string;
+  下单账号?: string;
+  交易账单金额?: number;
+  同账单对应采购合计金额?: number;
+  同采购对应账单合计金额?: number;
+  对账单差额?: number;
+  记录状态?: string;
+  更新时间?: string;
+}
+
+export const financeReconciliationDifferenceApi = {
+  // 获取所有记录（分页）
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    交易单号?: string;
+    牵牛花采购单号?: string;
+    对账单号?: string;
+    记录状态?: string;
+  }): Promise<{ data: FinanceReconciliationDifference[]; total: number }> =>
+    api.get('/finance-reconciliation-difference', { params }).then(res => res.data),
+};
+
 // 采购单金额调整接口
 export interface PurchaseAmountAdjustment {
   purchaseOrderNumber: string; // 采购单号(牵牛花)（主键）
