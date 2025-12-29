@@ -141,6 +141,12 @@ export default function OpsShelfExclusionPage() {
                 await opsShelfExclusionApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
+                // 检查是否已存在
+                const checkResult = await opsShelfExclusionApi.checkExists(submitData);
+                if (checkResult.exists) {
+                    message.error("该数据已存在，请勿重复添加");
+                    return;
+                }
                 await opsShelfExclusionApi.create(submitData);
                 message.success("新增成功");
             }
@@ -391,6 +397,16 @@ export default function OpsShelfExclusionPage() {
         }
 
         try {
+            // 检查是否有重复数据
+            const checkResult = await opsShelfExclusionApi.checkBatchExists(batchItems);
+            if (checkResult.exists) {
+                const duplicateInfo = checkResult.duplicateItems.map(item =>
+                    `SPU:${item['SPU']}, 门店编码:${item['门店编码']}, 渠道编码:${item['渠道编码']}`
+                ).join('; ');
+                message.error(`以下数据已存在，请勿重复添加：${duplicateInfo}`);
+                return;
+            }
+
             const result = await opsShelfExclusionApi.batchCreate(batchItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {
