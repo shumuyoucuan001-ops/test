@@ -155,17 +155,37 @@ export class OpsRegularActivityDispatchService {
 
     async create(item: OpsRegularActivityDispatchItem): Promise<void> {
         this.validate(item);
-        await this.prisma.$executeRawUnsafe(
-            `INSERT INTO ${this.table} (
-                \`SKU\`, \`活动价\`, \`活动类型\`, 
-                \`活动备注\`, \`活动确认人\`, \`数据更新时间\`
-            ) VALUES (?, ?, ?, ?, ?, NOW())`,
-            item['SKU'] || '',
-            item['活动价'] !== null && item['活动价'] !== undefined ? item['活动价'] : null,
-            item['活动类型'] || null,
-            item['活动备注'] || null,
-            item['活动确认人'] || null,
+
+        // 检查是否已存在（根据SKU主键）
+        const checkSql = `SELECT * FROM ${this.table} WHERE \`SKU\` = ?`;
+        const existing: any[] = await this.prisma.$queryRawUnsafe(
+            checkSql,
+            item['SKU'] || ''
         );
+
+        if (existing && existing.length > 0) {
+            throw new BadRequestException('该商品已存在');
+        }
+
+        try {
+            await this.prisma.$executeRawUnsafe(
+                `INSERT INTO ${this.table} (
+                    \`SKU\`, \`活动价\`, \`活动类型\`, 
+                    \`活动备注\`, \`活动确认人\`, \`数据更新时间\`
+                ) VALUES (?, ?, ?, ?, ?, NOW())`,
+                item['SKU'] || '',
+                item['活动价'] !== null && item['活动价'] !== undefined ? item['活动价'] : null,
+                item['活动类型'] || null,
+                item['活动备注'] || null,
+                item['活动确认人'] || null,
+            );
+        } catch (error: any) {
+            // 捕获 Prisma 主键冲突错误（双重保险）
+            if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
+                throw new BadRequestException('该商品已存在');
+            }
+            throw error;
+        }
     }
 
     async update(original: OpsRegularActivityDispatchItem, data: OpsRegularActivityDispatchItem): Promise<void> {
