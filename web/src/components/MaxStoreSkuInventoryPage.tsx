@@ -364,7 +364,14 @@ export default function MaxStoreSkuInventoryPage() {
                 // 表单验证错误
                 return;
             }
-            message.error((editingRecord ? '更新' : '创建') + '失败: ' + (error?.message || '未知错误'));
+            // 提取后端返回的错误消息
+            let errorMessage = '未知错误';
+            if (error?.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error?.message) {
+                errorMessage = error.message;
+            }
+            message.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
         } finally {
             setModalLoading(false);
         }
@@ -576,7 +583,7 @@ export default function MaxStoreSkuInventoryPage() {
                             { required: true, message: 'SKU编码不能为空' },
                         ]}
                     >
-                        <Input 
+                        <Input
                             placeholder="请输入SKU编码"
                             disabled={!!editingRecord}
                             onChange={async (e) => {
