@@ -985,9 +985,11 @@ export const financeReconciliationDifferenceApi = {
     交易单号?: string;
     牵牛花采购单号?: string;
     对账单号?: string;
-    记录状态?: string;
-  }): Promise<{ data: FinanceReconciliationDifference[]; total: number }> =>
-    api.get('/finance-reconciliation-difference', { params }).then(res => res.data),
+    记录状态?: string[];
+  }): Promise<{ data: FinanceReconciliationDifference[]; total: number }> => {
+    // axios 的 params 选项会自动处理数组参数（转换为多个同名查询参数）和URL编码
+    return api.get('/finance-reconciliation-difference', { params }).then(res => res.data);
+  },
 };
 
 // 采购单金额调整接口

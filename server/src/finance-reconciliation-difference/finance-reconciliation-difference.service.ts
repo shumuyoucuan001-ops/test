@@ -44,7 +44,7 @@ export class FinanceReconciliationDifferenceService {
         交易单号?: string,
         牵牛花采购单号?: string,
         对账单号?: string,
-        记录状态?: string,
+        记录状态?: string[],
     ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> {
         const connection = await this.getConnection();
 
@@ -92,9 +92,11 @@ export class FinanceReconciliationDifferenceService {
                 whereClause += ' AND 对账单号 LIKE ?';
                 queryParams.push(`%${对账单号}%`);
             }
-            if (记录状态) {
-                whereClause += ' AND 记录状态 = ?';
-                queryParams.push(记录状态);
+            if (记录状态 && 记录状态.length > 0) {
+                // 使用IN查询支持多选
+                const placeholders = 记录状态.map(() => '?').join(',');
+                whereClause += ` AND 记录状态 IN (${placeholders})`;
+                queryParams.push(...记录状态);
             }
 
             // 获取总数

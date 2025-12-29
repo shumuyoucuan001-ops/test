@@ -1,16 +1,18 @@
 "use client";
 
+import { FinanceReconciliationDifference, financeReconciliationDifferenceApi } from '@/lib/api';
+import { formatDateTime } from '@/lib/dateUtils';
 import {
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { formatDateTime } from '@/lib/dateUtils';
 import {
   Button,
   Card,
   Input,
   Popover,
+  Select,
   Space,
   Typography,
   message,
@@ -18,7 +20,6 @@ import {
 import { useEffect, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
-import { financeReconciliationDifferenceApi, FinanceReconciliationDifference } from '@/lib/api';
 
 const { Title } = Typography;
 
@@ -33,7 +34,7 @@ export default function FinanceReconciliationDifferencePage() {
   const [search交易单号, setSearch交易单号] = useState('');
   const [search牵牛花采购单号, setSearch牵牛花采购单号] = useState('');
   const [search对账单号, setSearch对账单号] = useState('');
-  const [search记录状态, setSearch记录状态] = useState('');
+  const [search记录状态, setSearch记录状态] = useState<string[]>([]);
 
   // 列设置相关状态
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
@@ -47,7 +48,7 @@ export default function FinanceReconciliationDifferencePage() {
     交易单号?: string,
     牵牛花采购单号?: string,
     对账单号?: string,
-    记录状态?: string,
+    记录状态?: string[],
   ) => {
     try {
       setLoading(true);
@@ -58,7 +59,7 @@ export default function FinanceReconciliationDifferencePage() {
         交易单号,
         牵牛花采购单号,
         对账单号,
-        记录状态,
+        记录状态: 记录状态 && 记录状态.length > 0 ? 记录状态 : undefined,
       });
       setRecords(result.data);
       setTotal(result.total);
@@ -126,6 +127,14 @@ export default function FinanceReconciliationDifferencePage() {
     saveColumnOrder(newOrder);
   };
 
+  // 记录状态选项
+  const 记录状态选项 = [
+    '全部完成收货金额有误',
+    '已核对无误',
+    '收货中金额有误',
+    '金额无误待收货',
+  ];
+
   // 执行搜索（使用所有搜索条件）
   const handleSearchAll = () => {
     setCurrentPage(1);
@@ -135,7 +144,7 @@ export default function FinanceReconciliationDifferencePage() {
       search交易单号 || undefined,
       search牵牛花采购单号 || undefined,
       search对账单号 || undefined,
-      search记录状态 || undefined,
+      search记录状态.length > 0 ? search记录状态 : undefined,
     );
   };
 
@@ -147,7 +156,7 @@ export default function FinanceReconciliationDifferencePage() {
       search交易单号 || undefined,
       search牵牛花采购单号 || undefined,
       search对账单号 || undefined,
-      search记录状态 || undefined,
+      search记录状态.length > 0 ? search记录状态 : undefined,
     );
   };
 
@@ -343,7 +352,7 @@ export default function FinanceReconciliationDifferencePage() {
                   hiddenColumns={hiddenColumns}
                   columnOrder={columnOrder}
                   onToggleVisibility={handleToggleColumnVisibility}
-                  onMoveColumn={() => {}}
+                  onMoveColumn={() => { }}
                   onColumnOrderChange={handleColumnOrderChange}
                 />
               }
@@ -362,7 +371,7 @@ export default function FinanceReconciliationDifferencePage() {
                 setSearch交易单号('');
                 setSearch牵牛花采购单号('');
                 setSearch对账单号('');
-                setSearch记录状态('');
+                setSearch记录状态([]);
                 setCurrentPage(1);
                 loadRecords(1, undefined);
               }}
@@ -401,14 +410,20 @@ export default function FinanceReconciliationDifferencePage() {
                 onChange={(e) => setSearch对账单号(e.target.value)}
                 onPressEnter={handleSearchAll}
               />
-              <Input
+              <Select
+                mode="multiple"
                 placeholder="记录状态"
                 allowClear
-                style={{ width: 180 }}
+                style={{ width: 200 }}
                 value={search记录状态}
-                onChange={(e) => setSearch记录状态(e.target.value)}
-                onPressEnter={handleSearchAll}
-              />
+                onChange={(value) => setSearch记录状态(value)}
+              >
+                {记录状态选项.map((状态) => (
+                  <Select.Option key={状态} value={状态}>
+                    {状态}
+                  </Select.Option>
+                ))}
+              </Select>
             </Space>
           </Space>
         </div>
@@ -435,7 +450,7 @@ export default function FinanceReconciliationDifferencePage() {
                 search交易单号 || undefined,
                 search牵牛花采购单号 || undefined,
                 search对账单号 || undefined,
-                search记录状态 || undefined,
+                search记录状态.length > 0 ? search记录状态 : undefined,
               );
             },
           }}
