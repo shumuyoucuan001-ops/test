@@ -18,10 +18,13 @@ export class LabelDataService {
   constructor(private prisma: PrismaService) { }
 
   private async getXitongkaifaConnection() {
+    if (!process.env.DB_PASSWORD) {
+      throw new Error('DB_PASSWORD environment variable is required');
+    }
     return await mysql.createConnection({
       host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
       user: process.env.DB_USER || 'xitongquanju',
-      password: process.env.DB_PASSWORD || 'b4FFS6kVGKV4jV',
+      password: process.env.DB_PASSWORD,
       database: 'sm_xitongkaifa',
       port: parseInt(process.env.DB_PORT || '3306'),
     });
@@ -311,25 +314,6 @@ export class LabelDataService {
       );
     }
 
-    // 写入审计日志（到 sm_xitongkaifa）
-    try {
-      await this.prisma.$executeRawUnsafe(`CREATE DATABASE IF NOT EXISTS \`sm_xitongkaifa\``);
-      await this.prisma.$executeRawUnsafe(
-        `CREATE TABLE IF NOT EXISTS \`sm_xitongkaifa\`\.\`label_data_audit\` (
-            id BIGINT PRIMARY KEY AUTO_INCREMENT,
-            action VARCHAR(20),
-            sku VARCHAR(128),
-            payload JSON,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
-      );
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO \`sm_xitongkaifa\`\.\`label_data_audit\` (action, sku, payload) VALUES ('upsert', ?, CAST(? AS JSON))`,
-        input.sku,
-        JSON.stringify(body)
-      );
-    } catch (_) { }
-
     return { success: true };
   }
 
@@ -343,25 +327,6 @@ export class LabelDataService {
       input.sku,
       input.supplier,
     );
-
-    // 审计
-    try {
-      await this.prisma.$executeRawUnsafe(`CREATE DATABASE IF NOT EXISTS \`sm_xitongkaifa\``);
-      await this.prisma.$executeRawUnsafe(
-        `CREATE TABLE IF NOT EXISTS \`sm_xitongkaifa\`\.\`label_data_audit\` (
-            id BIGINT PRIMARY KEY AUTO_INCREMENT,
-            action VARCHAR(20),
-            sku VARCHAR(128),
-            payload JSON,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
-      );
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO \`sm_xitongkaifa\`\.\`label_data_audit\` (action, sku, payload) VALUES ('delete', ?, CAST(? AS JSON))`,
-        input.sku,
-        JSON.stringify({ supplier: input.supplier })
-      );
-    } catch (_) { }
 
     return { success: true };
   }
@@ -704,11 +669,12 @@ export class LabelDataService {
       `;
 
       const changesJson = JSON.stringify(data.changes);
+      // 不记录完整的 changesJson 到日志，避免暴露敏感信息
       Logger.log('[LabelDataService] Inserting log:', {
         sku: data.sku,
         supplierName: data.supplierName,
         action: data.action,
-        changesJson,
+        changesCount: Object.keys(data.changes || {}).length,
         userId: data.userId || null,
         userName: data.userName || null,
       });
@@ -748,7 +714,8 @@ export class LabelDataService {
 
       Logger.log('[LabelDataService] Old logs cleaned up (keeping max 30 records)');
     } catch (error) {
-      Logger.error('[LabelDataService] Failed to insert log:', error);
+      // 不记录完整的错误对象，避免暴露敏感信息
+      Logger.error('[LabelDataService] Failed to insert log:', (error as Error)?.message || '未知错误');
       throw error;
     }
   }

@@ -252,6 +252,7 @@ export default function LoginPage() {
       const dingTalkCode = v.dingTalkCode;
 
       console.log('[LoginPage] 开始登录，用户名:', v.username);
+      // 不记录密码信息，避免暴露敏感信息
       console.log('[LoginPage] 登录请求参数:', { username: v.username, hasPassword: !!v.password, hasDingTalkCode: !!dingTalkCode });
 
       const u = await aclApi.login(v.username, v.password, dingTalkCode);
@@ -271,7 +272,17 @@ export default function LoginPage() {
       console.error('[LoginPage] 错误响应头:', e?.response?.headers);
       console.error('[LoginPage] 请求URL:', e?.config?.url);
       console.error('[LoginPage] 请求方法:', e?.config?.method);
-      console.error('[LoginPage] 请求数据:', e?.config?.data);
+      // 不记录完整的请求数据，避免暴露密码等敏感信息
+      if (e?.config?.data) {
+        try {
+          const dataObj = typeof e.config.data === 'string' ? JSON.parse(e.config.data) : e.config.data;
+          const sanitized = { ...dataObj };
+          if (sanitized.password) sanitized.password = '***';
+          console.error('[LoginPage] 请求数据（已脱敏）:', sanitized);
+        } catch {
+          console.error('[LoginPage] 请求数据: [已隐藏，可能包含敏感信息]');
+        }
+      }
 
       const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || '登录失败';
       const status = e?.response?.status;

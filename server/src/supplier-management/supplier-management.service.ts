@@ -5,20 +5,26 @@ import { Logger } from '../utils/logger.util';
 @Injectable()
 export class SupplierManagementService {
   private async getXitongkaifaConnection() {
+    if (!process.env.DB_PASSWORD) {
+      throw new Error('DB_PASSWORD environment variable is required');
+    }
     return await mysql.createConnection({
       host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
       user: process.env.DB_USER || 'xitongquanju',
-      password: process.env.DB_PASSWORD || 'b4FFS6kVGKV4jV',
+      password: process.env.DB_PASSWORD,
       database: 'sm_xitongkaifa',
       port: parseInt(process.env.DB_PORT || '3306'),
     });
   }
 
   private async getChaigouConnection() {
+    if (!process.env.DB_PASSWORD) {
+      throw new Error('DB_PASSWORD environment variable is required');
+    }
     return await mysql.createConnection({
       host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
       user: process.env.DB_USER || 'xitongquanju',
-      password: process.env.DB_PASSWORD || 'b4FFS6kVGKV4jV',
+      password: process.env.DB_PASSWORD,
       database: 'sm_chaigou',
       port: parseInt(process.env.DB_PORT || '3306'),
     });
@@ -66,7 +72,8 @@ export class SupplierManagementService {
         data.userName || null,
       ]);
     } catch (error) {
-      Logger.error('[SupplierManagementService] Failed to insert log:', error);
+      // 不记录完整的错误对象，避免暴露敏感信息
+      Logger.error('[SupplierManagementService] Failed to insert log:', (error as Error)?.message || '未知错误');
       throw error;
     }
   }

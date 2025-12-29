@@ -27,15 +27,18 @@ export default function LoginScreen({ navigation }: Props) {
       const deviceInfo = `Android-${new Date().getTime()}`;
       
       const u = await aclApi.login(username, password, deviceInfo);
-      console.log('[LoginScreen] 登录成功:', u);
+      // 不记录完整的用户信息，避免暴露 token 等敏感信息
+      console.log('[LoginScreen] 登录成功，用户ID:', u.id);
       await AsyncStorage.setItem('userId', String(u.id));
       await AsyncStorage.setItem('displayName', u.display_name || '');
       await AsyncStorage.setItem('sessionToken', u.token || '');
       Alert.alert('成功', '登录成功');
       navigation.replace('Home');
     } catch (e: any) {
-      console.error('[LoginScreen] 登录错误:', e);
-      console.error('[LoginScreen] 错误详情:', JSON.stringify(e, null, 2));
+      // 不记录完整的错误对象，避免暴露敏感信息
+      console.error('[LoginScreen] 登录错误:', e?.message || '登录失败');
+      const errorMsg = e?.response?.data?.message || e?.message || '登录失败';
+      console.error('[LoginScreen] 错误消息:', errorMsg);
       const msg = e?.response?.data?.message || e?.message || '登录失败';
       Alert.alert('错误', `network error\n详细: ${msg}\n请检查网络连接`);
     } finally {

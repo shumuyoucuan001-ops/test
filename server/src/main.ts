@@ -35,16 +35,22 @@ async function bootstrap() {
     Logger.log(`[Bootstrap] 后端服务已启动，端口: ${port}`);
     Logger.log(`[Bootstrap] APK下载地址: http://localhost:${port}/downloads/`);
   } catch (error: any) {
-    Logger.error('[Bootstrap] 启动失败:', error);
-    Logger.error('[Bootstrap] 错误堆栈:', error?.stack);
+    // 只记录错误消息，不记录完整的错误对象和堆栈，避免暴露敏感信息
+    Logger.error('[Bootstrap] 启动失败:', error?.message || '未知错误');
+    if (error?.code) {
+      Logger.error('[Bootstrap] 错误代码:', error.code);
+    }
     process.exit(1);
   }
 }
 
 // 添加全局未捕获异常处理
 process.on('uncaughtException', (error: Error) => {
-  Logger.error('[UncaughtException] 未捕获的异常:', error);
-  Logger.error('[UncaughtException] 错误堆栈:', error.stack);
+  // 只记录错误消息，不记录完整的错误对象和堆栈，避免暴露敏感信息
+  Logger.error('[UncaughtException] 未捕获的异常:', error.message || '未知错误');
+  if (error.name) {
+    Logger.error('[UncaughtException] 错误类型:', error.name);
+  }
   // 不立即退出，让应用继续运行以便记录更多信息
 });
 

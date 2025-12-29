@@ -27,10 +27,13 @@ export interface Refund1688FollowUp {
 @Injectable()
 export class Refund1688FollowUpService {
   private async getChaigouConnection() {
+    if (!process.env.DB_PASSWORD) {
+      throw new Error('DB_PASSWORD environment variable is required');
+    }
     return await mysql.createConnection({
       host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
       user: process.env.DB_USER || 'xitongquanju',
-      password: process.env.DB_PASSWORD || 'b4FFS6kVGKV4jV',
+      password: process.env.DB_PASSWORD,
       database: 'sm_chaigou',
       port: parseInt(process.env.DB_PORT || '3306'),
     });

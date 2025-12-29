@@ -186,23 +186,31 @@ export class DingTalkService {
                         }
                     );
                 } catch (axiosError: any) {
-                    Logger.error('[DingTalkService] 新版API请求失败:', {
+                    // 不记录完整的响应数据，避免暴露敏感信息
+                    const errorInfo: any = {
                         message: axiosError.message,
                         status: axiosError.response?.status,
                         statusText: axiosError.response?.statusText,
-                        data: axiosError.response?.data,
-                        fullError: JSON.stringify(axiosError.response?.data || axiosError.message),
-                    });
+                    };
+                    // 只记录错误消息，不记录完整数据
+                    if (axiosError.response?.data) {
+                        const errorData = axiosError.response.data;
+                        errorInfo.errorMessage = errorData.message || errorData.error || '未知错误';
+                        if (errorData.errcode) {
+                            errorInfo.errorCode = errorData.errcode;
+                        }
+                    }
+                    Logger.error('[DingTalkService] 新版API请求失败:', errorInfo);
                     throw axiosError;
                 }
 
                 Logger.log('[DingTalkService] 新版OAuth2.0 userAccessToken响应状态:', oauthTokenResponse.status);
+                // 不记录完整的响应数据，避免暴露 accessToken 等敏感信息
                 Logger.log('[DingTalkService] 新版OAuth2.0 userAccessToken响应数据:', {
                     hasAccessToken: !!oauthTokenResponse.data?.accessToken,
                     hasExpireIn: !!oauthTokenResponse.data?.expireIn,
                     hasCorpId: !!oauthTokenResponse.data?.corpId,
                     hasOpenId: !!oauthTokenResponse.data?.openId,
-                    fullResponse: JSON.stringify(oauthTokenResponse.data),
                 });
 
                 if (oauthTokenResponse.data?.accessToken) {
@@ -496,12 +504,13 @@ export class DingTalkService {
                     }
                 } else {
                     Logger.error('[DingTalkService] ✗ 新版OAuth2.0 userAccessToken失败 - 响应中没有accessToken');
-                    Logger.error('[DingTalkService] 完整响应数据:', JSON.stringify(oauthTokenResponse.data, null, 2));
+                    // 只记录错误消息，不记录完整的响应数据，避免暴露敏感信息
                     Logger.error('[DingTalkService] 响应状态码:', oauthTokenResponse.status);
-                    Logger.error('[DingTalkService] 响应头:', JSON.stringify(oauthTokenResponse.headers));
+                    Logger.error('[DingTalkService] 错误消息:', oauthTokenResponse.data?.message || oauthTokenResponse.data?.error || '未知错误');
 
                     const errorMsg = oauthTokenResponse.data?.message || oauthTokenResponse.data?.error || '未知错误';
-                    throw new BadRequestException(`获取access_token失败: ${errorMsg} (响应: ${JSON.stringify(oauthTokenResponse.data)})`);
+                    // 不包含完整的响应数据，避免暴露敏感信息
+                    throw new BadRequestException(`获取access_token失败: ${errorMsg}`);
                 }
 
                 Logger.log('[DingTalkService] 新版OAuth2.0流程失败，尝试企业内应用流程...');
@@ -513,15 +522,22 @@ export class DingTalkService {
 
                 if (oauthError.response) {
                     Logger.error('[DingTalkService] HTTP响应状态:', oauthError.response.status, oauthError.response.statusText);
-                    Logger.error('[DingTalkService] HTTP响应数据:', JSON.stringify(oauthError.response.data, null, 2));
-                    Logger.error('[DingTalkService] HTTP响应头:', JSON.stringify(oauthError.response.headers));
+                    // 只记录错误消息，不记录完整的响应数据，避免暴露敏感信息
+                    const errorData = oauthError.response.data;
+                    if (errorData) {
+                        Logger.error('[DingTalkService] HTTP错误消息:', errorData.message || errorData.error || '未知错误');
+                        // 只记录错误代码，不记录完整数据
+                        if (errorData.errcode) {
+                            Logger.error('[DingTalkService] HTTP错误代码:', errorData.errcode);
+                        }
+                    }
                 }
 
                 if (oauthError.request) {
                     Logger.error('[DingTalkService] 请求配置:', {
                         url: oauthError.config?.url,
                         method: oauthError.config?.method,
-                        headers: oauthError.config?.headers,
+                        // 不记录请求头，可能包含敏感信息
                     });
                 }
 
