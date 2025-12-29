@@ -191,6 +191,34 @@ export class OpsShelfExclusionService {
         };
     }
 
+    async checkExists(item: OpsShelfExclusionItem): Promise<boolean> {
+        const checkSql = `SELECT * FROM ${this.table} 
+            WHERE \`SPU\` = ? 
+            AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') 
+            AND COALESCE(\`渠道编码\`, '') = COALESCE(?, '')`;
+        const existing: any[] = await this.prisma.$queryRawUnsafe(
+            checkSql,
+            item['SPU'] || '',
+            item['门店编码'] || '',
+            item['渠道编码'] || ''
+        );
+        return existing && existing.length > 0;
+    }
+
+    async checkBatchExists(items: OpsShelfExclusionItem[]): Promise<{ exists: boolean; duplicateItems: OpsShelfExclusionItem[] }> {
+        const duplicateItems: OpsShelfExclusionItem[] = [];
+        for (const item of items) {
+            const exists = await this.checkExists(item);
+            if (exists) {
+                duplicateItems.push(item);
+            }
+        }
+        return {
+            exists: duplicateItems.length > 0,
+            duplicateItems
+        };
+    }
+
     private validate(item: OpsShelfExclusionItem, allowEmptySPU: boolean = false) {
         if (!allowEmptySPU && !item['SPU']) {
             throw new BadRequestException('SPU为必填');
