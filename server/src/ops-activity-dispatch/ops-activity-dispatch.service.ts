@@ -188,6 +188,17 @@ export class OpsActivityDispatchService {
     async create(item: OpsActivityDispatchItem): Promise<void> {
         this.validate(item);
 
+        // 检查是否已存在（根据SKU主键）
+        const checkSql = `SELECT * FROM ${this.table} WHERE \`SKU\` = ?`;
+        const existing: any[] = await this.prisma.$queryRawUnsafe(
+            checkSql,
+            item['SKU'] || ''
+        );
+
+        if (existing && existing.length > 0) {
+            throw new BadRequestException('该商品已存在');
+        }
+
         // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数
         let 剩余活动天数 = item['剩余活动天数'];
         if (item['结束时间']) {
@@ -200,21 +211,29 @@ export class OpsActivityDispatchService {
             剩余活动天数 = diffDays >= 0 ? diffDays : null;
         }
 
-        await this.prisma.$executeRawUnsafe(
-            `INSERT INTO ${this.table} (
-                \`SKU\`, \`活动价\`, \`最低活动价\`, \`活动类型\`, 
-                \`门店名称\`, \`活动备注\`, \`剩余活动天数\`, \`活动确认人\`, \`结束时间\`, \`数据更新时间\`
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-            item['SKU'] || '',
-            item['活动价'] !== null && item['活动价'] !== undefined ? item['活动价'] : null,
-            item['最低活动价'] !== null && item['最低活动价'] !== undefined ? item['最低活动价'] : null,
-            item['活动类型'] || null,
-            item['门店名称'] || null,
-            item['活动备注'] || null,
-            剩余活动天数 !== null && 剩余活动天数 !== undefined ? 剩余活动天数 : null,
-            item['活动确认人'] || null,
-            item['结束时间'] ? new Date(item['结束时间']) : null,
-        );
+        try {
+            await this.prisma.$executeRawUnsafe(
+                `INSERT INTO ${this.table} (
+                    \`SKU\`, \`活动价\`, \`最低活动价\`, \`活动类型\`, 
+                    \`门店名称\`, \`活动备注\`, \`剩余活动天数\`, \`活动确认人\`, \`结束时间\`, \`数据更新时间\`
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                item['SKU'] || '',
+                item['活动价'] !== null && item['活动价'] !== undefined ? item['活动价'] : null,
+                item['最低活动价'] !== null && item['最低活动价'] !== undefined ? item['最低活动价'] : null,
+                item['活动类型'] || null,
+                item['门店名称'] || null,
+                item['活动备注'] || null,
+                剩余活动天数 !== null && 剩余活动天数 !== undefined ? 剩余活动天数 : null,
+                item['活动确认人'] || null,
+                item['结束时间'] ? new Date(item['结束时间']) : null,
+            );
+        } catch (error: any) {
+            // 捕获 Prisma 主键冲突错误（双重保险）
+            if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
+                throw new BadRequestException('该商品已存在');
+            }
+            throw error;
+        }
     }
 
     async update(original: OpsActivityDispatchItem, data: OpsActivityDispatchItem): Promise<void> {
