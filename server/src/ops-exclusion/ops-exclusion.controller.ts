@@ -18,7 +18,7 @@ export class OpsExclusionController {
     ): Promise<{ data: OpsExclusionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
         const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
-        
+
         const filters: any = {};
         if (视图名称) filters.视图名称 = 视图名称;
         if (门店编码) filters.门店编码 = 门店编码;
@@ -56,6 +56,18 @@ export class OpsExclusionController {
     @Post('batch-create')
     async batchCreate(@Body() body: { items: OpsExclusionItem[] }) {
         const result = await this.service.batchCreate(body.items);
+        return result;
+    }
+
+    @Post('check-exists')
+    async checkExists(@Body() body: OpsExclusionItem) {
+        const exists = await this.service.checkExists(body);
+        return { exists };
+    }
+
+    @Post('check-batch-exists')
+    async checkBatchExists(@Body() body: { items: OpsExclusionItem[] }) {
+        const result = await this.service.checkBatchExists(body.items);
         return result;
     }
 }
