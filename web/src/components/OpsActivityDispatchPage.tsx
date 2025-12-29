@@ -271,7 +271,14 @@ export default function OpsActivityDispatchPage() {
             load();
         } catch (e: any) {
             if (e?.errorFields) return;
-            message.error(e?.message || "保存失败");
+            // 提取后端返回的错误消息
+            let errorMessage = '保存失败';
+            if (e?.response?.data?.message) {
+                errorMessage = e.response.data.message;
+            } else if (e?.message) {
+                errorMessage = e.message;
+            }
+            message.error(errorMessage);
             console.error(e);
         }
     };
