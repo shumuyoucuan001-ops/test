@@ -233,7 +233,14 @@ export default function OpsRegularActivityDispatchPage() {
             load();
         } catch (e: any) {
             if (e?.errorFields) return;
-            message.error(e?.message || "保存失败");
+            // 提取后端返回的错误消息
+            let errorMessage = '保存失败';
+            if (e?.response?.data?.message) {
+                errorMessage = e.response.data.message;
+            } else if (e?.message) {
+                errorMessage = e.message;
+            }
+            message.error(errorMessage);
             console.error(e);
         }
     };
@@ -794,8 +801,8 @@ export default function OpsRegularActivityDispatchPage() {
             >
                 <Form form={form} layout="vertical">
                     <Form.Item name="SKU" label="SKU" rules={[{ required: true, message: "请输入SKU" }]}>
-                        <Input 
-                            maxLength={100} 
+                        <Input
+                            maxLength={100}
                             disabled={!!editing}
                             onChange={async (e) => {
                                 if (!editing) {
