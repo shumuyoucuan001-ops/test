@@ -1,6 +1,7 @@
 
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '../utils/logger.util';
 
 export interface OpsShelfExclusionItem {
     'SPU': string;
@@ -82,13 +83,25 @@ export class OpsShelfExclusionService {
 
     async create(item: OpsShelfExclusionItem): Promise<void> {
         this.validate(item, true); // 单独新增时，SPU不是必填项
-        await this.prisma.$executeRawUnsafe(
-            `INSERT INTO ${this.table} (\`SPU\`, \`门店编码\`, \`渠道编码\`, \`备注\`) VALUES (?, ?, ?, ?)`,
-            item['SPU'] || '',
-            item['门店编码'] || '',
-            item['渠道编码'] || '',
-            item['备注'] || null,
-        );
+        try {
+            await this.prisma.$executeRawUnsafe(
+                `INSERT INTO ${this.table} (\`SPU\`, \`门店编码\`, \`渠道编码\`, \`备注\`) VALUES (?, ?, ?, ?)`,
+                item['SPU'] || '',
+                item['门店编码'] || '',
+                item['渠道编码'] || '',
+                item['备注'] || null,
+            );
+        } catch (error: any) {
+            Logger.error('[OpsShelfExclusionService] Create error:', error);
+            // 捕获 Prisma 主键冲突错误
+            if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
+                throw new BadRequestException('该数据已存在');
+            }
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(error?.message || '创建失败');
+        }
     }
 
     async update(original: OpsShelfExclusionItem, data: OpsShelfExclusionItem): Promise<void> {

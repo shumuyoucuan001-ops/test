@@ -140,8 +140,15 @@ const supplierApi = {
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || '创建供应商失败');
+      let errorMessage = '创建供应商失败';
+      try {
+        const error = await response.json();
+        errorMessage = error.message || error.error || errorMessage;
+      } catch (e) {
+        // 如果响应不是 JSON，使用状态文本
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   },

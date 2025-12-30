@@ -1,6 +1,7 @@
 
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '../utils/logger.util';
 
 export interface OpsExclusionItem {
     '视图名称': string;
@@ -141,14 +142,26 @@ export class OpsExclusionService {
 
     async create(item: OpsExclusionItem): Promise<void> {
         this.validate(item);
-        await this.prisma.$executeRawUnsafe(
-            `INSERT INTO ${this.table} (\`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`, \`备注\`) VALUES (?, ?, ?, ?, ?)`,
-            item['视图名称'] || '',
-            item['门店编码'] || '',
-            item['SKU编码'] || '',
-            item['SPU编码'] || '',
-            item['备注'] || null,
-        );
+        try {
+            await this.prisma.$executeRawUnsafe(
+                `INSERT INTO ${this.table} (\`视图名称\`, \`门店编码\`, \`SKU编码\`, \`SPU编码\`, \`备注\`) VALUES (?, ?, ?, ?, ?)`,
+                item['视图名称'] || '',
+                item['门店编码'] || '',
+                item['SKU编码'] || '',
+                item['SPU编码'] || '',
+                item['备注'] || null,
+            );
+        } catch (error: any) {
+            Logger.error('[OpsExclusionService] Create error:', error);
+            // 捕获 Prisma 主键冲突错误
+            if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
+                throw new BadRequestException('该数据已存在');
+            }
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(error?.message || '创建失败');
+        }
     }
 
     async update(original: OpsExclusionItem, data: OpsExclusionItem): Promise<void> {

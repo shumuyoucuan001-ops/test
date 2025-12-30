@@ -142,11 +142,21 @@ export default function OpsShelfExclusionPage() {
                 message.success("更新成功");
             } else {
                 // 检查是否已存在
-                const checkResult = await opsShelfExclusionApi.checkExists(submitData);
-                if (checkResult.exists) {
-                    message.error("该数据已存在，请勿重复添加");
-                    return;
+                try {
+                    console.log('检查重复数据:', submitData);
+                    const checkResult = await opsShelfExclusionApi.checkExists(submitData);
+                    console.log('检查结果:', checkResult);
+                    if (checkResult && checkResult.exists) {
+                        console.log('数据已存在，阻止提交');
+                        message.error("该数据已存在，请勿重复添加");
+                        return;
+                    }
+                    console.log('数据不存在，继续创建');
+                } catch (checkError: any) {
+                    console.error('检查重复数据失败:', checkError);
+                    // 如果检查失败，继续尝试创建，让后端验证
                 }
+                console.log('开始创建数据:', submitData);
                 await opsShelfExclusionApi.create(submitData);
                 message.success("新增成功");
             }
@@ -154,8 +164,15 @@ export default function OpsShelfExclusionPage() {
             load();
         } catch (e: any) {
             if (e?.errorFields) return;
-            message.error(e?.message || "保存失败");
-            console.error(e);
+            // 提取后端返回的错误消息
+            let errorMessage = '保存失败';
+            if (e?.response?.data?.message) {
+                errorMessage = e.response.data.message;
+            } else if (e?.message) {
+                errorMessage = e.message;
+            }
+            message.error(errorMessage);
+            console.error('保存失败:', e);
         }
     };
 
@@ -398,13 +415,18 @@ export default function OpsShelfExclusionPage() {
 
         try {
             // 检查是否有重复数据
-            const checkResult = await opsShelfExclusionApi.checkBatchExists(batchItems);
-            if (checkResult.exists) {
-                const duplicateInfo = checkResult.duplicateItems.map(item =>
-                    `SPU:${item['SPU']}, 门店编码:${item['门店编码']}, 渠道编码:${item['渠道编码']}`
-                ).join('; ');
-                message.error(`以下数据已存在，请勿重复添加：${duplicateInfo}`);
-                return;
+            try {
+                const checkResult = await opsShelfExclusionApi.checkBatchExists(batchItems);
+                if (checkResult && checkResult.exists) {
+                    const duplicateInfo = checkResult.duplicateItems.map(item =>
+                        `SPU:${item['SPU']}, 门店编码:${item['门店编码']}, 渠道编码:${item['渠道编码']}`
+                    ).join('; ');
+                    message.error(`以下数据已存在，请勿重复添加：${duplicateInfo}`);
+                    return;
+                }
+            } catch (checkError: any) {
+                console.error('检查重复数据失败:', checkError);
+                // 如果检查失败，继续尝试创建，让后端验证
             }
 
             const result = await opsShelfExclusionApi.batchCreate(batchItems);

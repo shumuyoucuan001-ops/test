@@ -412,6 +412,10 @@ export const opsExclusionApi = {
     api.post('/ops-exclusion/batch-delete', { items }).then(res => res.data),
   batchCreate: (items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
     api.post('/ops-exclusion/batch-create', { items }).then(res => res.data),
+  checkExists: (data: OpsExclusionItem): Promise<{ exists: boolean }> =>
+    api.post('/ops-exclusion/check-exists', data).then(res => res.data),
+  checkBatchExists: (items: OpsExclusionItem[]): Promise<{ exists: boolean; duplicateItems: OpsExclusionItem[] }> =>
+    api.post('/ops-exclusion/check-batch-exists', { items }).then(res => res.data),
 };
 
 // 运营组管理 - 手动强制活动分发
@@ -569,6 +573,10 @@ export const opsShelfExclusionApi = {
     api.post('/ops-shelf-exclusion/batch-delete', { items }).then(res => res.data),
   batchCreate: (items: OpsShelfExclusionItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
     api.post('/ops-shelf-exclusion/batch-create', { items }).then(res => res.data),
+  checkExists: (data: OpsShelfExclusionItem): Promise<{ exists: boolean }> =>
+    api.post('/ops-shelf-exclusion/check-exists', data).then(res => res.data),
+  checkBatchExists: (items: OpsShelfExclusionItem[]): Promise<{ exists: boolean; duplicateItems: OpsShelfExclusionItem[] }> =>
+    api.post('/ops-shelf-exclusion/check-batch-exists', { items }).then(res => res.data),
 };
 
 // 门店管理 - 驳回差异单

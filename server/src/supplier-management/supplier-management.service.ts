@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
@@ -260,7 +260,7 @@ export class SupplierManagementService {
       const [checkResult]: any = await connection.execute(checkQuery, [data.supplierCode]);
 
       if (checkResult[0].count > 0) {
-        throw new Error('供应商编码已存在');
+        throw new BadRequestException('供应商编码已存在');
       }
 
       // 插入新记录

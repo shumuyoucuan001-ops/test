@@ -1,6 +1,7 @@
 
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '../utils/logger.util';
 
 export interface OpsActivityDispatchItem {
     'SKU': string;
@@ -228,11 +229,15 @@ export class OpsActivityDispatchService {
                 item['结束时间'] ? new Date(item['结束时间']) : null,
             );
         } catch (error: any) {
+            Logger.error('[OpsActivityDispatchService] Create error:', error);
             // 捕获 Prisma 主键冲突错误（双重保险）
             if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
                 throw new BadRequestException('该商品已存在');
             }
-            throw error;
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(error?.message || '创建失败');
         }
     }
 
