@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AclModule } from './acl/acl.module';
+import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DingTalkModule } from './dingtalk/dingtalk.module';
@@ -12,6 +13,7 @@ import { LabelDataModule } from './label-data/label-data.module';
 import { LabelPrintModule } from './label-print/label-print.module';
 import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-quantity.module';
 import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
+import { NonPurchaseBillRecordModule } from './non-purchase-bill-record/non-purchase-bill-record.module';
 import { OpsActivityDispatchModule } from './ops-activity-dispatch/ops-activity-dispatch.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { OpsRegularActivityDispatchModule } from './ops-regular-activity-dispatch/ops-regular-activity-dispatch.module';
@@ -34,6 +36,7 @@ import { VersionModule } from './version/version.module';
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    AiModule,
     TemplateModule,
     ProductModule,
     ReceiptModule,
@@ -55,6 +58,7 @@ import { VersionModule } from './version/version.module';
     Refund1688FollowUpModule,
     FinanceManagementModule,
     FinanceReconciliationDifferenceModule,
+    NonPurchaseBillRecordModule,
     PurchaseAmountAdjustmentModule,
   ],
   controllers: [AppController, HealthController],

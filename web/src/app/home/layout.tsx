@@ -217,6 +217,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <AccountBookOutlined />,
     url: '/home/finance-reconciliation-difference',
   },
+  'non-purchase-bill-record': {
+    title: '非采购单流水记录',
+    icon: <AccountBookOutlined />,
+    url: '/home/non-purchase-bill-record',
+  },
   'purchase-amount-adjustment': {
     title: '采购单金额调整',
     icon: <AccountBookOutlined />,
@@ -692,6 +697,11 @@ export default function HomeLayout({
             key: 'finance-reconciliation-difference',
             icon: <AccountBookOutlined />,
             label: '账单对账汇总差异',
+          },
+          {
+            key: 'non-purchase-bill-record',
+            icon: <AccountBookOutlined />,
+            label: '非采购单流水记录',
           },
           {
             key: 'purchase-amount-adjustment',

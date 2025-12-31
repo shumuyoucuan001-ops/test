@@ -1000,6 +1000,67 @@ export const financeReconciliationDifferenceApi = {
   },
 };
 
+// 非采购单流水记录接口
+export interface NonPurchaseBillRecord {
+  账单流水: string; // 主键
+  记账金额?: number;
+  账单类型?: string;
+  所属仓店?: string;
+  账单流水备注?: string;
+  财务记账凭证号?: string;
+  财务审核状态?: string;
+  记录修改人?: string;
+  财务审核人?: string;
+  记录增加时间?: string;
+  最近修改时间?: string;
+}
+
+export const nonPurchaseBillRecordApi = {
+  // 获取所有记录（分页）
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    账单流水?: string;
+    账单类型?: string;
+    所属仓店?: string;
+    财务审核状态?: string;
+    记录修改人?: string;
+  }): Promise<{ data: NonPurchaseBillRecord[]; total: number }> =>
+    api.get('/non-purchase-bill-record', { params }).then(res => res.data),
+
+  // 获取单个记录
+  get: (账单流水: string): Promise<NonPurchaseBillRecord | null> =>
+    api.get('/non-purchase-bill-record/by-bill', {
+      params: { 账单流水 }
+    }).then(res => res.data),
+
+  // 创建记录
+  create: (data: NonPurchaseBillRecord): Promise<NonPurchaseBillRecord> =>
+    api.post('/non-purchase-bill-record', data).then(res => res.data),
+
+  // 批量创建记录
+  batchCreate: (records: NonPurchaseBillRecord[]): Promise<{ success: number; failed: number; errors: string[] }> =>
+    api.post('/non-purchase-bill-record/batch', { records }).then(res => res.data),
+
+  // 更新记录
+  update: (账单流水: string, data: Partial<NonPurchaseBillRecord>): Promise<NonPurchaseBillRecord> =>
+    api.put('/non-purchase-bill-record', {
+      账单流水,
+      data
+    }).then(res => res.data),
+
+  // 删除记录
+  delete: (账单流水: string): Promise<boolean> =>
+    api.delete('/non-purchase-bill-record', {
+      data: { 账单流水 }
+    }).then(res => res.data),
+
+  // 批量删除记录
+  batchDelete: (账单流水列表: string[]): Promise<{ success: number; failed: number }> =>
+    api.delete('/non-purchase-bill-record/batch', { data: { 账单流水列表 } }).then(res => res.data),
+};
+
 // 采购单金额调整接口
 export interface PurchaseAmountAdjustment {
   purchaseOrderNumber: string; // 采购单号(牵牛花)（主键）
