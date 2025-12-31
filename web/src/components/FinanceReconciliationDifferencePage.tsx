@@ -1,6 +1,6 @@
 "use client";
 
-import { FinanceReconciliationDifference, financeReconciliationDifferenceApi, NonPurchaseBillRecord, nonPurchaseBillRecordApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '@/lib/api';
+import { FinanceBill, financeManagementApi, FinanceReconciliationDifference, financeReconciliationDifferenceApi, NonPurchaseBillRecord, nonPurchaseBillRecordApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
   PlusOutlined,
@@ -57,12 +57,18 @@ export default function FinanceReconciliationDifferencePage() {
   const [purchaseOrderActionModalVisible, setPurchaseOrderActionModalVisible] = useState(false);
   const [selectedPurchaseOrderRecord, setSelectedPurchaseOrderRecord] = useState<FinanceReconciliationDifference | null>(null);
 
-  // 账单手动绑定采购单相关状态
+  // 账单手动绑定采购单相关状态（FinanceManagement）
+  const [financeBillModalVisible, setFinanceBillModalVisible] = useState(false);
+  const [financeBillForm] = Form.useForm();
+  const [financeBillImageFileList, setFinanceBillImageFileList] = useState<UploadFile[]>([]);
+  const [financeBillPreviewImage, setFinanceBillPreviewImage] = useState<string | null>(null);
+  const [financeBillPreviewVisible, setFinanceBillPreviewVisible] = useState(false);
+  const [financeBillLoading, setFinanceBillLoading] = useState(false);
+
+  // 采购单金额调整相关状态（用于牵牛花采购单号点击）
   const [purchaseAdjustmentModalVisible, setPurchaseAdjustmentModalVisible] = useState(false);
   const [purchaseAdjustmentForm] = Form.useForm();
   const [purchaseAdjustmentImageFileList, setPurchaseAdjustmentImageFileList] = useState<UploadFile[]>([]);
-  const [purchaseAdjustmentPreviewImage, setPurchaseAdjustmentPreviewImage] = useState<string | null>(null);
-  const [purchaseAdjustmentPreviewVisible, setPurchaseAdjustmentPreviewVisible] = useState(false);
   const [purchaseAdjustmentLoading, setPurchaseAdjustmentLoading] = useState(false);
 
   // 非采购单流水记录相关状态
@@ -225,13 +231,14 @@ export default function FinanceReconciliationDifferencePage() {
   const handleSelectPurchaseAdjustment = () => {
     setActionModalVisible(false);
     if (selectedRecord) {
-      // 打开采购单金额调整新增Modal，自动填充采购单号
-      purchaseAdjustmentForm.resetFields();
-      purchaseAdjustmentForm.setFieldsValue({
-        purchaseOrderNumber: selectedRecord.牵牛花采购单号,
+      // 打开账单手动绑定采购单新增Modal（FinanceManagement），自动填充交易单号和牵牛花采购单号
+      financeBillForm.resetFields();
+      financeBillForm.setFieldsValue({
+        transactionNumber: selectedRecord.交易单号,
+        qianniuhuaPurchaseNumber: selectedRecord.牵牛花采购单号,
       });
-      setPurchaseAdjustmentImageFileList([]);
-      setPurchaseAdjustmentModalVisible(true);
+      setFinanceBillImageFileList([]);
+      setFinanceBillModalVisible(true);
     }
   };
 
@@ -263,8 +270,13 @@ export default function FinanceReconciliationDifferencePage() {
     return false; // 阻止自动上传，手动处理
   };
 
+  // 图片变化处理（用于账单手动绑定采购单）
+  const handleFinanceBillImageChange = (info: any) => {
+    setFinanceBillImageFileList(info.fileList);
+  };
+
   // 图片变化处理（用于采购单金额调整）
-  const handleImageChange = (info: any) => {
+  const handlePurchaseAdjustmentImageChange = (info: any) => {
     setPurchaseAdjustmentImageFileList(info.fileList);
   };
 
@@ -320,6 +332,43 @@ export default function FinanceReconciliationDifferencePage() {
       console.error(error);
     } finally {
       setPurchaseAdjustmentLoading(false);
+    }
+  };
+
+  // 保存账单手动绑定采购单（FinanceBill）
+  const handleSaveFinanceBill = async () => {
+    try {
+      const values = await financeBillForm.validateFields();
+
+      // 处理图片
+      let imageBase64: string | undefined;
+      if (financeBillImageFileList.length > 0 && financeBillImageFileList[0].originFileObj) {
+        // 新上传的图片
+        imageBase64 = await fileToBase64(financeBillImageFileList[0].originFileObj);
+      }
+
+      const billData: FinanceBill = {
+        transactionNumber: values.transactionNumber,
+        qianniuhuaPurchaseNumber: values.qianniuhuaPurchaseNumber || undefined,
+        importExceptionRemark: values.importExceptionRemark || undefined,
+        image: imageBase64,
+      };
+
+      setFinanceBillLoading(true);
+      await financeManagementApi.create(billData);
+      message.success('创建成功');
+      setFinanceBillModalVisible(false);
+      financeBillForm.resetFields();
+      setFinanceBillImageFileList([]);
+    } catch (error: any) {
+      if (error?.errorFields) {
+        // 表单验证错误
+        return;
+      }
+      message.error(error.message || '保存失败');
+      console.error(error);
+    } finally {
+      setFinanceBillLoading(false);
     }
   };
 
@@ -696,7 +745,7 @@ export default function FinanceReconciliationDifferencePage() {
 
       {/* 选择操作弹框（用于牵牛花采购单号） */}
       <Modal
-        title="您需要对该交易单进行："
+        title="您需要对该采购单进行："
         open={purchaseOrderActionModalVisible}
         onCancel={() => {
           setPurchaseOrderActionModalVisible(false);
@@ -717,7 +766,7 @@ export default function FinanceReconciliationDifferencePage() {
         </Space>
       </Modal>
 
-      {/* 账单手动绑定采购单 Modal */}
+      {/* 采购单金额调整 Modal（用于牵牛花采购单号点击） */}
       <Modal
         title="新增调整记录"
         open={purchaseAdjustmentModalVisible}
@@ -789,7 +838,7 @@ export default function FinanceReconciliationDifferencePage() {
                 listType="picture-card"
                 fileList={purchaseAdjustmentImageFileList}
                 beforeUpload={beforeUpload}
-                onChange={handleImageChange}
+                onChange={handlePurchaseAdjustmentImageChange}
                 onRemove={() => {
                   setPurchaseAdjustmentImageFileList([]);
                   purchaseAdjustmentForm.setFieldValue('image', '');
@@ -843,6 +892,104 @@ export default function FinanceReconciliationDifferencePage() {
             name="financeReviewer"
           >
             <Input placeholder="请输入财务审核人" maxLength={20} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 账单手动绑定采购单 Modal（FinanceManagement） */}
+      <Modal
+        title="新增账单"
+        open={financeBillModalVisible}
+        onOk={handleSaveFinanceBill}
+        onCancel={() => {
+          setFinanceBillModalVisible(false);
+          financeBillForm.resetFields();
+          setFinanceBillImageFileList([]);
+        }}
+        width={800}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={financeBillLoading}
+      >
+        <Form
+          form={financeBillForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="交易单号"
+            name="transactionNumber"
+            rules={[
+              { required: true, message: '请输入交易单号' },
+              { whitespace: true, message: '交易单号不能为空' }
+            ]}
+          >
+            <Input placeholder="请输入交易单号" />
+          </Form.Item>
+
+          <Form.Item
+            label="牵牛花采购单号"
+            name="qianniuhuaPurchaseNumber"
+          >
+            <Input placeholder="请输入牵牛花采购单号" />
+          </Form.Item>
+
+          <Form.Item
+            label="导入异常备注"
+            name="importExceptionRemark"
+          >
+            <TextArea
+              rows={4}
+              placeholder="请输入导入异常备注"
+              maxLength={1000}
+              showCount
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="图片"
+            help="支持上传图片，大小不超过10MB"
+            name="image"
+            style={{ display: 'none' }}
+          >
+            <Input type="hidden" />
+          </Form.Item>
+          <Form.Item
+            label=" "
+            colon={false}
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                listType="picture-card"
+                fileList={financeBillImageFileList}
+                beforeUpload={beforeUpload}
+                onChange={handleFinanceBillImageChange}
+                onRemove={() => {
+                  setFinanceBillImageFileList([]);
+                  financeBillForm.setFieldValue('image', '');
+                  return true;
+                }}
+                maxCount={1}
+              >
+                {financeBillImageFileList.length < 1 && (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>上传图片</div>
+                  </div>
+                )}
+              </Upload>
+              {financeBillImageFileList.length > 0 && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setFinanceBillImageFileList([]);
+                    financeBillForm.setFieldValue('image', '');
+                  }}
+                >
+                  清空图片
+                </Button>
+              )}
+            </Space>
           </Form.Item>
         </Form>
       </Modal>
@@ -938,18 +1085,18 @@ export default function FinanceReconciliationDifferencePage() {
 
       {/* 图片预览 */}
       <Modal
-        open={purchaseAdjustmentPreviewVisible}
+        open={financeBillPreviewVisible}
         footer={null}
         onCancel={() => {
-          setPurchaseAdjustmentPreviewVisible(false);
-          setPurchaseAdjustmentPreviewImage(null);
+          setFinanceBillPreviewVisible(false);
+          setFinanceBillPreviewImage(null);
         }}
         width={800}
         centered
       >
-        {purchaseAdjustmentPreviewImage && (
+        {financeBillPreviewImage && (
           <Image
-            src={purchaseAdjustmentPreviewImage}
+            src={financeBillPreviewImage}
             alt="预览"
             style={{ width: '100%' }}
           />
