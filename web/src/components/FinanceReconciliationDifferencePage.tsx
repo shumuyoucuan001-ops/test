@@ -1,8 +1,9 @@
 "use client";
 
-import { FinanceReconciliationDifference, financeReconciliationDifferenceApi } from '@/lib/api';
+import { FinanceReconciliationDifference, financeReconciliationDifferenceApi, NonPurchaseBillRecord, nonPurchaseBillRecordApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
+  PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -10,18 +11,25 @@ import {
 import {
   Button,
   Card,
+  Form,
+  Image,
   Input,
+  InputNumber,
+  message,
+  Modal,
   Popover,
   Select,
   Space,
   Typography,
-  message,
+  Upload,
 } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
 import { useEffect, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
 const { Title } = Typography;
+const { TextArea } = Input;
 
 export default function FinanceReconciliationDifferencePage() {
   const [records, setRecords] = useState<FinanceReconciliationDifference[]>([]);
@@ -40,6 +48,27 @@ export default function FinanceReconciliationDifferencePage() {
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+  // 选择操作弹框相关状态（用于交易单号）
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<FinanceReconciliationDifference | null>(null);
+
+  // 采购单操作弹框相关状态（用于牵牛花采购单号）
+  const [purchaseOrderActionModalVisible, setPurchaseOrderActionModalVisible] = useState(false);
+  const [selectedPurchaseOrderRecord, setSelectedPurchaseOrderRecord] = useState<FinanceReconciliationDifference | null>(null);
+
+  // 账单手动绑定采购单相关状态
+  const [purchaseAdjustmentModalVisible, setPurchaseAdjustmentModalVisible] = useState(false);
+  const [purchaseAdjustmentForm] = Form.useForm();
+  const [purchaseAdjustmentImageFileList, setPurchaseAdjustmentImageFileList] = useState<UploadFile[]>([]);
+  const [purchaseAdjustmentPreviewImage, setPurchaseAdjustmentPreviewImage] = useState<string | null>(null);
+  const [purchaseAdjustmentPreviewVisible, setPurchaseAdjustmentPreviewVisible] = useState(false);
+  const [purchaseAdjustmentLoading, setPurchaseAdjustmentLoading] = useState(false);
+
+  // 非采购单流水记录相关状态
+  const [nonPurchaseRecordModalVisible, setNonPurchaseRecordModalVisible] = useState(false);
+  const [nonPurchaseRecordForm] = Form.useForm();
+  const [nonPurchaseRecordLoading, setNonPurchaseRecordLoading] = useState(false);
 
   // 加载记录列表
   const loadRecords = async (
@@ -166,6 +195,167 @@ export default function FinanceReconciliationDifferencePage() {
     return amount.toFixed(2);
   };
 
+  // 处理交易单号点击
+  const handleTransactionNumberClick = (record: FinanceReconciliationDifference) => {
+    setSelectedRecord(record);
+    setActionModalVisible(true);
+  };
+
+  // 处理牵牛花采购单号点击
+  const handlePurchaseOrderNumberClick = (record: FinanceReconciliationDifference) => {
+    setSelectedPurchaseOrderRecord(record);
+    setPurchaseOrderActionModalVisible(true);
+  };
+
+  // 选择采购单金额调整（从牵牛花采购单号点击进入）
+  const handleSelectPurchaseAmountAdjustment = () => {
+    setPurchaseOrderActionModalVisible(false);
+    if (selectedPurchaseOrderRecord) {
+      // 打开采购单金额调整新增Modal，自动填充采购单号
+      purchaseAdjustmentForm.resetFields();
+      purchaseAdjustmentForm.setFieldsValue({
+        purchaseOrderNumber: selectedPurchaseOrderRecord.牵牛花采购单号,
+      });
+      setPurchaseAdjustmentImageFileList([]);
+      setPurchaseAdjustmentModalVisible(true);
+    }
+  };
+
+  // 选择账单手动绑定采购单
+  const handleSelectPurchaseAdjustment = () => {
+    setActionModalVisible(false);
+    if (selectedRecord) {
+      // 打开采购单金额调整新增Modal，自动填充采购单号
+      purchaseAdjustmentForm.resetFields();
+      purchaseAdjustmentForm.setFieldsValue({
+        purchaseOrderNumber: selectedRecord.牵牛花采购单号,
+      });
+      setPurchaseAdjustmentImageFileList([]);
+      setPurchaseAdjustmentModalVisible(true);
+    }
+  };
+
+  // 选择非采购单流水记录
+  const handleSelectNonPurchaseRecord = () => {
+    setActionModalVisible(false);
+    if (selectedRecord) {
+      // 打开非采购单流水记录新增Modal，自动填充账单流水（交易单号）
+      nonPurchaseRecordForm.resetFields();
+      nonPurchaseRecordForm.setFieldsValue({
+        账单流水: selectedRecord.交易单号,
+      });
+      setNonPurchaseRecordModalVisible(true);
+    }
+  };
+
+  // 图片上传前处理（用于采购单金额调整）
+  const beforeUpload = (file: File): boolean => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      message.error('只能上传图片文件！');
+      return false;
+    }
+    const isLt10M = file.size / 1024 / 1024 < 10;
+    if (!isLt10M) {
+      message.error('图片大小不能超过10MB！');
+      return false;
+    }
+    return false; // 阻止自动上传，手动处理
+  };
+
+  // 图片变化处理（用于采购单金额调整）
+  const handleImageChange = (info: any) => {
+    setPurchaseAdjustmentImageFileList(info.fileList);
+  };
+
+  // 将文件转换为base64（用于采购单金额调整）
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // 移除 data:image/xxx;base64, 前缀
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 保存采购单金额调整
+  const handleSavePurchaseAdjustment = async () => {
+    try {
+      const values = await purchaseAdjustmentForm.validateFields();
+
+      // 处理图片
+      let imageBase64: string | undefined;
+      if (purchaseAdjustmentImageFileList.length > 0 && purchaseAdjustmentImageFileList[0].originFileObj) {
+        // 新上传的图片
+        imageBase64 = await fileToBase64(purchaseAdjustmentImageFileList[0].originFileObj);
+      }
+
+      const adjustmentData: PurchaseAmountAdjustment = {
+        purchaseOrderNumber: values.purchaseOrderNumber,
+        adjustmentAmount: values.adjustmentAmount,
+        adjustmentReason: values.adjustmentReason || undefined,
+        image: imageBase64,
+        financeReviewRemark: values.financeReviewRemark || undefined,
+        financeReviewStatus: values.financeReviewStatus || undefined,
+        financeReviewer: values.financeReviewer || undefined,
+      };
+
+      setPurchaseAdjustmentLoading(true);
+      await purchaseAmountAdjustmentApi.create(adjustmentData);
+      message.success('创建成功');
+      setPurchaseAdjustmentModalVisible(false);
+      purchaseAdjustmentForm.resetFields();
+      setPurchaseAdjustmentImageFileList([]);
+    } catch (error: any) {
+      if (error?.errorFields) {
+        // 表单验证错误
+        return;
+      }
+      message.error(error.message || '保存失败');
+      console.error(error);
+    } finally {
+      setPurchaseAdjustmentLoading(false);
+    }
+  };
+
+  // 保存非采购单流水记录
+  const handleSaveNonPurchaseRecord = async () => {
+    try {
+      const values = await nonPurchaseRecordForm.validateFields();
+
+      const recordData: NonPurchaseBillRecord = {
+        账单流水: values.账单流水,
+        记账金额: values.记账金额 || undefined,
+        账单类型: values.账单类型 || undefined,
+        所属仓店: values.所属仓店 || undefined,
+        账单流水备注: values.账单流水备注 || undefined,
+        财务记账凭证号: values.财务记账凭证号 || undefined,
+        财务审核状态: values.财务审核状态 || undefined,
+        财务审核人: values.财务审核人 || undefined,
+      };
+
+      setNonPurchaseRecordLoading(true);
+      await nonPurchaseBillRecordApi.create(recordData);
+      message.success('创建成功');
+      setNonPurchaseRecordModalVisible(false);
+      nonPurchaseRecordForm.resetFields();
+    } catch (error: any) {
+      if (error?.errorFields) {
+        // 表单验证错误
+        return;
+      }
+      message.error(error.message || '保存失败');
+      console.error(error);
+    } finally {
+      setNonPurchaseRecordLoading(false);
+    }
+  };
+
   // 表格列定义
   const allColumns = [
     {
@@ -174,6 +364,14 @@ export default function FinanceReconciliationDifferencePage() {
       key: '交易单号',
       width: 180,
       fixed: 'left' as const,
+      render: (text: string, record: FinanceReconciliationDifference) => (
+        <a
+          onClick={() => handleTransactionNumberClick(record)}
+          style={{ cursor: 'pointer', color: '#1890ff' }}
+        >
+          {text}
+        </a>
+      ),
     },
     {
       title: '牵牛花采购单号',
@@ -181,6 +379,14 @@ export default function FinanceReconciliationDifferencePage() {
       key: '牵牛花采购单号',
       width: 180,
       ellipsis: true,
+      render: (text: string, record: FinanceReconciliationDifference) => (
+        <a
+          onClick={() => handlePurchaseOrderNumberClick(record)}
+          style={{ cursor: 'pointer', color: '#1890ff' }}
+        >
+          {text}
+        </a>
+      ),
     },
     {
       title: '对账单号',
@@ -456,6 +662,299 @@ export default function FinanceReconciliationDifferencePage() {
           }}
         />
       </Card>
+
+      {/* 选择操作弹框（用于交易单号） */}
+      <Modal
+        title="您需要对该交易单进行："
+        open={actionModalVisible}
+        onCancel={() => {
+          setActionModalVisible(false);
+          setSelectedRecord(null);
+        }}
+        footer={null}
+        width={500}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Button
+            type="primary"
+            block
+            size="large"
+            onClick={handleSelectPurchaseAdjustment}
+          >
+            账单手动绑定采购单
+          </Button>
+          <Button
+            type="primary"
+            block
+            size="large"
+            onClick={handleSelectNonPurchaseRecord}
+          >
+            非采购单流水记录
+          </Button>
+        </Space>
+      </Modal>
+
+      {/* 选择操作弹框（用于牵牛花采购单号） */}
+      <Modal
+        title="您需要对该交易单进行："
+        open={purchaseOrderActionModalVisible}
+        onCancel={() => {
+          setPurchaseOrderActionModalVisible(false);
+          setSelectedPurchaseOrderRecord(null);
+        }}
+        footer={null}
+        width={500}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Button
+            type="primary"
+            block
+            size="large"
+            onClick={handleSelectPurchaseAmountAdjustment}
+          >
+            采购单金额调整
+          </Button>
+        </Space>
+      </Modal>
+
+      {/* 账单手动绑定采购单 Modal */}
+      <Modal
+        title="新增调整记录"
+        open={purchaseAdjustmentModalVisible}
+        onOk={handleSavePurchaseAdjustment}
+        onCancel={() => {
+          setPurchaseAdjustmentModalVisible(false);
+          purchaseAdjustmentForm.resetFields();
+          setPurchaseAdjustmentImageFileList([]);
+        }}
+        width={800}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={purchaseAdjustmentLoading}
+      >
+        <Form
+          form={purchaseAdjustmentForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="采购单号(牵牛花)"
+            name="purchaseOrderNumber"
+            rules={[
+              { required: true, message: '请输入采购单号' },
+              { whitespace: true, message: '采购单号不能为空' }
+            ]}
+          >
+            <Input placeholder="请输入采购单号" />
+          </Form.Item>
+
+          <Form.Item
+            label="调整金额"
+            name="adjustmentAmount"
+          >
+            <InputNumber
+              placeholder="请输入调整金额"
+              style={{ width: '100%' }}
+              precision={2}
+              min={-999999999.99}
+              max={999999999.99}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="异常调整原因备注"
+            name="adjustmentReason"
+          >
+            <TextArea
+              rows={4}
+              placeholder="请输入异常调整原因备注"
+              maxLength={245}
+              showCount
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="图片"
+            help="支持上传图片，大小不超过10MB"
+            name="image"
+            style={{ display: 'none' }}
+          >
+            <Input type="hidden" />
+          </Form.Item>
+          <Form.Item
+            label=" "
+            colon={false}
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                listType="picture-card"
+                fileList={purchaseAdjustmentImageFileList}
+                beforeUpload={beforeUpload}
+                onChange={handleImageChange}
+                onRemove={() => {
+                  setPurchaseAdjustmentImageFileList([]);
+                  purchaseAdjustmentForm.setFieldValue('image', '');
+                  return true;
+                }}
+                maxCount={1}
+              >
+                {purchaseAdjustmentImageFileList.length < 1 && (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>上传图片</div>
+                  </div>
+                )}
+              </Upload>
+              {purchaseAdjustmentImageFileList.length > 0 && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setPurchaseAdjustmentImageFileList([]);
+                    purchaseAdjustmentForm.setFieldValue('image', '');
+                  }}
+                >
+                  清空图片
+                </Button>
+              )}
+            </Space>
+          </Form.Item>
+
+          <Form.Item
+            label="财务审核意见备注"
+            name="financeReviewRemark"
+          >
+            <TextArea
+              rows={4}
+              placeholder="请输入财务审核意见备注"
+              maxLength={245}
+              showCount
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="财务审核状态"
+            name="financeReviewStatus"
+          >
+            <Input placeholder="请输入财务审核状态" maxLength={20} />
+          </Form.Item>
+
+          <Form.Item
+            label="财务审核人"
+            name="financeReviewer"
+          >
+            <Input placeholder="请输入财务审核人" maxLength={20} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 非采购单流水记录 Modal */}
+      <Modal
+        title="新增记录"
+        open={nonPurchaseRecordModalVisible}
+        onOk={handleSaveNonPurchaseRecord}
+        onCancel={() => {
+          setNonPurchaseRecordModalVisible(false);
+          nonPurchaseRecordForm.resetFields();
+        }}
+        width={800}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={nonPurchaseRecordLoading}
+      >
+        <Form
+          form={nonPurchaseRecordForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="账单流水"
+            name="账单流水"
+            rules={[
+              { required: true, message: '请输入账单流水' },
+              { whitespace: true, message: '账单流水不能为空' }
+            ]}
+          >
+            <Input placeholder="请输入账单流水" />
+          </Form.Item>
+
+          <Form.Item
+            label="记账金额"
+            name="记账金额"
+          >
+            <InputNumber
+              placeholder="请输入记账金额"
+              style={{ width: '100%' }}
+              precision={2}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="账单类型"
+            name="账单类型"
+          >
+            <Input placeholder="请输入账单类型" />
+          </Form.Item>
+
+          <Form.Item
+            label="所属仓店"
+            name="所属仓店"
+          >
+            <Input placeholder="请输入所属仓店" />
+          </Form.Item>
+
+          <Form.Item
+            label="账单流水备注"
+            name="账单流水备注"
+          >
+            <TextArea
+              rows={4}
+              placeholder="请输入账单流水备注"
+              maxLength={245}
+              showCount
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="财务记账凭证号"
+            name="财务记账凭证号"
+          >
+            <Input placeholder="请输入财务记账凭证号" />
+          </Form.Item>
+
+          <Form.Item
+            label="财务审核状态"
+            name="财务审核状态"
+          >
+            <Input placeholder="请输入财务审核状态" />
+          </Form.Item>
+
+          <Form.Item
+            label="财务审核人"
+            name="财务审核人"
+          >
+            <Input placeholder="请输入财务审核人" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 图片预览 */}
+      <Modal
+        open={purchaseAdjustmentPreviewVisible}
+        footer={null}
+        onCancel={() => {
+          setPurchaseAdjustmentPreviewVisible(false);
+          setPurchaseAdjustmentPreviewImage(null);
+        }}
+        width={800}
+        centered
+      >
+        {purchaseAdjustmentPreviewImage && (
+          <Image
+            src={purchaseAdjustmentPreviewImage}
+            alt="预览"
+            style={{ width: '100%' }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
