@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AclModule } from './acl/acl.module';
-import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DingTalkModule } from './dingtalk/dingtalk.module';
@@ -36,7 +35,6 @@ import { VersionModule } from './version/version.module';
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
-    AiModule,
     TemplateModule,
     ProductModule,
     ReceiptModule,
