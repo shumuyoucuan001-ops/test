@@ -272,9 +272,24 @@ export default function OpsActivityDispatchPage() {
             load();
         } catch (e: any) {
             if (e?.errorFields) return;
+
+            console.error('[OpsActivityDispatchPage] 保存失败，错误详情:', {
+                error: e,
+                hasResponse: !!e?.response,
+                responseStatus: e?.response?.status,
+                responseData: e?.response?.data,
+                errorMessage: e?.message,
+                errorStack: e?.stack,
+            });
+
             // 使用增强的错误提示（方式1：message + Modal弹框）
-            showErrorBoth(e, '保存失败');
-            console.error('保存失败:', e);
+            try {
+                showErrorBoth(e, '保存失败');
+            } catch (showError) {
+                console.error('[OpsActivityDispatchPage] 显示错误提示失败:', showError);
+                // 最后的备用方案：使用原生 alert
+                alert('保存失败: ' + (e?.response?.data?.message || e?.message || '未知错误'));
+            }
         }
     };
 

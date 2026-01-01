@@ -244,8 +244,8 @@ export class AclService {
 
     // 获取总数
     const totalQuery = `SELECT COUNT(*) as count FROM sm_xitongkaifa.sys_permissions WHERE ${whereClause}`;
-    const [totalResult]: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
-    const total = Number(totalResult[0].count);
+    const totalResult: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
+    const total = Number(totalResult[0]?.count || 0);
 
     // 获取数据
     const dataQuery = `SELECT * FROM sm_xitongkaifa.sys_permissions WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
@@ -289,8 +289,8 @@ export class AclService {
 
     // 获取总数
     const totalQuery = `SELECT COUNT(*) as count FROM sm_xitongkaifa.sys_roles WHERE ${whereClause}`;
-    const [totalResult]: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
-    const total = Number(totalResult[0].count);
+    const totalResult: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
+    const total = Number(totalResult[0]?.count || 0);
 
     // 获取数据
     const dataQuery = `SELECT * FROM sm_xitongkaifa.sys_roles WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
@@ -340,8 +340,8 @@ export class AclService {
 
     // 获取总数
     const totalQuery = `SELECT COUNT(*) as count FROM sm_xitongkaifa.sys_users WHERE ${whereClause}`;
-    const [totalResult]: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
-    const total = Number(totalResult[0].count);
+    const totalResult: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
+    const total = Number(totalResult[0]?.count || 0);
 
     // 获取数据
     const dataQuery = `SELECT * FROM sm_xitongkaifa.sys_users WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;

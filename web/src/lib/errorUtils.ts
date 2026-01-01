@@ -29,24 +29,62 @@ import { Modal, message, notification } from 'antd';
  * - Axios 错误: error.message
  */
 export function extractErrorMessage(error: any): string {
+    console.log('[extractErrorMessage] 错误对象:', {
+        hasResponse: !!error?.response,
+        hasData: !!error?.response?.data,
+        responseStatus: error?.response?.status,
+        responseDataType: typeof error?.response?.data,
+        dataContent: error?.response?.data,
+        errorMessage: error?.message,
+    });
+
     // 尝试多种错误响应格式
-    if (error?.response?.data?.message) {
-        return error.response.data.message;
+    if (error?.response?.data) {
+        const data = error.response.data;
+
+        // 如果 data 是字符串，尝试解析为 JSON（Next.js API route 可能返回文本）
+        if (typeof data === 'string') {
+            try {
+                const parsed = JSON.parse(data);
+                if (parsed?.message) return parsed.message;
+                if (parsed?.error) return parsed.error;
+                if (parsed?.errorMessage) return parsed.errorMessage;
+            } catch (e) {
+                // 解析失败，使用原始字符串
+                if (data && data !== '') return data;
+            }
+        }
+
+        // data 是对象
+        if (typeof data === 'object') {
+            if (data.message) return data.message;
+            if (data.error) return data.error;
+            if (data.errorMessage) return data.errorMessage;
+            // NestJS 标准格式
+            if (data.statusCode && data.message) return data.message;
+        }
     }
-    if (error?.response?.data?.error) {
-        return error.response.data.error;
-    }
-    if (error?.response?.data?.errorMessage) {
-        return error.response.data.errorMessage;
-    }
+
+    // 尝试从 message 字段获取
     if (error?.message) {
         // 如果是 Axios 错误，message 可能是 "Request failed with status code 400"
         // 这种情况下应该尝试从 response.data 获取
         if (error.message.includes('status code')) {
-            return error?.response?.data?.message || error?.response?.data?.error || '请求失败';
+            const data = error?.response?.data;
+            if (typeof data === 'string') {
+                try {
+                    const parsed = JSON.parse(data);
+                    return parsed?.message || parsed?.error || '请求失败';
+                } catch (e) {
+                    return data || '请求失败';
+                }
+            }
+            return data?.message || data?.error || '请求失败';
         }
         return error.message;
     }
+
+    console.warn('[extractErrorMessage] 无法提取错误消息，使用默认消息');
     return '操作失败';
 }
 
@@ -89,21 +127,36 @@ export function showErrorNotification(error: any, defaultMessage: string = '操�
  * 先显示顶部提示（3秒），然后弹出 Modal 弹框（需要用户点击确认）
  */
 export function showErrorBoth(error: any, defaultMessage: string = '操作失败'): void {
+    console.log('[showErrorBoth] 开始显示错误提示');
     const errorMessage = extractErrorMessage(error);
     const finalMessage = errorMessage || defaultMessage;
 
+    console.log('[showErrorBoth] 提取的错误消息:', finalMessage);
+
     // 先显示顶部提示（快速反馈）
-    message.error(finalMessage, 3);
+    try {
+        message.error(finalMessage, 3);
+        console.log('[showErrorBoth] 顶部消息提示已显示');
+    } catch (e) {
+        console.error('[showErrorBoth] 显示顶部消息失败:', e);
+    }
 
     // 然后显示弹框（确保用户看到）
     setTimeout(() => {
-        Modal.error({
-            title: '⚠️ 操作失败',
-            content: finalMessage,
-            okText: '我知道了',
-            width: 480,
-            centered: true,
-        });
+        try {
+            Modal.error({
+                title: '⚠️ 操作失败',
+                content: finalMessage,
+                okText: '我知道了',
+                width: 480,
+                centered: true,
+            });
+            console.log('[showErrorBoth] Modal 弹框已显示');
+        } catch (e) {
+            console.error('[showErrorBoth] 显示 Modal 失败:', e);
+            // 如果 Modal 失败，至少显示一个 alert
+            alert('操作失败: ' + finalMessage);
+        }
     }, 300);
 }
 
