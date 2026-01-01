@@ -8,13 +8,29 @@ export class AclController {
   @Post('init') init() { return this.service.initSchema(); }
 
   // permissions
-  @Get('permissions') listPermissions() { return this.service.listPermissions(); }
+  @Get('permissions') listPermissions(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '20', 10);
+    return this.service.listPermissions(pageNum, limitNum, search);
+  }
   @Post('permissions/create') createPermission(@Body() b: any) { return this.service.createPermission(b); }
   @Post('permissions/update') updatePermission(@Body() b: any) { return this.service.updatePermission(Number(b.id), b); }
   @Post('permissions/delete') deletePermission(@Body('id') id: number) { return this.service.deletePermission(Number(id)); }
 
   // roles
-  @Get('roles') listRoles() { return this.service.listRoles(); }
+  @Get('roles') listRoles(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '20', 10);
+    return this.service.listRoles(pageNum, limitNum, search);
+  }
   @Post('roles/create') createRole(@Body() b: any) { return this.service.createRole(b); }
   @Post('roles/update') updateRole(@Body() b: any) { return this.service.updateRole(Number(b.id), b); }
   @Post('roles/delete') deleteRole(@Body('id') id: number) { return this.service.deleteRole(Number(id)); }
@@ -22,13 +38,21 @@ export class AclController {
   @Get('roles/granted') getRoleGranted(@Query('roleId') roleId: string) { return this.service.getRolePermissionIds(Number(roleId)); }
 
   // users
-  @Get('users') listUsers(@Query('q') q?: string) { return this.service.listUsers(q || ''); }
+  @Get('users') listUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+  ) {
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '20', 10);
+    return this.service.listUsers(pageNum, limitNum, q || '');
+  }
   @Get('users/debug') async debugUsers() {
-    const users = await this.service.listUsers('');
+    const result = await this.service.listUsers(1, 100, '');
     return {
-      count: users.length,
-      sample: users.slice(0, 2),
-      userWithId3: users.find(u => u.id === 3)
+      count: result.total,
+      sample: result.data.slice(0, 2),
+      userWithId3: result.data.find(u => u.id === 3)
     };
   }
   @Post('users/create') async createUser(@Body() b: any) {

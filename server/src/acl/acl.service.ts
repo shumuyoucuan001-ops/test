@@ -231,8 +231,27 @@ export class AclService {
   }
 
   // 权限CRUD
-  listPermissions() {
-    return this.prisma.$queryRawUnsafe(`SELECT * FROM sm_xitongkaifa.sys_permissions ORDER BY id DESC`);
+  async listPermissions(page: number = 1, limit: number = 20, search?: string): Promise<{ data: any[]; total: number }> {
+    const offset = (page - 1) * limit;
+    let whereClause = '1=1';
+    const queryParams: any[] = [];
+
+    if (search) {
+      whereClause += ' AND (code LIKE ? OR name LIKE ? OR path LIKE ?)';
+      const like = `%${search}%`;
+      queryParams.push(like, like, like);
+    }
+
+    // 获取总数
+    const totalQuery = `SELECT COUNT(*) as count FROM sm_xitongkaifa.sys_permissions WHERE ${whereClause}`;
+    const [totalResult]: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
+    const total = Number(totalResult[0].count);
+
+    // 获取数据
+    const dataQuery = `SELECT * FROM sm_xitongkaifa.sys_permissions WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
+    const data: any = await this.prisma.$queryRawUnsafe(dataQuery, ...queryParams, limit, offset);
+
+    return { data, total };
   }
   createPermission(p: { code: string; name: string; path: string }) {
     return this.prisma.$executeRawUnsafe(
@@ -257,8 +276,27 @@ export class AclService {
   }
 
   // 角色与授权
-  listRoles() {
-    return this.prisma.$queryRawUnsafe(`SELECT * FROM sm_xitongkaifa.sys_roles ORDER BY id DESC`);
+  async listRoles(page: number = 1, limit: number = 20, search?: string): Promise<{ data: any[]; total: number }> {
+    const offset = (page - 1) * limit;
+    let whereClause = '1=1';
+    const queryParams: any[] = [];
+
+    if (search) {
+      whereClause += ' AND (name LIKE ? OR remark LIKE ?)';
+      const like = `%${search}%`;
+      queryParams.push(like, like);
+    }
+
+    // 获取总数
+    const totalQuery = `SELECT COUNT(*) as count FROM sm_xitongkaifa.sys_roles WHERE ${whereClause}`;
+    const [totalResult]: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
+    const total = Number(totalResult[0].count);
+
+    // 获取数据
+    const dataQuery = `SELECT * FROM sm_xitongkaifa.sys_roles WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
+    const data: any = await this.prisma.$queryRawUnsafe(dataQuery, ...queryParams, limit, offset);
+
+    return { data, total };
   }
   createRole(r: { name: string; remark?: string }) {
     return this.prisma.$executeRawUnsafe(`INSERT INTO sm_xitongkaifa.sys_roles(name,remark) VALUES(?,?)`, r.name, r.remark || null);
@@ -289,14 +327,25 @@ export class AclService {
   }
 
   // 账号管理
-  async listUsers(q = '') {
-    let users: any[];
-    if (!q) {
-      users = await this.prisma.$queryRawUnsafe(`SELECT * FROM sm_xitongkaifa.sys_users ORDER BY id DESC`);
-    } else {
+  async listUsers(page: number = 1, limit: number = 20, q = ''): Promise<{ data: any[]; total: number }> {
+    const offset = (page - 1) * limit;
+    let whereClause = '1=1';
+    const queryParams: any[] = [];
+
+    if (q) {
+      whereClause += ' AND (username LIKE ? OR display_name LIKE ?)';
       const like = `%${q}%`;
-      users = await this.prisma.$queryRawUnsafe(`SELECT * FROM sm_xitongkaifa.sys_users WHERE username LIKE ? OR display_name LIKE ? ORDER BY id DESC`, like, like);
+      queryParams.push(like, like);
     }
+
+    // 获取总数
+    const totalQuery = `SELECT COUNT(*) as count FROM sm_xitongkaifa.sys_users WHERE ${whereClause}`;
+    const [totalResult]: any = await this.prisma.$queryRawUnsafe(totalQuery, ...queryParams);
+    const total = Number(totalResult[0].count);
+
+    // 获取数据
+    const dataQuery = `SELECT * FROM sm_xitongkaifa.sys_users WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
+    const users: any[] = await this.prisma.$queryRawUnsafe(dataQuery, ...queryParams, limit, offset);
 
     // 为每个用户获取角色信息
     for (const user of users) {
@@ -309,7 +358,7 @@ export class AclService {
       user.roles = roleRows;
     }
 
-    return users;
+    return { data: users, total };
   }
   async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: string | number; user_id?: string }) {
     await this.ensureSysUsersSchema();

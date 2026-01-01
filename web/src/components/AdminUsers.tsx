@@ -9,6 +9,9 @@ import ResponsiveTable from "./ResponsiveTable";
 export default function UserPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SysUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [roles, setRoles] = useState<SysRole[]>([]);
   const [open, setOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -18,13 +21,17 @@ export default function UserPage() {
 
   const [q, setQ] = useState('');
 
-  const load = async () => {
+  const loadUsers = async (page: number = currentPage, searchText: string = q) => {
     setLoading(true);
     try {
-      const users = await aclApi.listUsers(q);
-      console.log('获取到的用户数据:', users);
-      setData(users);
-      setRoles(await aclApi.listRoles());
+      const result = await aclApi.listUsers({
+        page,
+        limit: pageSize,
+        q: searchText || undefined,
+      });
+      console.log('获取到的用户数据:', result);
+      setData(result.data);
+      setTotal(result.total);
     } catch (error) {
       console.error('加载用户数据失败:', error);
       message.error("加载失败");
@@ -32,6 +39,21 @@ export default function UserPage() {
       setLoading(false);
     }
   };
+
+  const loadRoles = async () => {
+    try {
+      // 分配角色时需要所有角色，使用大limit获取
+      const result = await aclApi.listRoles({ page: 1, limit: 10000 });
+      setRoles(result.data);
+    } catch {
+      console.error("加载角色失败");
+    }
+  };
+
+  const load = async (page: number = currentPage, searchText: string = q) => {
+    await Promise.all([loadUsers(page, searchText), loadRoles()]);
+  };
+
   useEffect(() => { load(); }, []);
 
   const onEdit = (r?: SysUser) => { setEditing(r || null); setOpen(true); form.resetFields(); if (r) form.setFieldsValue(r); };
@@ -46,7 +68,7 @@ export default function UserPage() {
         await aclApi.createUser(payload as any);
       }
       setOpen(false);
-      await load();
+      await load(currentPage, q);
       message.success('保存成功');
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || '保存失败';
@@ -83,11 +105,16 @@ export default function UserPage() {
     try {
       await aclApi.assignUserRoles(editing!.id, checked);
       setAssignOpen(false);
-      await load(); // 重新加载用户列表以更新角色显示
+      await load(currentPage, q); // 重新加载用户列表以更新角色显示
       message.success("角色分配成功");
     } catch {
       message.error("角色分配失败");
     }
+  };
+
+  const handleSearch = () => {
+    setCurrentPage(1);
+    load(1, q);
   };
 
   const columns = [
@@ -130,7 +157,7 @@ export default function UserPage() {
         <Space>
           <Can code="button:user:update"><Button type="link" onClick={() => onEdit(r)}>编辑</Button></Can>
           <Can code="button:user:assign"><Button type="link" onClick={() => onAssign(r)}>分配角色</Button></Can>
-          <Can code="button:user:delete"><Button type="link" danger onClick={async () => { await aclApi.deleteUser(r.id); load(); }}>删除</Button></Can>
+          <Can code="button:user:delete"><Button type="link" danger onClick={async () => { await aclApi.deleteUser(r.id); load(currentPage, q); }}>删除</Button></Can>
         </Space>
       )
     }
@@ -138,8 +165,26 @@ export default function UserPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Card title="账号管理" extra={<Space><Input placeholder="按用户名/显示名搜索" value={q} onChange={(e) => setQ(e.target.value)} onPressEnter={load} style={{ width: 240 }} /><Button onClick={load}>搜索</Button><Can code="button:user:create"><Button type="primary" onClick={() => onEdit()}>新增账号</Button></Can></Space>}>
-        <ResponsiveTable<SysUser> rowKey="id" columns={columns as any} dataSource={data} loading={loading} pagination={false} />
+      <Card title="账号管理" extra={<Space><Input placeholder="按用户名/显示名搜索" value={q} onChange={(e) => setQ(e.target.value)} onPressEnter={handleSearch} style={{ width: 240 }} /><Button onClick={handleSearch}>搜索</Button><Can code="button:user:create"><Button type="primary" onClick={() => onEdit()}>新增账号</Button></Can></Space>}>
+        <ResponsiveTable<SysUser>
+          rowKey="id"
+          columns={columns as any}
+          dataSource={data}
+          loading={loading}
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size || 20);
+              load(page, q);
+            },
+          }}
+        />
       </Card>
 
       <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} confirmLoading={loading} title={editing ? '编辑账号' : '新增账号'} destroyOnClose>

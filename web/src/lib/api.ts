@@ -804,13 +804,15 @@ export const aclApi = {
   validateToken: (userId: number, token: string): Promise<boolean> => api.post('/acl/validate-token', { userId, token }).then(res => res.data),
 
   // permissions
-  listPermissions: (): Promise<SysPermission[]> => api.get('/acl/permissions').then(res => res.data),
+  listPermissions: (params?: { page?: number; limit?: number; search?: string }): Promise<{ data: SysPermission[]; total: number }> =>
+    api.get('/acl/permissions', { params }).then(res => res.data),
   createPermission: (p: Partial<SysPermission>) => api.post('/acl/permissions/create', p).then(res => res.data),
   updatePermission: (id: number, p: Partial<SysPermission>) => api.post('/acl/permissions/update', { id, ...p }).then(res => res.data),
   deletePermission: (id: number) => api.post('/acl/permissions/delete', { id }).then(res => res.data),
 
   // roles
-  listRoles: (): Promise<SysRole[]> => api.get('/acl/roles').then(res => res.data),
+  listRoles: (params?: { page?: number; limit?: number; search?: string }): Promise<{ data: SysRole[]; total: number }> =>
+    api.get('/acl/roles', { params }).then(res => res.data),
   createRole: (r: Partial<SysRole>) => api.post('/acl/roles/create', r).then(res => res.data),
   updateRole: (id: number, r: Partial<SysRole>) => api.post('/acl/roles/update', { id, ...r }).then(res => res.data),
   deleteRole: (id: number) => api.post('/acl/roles/delete', { id }).then(res => res.data),
@@ -818,7 +820,8 @@ export const aclApi = {
   roleGranted: (roleId: number): Promise<number[]> => api.get('/acl/roles/granted', { params: { roleId } }).then(res => res.data),
 
   // users
-  listUsers: (q?: string): Promise<SysUser[]> => api.get('/acl/users', { params: { q } }).then(res => res.data),
+  listUsers: (params?: { page?: number; limit?: number; q?: string }): Promise<{ data: SysUser[]; total: number }> =>
+    api.get('/acl/users', { params }).then(res => res.data),
   createUser: (u: Partial<SysUser>) => api.post('/acl/users/create', u).then(res => res.data),
   updateUser: (id: number, u: Partial<SysUser>) => api.post('/acl/users/update', { id, ...u }).then(res => res.data),
   deleteUser: (id: number) => api.post('/acl/users/delete', { id }).then(res => res.data),
