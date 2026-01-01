@@ -154,8 +154,8 @@ export class OpsExclusionService {
         } catch (error: any) {
             Logger.error('[OpsExclusionService] Create error:', error);
             // 捕获数据库主键冲突错误（多种格式）
-            if (error?.code === 'P2010' || 
-                error?.code === 'ER_DUP_ENTRY' || 
+            if (error?.code === 'P2010' ||
+                error?.code === 'ER_DUP_ENTRY' ||
                 error?.errno === 1062 ||
                 (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry')) ||
                 (error?.message && error.message.includes('Duplicate entry'))) {
@@ -269,17 +269,11 @@ export class OpsExclusionService {
     }
 
     async checkExists(item: OpsExclusionItem): Promise<boolean> {
-        const checkSql = `SELECT * FROM ${this.table} 
-            WHERE \`视图名称\` = ? 
-            AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') 
-            AND COALESCE(\`SKU编码\`, '') = COALESCE(?, '') 
-            AND COALESCE(\`SPU编码\`, '') = COALESCE(?, '')`;
+        // 仅检查SKU编码是否已存在
+        const checkSql = `SELECT * FROM ${this.table} WHERE \`SKU编码\` = ?`;
         const existing: any[] = await this.prisma.$queryRawUnsafe(
             checkSql,
-            item['视图名称'] || '',
-            item['门店编码'] || '',
-            item['SKU编码'] || '',
-            item['SPU编码'] || ''
+            item['SKU编码'] || ''
         );
         return existing && existing.length > 0;
     }

@@ -142,17 +142,13 @@ export default function OpsShelfExclusionPage() {
                 await opsShelfExclusionApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
-                // 检查是否已存在
+                // 检查SPU是否已存在
                 try {
-                    console.log('检查重复数据:', submitData);
                     const checkResult = await opsShelfExclusionApi.checkExists(submitData);
-                    console.log('检查结果:', checkResult);
                     if (checkResult && checkResult.exists) {
-                        console.log('数据已存在，阻止提交');
-                        message.error("该数据已存在，请勿重复添加");
+                        message.error(`SPU"${submitData['SPU']}"已存在，请勿重复添加`);
                         return;
                     }
-                    console.log('数据不存在，继续创建');
                 } catch (checkError: any) {
                     console.error('检查重复数据失败:', checkError);
                     // 如果检查失败，继续尝试创建，让后端验证
@@ -409,14 +405,12 @@ export default function OpsShelfExclusionPage() {
         }
 
         try {
-            // 检查是否有重复数据
+            // 检查SPU是否已存在
             try {
                 const checkResult = await opsShelfExclusionApi.checkBatchExists(batchItems);
                 if (checkResult && checkResult.exists) {
-                    const duplicateInfo = checkResult.duplicateItems.map(item =>
-                        `SPU:${item['SPU']}, 门店编码:${item['门店编码']}, 渠道编码:${item['渠道编码']}`
-                    ).join('; ');
-                    message.error(`以下数据已存在，请勿重复添加：${duplicateInfo}`);
+                    const duplicateSpus = checkResult.duplicateItems.map(item => item['SPU']).filter(Boolean);
+                    message.error(`以下SPU已存在，请勿重复添加：${duplicateSpus.join('、')}`);
                     return;
                 }
             } catch (checkError: any) {

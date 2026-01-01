@@ -480,6 +480,10 @@ export const opsActivityDispatchApi = {
     api.post('/ops-activity-dispatch/batch-create', { items }).then(res => res.data),
   getStoreNames: (): Promise<string[]> =>
     api.get('/ops-activity-dispatch/store-names').then(res => res.data),
+  checkExists: (data: OpsActivityDispatchItem): Promise<{ exists: boolean }> =>
+    api.post('/ops-activity-dispatch/check-exists', data).then(res => res.data),
+  checkBatchExists: (items: OpsActivityDispatchItem[]): Promise<{ exists: boolean; duplicateItems: OpsActivityDispatchItem[] }> =>
+    api.post('/ops-activity-dispatch/check-batch-exists', { items }).then(res => res.data),
 };
 
 // 运营组管理 - 手动常规活动分发
@@ -532,6 +536,10 @@ export const opsRegularActivityDispatchApi = {
     api.post('/ops-regular-activity-dispatch/batch-delete', { items }).then(res => res.data),
   batchCreate: (items: OpsRegularActivityDispatchItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
     api.post('/ops-regular-activity-dispatch/batch-create', { items }).then(res => res.data),
+  checkExists: (data: OpsRegularActivityDispatchItem): Promise<{ exists: boolean }> =>
+    api.post('/ops-regular-activity-dispatch/check-exists', data).then(res => res.data),
+  checkBatchExists: (items: OpsRegularActivityDispatchItem[]): Promise<{ exists: boolean; duplicateItems: OpsRegularActivityDispatchItem[] }> =>
+    api.post('/ops-regular-activity-dispatch/check-batch-exists', { items }).then(res => res.data),
 };
 
 // 运营组管理 - 排除上下架商品

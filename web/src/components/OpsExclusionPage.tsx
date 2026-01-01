@@ -230,17 +230,13 @@ export default function OpsExclusionPage() {
                 await opsExclusionApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
-                // 检查是否已存在
+                // 检查SKU编码是否已存在
                 try {
-                    console.log('检查重复数据:', submitData);
                     const checkResult = await opsExclusionApi.checkExists(submitData);
-                    console.log('检查结果:', checkResult);
                     if (checkResult && checkResult.exists) {
-                        console.log('数据已存在，阻止提交');
-                        message.error("该数据已存在，请勿重复添加");
+                        message.error(`SKU编码"${submitData['SKU编码']}"已存在，请勿重复添加`);
                         return;
                     }
-                    console.log('数据不存在，继续创建');
                 } catch (checkError: any) {
                     console.error('检查重复数据失败:', checkError);
                     // 如果检查失败，继续尝试创建，让后端验证
@@ -509,14 +505,12 @@ export default function OpsExclusionPage() {
         }
 
         try {
-            // 检查是否有重复数据
+            // 检查SKU编码是否已存在
             try {
                 const checkResult = await opsExclusionApi.checkBatchExists(validItems);
                 if (checkResult && checkResult.exists) {
-                    const duplicateInfo = checkResult.duplicateItems.map(item =>
-                        `视图名称:${item['视图名称']}, 门店编码:${item['门店编码']}, SKU编码:${item['SKU编码']}, SPU编码:${item['SPU编码']}`
-                    ).join('; ');
-                    message.error(`以下数据已存在，请勿重复添加：${duplicateInfo}`);
+                    const duplicateSkus = checkResult.duplicateItems.map(item => item['SKU编码']).filter(Boolean);
+                    message.error(`以下SKU编码已存在，请勿重复添加：${duplicateSkus.join('、')}`);
                     return;
                 }
             } catch (checkError: any) {

@@ -1,7 +1,6 @@
 "use client";
 
 import { formatDateTime } from '@/lib/dateUtils';
-import { showErrorBoth } from '@/lib/errorUtils';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -321,9 +320,18 @@ export default function FinanceManagementPage() {
       setModalVisible(false);
       refreshBills();
     } catch (error: any) {
-      if (error?.errorFields) return;
-      // 使用增强的错误提示（方式1：message + Modal弹框）
-      showErrorBoth(error, '保存失败');
+      if (error?.errorFields) {
+        // 表单验证错误
+        return;
+      }
+      // 提取后端返回的错误消息
+      let errorMessage = '未知错误';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      message.error((editingBill ? '更新' : '创建') + '失败: ' + errorMessage);
       console.error('保存失败:', error);
     }
   };
@@ -487,8 +495,14 @@ export default function FinanceManagementPage() {
       setInvalidItems([]);
       refreshBills();
     } catch (e: any) {
-      // 使用增强的错误提示（方式1：message + Modal弹框）
-      showErrorBoth(e, '批量创建失败');
+      // 提取后端返回的错误消息
+      let errorMessage = '未知错误';
+      if (e?.response?.data?.message) {
+        errorMessage = e.response.data.message;
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      message.error('批量创建失败: ' + errorMessage);
       console.error('批量创建失败:', e);
     }
   };

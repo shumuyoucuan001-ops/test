@@ -71,5 +71,17 @@ export class OpsActivityDispatchController {
     async getStoreNames(): Promise<string[]> {
         return this.service.getStoreNames();
     }
+
+    @Post('check-exists')
+    async checkExists(@Body() body: OpsActivityDispatchItem) {
+        const exists = await this.service.checkExists(body);
+        return { exists };
+    }
+
+    @Post('check-batch-exists')
+    async checkBatchExists(@Body() body: { items: OpsActivityDispatchItem[] }) {
+        const result = await this.service.checkBatchExists(body.items);
+        return result;
+    }
 }
 

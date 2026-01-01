@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -9,8 +10,6 @@ import {
   SettingOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { formatDateTime } from '@/lib/dateUtils';
-import { showErrorBoth } from '@/lib/errorUtils';
 import {
   Button,
   Card,
@@ -27,9 +26,9 @@ import {
   message,
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { NonPurchaseBillRecord, nonPurchaseBillRecordApi } from '../lib/api';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
-import { nonPurchaseBillRecordApi, NonPurchaseBillRecord } from '../lib/api';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -65,6 +64,20 @@ export default function NonPurchaseBillRecordPage() {
 
   // 选中的行
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  /**
+   * 从错误对象中提取错误消息
+   * 优先从 error.response.data.message 获取，其次从 error.message 获取
+   */
+  const extractErrorMessage = (error: any): string => {
+    if (error?.response?.data?.message) {
+      return error.response.data.message;
+    }
+    if (error?.message) {
+      return error.message;
+    }
+    return '未知错误';
+  };
 
   // 加载记录列表
   const loadRecords = async (
@@ -233,10 +246,16 @@ export default function NonPurchaseBillRecordPage() {
       setModalVisible(false);
       refreshRecords();
     } catch (error: any) {
-      if (error?.errorFields) return;
-      // 使用增强的错误提示（方式1：message + Modal弹框）
-      showErrorBoth(error, '保存失败');
-      console.error('保存失败:', error);
+      // 表单验证错误，直接返回，不显示错误提示
+      if (error?.errorFields) {
+        return;
+      }
+
+      // 提取并显示错误消息（用于处理重复数据等业务错误）
+      const errorMessage = extractErrorMessage(error);
+      const action = editingRecord ? '更新' : '创建';
+      message.error(`${action}失败: ${errorMessage}`);
+      console.error(`${action}失败:`, error);
     }
   };
 
@@ -392,10 +411,11 @@ export default function NonPurchaseBillRecordPage() {
       setBatchItems([]);
       setInvalidItems([]);
       refreshRecords();
-    } catch (e: any) {
-      // 使用增强的错误提示（方式1：message + Modal弹框）
-      showErrorBoth(e, '批量创建失败');
-      console.error('批量创建失败:', e);
+    } catch (error: any) {
+      // 提取并显示错误消息（用于处理批量创建失败等错误）
+      const errorMessage = extractErrorMessage(error);
+      message.error(`批量创建失败: ${errorMessage}`);
+      console.error('批量创建失败:', error);
     }
   };
 
@@ -593,7 +613,7 @@ export default function NonPurchaseBillRecordPage() {
                   hiddenColumns={hiddenColumns}
                   columnOrder={columnOrder}
                   onToggleVisibility={handleToggleColumnVisibility}
-                  onMoveColumn={() => {}}
+                  onMoveColumn={() => { }}
                   onColumnOrderChange={handleColumnOrderChange}
                 />
               }

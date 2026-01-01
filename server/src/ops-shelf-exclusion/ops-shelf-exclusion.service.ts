@@ -209,15 +209,11 @@ export class OpsShelfExclusionService {
     }
 
     async checkExists(item: OpsShelfExclusionItem): Promise<boolean> {
-        const checkSql = `SELECT * FROM ${this.table} 
-            WHERE \`SPU\` = ? 
-            AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') 
-            AND COALESCE(\`渠道编码\`, '') = COALESCE(?, '')`;
+        // 仅检查SPU是否已存在
+        const checkSql = `SELECT * FROM ${this.table} WHERE \`SPU\` = ?`;
         const existing: any[] = await this.prisma.$queryRawUnsafe(
             checkSql,
-            item['SPU'] || '',
-            item['门店编码'] || '',
-            item['渠道编码'] || ''
+            item['SPU'] || ''
         );
         return existing && existing.length > 0;
     }

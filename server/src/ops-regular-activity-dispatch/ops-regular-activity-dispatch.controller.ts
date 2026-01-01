@@ -60,5 +60,17 @@ export class OpsRegularActivityDispatchController {
         const result = await this.service.batchCreate(body.items);
         return result;
     }
+
+    @Post('check-exists')
+    async checkExists(@Body() body: OpsRegularActivityDispatchItem) {
+        const exists = await this.service.checkExists(body);
+        return { exists };
+    }
+
+    @Post('check-batch-exists')
+    async checkBatchExists(@Body() body: { items: OpsRegularActivityDispatchItem[] }) {
+        const result = await this.service.checkBatchExists(body.items);
+        return result;
+    }
 }
 

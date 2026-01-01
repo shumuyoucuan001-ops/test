@@ -385,6 +385,30 @@ export class OpsActivityDispatchService {
         }
     }
 
+    async checkExists(item: OpsActivityDispatchItem): Promise<boolean> {
+        // 检查SKU是否已存在
+        const checkSql = `SELECT * FROM ${this.table} WHERE \`SKU\` = ?`;
+        const existing: any[] = await this.prisma.$queryRawUnsafe(
+            checkSql,
+            item['SKU'] || ''
+        );
+        return existing && existing.length > 0;
+    }
+
+    async checkBatchExists(items: OpsActivityDispatchItem[]): Promise<{ exists: boolean; duplicateItems: OpsActivityDispatchItem[] }> {
+        const duplicateItems: OpsActivityDispatchItem[] = [];
+        for (const item of items) {
+            const exists = await this.checkExists(item);
+            if (exists) {
+                duplicateItems.push(item);
+            }
+        }
+        return {
+            exists: duplicateItems.length > 0,
+            duplicateItems
+        };
+    }
+
     private validate(item: OpsActivityDispatchItem) {
         if (!item['SKU'] || !item['SKU'].trim()) {
             throw new BadRequestException('SKU为必填');
