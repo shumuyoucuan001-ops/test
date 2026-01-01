@@ -148,5 +148,6 @@ web-build/
 # CocoaPods
 /ios/Pods/
 
+sql/
 # Prisma
 prisma/migrations/server-code.tar.gz

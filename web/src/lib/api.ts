@@ -1009,6 +1009,30 @@ export const financeReconciliationDifferenceApi = {
     // axios 的 params 选项会自动处理数组参数（转换为多个同名查询参数）和URL编码
     return api.get('/finance-reconciliation-difference', { params }).then(res => res.data);
   },
+
+  // 获取对账单号维度数据（去重）
+  getByReconciliationNumber: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    对账单号?: string;
+    记录状态?: string[];
+  }): Promise<{ data: FinanceReconciliationDifference[]; total: number }> => {
+    return api.get('/finance-reconciliation-difference/by-reconciliation-number', { params }).then(res => res.data);
+  },
+
+  // 根据对账单号获取子维度数据
+  getDetailsByReconciliationNumber: (
+    对账单号: string,
+    params?: {
+      交易单号?: string;
+      牵牛花采购单号?: string;
+      采购单状态?: string;
+      门店仓?: string;
+    }
+  ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> => {
+    return api.get(`/finance-reconciliation-difference/details/${encodeURIComponent(对账单号)}`, { params }).then(res => res.data);
+  },
 };
 
 // 非采购单流水记录接口

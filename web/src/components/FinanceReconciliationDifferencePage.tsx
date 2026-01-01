@@ -38,24 +38,21 @@ export default function FinanceReconciliationDifferencePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
-  // 单独的搜索字段
-  const [search交易单号, setSearch交易单号] = useState('');
-  const [search牵牛花采购单号, setSearch牵牛花采购单号] = useState('');
+  // 单独的搜索字段（主表）
   const [search对账单号, setSearch对账单号] = useState('');
   const [search记录状态, setSearch记录状态] = useState<string[]>([]);
+
+  // 子维度搜索字段
+  const [subSearch交易单号, setSubSearch交易单号] = useState('');
+  const [subSearch牵牛花采购单号, setSubSearch牵牛花采购单号] = useState('');
+  const [subSearch采购单状态, setSubSearch采购单状态] = useState('');
+  const [subSearch门店仓, setSubSearch门店仓] = useState('');
 
   // 列设置相关状态
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
 
-  // 选择操作弹框相关状态（用于交易单号）
-  const [actionModalVisible, setActionModalVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<FinanceReconciliationDifference | null>(null);
-
-  // 采购单操作弹框相关状态（用于牵牛花采购单号）
-  const [purchaseOrderActionModalVisible, setPurchaseOrderActionModalVisible] = useState(false);
-  const [selectedPurchaseOrderRecord, setSelectedPurchaseOrderRecord] = useState<FinanceReconciliationDifference | null>(null);
 
   // 账单手动绑定采购单相关状态（FinanceManagement）
   const [financeBillModalVisible, setFinanceBillModalVisible] = useState(false);
@@ -76,12 +73,17 @@ export default function FinanceReconciliationDifferencePage() {
   const [nonPurchaseRecordForm] = Form.useForm();
   const [nonPurchaseRecordLoading, setNonPurchaseRecordLoading] = useState(false);
 
-  // 加载记录列表
+  // 展开/收起相关状态
+  const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+  const [subRecords, setSubRecords] = useState<Record<string, FinanceReconciliationDifference[]>>({});
+  const [subLoading, setSubLoading] = useState<Record<string, boolean>>({});
+  const [subTotal, setSubTotal] = useState<Record<string, number>>({});
+  const [subPanelHeight, setSubPanelHeight] = useState<Record<string, number>>({});
+
+  // 加载记录列表（对账单号维度）
   const loadRecords = async (
     page: number = currentPage,
     search?: string,
-    交易单号?: string,
-    牵牛花采购单号?: string,
     对账单号?: string,
     记录状态?: string[],
   ) => {
@@ -95,19 +97,13 @@ export default function FinanceReconciliationDifferencePage() {
       if (search && search.trim()) {
         params.search = search.trim();
       }
-      if (交易单号 && 交易单号.trim()) {
-        params.交易单号 = 交易单号.trim();
-      }
-      if (牵牛花采购单号 && 牵牛花采购单号.trim()) {
-        params.牵牛花采购单号 = 牵牛花采购单号.trim();
-      }
       if (对账单号 && 对账单号.trim()) {
         params.对账单号 = 对账单号.trim();
       }
       if (记录状态 && 记录状态.length > 0) {
         params.记录状态 = 记录状态;
       }
-      const result = await financeReconciliationDifferenceApi.getAll(params);
+      const result = await financeReconciliationDifferenceApi.getByReconciliationNumber(params);
       setRecords(result.data);
       setTotal(result.total);
     } catch (error: any) {
@@ -188,8 +184,6 @@ export default function FinanceReconciliationDifferencePage() {
     loadRecords(
       1,
       searchText?.trim() || undefined,
-      search交易单号?.trim() || undefined,
-      search牵牛花采购单号?.trim() || undefined,
       search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
     );
@@ -200,11 +194,54 @@ export default function FinanceReconciliationDifferencePage() {
     loadRecords(
       currentPage,
       searchText?.trim() || undefined,
-      search交易单号?.trim() || undefined,
-      search牵牛花采购单号?.trim() || undefined,
       search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
     );
+  };
+
+  // 加载子维度数据
+  const loadSubRecords = async (对账单号: string) => {
+    if (!对账单号) return;
+
+    try {
+      setSubLoading(prev => ({ ...prev, [对账单号]: true }));
+      const result = await financeReconciliationDifferenceApi.getDetailsByReconciliationNumber(
+        对账单号,
+        {
+          交易单号: subSearch交易单号?.trim() || undefined,
+          牵牛花采购单号: subSearch牵牛花采购单号?.trim() || undefined,
+          采购单状态: subSearch采购单状态?.trim() || undefined,
+          门店仓: subSearch门店仓?.trim() || undefined,
+        }
+      );
+      setSubRecords(prev => ({ ...prev, [对账单号]: result.data }));
+      setSubTotal(prev => ({ ...prev, [对账单号]: result.total }));
+    } catch (error: any) {
+      message.error(error.message || '加载子维度数据失败');
+      console.error(error);
+    } finally {
+      setSubLoading(prev => ({ ...prev, [对账单号]: false }));
+    }
+  };
+
+  // 处理行展开
+  const handleExpand = (expanded: boolean, record: FinanceReconciliationDifference) => {
+    const 对账单号 = record.对账单号;
+    if (!对账单号) return;
+
+    if (expanded) {
+      setExpandedRowKeys(prev => [...prev, 对账单号]);
+      // 如果还没有加载过数据，则加载
+      if (!subRecords[对账单号]) {
+        loadSubRecords(对账单号);
+      }
+      // 初始化面板高度
+      if (!subPanelHeight[对账单号]) {
+        setSubPanelHeight(prev => ({ ...prev, [对账单号]: 400 }));
+      }
+    } else {
+      setExpandedRowKeys(prev => prev.filter(key => key !== 对账单号));
+    }
   };
 
   // 格式化金额
@@ -213,59 +250,6 @@ export default function FinanceReconciliationDifferencePage() {
     return amount.toFixed(2);
   };
 
-  // 处理交易单号点击
-  const handleTransactionNumberClick = (record: FinanceReconciliationDifference) => {
-    setSelectedRecord(record);
-    setActionModalVisible(true);
-  };
-
-  // 处理牵牛花采购单号点击
-  const handlePurchaseOrderNumberClick = (record: FinanceReconciliationDifference) => {
-    setSelectedPurchaseOrderRecord(record);
-    setPurchaseOrderActionModalVisible(true);
-  };
-
-  // 选择采购单金额调整（从牵牛花采购单号点击进入）
-  const handleSelectPurchaseAmountAdjustment = () => {
-    setPurchaseOrderActionModalVisible(false);
-    if (selectedPurchaseOrderRecord) {
-      // 打开采购单金额调整新增Modal，自动填充采购单号
-      purchaseAdjustmentForm.resetFields();
-      purchaseAdjustmentForm.setFieldsValue({
-        purchaseOrderNumber: selectedPurchaseOrderRecord.牵牛花采购单号,
-      });
-      setPurchaseAdjustmentImageFileList([]);
-      setPurchaseAdjustmentModalVisible(true);
-    }
-  };
-
-  // 选择账单手动绑定采购单
-  const handleSelectPurchaseAdjustment = () => {
-    setActionModalVisible(false);
-    if (selectedRecord) {
-      // 打开账单手动绑定采购单新增Modal（FinanceManagement），自动填充交易单号和牵牛花采购单号
-      financeBillForm.resetFields();
-      financeBillForm.setFieldsValue({
-        transactionNumber: selectedRecord.交易单号,
-        qianniuhuaPurchaseNumber: selectedRecord.牵牛花采购单号,
-      });
-      setFinanceBillImageFileList([]);
-      setFinanceBillModalVisible(true);
-    }
-  };
-
-  // 选择非采购单流水记录
-  const handleSelectNonPurchaseRecord = () => {
-    setActionModalVisible(false);
-    if (selectedRecord) {
-      // 打开非采购单流水记录新增Modal，自动填充账单流水（交易单号）
-      nonPurchaseRecordForm.resetFields();
-      nonPurchaseRecordForm.setFieldsValue({
-        账单流水: selectedRecord.交易单号,
-      });
-      setNonPurchaseRecordModalVisible(true);
-    }
-  };
 
   // 图片上传前处理（用于采购单金额调整）
   const beforeUpload = (file: File): boolean => {
@@ -335,6 +319,16 @@ export default function FinanceReconciliationDifferencePage() {
       setPurchaseAdjustmentModalVisible(false);
       purchaseAdjustmentForm.resetFields();
       setPurchaseAdjustmentImageFileList([]);
+
+      // 刷新所有展开的子维度数据
+      expandedRowKeys.forEach(对账单号 => {
+        if (对账单号) {
+          loadSubRecords(对账单号);
+        }
+      });
+
+      // 刷新主表数据
+      refreshRecords();
     } catch (error: any) {
       if (error?.errorFields) {
         // 表单验证错误
@@ -372,6 +366,16 @@ export default function FinanceReconciliationDifferencePage() {
       setFinanceBillModalVisible(false);
       financeBillForm.resetFields();
       setFinanceBillImageFileList([]);
+
+      // 刷新所有展开的子维度数据
+      expandedRowKeys.forEach(对账单号 => {
+        if (对账单号) {
+          loadSubRecords(对账单号);
+        }
+      });
+
+      // 刷新主表数据
+      refreshRecords();
     } catch (error: any) {
       if (error?.errorFields) {
         // 表单验证错误
@@ -405,6 +409,16 @@ export default function FinanceReconciliationDifferencePage() {
       message.success('创建成功');
       setNonPurchaseRecordModalVisible(false);
       nonPurchaseRecordForm.resetFields();
+
+      // 刷新所有展开的子维度数据
+      expandedRowKeys.forEach(对账单号 => {
+        if (对账单号) {
+          loadSubRecords(对账单号);
+        }
+      });
+
+      // 刷新主表数据
+      refreshRecords();
     } catch (error: any) {
       if (error?.errorFields) {
         // 表单验证错误
@@ -417,7 +431,7 @@ export default function FinanceReconciliationDifferencePage() {
     }
   };
 
-  // 表格列定义
+  // 表格列定义（对账单号维度）
   const allColumns = [
     {
       title: '对账单号',
@@ -425,67 +439,7 @@ export default function FinanceReconciliationDifferencePage() {
       key: '对账单号',
       width: 150,
       ellipsis: true,
-      render: (text: string) => text || '-',
-    },
-    {
-      title: '交易单号',
-      dataIndex: '交易单号',
-      key: '交易单号',
-      width: 180,
       fixed: 'left' as const,
-      render: (text: string, record: FinanceReconciliationDifference) => (
-        <a
-          onClick={() => handleTransactionNumberClick(record)}
-          style={{ cursor: 'pointer', color: '#1890ff' }}
-        >
-          {text}
-        </a>
-      ),
-    },
-    {
-      title: '牵牛花采购单号',
-      dataIndex: '牵牛花采购单号',
-      key: '牵牛花采购单号',
-      width: 180,
-      ellipsis: true,
-      render: (text: string, record: FinanceReconciliationDifference) => (
-        <a
-          onClick={() => handlePurchaseOrderNumberClick(record)}
-          style={{ cursor: 'pointer', color: '#1890ff' }}
-        >
-          {text}
-        </a>
-      ),
-    },
-    {
-      title: '采购单金额',
-      dataIndex: '采购单金额',
-      key: '采购单金额',
-      width: 120,
-      align: 'right' as const,
-      render: (text: number) => formatAmount(text),
-    },
-    {
-      title: '采购单调整金额',
-      dataIndex: '采购单调整金额',
-      key: '采购单调整金额',
-      width: 140,
-      align: 'right' as const,
-      render: (text: number) => formatAmount(text),
-    },
-    {
-      title: '调整后采购单金额',
-      dataIndex: '调整后采购单金额',
-      key: '调整后采购单金额',
-      width: 160,
-      align: 'right' as const,
-      render: (text: number) => formatAmount(text),
-    },
-    {
-      title: '采购单状态',
-      dataIndex: '采购单状态',
-      key: '采购单状态',
-      width: 120,
       render: (text: string) => text || '-',
     },
     {
@@ -493,20 +447,6 @@ export default function FinanceReconciliationDifferencePage() {
       dataIndex: '对账单收货状态',
       key: '对账单收货状态',
       width: 140,
-      render: (text: string) => text || '-',
-    },
-    {
-      title: '门店/仓',
-      dataIndex: '门店仓',
-      key: '门店仓',
-      width: 120,
-      render: (text: string) => text || '-',
-    },
-    {
-      title: '下单账号',
-      dataIndex: '下单账号',
-      key: '下单账号',
-      width: 120,
       render: (text: string) => text || '-',
     },
     {
@@ -635,8 +575,6 @@ export default function FinanceReconciliationDifferencePage() {
               icon={<ReloadOutlined />}
               onClick={() => {
                 setSearchText('');
-                setSearch交易单号('');
-                setSearch牵牛花采购单号('');
                 setSearch对账单号('');
                 setSearch记录状态([]);
                 setCurrentPage(1);
@@ -653,22 +591,6 @@ export default function FinanceReconciliationDifferencePage() {
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
             <Space wrap>
-              <Input
-                placeholder="交易单号"
-                allowClear
-                style={{ width: 180 }}
-                value={search交易单号}
-                onChange={(e) => setSearch交易单号(e.target.value)}
-                onPressEnter={handleSearchAll}
-              />
-              <Input
-                placeholder="牵牛花采购单号"
-                allowClear
-                style={{ width: 180 }}
-                value={search牵牛花采购单号}
-                onChange={(e) => setSearch牵牛花采购单号(e.target.value)}
-                onPressEnter={handleSearchAll}
-              />
               <Input
                 placeholder="对账单号"
                 allowClear
@@ -691,8 +613,6 @@ export default function FinanceReconciliationDifferencePage() {
                     loadRecords(
                       1,
                       searchText?.trim() || undefined,
-                      search交易单号?.trim() || undefined,
-                      search牵牛花采购单号?.trim() || undefined,
                       search对账单号?.trim() || undefined,
                       value.length > 0 ? value : undefined,
                     );
@@ -711,10 +631,241 @@ export default function FinanceReconciliationDifferencePage() {
         <ResponsiveTable<FinanceReconciliationDifference>
           columns={columns as any}
           dataSource={records}
-          rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
+          rowKey={(record) => record.对账单号 || ''}
           loading={loading}
           isMobile={false}
-          scroll={{ x: 3000 }}
+          scroll={{ x: 1500 }}
+          expandable={{
+            expandedRowKeys,
+            onExpand: handleExpand,
+            expandedRowRender: (record) => {
+              const 对账单号 = record.对账单号;
+              if (!对账单号) return null;
+
+              const subData = subRecords[对账单号] || [];
+              const loading = subLoading[对账单号] || false;
+              const height = subPanelHeight[对账单号] || 400;
+
+              return (
+                <div style={{ padding: '16px', backgroundColor: '#fafafa' }}>
+                  {/* 子维度搜索区域（子维度数据只能查询，不能直接新增） */}
+                  <div style={{ marginBottom: 16 }}>
+                    <Space wrap>
+                      <Input
+                        placeholder="交易单号"
+                        allowClear
+                        style={{ width: 180 }}
+                        value={subSearch交易单号}
+                        onChange={(e) => {
+                          setSubSearch交易单号(e.target.value);
+                        }}
+                        onPressEnter={() => loadSubRecords(对账单号)}
+                      />
+                      <Input
+                        placeholder="牵牛花采购单号"
+                        allowClear
+                        style={{ width: 180 }}
+                        value={subSearch牵牛花采购单号}
+                        onChange={(e) => {
+                          setSubSearch牵牛花采购单号(e.target.value);
+                        }}
+                        onPressEnter={() => loadSubRecords(对账单号)}
+                      />
+                      <Input
+                        placeholder="采购单状态"
+                        allowClear
+                        style={{ width: 180 }}
+                        value={subSearch采购单状态}
+                        onChange={(e) => {
+                          setSubSearch采购单状态(e.target.value);
+                        }}
+                        onPressEnter={() => loadSubRecords(对账单号)}
+                      />
+                      <Input
+                        placeholder="门店/仓"
+                        allowClear
+                        style={{ width: 180 }}
+                        value={subSearch门店仓}
+                        onChange={(e) => {
+                          setSubSearch门店仓(e.target.value);
+                        }}
+                        onPressEnter={() => loadSubRecords(对账单号)}
+                      />
+                      <Button
+                        type="primary"
+                        icon={<SearchOutlined />}
+                        onClick={() => loadSubRecords(对账单号)}
+                      >
+                        搜索
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setSubSearch交易单号('');
+                          setSubSearch牵牛花采购单号('');
+                          setSubSearch采购单状态('');
+                          setSubSearch门店仓('');
+                          loadSubRecords(对账单号);
+                        }}
+                      >
+                        重置
+                      </Button>
+                    </Space>
+                  </div>
+
+                  {/* 操作按钮（用于该对账单号下的操作，不直接新增子维度数据） */}
+                  <div style={{ marginBottom: 16 }}>
+                    <Space>
+                      <Button
+                        type="primary"
+                        onClick={() => {
+                          purchaseAdjustmentForm.resetFields();
+                          setPurchaseAdjustmentImageFileList([]);
+                          setPurchaseAdjustmentModalVisible(true);
+                        }}
+                      >
+                        采购单金额调整
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={() => {
+                          financeBillForm.resetFields();
+                          setFinanceBillImageFileList([]);
+                          setFinanceBillModalVisible(true);
+                        }}
+                      >
+                        账单手动绑定采购单
+                      </Button>
+                      <Button
+                        type="primary"
+                        onClick={() => {
+                          nonPurchaseRecordForm.resetFields();
+                          setNonPurchaseRecordModalVisible(true);
+                        }}
+                      >
+                        非采购单流水记录
+                      </Button>
+                    </Space>
+                  </div>
+
+                  {/* 可调整高度的容器 */}
+                  <div
+                    style={{
+                      height: `${height}px`,
+                      overflow: 'auto',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '4px',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* 拖拽调整高度的手柄 */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '4px',
+                        cursor: 'ns-resize',
+                        backgroundColor: '#1890ff',
+                        zIndex: 10,
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const startY = e.clientY;
+                        const startHeight = height;
+
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const deltaY = moveEvent.clientY - startY;
+                          const newHeight = Math.max(200, Math.min(800, startHeight + deltaY));
+                          setSubPanelHeight(prev => ({ ...prev, [对账单号]: newHeight }));
+                        };
+
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
+                    />
+
+                    {/* 子维度表格 */}
+                    <ResponsiveTable<FinanceReconciliationDifference>
+                      columns={[
+                        {
+                          title: '交易单号',
+                          dataIndex: '交易单号',
+                          key: '交易单号',
+                          width: 180,
+                          render: (text: string) => text || '-',
+                        },
+                        {
+                          title: '牵牛花采购单号',
+                          dataIndex: '牵牛花采购单号',
+                          key: '牵牛花采购单号',
+                          width: 180,
+                          render: (text: string) => text || '-',
+                        },
+                        {
+                          title: '采购单金额',
+                          dataIndex: '采购单金额',
+                          key: '采购单金额',
+                          width: 120,
+                          align: 'right' as const,
+                          render: (text: number) => formatAmount(text),
+                        },
+                        {
+                          title: '采购单调整金额',
+                          dataIndex: '采购单调整金额',
+                          key: '采购单调整金额',
+                          width: 140,
+                          align: 'right' as const,
+                          render: (text: number) => formatAmount(text),
+                        },
+                        {
+                          title: '调整后采购单金额',
+                          dataIndex: '调整后采购单金额',
+                          key: '调整后采购单金额',
+                          width: 160,
+                          align: 'right' as const,
+                          render: (text: number) => formatAmount(text),
+                        },
+                        {
+                          title: '采购单状态',
+                          dataIndex: '采购单状态',
+                          key: '采购单状态',
+                          width: 120,
+                          render: (text: string) => text || '-',
+                        },
+                        {
+                          title: '门店/仓',
+                          dataIndex: '门店仓',
+                          key: '门店仓',
+                          width: 120,
+                          render: (text: string) => text || '-',
+                        },
+                        {
+                          title: '下单账号',
+                          dataIndex: '下单账号',
+                          key: '下单账号',
+                          width: 120,
+                          render: (text: string) => text || '-',
+                        },
+                      ]}
+                      dataSource={subData}
+                      rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
+                      loading={subLoading[对账单号] || false}
+                      isMobile={false}
+                      scroll={{ x: 1200 }}
+                      pagination={false}
+                      size="small"
+                    />
+                  </div>
+                </div>
+              );
+            },
+          }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,
@@ -728,8 +879,6 @@ export default function FinanceReconciliationDifferencePage() {
               loadRecords(
                 page,
                 searchText?.trim() || undefined,
-                search交易单号?.trim() || undefined,
-                search牵牛花采购单号?.trim() || undefined,
                 search对账单号?.trim() || undefined,
                 search记录状态.length > 0 ? search记录状态 : undefined,
               );
@@ -738,59 +887,6 @@ export default function FinanceReconciliationDifferencePage() {
         />
       </Card>
 
-      {/* 选择操作弹框（用于交易单号） */}
-      <Modal
-        title="您需要对该交易单进行："
-        open={actionModalVisible}
-        onCancel={() => {
-          setActionModalVisible(false);
-          setSelectedRecord(null);
-        }}
-        footer={null}
-        width={500}
-      >
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Button
-            type="primary"
-            block
-            size="large"
-            onClick={handleSelectPurchaseAdjustment}
-          >
-            账单手动绑定采购单
-          </Button>
-          <Button
-            type="primary"
-            block
-            size="large"
-            onClick={handleSelectNonPurchaseRecord}
-          >
-            非采购单流水记录
-          </Button>
-        </Space>
-      </Modal>
-
-      {/* 选择操作弹框（用于牵牛花采购单号） */}
-      <Modal
-        title="您需要对该采购单进行："
-        open={purchaseOrderActionModalVisible}
-        onCancel={() => {
-          setPurchaseOrderActionModalVisible(false);
-          setSelectedPurchaseOrderRecord(null);
-        }}
-        footer={null}
-        width={500}
-      >
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Button
-            type="primary"
-            block
-            size="large"
-            onClick={handleSelectPurchaseAmountAdjustment}
-          >
-            采购单金额调整
-          </Button>
-        </Space>
-      </Modal>
 
       {/* 采购单金额调整 Modal（用于牵牛花采购单号点击） */}
       <Modal
