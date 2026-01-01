@@ -1017,11 +1017,13 @@ export const financeReconciliationDifferenceApi = {
     search?: string;
     对账单号?: string;
     记录状态?: string[];
-    对账单收货状态?: string;
+    对账单收货状态?: string[];
     更新时间开始?: string;
     更新时间结束?: string;
+    采购单号?: string;
+    交易单号?: string;
   }): Promise<{ data: FinanceReconciliationDifference[]; total: number }> => {
-    // 处理数组参数：将记录状态数组转换为多个同名查询参数
+    // 处理数组参数：将记录状态和对账单收货状态数组转换为多个同名查询参数
     const queryParams: any = { ...params };
     if (queryParams.记录状态 && Array.isArray(queryParams.记录状态) && queryParams.记录状态.length > 0) {
       // axios会自动处理数组参数，但为了确保正确，我们显式处理
@@ -1030,7 +1032,14 @@ export const financeReconciliationDifferenceApi = {
       // 如果数组为空，删除该参数
       delete queryParams.记录状态;
     }
-    return api.get('/finance-reconciliation-difference/by-reconciliation-number', { 
+    if (queryParams.对账单收货状态 && Array.isArray(queryParams.对账单收货状态) && queryParams.对账单收货状态.length > 0) {
+      // axios会自动处理数组参数，但为了确保正确，我们显式处理
+      // 保留数组格式，axios会将其转换为多个同名查询参数
+    } else if (queryParams.对账单收货状态 && queryParams.对账单收货状态.length === 0) {
+      // 如果数组为空，删除该参数
+      delete queryParams.对账单收货状态;
+    }
+    return api.get('/finance-reconciliation-difference/by-reconciliation-number', {
       params: queryParams,
       paramsSerializer: {
         indexes: null, // 允许重复的键名（用于数组参数）

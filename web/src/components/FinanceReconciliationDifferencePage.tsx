@@ -43,8 +43,10 @@ export default function FinanceReconciliationDifferencePage() {
   // 单独的搜索字段（主表）
   const [search对账单号, setSearch对账单号] = useState('');
   const [search记录状态, setSearch记录状态] = useState<string[]>([]);
-  const [search对账单收货状态, setSearch对账单收货状态] = useState('');
+  const [search对账单收货状态, setSearch对账单收货状态] = useState<string[]>([]);
   const [search更新时间范围, setSearch更新时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [search采购单号, setSearch采购单号] = useState(''); // 采购单号搜索对账单号
+  const [search交易单号, setSearch交易单号] = useState(''); // 交易单号搜索对账单号
 
   // 子维度搜索字段
   const [subSearch交易单号, setSubSearch交易单号] = useState('');
@@ -101,9 +103,11 @@ export default function FinanceReconciliationDifferencePage() {
     search?: string,
     对账单号?: string,
     记录状态?: string[],
-    对账单收货状态?: string,
+    对账单收货状态?: string[],
     更新时间开始?: string,
     更新时间结束?: string,
+    采购单号?: string,
+    交易单号?: string,
   ) => {
     try {
       setLoading(true);
@@ -121,14 +125,20 @@ export default function FinanceReconciliationDifferencePage() {
       if (记录状态 && 记录状态.length > 0) {
         params.记录状态 = 记录状态;
       }
-      if (对账单收货状态 && 对账单收货状态.trim()) {
-        params.对账单收货状态 = 对账单收货状态.trim();
+      if (对账单收货状态 && 对账单收货状态.length > 0) {
+        params.对账单收货状态 = 对账单收货状态;
       }
       if (更新时间开始) {
         params.更新时间开始 = 更新时间开始;
       }
       if (更新时间结束) {
         params.更新时间结束 = 更新时间结束;
+      }
+      if (采购单号 && 采购单号.trim()) {
+        params.采购单号 = 采购单号.trim();
+      }
+      if (交易单号 && 交易单号.trim()) {
+        params.交易单号 = 交易单号.trim();
       }
       const result = await financeReconciliationDifferenceApi.getByReconciliationNumber(params);
       setRecords(result.data);
@@ -150,9 +160,11 @@ export default function FinanceReconciliationDifferencePage() {
       searchText?.trim() || undefined,
       search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
-      search对账单收货状态?.trim() || undefined,
+      search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
       更新时间开始,
       更新时间结束,
+      search采购单号?.trim() || undefined,
+      search交易单号?.trim() || undefined,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -280,6 +292,12 @@ export default function FinanceReconciliationDifferencePage() {
     '金额无误待收货',
   ];
 
+  // 对账单收货状态选项
+  const 对账单收货状态选项 = [
+    '收货中',
+    '全部完成',
+  ];
+
   // 执行搜索（使用所有搜索条件）
   const handleSearchAll = () => {
     setCurrentPage(1);
@@ -290,9 +308,11 @@ export default function FinanceReconciliationDifferencePage() {
       searchText?.trim() || undefined,
       search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
-      search对账单收货状态?.trim() || undefined,
+      search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
       更新时间开始,
       更新时间结束,
+      search采购单号?.trim() || undefined,
+      search交易单号?.trim() || undefined,
     );
   };
 
@@ -305,9 +325,11 @@ export default function FinanceReconciliationDifferencePage() {
       searchText?.trim() || undefined,
       search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
-      search对账单收货状态?.trim() || undefined,
+      search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
       更新时间开始,
       更新时间结束,
+      search采购单号?.trim() || undefined,
+      search交易单号?.trim() || undefined,
     );
   };
 
@@ -681,13 +703,37 @@ export default function FinanceReconciliationDifferencePage() {
               onPressEnter={handleSearchAll}
             />
             <Input
-              placeholder="对账单收货状态"
+              placeholder="采购单号搜索对账单号"
               allowClear
-              style={{ width: 150 }}
-              value={search对账单收货状态}
-              onChange={(e) => setSearch对账单收货状态(e.target.value)}
+              style={{ width: 180 }}
+              value={search采购单号}
+              onChange={(e) => setSearch采购单号(e.target.value)}
               onPressEnter={handleSearchAll}
             />
+            <Input
+              placeholder="交易单号搜索对账单号"
+              allowClear
+              style={{ width: 180 }}
+              value={search交易单号}
+              onChange={(e) => setSearch交易单号(e.target.value)}
+              onPressEnter={handleSearchAll}
+            />
+            <Select
+              mode="multiple"
+              placeholder="对账单收货状态"
+              allowClear
+              style={{ width: 200 }}
+              value={search对账单收货状态}
+              onChange={(value) => {
+                setSearch对账单收货状态(value || []);
+              }}
+            >
+              {对账单收货状态选项.map((状态) => (
+                <Select.Option key={状态} value={状态}>
+                  {状态}
+                </Select.Option>
+              ))}
+            </Select>
             <Select
               mode="multiple"
               placeholder="记录状态"
@@ -754,10 +800,12 @@ export default function FinanceReconciliationDifferencePage() {
                 setSearchText('');
                 setSearch对账单号('');
                 setSearch记录状态([]);
-                setSearch对账单收货状态('');
+                setSearch对账单收货状态([]);
                 setSearch更新时间范围(null);
+                setSearch采购单号('');
+                setSearch交易单号('');
                 setCurrentPage(1);
-                loadRecords(1, undefined, undefined, undefined, undefined, undefined, undefined);
+                loadRecords(1, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
               }}
             >
               重置
@@ -776,6 +824,8 @@ export default function FinanceReconciliationDifferencePage() {
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
+              paddingBottom: '8px', // 为分页器留出空间，避免被分隔线遮挡
+              boxSizing: 'border-box',
             }}
           >
             <ResponsiveTable<FinanceReconciliationDifference>
@@ -809,9 +859,11 @@ export default function FinanceReconciliationDifferencePage() {
                     searchText?.trim() || undefined,
                     search对账单号?.trim() || undefined,
                     search记录状态.length > 0 ? search记录状态 : undefined,
-                    search对账单收货状态?.trim() || undefined,
+                    search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
                     更新时间开始,
                     更新时间结束,
+                    search采购单号?.trim() || undefined,
+                    search交易单号?.trim() || undefined,
                   );
                 },
               }}

@@ -174,9 +174,11 @@ export class FinanceReconciliationDifferenceService {
         search?: string,
         对账单号?: string,
         记录状态?: string[],
-        对账单收货状态?: string,
+        对账单收货状态?: string[],
         更新时间开始?: string,
         更新时间结束?: string,
+        采购单号?: string,
+        交易单号?: string,
     ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> {
         const connection = await this.getConnection();
 
@@ -201,19 +203,95 @@ export class FinanceReconciliationDifferenceService {
                 );
             }
 
-            // 单独的字段搜索
-            if (对账单号) {
-                whereClause += ' AND 对账单号 LIKE ?';
-                queryParams.push(`%${对账单号}%`);
+            // 通过采购单号或交易单号搜索对账单号
+            let 对账单号列表: string[] | null = null;
+
+            // 通过采购单号搜索对账单号
+            if (采购单号 && 采购单号.trim()) {
+                const 采购单号查询 = `
+                    SELECT DISTINCT 对账单号 
+                    FROM \`交易单号绑定采购单记录\` 
+                    WHERE 牵牛花采购单号 LIKE ? AND (对账单号 IS NOT NULL AND 对账单号 <> '')
+                `;
+                const [采购单号结果]: any = await connection.execute(采购单号查询, [`%${采购单号.trim()}%`]);
+                if (采购单号结果 && 采购单号结果.length > 0) {
+                    const 采购单号对账单号列表 = 采购单号结果.map((row: any) => row.对账单号).filter((v: any) => v);
+                    if (采购单号对账单号列表.length > 0) {
+                        对账单号列表 = 采购单号对账单号列表;
+                    }
+                }
+            }
+
+            // 通过交易单号搜索对账单号
+            if (交易单号 && 交易单号.trim()) {
+                const 交易单号查询 = `
+                    SELECT DISTINCT 对账单号 
+                    FROM \`交易单号绑定采购单记录\` 
+                    WHERE 交易单号 LIKE ? AND (对账单号 IS NOT NULL AND 对账单号 <> '')
+                `;
+                const [交易单号结果]: any = await connection.execute(交易单号查询, [`%${交易单号.trim()}%`]);
+                if (交易单号结果 && 交易单号结果.length > 0) {
+                    const 交易单号对账单号列表 = 交易单号结果.map((row: any) => row.对账单号).filter((v: any) => v);
+                    if (交易单号对账单号列表.length > 0) {
+                        if (对账单号列表 === null) {
+                            // 如果还没有对账单号列表，直接使用交易单号的结果
+                            对账单号列表 = 交易单号对账单号列表;
+                        } else {
+                            // 如果已经有对账单号列表（来自采购单号），取交集
+                            对账单号列表 = 对账单号列表.filter(号 => 交易单号对账单号列表.includes(号));
+                        }
+                    } else {
+                        // 交易单号没有找到对账单号，清空列表
+                        对账单号列表 = [];
+                    }
+                } else {
+                    // 交易单号没有找到对账单号，清空列表
+                    if (对账单号列表 !== null) {
+                        对账单号列表 = [];
+                    }
+                }
+            }
+
+            // 如果通过采购单号或交易单号找到了对账单号列表，使用IN查询
+            if (对账单号列表 !== null) {
+                if (对账单号列表.length > 0) {
+                    // 如果还提供了对账单号直接搜索，在列表中进一步筛选
+                    if (对账单号 && 对账单号.trim()) {
+                        const filteredList = 对账单号列表.filter(号 => 号.includes(对账单号.trim()));
+                        if (filteredList.length > 0) {
+                            对账单号列表 = filteredList;
+                        } else {
+                            // 没有匹配的对账单号，返回空结果
+                            whereClause += ' AND 1=0';
+                        }
+                    }
+
+                    if (对账单号列表.length > 0) {
+                        const placeholders = 对账单号列表.map(() => '?').join(',');
+                        whereClause += ` AND 对账单号 IN (${placeholders})`;
+                        queryParams.push(...对账单号列表);
+                    }
+                } else {
+                    // 如果提供了采购单号或交易单号但没有找到对应的对账单号，返回空结果
+                    whereClause += ' AND 1=0';
+                }
+            } else {
+                // 没有通过采购单号或交易单号搜索，使用对账单号直接搜索
+                if (对账单号 && 对账单号.trim()) {
+                    whereClause += ' AND 对账单号 LIKE ?';
+                    queryParams.push(`%${对账单号.trim()}%`);
+                }
             }
             if (记录状态 && 记录状态.length > 0) {
                 const placeholders = 记录状态.map(() => '?').join(',');
                 whereClause += ` AND 记录状态 IN (${placeholders})`;
                 queryParams.push(...记录状态);
             }
-            if (对账单收货状态) {
-                whereClause += ' AND 对账单收货状态 LIKE ?';
-                queryParams.push(`%${对账单收货状态}%`);
+            if (对账单收货状态 && 对账单收货状态.length > 0) {
+                // 使用IN查询支持多选
+                const placeholders = 对账单收货状态.map(() => '?').join(',');
+                whereClause += ` AND 对账单收货状态 IN (${placeholders})`;
+                queryParams.push(...对账单收货状态);
             }
             // 时间范围筛选
             if (更新时间开始) {

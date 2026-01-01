@@ -32,22 +32,27 @@ export class FinanceReconciliationDifferenceController {
         @Query('search') search?: string,
         @Query('对账单号') 对账单号?: string,
         @Query('记录状态') 记录状态?: string | string[],
-        @Query('对账单收货状态') 对账单收货状态?: string,
+        @Query('对账单收货状态') 对账单收货状态?: string | string[],
         @Query('更新时间开始') 更新时间开始?: string,
         @Query('更新时间结束') 更新时间结束?: string,
+        @Query('采购单号') 采购单号?: string,
+        @Query('交易单号') 交易单号?: string,
     ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> {
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
         const 记录状态数组 = 记录状态 ? (Array.isArray(记录状态) ? 记录状态 : [记录状态]) : undefined;
+        const 对账单收货状态数组 = 对账单收货状态 ? (Array.isArray(对账单收货状态) ? 对账单收货状态 : [对账单收货状态]) : undefined;
         return this.service.getByReconciliationNumber(
             pageNum,
             limitNum,
             search,
             对账单号,
             记录状态数组,
-            对账单收货状态,
+            对账单收货状态数组,
             更新时间开始,
             更新时间结束,
+            采购单号,
+            交易单号,
         );
     }
 
