@@ -345,7 +345,6 @@ export default function PurchaseAmountAdjustmentPage() {
         errorMessage = error.message;
       }
       message.error((editingAdjustment ? '更新' : '创建') + '失败: ' + errorMessage);
-      console.error('保存失败:', error);
     }
   };
 
@@ -520,7 +519,6 @@ export default function PurchaseAmountAdjustmentPage() {
         errorMessage = e.message;
       }
       message.error('批量创建失败: ' + errorMessage);
-      console.error('批量创建失败:', e);
     }
   };
 

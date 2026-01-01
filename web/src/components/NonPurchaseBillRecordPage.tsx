@@ -65,20 +65,6 @@ export default function NonPurchaseBillRecordPage() {
   // 选中的行
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  /**
-   * 从错误对象中提取错误消息
-   * 优先从 error.response.data.message 获取，其次从 error.message 获取
-   */
-  const extractErrorMessage = (error: any): string => {
-    if (error?.response?.data?.message) {
-      return error.response.data.message;
-    }
-    if (error?.message) {
-      return error.message;
-    }
-    return '未知错误';
-  };
-
   // 加载记录列表
   const loadRecords = async (
     page: number = currentPage,
@@ -246,16 +232,19 @@ export default function NonPurchaseBillRecordPage() {
       setModalVisible(false);
       refreshRecords();
     } catch (error: any) {
-      // 表单验证错误，直接返回，不显示错误提示
       if (error?.errorFields) {
+        // 表单验证错误
         return;
       }
-
-      // 提取并显示错误消息（用于处理重复数据等业务错误）
-      const errorMessage = extractErrorMessage(error);
-      const action = editingRecord ? '更新' : '创建';
-      message.error(`${action}失败: ${errorMessage}`);
-      console.error(`${action}失败:`, error);
+      // 提取后端返回的错误消息
+      let errorMessage = '未知错误';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      message.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
+      console.error('保存失败:', error);
     }
   };
 
@@ -412,9 +401,14 @@ export default function NonPurchaseBillRecordPage() {
       setInvalidItems([]);
       refreshRecords();
     } catch (error: any) {
-      // 提取并显示错误消息（用于处理批量创建失败等错误）
-      const errorMessage = extractErrorMessage(error);
-      message.error(`批量创建失败: ${errorMessage}`);
+      // 提取后端返回的错误消息
+      let errorMessage = '未知错误';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      message.error('批量创建失败: ' + errorMessage);
       console.error('批量创建失败:', error);
     }
   };

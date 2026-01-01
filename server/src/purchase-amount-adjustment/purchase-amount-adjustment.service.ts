@@ -231,6 +231,14 @@ export class PurchaseAmountAdjustmentService {
                 throw new Error('图片大小不能超过10MB');
             }
 
+            // 检查是否已存在（根据采购单号(牵牛花)）
+            const checkSql = `SELECT * FROM \`采购单收货金额异常调整\` WHERE \`采购单号(牵牛花)\` = ?`;
+            const [existing]: any = await connection.execute(checkSql, [data.purchaseOrderNumber]);
+
+            if (existing && existing.length > 0) {
+                throw new BadRequestException('该采购单号(牵牛花)已存在');
+            }
+
             const insertQuery = `
         INSERT INTO \`采购单收货金额异常调整\` 
         (\`采购单号(牵牛花)\`, \`调整金额\`, \`异常调整原因备注\`, \`图片\`, \`财务审核意见备注\`, \`财务审核状态\`, \`创建人\`, \`财务审核人\`)
@@ -254,6 +262,12 @@ export class PurchaseAmountAdjustmentService {
                 throw new Error('创建调整记录失败');
             }
             return adjustment;
+        } catch (error: any) {
+            Logger.error('[PurchaseAmountAdjustmentService] Failed to create adjustment:', error);
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(error?.message || '创建失败');
         } finally {
             await connection.end();
         }
@@ -291,6 +305,14 @@ export class PurchaseAmountAdjustmentService {
                         throw new Error(`采购单号 ${adjustment.purchaseOrderNumber}: 图片大小不能超过10MB`);
                     }
 
+                    // 检查是否已存在（根据采购单号(牵牛花)）
+                    const checkSql = `SELECT * FROM \`采购单收货金额异常调整\` WHERE \`采购单号(牵牛花)\` = ?`;
+                    const [existing]: any = await connection.execute(checkSql, [adjustment.purchaseOrderNumber]);
+
+                    if (existing && existing.length > 0) {
+                        throw new BadRequestException('该采购单号(牵牛花)已存在');
+                    }
+
                     const insertQuery = `
             INSERT INTO \`采购单收货金额异常调整\` 
             (\`采购单号(牵牛花)\`, \`调整金额\`, \`异常调整原因备注\`, \`图片\`, \`财务审核意见备注\`, \`财务审核状态\`, \`创建人\`, \`财务审核人\`)
@@ -311,9 +333,8 @@ export class PurchaseAmountAdjustmentService {
                     success++;
                 } catch (error: any) {
                     failed++;
-                    // 捕获主键冲突错误
-                    if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
-                        errors.push(`采购单号 ${adjustment.purchaseOrderNumber}: 该采购单号(牵牛花)已存在`);
+                    if (error instanceof BadRequestException) {
+                        errors.push(`采购单号 ${adjustment.purchaseOrderNumber}: ${error.message}`);
                     } else {
                         errors.push(error.message || `采购单号 ${adjustment.purchaseOrderNumber}: 创建失败`);
                     }

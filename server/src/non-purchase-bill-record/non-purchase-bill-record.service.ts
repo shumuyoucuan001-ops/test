@@ -229,6 +229,14 @@ export class NonPurchaseBillRecordService {
                 记录修改人 = await this.getDisplayNameByUserId(userId);
             }
 
+            // 检查是否已存在（根据账单流水）
+            const checkSql = `SELECT * FROM \`非采购单流水记录\` WHERE \`账单流水\` = ?`;
+            const [existing]: any = await connection.execute(checkSql, [data.账单流水]);
+
+            if (existing && existing.length > 0) {
+                throw new BadRequestException('该账单流水已存在');
+            }
+
             const insertQuery = `
                 INSERT INTO \`非采购单流水记录\` 
                 (账单流水, 记账金额, 账单类型, 所属仓店, 账单流水备注, 财务记账凭证号, 财务审核状态, 记录修改人, 财务审核人)
@@ -255,10 +263,6 @@ export class NonPurchaseBillRecordService {
             return record;
         } catch (error: any) {
             Logger.error('[NonPurchaseBillRecordService] Failed to create record:', error);
-            // 捕获主键冲突错误
-            if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
-                throw new BadRequestException('该账单流水已存在');
-            }
             if (error instanceof BadRequestException) {
                 throw error;
             }
@@ -285,6 +289,14 @@ export class NonPurchaseBillRecordService {
 
             for (const record of records) {
                 try {
+                    // 检查是否已存在（根据账单流水）
+                    const checkSql = `SELECT * FROM \`非采购单流水记录\` WHERE \`账单流水\` = ?`;
+                    const [existing]: any = await connection.execute(checkSql, [record.账单流水]);
+
+                    if (existing && existing.length > 0) {
+                        throw new BadRequestException('该账单流水已存在');
+                    }
+
                     const insertQuery = `
                         INSERT INTO \`非采购单流水记录\` 
                         (账单流水, 记账金额, 账单类型, 所属仓店, 账单流水备注, 财务记账凭证号, 财务审核状态, 记录修改人, 财务审核人)
@@ -306,9 +318,8 @@ export class NonPurchaseBillRecordService {
                     success++;
                 } catch (error: any) {
                     failed++;
-                    // 捕获主键冲突错误
-                    if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
-                        errors.push(`账单流水 ${record.账单流水}: 该账单流水已存在`);
+                    if (error instanceof BadRequestException) {
+                        errors.push(`账单流水 ${record.账单流水}: ${error.message}`);
                     } else {
                         errors.push(error.message || `账单流水 ${record.账单流水}: 创建失败`);
                     }

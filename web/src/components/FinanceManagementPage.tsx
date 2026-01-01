@@ -332,7 +332,6 @@ export default function FinanceManagementPage() {
         errorMessage = error.message;
       }
       message.error((editingBill ? '更新' : '创建') + '失败: ' + errorMessage);
-      console.error('保存失败:', error);
     }
   };
 
@@ -503,7 +502,6 @@ export default function FinanceManagementPage() {
         errorMessage = e.message;
       }
       message.error('批量创建失败: ' + errorMessage);
-      console.error('批量创建失败:', e);
     }
   };
 

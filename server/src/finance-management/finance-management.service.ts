@@ -243,6 +243,22 @@ export class FinanceManagementService {
                 throw new Error('图片大小不能超过10MB');
             }
 
+            // 检查是否已存在（根据交易单号和牵牛花采购单号）
+            let checkSql: string;
+            let checkParams: any[];
+            if (data.qianniuhuaPurchaseNumber) {
+                checkSql = `SELECT * FROM \`手动绑定对账单号\` WHERE \`交易单号\` = ? AND \`牵牛花采购单号\` = ?`;
+                checkParams = [data.transactionNumber, data.qianniuhuaPurchaseNumber];
+            } else {
+                checkSql = `SELECT * FROM \`手动绑定对账单号\` WHERE \`交易单号\` = ? AND (\`牵牛花采购单号\` IS NULL OR \`牵牛花采购单号\` = '')`;
+                checkParams = [data.transactionNumber];
+            }
+            const [existing]: any = await connection.execute(checkSql, checkParams);
+
+            if (existing && existing.length > 0) {
+                throw new BadRequestException('该交易单号和牵牛花采购单号的组合已存在');
+            }
+
             const insertQuery = `
         INSERT INTO \`手动绑定对账单号\` 
         (交易单号, 牵牛花采购单号, 导入异常备注, 图片, 修改人)
@@ -265,10 +281,6 @@ export class FinanceManagementService {
             return bill;
         } catch (error: any) {
             Logger.error('[FinanceManagementService] Failed to create bill:', error);
-            // 捕获主键冲突错误
-            if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
-                throw new BadRequestException('该交易单号和牵牛花采购单号的组合已存在');
-            }
             if (error instanceof BadRequestException) {
                 throw error;
             }
@@ -312,6 +324,22 @@ export class FinanceManagementService {
                         throw new Error(`交易单号 ${bill.transactionNumber}: 图片大小不能超过10MB`);
                     }
 
+                    // 检查是否已存在（根据交易单号和牵牛花采购单号）
+                    let checkSql: string;
+                    let checkParams: any[];
+                    if (bill.qianniuhuaPurchaseNumber) {
+                        checkSql = `SELECT * FROM \`手动绑定对账单号\` WHERE \`交易单号\` = ? AND \`牵牛花采购单号\` = ?`;
+                        checkParams = [bill.transactionNumber, bill.qianniuhuaPurchaseNumber];
+                    } else {
+                        checkSql = `SELECT * FROM \`手动绑定对账单号\` WHERE \`交易单号\` = ? AND (\`牵牛花采购单号\` IS NULL OR \`牵牛花采购单号\` = '')`;
+                        checkParams = [bill.transactionNumber];
+                    }
+                    const [existing]: any = await connection.execute(checkSql, checkParams);
+
+                    if (existing && existing.length > 0) {
+                        throw new BadRequestException('该交易单号和牵牛花采购单号的组合已存在');
+                    }
+
                     const insertQuery = `
             INSERT INTO \`手动绑定对账单号\` 
             (交易单号, 牵牛花采购单号, 导入异常备注, 图片, 修改人)
@@ -329,9 +357,8 @@ export class FinanceManagementService {
                     success++;
                 } catch (error: any) {
                     failed++;
-                    // 捕获主键冲突错误
-                    if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
-                        errors.push(`交易单号 ${bill.transactionNumber}${bill.qianniuhuaPurchaseNumber ? `, 牵牛花采购单号 ${bill.qianniuhuaPurchaseNumber}` : ''}: 该交易单号和牵牛花采购单号的组合已存在`);
+                    if (error instanceof BadRequestException) {
+                        errors.push(`交易单号 ${bill.transactionNumber}${bill.qianniuhuaPurchaseNumber ? `, 牵牛花采购单号 ${bill.qianniuhuaPurchaseNumber}` : ''}: ${error.message}`);
                     } else {
                         errors.push(error.message || `交易单号 ${bill.transactionNumber}: 创建失败`);
                     }
