@@ -388,9 +388,10 @@ export class NonPurchaseBillRecordService {
             if (data.图片 !== undefined) {
                 updateFields.push('图片 = ?');
                 // 处理图片：将base64字符串转换为Buffer
-                if (data.图片) {
+                if (data.图片 && data.图片 !== '') {
                     updateValues.push(Buffer.from(data.图片, 'base64'));
                 } else {
+                    // 空字符串或undefined/null都表示清空图片
                     updateValues.push(null);
                 }
             }

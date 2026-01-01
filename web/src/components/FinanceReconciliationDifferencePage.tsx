@@ -509,6 +509,23 @@ export default function FinanceReconciliationDifferencePage() {
       if (nonPurchaseRecordImageFileList.length > 0 && nonPurchaseRecordImageFileList[0].originFileObj) {
         // 新上传的图片
         imageBase64 = await fileToBase64(nonPurchaseRecordImageFileList[0].originFileObj);
+      } else if (nonPurchaseRecordImageFileList.length > 0 && nonPurchaseRecordImageFileList[0].url) {
+        // 编辑时，如果图片没有变化，使用原有的base64
+        const url = nonPurchaseRecordImageFileList[0].url;
+        if (url.startsWith('data:image')) {
+          imageBase64 = url.split(',')[1];
+        }
+      } else {
+        // 图片被清空或没有图片
+        // 检查表单中的image字段，如果存在且不是空字符串，说明原来有图片但被清空了
+        const formImageValue = nonPurchaseRecordForm.getFieldValue('image');
+        if (formImageValue === '') {
+          // 明确设置为空字符串，表示要清空数据库中的图片
+          imageBase64 = '';
+        } else {
+          // 原来就没有图片，不设置image字段
+          imageBase64 = undefined;
+        }
       }
 
       const recordData: NonPurchaseBillRecord = {
@@ -1373,6 +1390,7 @@ export default function FinanceReconciliationDifferencePage() {
                   size="small"
                   onClick={() => {
                     setNonPurchaseRecordImageFileList([]);
+                    // 设置为空字符串，表示要清空数据库中的图片
                     nonPurchaseRecordForm.setFieldValue('image', '');
                   }}
                 >

@@ -4,6 +4,7 @@ import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
   EditOutlined,
+  EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -230,7 +231,7 @@ export default function NonPurchaseBillRecordPage() {
   };
 
   // 打开编辑模态框
-  const handleEdit = (record: NonPurchaseBillRecord) => {
+  const handleEdit = async (record: NonPurchaseBillRecord) => {
     setEditingRecord(record);
     form.setFieldsValue({
       账单流水: record.账单流水,
@@ -242,19 +243,51 @@ export default function NonPurchaseBillRecordPage() {
       财务审核状态: record.财务审核状态,
       财务审核人: record.财务审核人,
     });
-    // 如果有图片，设置预览
-    if (record.图片) {
-      const imageUrl = `data:image/jpeg;base64,${record.图片}`;
-      setImageFileList([{
-        uid: '-1',
-        name: 'image.jpg',
-        status: 'done',
-        url: imageUrl,
-      }]);
+
+    // 如果有图片，异步加载图片
+    if (record.图片 && record.账单流水) {
+      try {
+        const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
+        if (fullRecord && fullRecord.图片) {
+          setImageFileList([{
+            uid: '-1',
+            name: 'image.jpg',
+            status: 'done',
+            url: `data:image/jpeg;base64,${fullRecord.图片}`,
+          }]);
+          // 在表单中设置图片字段（用于判断是否清空）
+          form.setFieldValue('image', fullRecord.图片);
+        } else {
+          setImageFileList([]);
+          form.setFieldValue('image', undefined);
+        }
+      } catch (error) {
+        console.error('加载图片失败:', error);
+        setImageFileList([]);
+        form.setFieldValue('image', undefined);
+      }
     } else {
       setImageFileList([]);
+      form.setFieldValue('image', undefined);
     }
     setModalVisible(true);
+  };
+
+  // 查看图片
+  const handleViewImage = async (record: NonPurchaseBillRecord) => {
+    if (record.账单流水) {
+      try {
+        const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
+        if (fullRecord && fullRecord.图片) {
+          setPreviewImage(`data:image/jpeg;base64,${fullRecord.图片}`);
+          setPreviewVisible(true);
+        } else {
+          message.info('该记录没有图片');
+        }
+      } catch (error) {
+        message.error('获取图片失败');
+      }
+    }
   };
 
   // 保存记录
@@ -264,16 +297,28 @@ export default function NonPurchaseBillRecordPage() {
 
       // 处理图片
       let imageBase64: string | undefined;
-      if (imageFileList.length > 0) {
-        if (imageFileList[0].originFileObj) {
-          // 新上传的图片
-          imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
-        } else if (imageFileList[0].url) {
-          // 编辑时保留的图片（从url中提取base64）
-          const url = imageFileList[0].url;
-          if (url.startsWith('data:image')) {
-            imageBase64 = url.split(',')[1];
-          }
+      if (imageFileList.length > 0 && imageFileList[0].originFileObj) {
+        // 新上传的图片
+        imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
+      } else if (imageFileList.length > 0 && imageFileList[0].url) {
+        // 编辑时，如果图片没有变化，使用原有的base64
+        const url = imageFileList[0].url;
+        if (url.startsWith('data:image')) {
+          imageBase64 = url.split(',')[1];
+        }
+      } else {
+        // 图片被清空或没有图片
+        // 检查表单中的image字段，如果存在且不是空字符串，说明原来有图片但被清空了
+        const formImageValue = form.getFieldValue('image');
+        if (formImageValue === '') {
+          // 明确设置为空字符串，表示要清空数据库中的图片
+          imageBase64 = '';
+        } else if (editingRecord && editingRecord.图片 && imageFileList.length === 0) {
+          // 编辑时，原来有图片但现在清空了，使用空字符串来清空数据库中的值
+          imageBase64 = '';
+        } else {
+          // 原来就没有图片，不设置image字段
+          imageBase64 = undefined;
         }
       }
 
@@ -569,27 +614,20 @@ export default function NonPurchaseBillRecordPage() {
     },
     {
       title: '图片',
-      dataIndex: '图片',
       key: '图片',
-      width: 100,
-      render: (text: string, record: NonPurchaseBillRecord) => {
-        if (record.图片) {
-          const imageUrl = `data:image/jpeg;base64,${record.图片}`;
-          return (
-            <Image
-              width={50}
-              height={50}
-              src={imageUrl}
-              alt="图片"
-              preview={{
-                src: imageUrl,
-              }}
-              style={{ cursor: 'pointer' }}
-            />
-          );
-        }
-        return '-';
-      },
+      width: 120,
+      render: (_: any, record: NonPurchaseBillRecord) => (
+        record.图片 ? (
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewImage(record)}
+          >
+            查看图片
+          </Button>
+        ) : '-'
+      ),
     },
     {
       title: '财务记账凭证号',
@@ -983,6 +1021,7 @@ export default function NonPurchaseBillRecordPage() {
                   size="small"
                   onClick={() => {
                     setImageFileList([]);
+                    // 设置为空字符串，表示要清空数据库中的图片
                     form.setFieldValue('image', '');
                   }}
                 >
