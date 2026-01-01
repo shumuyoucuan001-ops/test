@@ -244,7 +244,6 @@ export default function NonPurchaseBillRecordPage() {
         errorMessage = error.message;
       }
       message.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
-      console.error('保存失败:', error);
     }
   };
 
@@ -393,13 +392,52 @@ export default function NonPurchaseBillRecordPage() {
     try {
       const result = await nonPurchaseBillRecordApi.batchCreate(validItems);
       message.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
+
+      // 如果有错误，解析错误信息并将失败的记录添加到invalidItems中
       if (result.errors && result.errors.length > 0) {
-        message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+        const failedItems: Array<{ item: NonPurchaseBillRecord; reasons: string[] }> = [];
+
+        // 解析每个错误信息，格式：账单流水 XXX: 错误消息
+        for (const errorMsg of result.errors) {
+          // 提取账单流水（错误格式：账单流水 XXX: 错误消息）
+          const match = errorMsg.match(/账单流水\s+([^:]+):\s*(.+)/);
+          if (match) {
+            const 账单流水 = match[1].trim();
+            const errorReason = match[2].trim();
+
+            // 从validItems中找到对应的记录
+            const failedItem = validItems.find(item => item.账单流水 === 账单流水);
+            if (failedItem) {
+              failedItems.push({ item: failedItem, reasons: [errorReason] });
+            }
+          } else {
+            // 如果格式不匹配，尝试从错误消息中提取账单流水
+            // 或者创建一个通用的错误项
+            console.warn('无法解析错误信息格式:', errorMsg);
+          }
+        }
+
+        // 将失败的记录添加到invalidItems中
+        if (failedItems.length > 0) {
+          setInvalidItems(prev => [...prev, ...failedItems]);
+          // 清空batchItems（成功的记录已创建，失败的记录已移到invalidItems）
+          setBatchItems([]);
+          message.warning(`有 ${failedItems.length} 条记录创建失败，请查看下方验证失败列表`);
+        } else {
+          message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+        }
+
+        // 如果有成功的记录，刷新列表，但不关闭模态框（让用户查看失败记录）
+        if (result.success > 0) {
+          refreshRecords();
+        }
+      } else {
+        // 全部成功，关闭模态框并刷新
+        setBatchModalVisible(false);
+        setBatchItems([]);
+        setInvalidItems([]);
+        refreshRecords();
       }
-      setBatchModalVisible(false);
-      setBatchItems([]);
-      setInvalidItems([]);
-      refreshRecords();
     } catch (error: any) {
       // 提取后端返回的错误消息
       let errorMessage = '未知错误';
