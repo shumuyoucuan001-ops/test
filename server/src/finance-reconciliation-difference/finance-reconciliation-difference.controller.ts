@@ -32,11 +32,23 @@ export class FinanceReconciliationDifferenceController {
         @Query('search') search?: string,
         @Query('对账单号') 对账单号?: string,
         @Query('记录状态') 记录状态?: string | string[],
+        @Query('对账单收货状态') 对账单收货状态?: string,
+        @Query('更新时间开始') 更新时间开始?: string,
+        @Query('更新时间结束') 更新时间结束?: string,
     ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> {
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
         const 记录状态数组 = 记录状态 ? (Array.isArray(记录状态) ? 记录状态 : [记录状态]) : undefined;
-        return this.service.getByReconciliationNumber(pageNum, limitNum, search, 对账单号, 记录状态数组);
+        return this.service.getByReconciliationNumber(
+            pageNum,
+            limitNum,
+            search,
+            对账单号,
+            记录状态数组,
+            对账单收货状态,
+            更新时间开始,
+            更新时间结束,
+        );
     }
 
     // 根据对账单号获取子维度数据

@@ -174,6 +174,9 @@ export class FinanceReconciliationDifferenceService {
         search?: string,
         对账单号?: string,
         记录状态?: string[],
+        对账单收货状态?: string,
+        更新时间开始?: string,
+        更新时间结束?: string,
     ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> {
         const connection = await this.getConnection();
 
@@ -207,6 +210,19 @@ export class FinanceReconciliationDifferenceService {
                 const placeholders = 记录状态.map(() => '?').join(',');
                 whereClause += ` AND 记录状态 IN (${placeholders})`;
                 queryParams.push(...记录状态);
+            }
+            if (对账单收货状态) {
+                whereClause += ' AND 对账单收货状态 LIKE ?';
+                queryParams.push(`%${对账单收货状态}%`);
+            }
+            // 时间范围筛选
+            if (更新时间开始) {
+                whereClause += ' AND 更新时间 >= ?';
+                queryParams.push(更新时间开始);
+            }
+            if (更新时间结束) {
+                whereClause += ' AND 更新时间 <= ?';
+                queryParams.push(更新时间结束);
             }
 
             // 获取总数（按对账单号去重）
