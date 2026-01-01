@@ -30,7 +30,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
-import { NonPurchaseBillRecord, nonPurchaseBillRecordApi } from '../lib/api';
+import { NonPurchaseBillRecord, aclApi, nonPurchaseBillRecordApi } from '../lib/api';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -71,6 +71,51 @@ export default function NonPurchaseBillRecordPage() {
 
   // 选中的行
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  // 用户角色ID列表
+  const [userRoleIds, setUserRoleIds] = useState<number[]>([]);
+
+  // 加载用户角色
+  useEffect(() => {
+    const loadUserRoles = async () => {
+      try {
+        const userId = localStorage.getItem('userId');
+        if (userId) {
+          const roleIds = await aclApi.userAssignedRoleIds(Number(userId));
+          setUserRoleIds(roleIds || []);
+        }
+      } catch (error) {
+        console.error('加载用户角色失败:', error);
+        setUserRoleIds([]);
+      }
+    };
+    loadUserRoles();
+  }, []);
+
+  // 检查是否有审核权限（role_id为1,4,7）
+  const hasReviewPermission = () => {
+    return userRoleIds.some(roleId => [1, 4, 7].includes(roleId));
+  };
+
+  // 审核通过/取消审核
+  const handleReview = async (record: NonPurchaseBillRecord) => {
+    if (!hasReviewPermission()) {
+      message.error('您没有审核权限');
+      return;
+    }
+
+    try {
+      const newStatus = record.财务审核状态 === '审核通过' ? '0' : '审核通过';
+      await nonPurchaseBillRecordApi.update(record.账单流水, {
+        财务审核状态: newStatus,
+      });
+      message.success(newStatus === '审核通过' ? '审核通过成功' : '取消审核成功');
+      refreshRecords();
+    } catch (error: any) {
+      message.error(error.message || '操作失败');
+      console.error(error);
+    }
+  };
 
   // 加载记录列表
   const loadRecords = async (
@@ -240,7 +285,7 @@ export default function NonPurchaseBillRecordPage() {
       所属仓店: record.所属仓店,
       账单流水备注: record.账单流水备注,
       财务记账凭证号: record.财务记账凭证号,
-      财务审核状态: record.财务审核状态,
+      // 财务审核状态不允许编辑，不设置到表单中
       财务审核人: record.财务审核人,
     });
 
@@ -330,12 +375,14 @@ export default function NonPurchaseBillRecordPage() {
         账单流水备注: values.账单流水备注 || undefined,
         图片: imageBase64,
         财务记账凭证号: values.财务记账凭证号 || undefined,
-        财务审核状态: values.财务审核状态 || undefined,
+        // 财务审核状态在新增时默认为"0"，编辑时不允许修改
+        财务审核状态: editingRecord ? undefined : '0',
         财务审核人: values.财务审核人 || undefined,
       };
 
       if (editingRecord && editingRecord.账单流水) {
-        // 更新
+        // 更新时，不传递财务审核状态（保持原值）
+        delete recordData.财务审核状态;
         await nonPurchaseBillRecordApi.update(editingRecord.账单流水, recordData);
         message.success('更新成功');
       } else {
@@ -443,8 +490,9 @@ export default function NonPurchaseBillRecordPage() {
           所属仓店: parts[3] && parts[3].trim() !== '' ? parts[3].trim() : undefined,
           账单流水备注: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
           财务记账凭证号: parts[5] && parts[5].trim() !== '' ? parts[5].trim() : undefined,
-          财务审核状态: parts[6] && parts[6].trim() !== '' ? parts[6].trim() : undefined,
-          财务审核人: parts[7] && parts[7].trim() !== '' ? parts[7].trim() : undefined,
+          // 财务审核状态不允许编辑，批量新增时默认为"0"（后端处理）
+          财务审核状态: undefined,
+          财务审核人: parts[6] && parts[6].trim() !== '' ? parts[6].trim() : undefined,
         };
 
         if (reasons.length > 0) {
@@ -642,7 +690,33 @@ export default function NonPurchaseBillRecordPage() {
       dataIndex: '财务审核状态',
       key: '财务审核状态',
       width: 140,
-      render: (text: string) => text || '-',
+      render: (text: string, record: NonPurchaseBillRecord) => {
+        if (text === '审核通过') {
+          return <Tag color="blue">审核通过</Tag>;
+        }
+        return text || '-';
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      fixed: 'right' as const,
+      render: (_: any, record: NonPurchaseBillRecord) => {
+        if (!hasReviewPermission()) {
+          return '-';
+        }
+        const isApproved = record.财务审核状态 === '审核通过';
+        return (
+          <Button
+            type={isApproved ? 'default' : 'primary'}
+            size="small"
+            onClick={() => handleReview(record)}
+          >
+            {isApproved ? '取消审核' : '审核通过'}
+          </Button>
+        );
+      },
     },
     {
       title: '记录修改人',
@@ -1038,12 +1112,7 @@ export default function NonPurchaseBillRecordPage() {
             <Input placeholder="请输入财务记账凭证号" />
           </Form.Item>
 
-          <Form.Item
-            label="财务审核状态"
-            name="财务审核状态"
-          >
-            <Input placeholder="请输入财务审核状态" />
-          </Form.Item>
+          {/* 财务审核状态不允许编辑，新增时默认为"0" */}
 
           <Form.Item
             label="财务审核人"
@@ -1080,10 +1149,10 @@ export default function NonPurchaseBillRecordPage() {
             color: '#666',
             fontSize: 14,
           }}>
-            提示：您可以从 Excel 中复制数据（包含账单流水、记账金额、账单类型、所属仓店、账单流水备注、财务记账凭证号、财务审核状态、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）。
+            提示：您可以从 Excel 中复制数据（包含账单流水、记账金额、账单类型、所属仓店、账单流水备注、财务记账凭证号、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）。注意：财务审核状态列会被忽略，财务审核状态默认为"0"。
           </div>
           <Input.TextArea
-            placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：账单流水	记账金额	账单类型	所属仓店	账单流水备注	财务记账凭证号	财务审核状态	财务审核人&#10;示例：BL001	1000.00	类型A	仓店1	备注	凭证001	已审核	审核人"
+            placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：账单流水	记账金额	账单类型	所属仓店	账单流水备注	财务记账凭证号	财务审核人&#10;示例：BL001	1000.00	类型A	仓店1	备注	凭证001	审核人"
             rows={4}
             onPaste={handlePaste}
             style={{

@@ -262,7 +262,7 @@ export class NonPurchaseBillRecordService {
                 data.账单流水备注 || null,
                 imageBuffer,
                 data.财务记账凭证号 || null,
-                data.财务审核状态 || null,
+                data.财务审核状态 || '0', // 新增时默认为"0"
                 记录修改人 || null,
                 data.财务审核人 || null,
             ]);
@@ -329,7 +329,7 @@ export class NonPurchaseBillRecordService {
                         record.账单流水备注 || null,
                         imageBuffer,
                         record.财务记账凭证号 || null,
-                        record.财务审核状态 || null,
+                        record.财务审核状态 || '0', // 批量新增时默认为"0"
                         记录修改人 || null,
                         record.财务审核人 || null,
                     ]);

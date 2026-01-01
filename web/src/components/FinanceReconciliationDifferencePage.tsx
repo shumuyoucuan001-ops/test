@@ -174,8 +174,8 @@ export default function FinanceReconciliationDifferencePage() {
     const calculateScrollHeight = () => {
       if (topTableContainerRef.current) {
         const containerHeight = topTableContainerRef.current.clientHeight;
-        // 减去分页器高度（约64px）和一些边距
-        const scrollHeight = containerHeight - 80;
+        // 减去分页器高度（约64px）和一些边距，确保分页器完全可见
+        const scrollHeight = containerHeight - 72;
         // 确保至少有一个最小值，以便表头固定
         setTableScrollY(scrollHeight > 200 ? scrollHeight : 200);
       }
@@ -446,7 +446,8 @@ export default function FinanceReconciliationDifferencePage() {
         adjustmentReason: values.adjustmentReason || undefined,
         image: imageBase64,
         financeReviewRemark: values.financeReviewRemark || undefined,
-        financeReviewStatus: values.financeReviewStatus || undefined,
+        // 财务审核状态在新增时默认为"0"
+        financeReviewStatus: '0',
         financeReviewer: values.financeReviewer || undefined,
       };
 
@@ -558,7 +559,8 @@ export default function FinanceReconciliationDifferencePage() {
         账单流水备注: values.账单流水备注 || undefined,
         图片: imageBase64,
         财务记账凭证号: values.财务记账凭证号 || undefined,
-        财务审核状态: values.财务审核状态 || undefined,
+        // 财务审核状态在新增时默认为"0"
+        财务审核状态: '0',
         财务审核人: values.财务审核人 || undefined,
       };
 
@@ -697,7 +699,7 @@ export default function FinanceReconciliationDifferencePage() {
             <Input
               placeholder="对账单号"
               allowClear
-              style={{ width: 150 }}
+              style={{ width: 120 }}
               value={search对账单号}
               onChange={(e) => setSearch对账单号(e.target.value)}
               onPressEnter={handleSearchAll}
@@ -705,7 +707,7 @@ export default function FinanceReconciliationDifferencePage() {
             <Input
               placeholder="采购单号搜索对账单号"
               allowClear
-              style={{ width: 180 }}
+              style={{ width: 150 }}
               value={search采购单号}
               onChange={(e) => setSearch采购单号(e.target.value)}
               onPressEnter={handleSearchAll}
@@ -713,7 +715,7 @@ export default function FinanceReconciliationDifferencePage() {
             <Input
               placeholder="交易单号搜索对账单号"
               allowClear
-              style={{ width: 180 }}
+              style={{ width: 150 }}
               value={search交易单号}
               onChange={(e) => setSearch交易单号(e.target.value)}
               onPressEnter={handleSearchAll}
@@ -722,7 +724,7 @@ export default function FinanceReconciliationDifferencePage() {
               mode="multiple"
               placeholder="对账单收货状态"
               allowClear
-              style={{ width: 200 }}
+              style={{ width: 160 }}
               value={search对账单收货状态}
               onChange={(value) => {
                 setSearch对账单收货状态(value || []);
@@ -738,7 +740,7 @@ export default function FinanceReconciliationDifferencePage() {
               mode="multiple"
               placeholder="记录状态"
               allowClear
-              style={{ width: 200 }}
+              style={{ width: 160 }}
               value={search记录状态}
               onChange={(value) => {
                 setSearch记录状态(value || []);
@@ -751,7 +753,7 @@ export default function FinanceReconciliationDifferencePage() {
               ))}
             </Select>
             <DatePicker.RangePicker
-              style={{ width: 240 }}
+              style={{ width: 200 }}
               value={search更新时间范围}
               onChange={(dates) => {
                 setSearch更新时间范围(dates as [Dayjs | null, Dayjs | null] | null);
@@ -763,7 +765,7 @@ export default function FinanceReconciliationDifferencePage() {
             <Input
               placeholder="综合搜索（所有字段）"
               allowClear
-              style={{ width: 220 }}
+              style={{ width: 180 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               onPressEnter={handleSearchAll}
@@ -819,55 +821,56 @@ export default function FinanceReconciliationDifferencePage() {
           <div
             ref={topTableContainerRef}
             style={{
-              height: `${topPanelHeight}%`,
+              flex: `0 0 ${topPanelHeight}%`,
               minHeight: 300,
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden',
-              paddingBottom: '8px', // 为分页器留出空间，避免被分隔线遮挡
+              overflow: 'visible',
               boxSizing: 'border-box',
             }}
           >
-            <ResponsiveTable<FinanceReconciliationDifference>
-              columns={columns as any}
-              dataSource={records}
-              rowKey={(record) => record.对账单号 || ''}
-              loading={loading}
-              isMobile={false}
-              scroll={{ x: 1500, y: tableScrollY || 200 }}
-              onRow={(record) => ({
-                onClick: () => handleRowClick(record),
-                style: {
-                  cursor: 'pointer',
-                  backgroundColor: selected对账单号 === record.对账单号 ? '#e6f7ff' : undefined,
-                },
-              })}
-              pagination={{
-                current: currentPage,
-                pageSize: pageSize,
-                total: total,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                onChange: (page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size || 20);
-                  const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
-                  const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
-                  loadRecords(
-                    page,
-                    searchText?.trim() || undefined,
-                    search对账单号?.trim() || undefined,
-                    search记录状态.length > 0 ? search记录状态 : undefined,
-                    search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
-                    更新时间开始,
-                    更新时间结束,
-                    search采购单号?.trim() || undefined,
-                    search交易单号?.trim() || undefined,
-                  );
-                },
-              }}
-            />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+              <ResponsiveTable<FinanceReconciliationDifference>
+                columns={columns as any}
+                dataSource={records}
+                rowKey={(record) => record.对账单号 || ''}
+                loading={loading}
+                isMobile={false}
+                scroll={{ x: 1500, y: tableScrollY || 200 }}
+                onRow={(record) => ({
+                  onClick: () => handleRowClick(record),
+                  style: {
+                    cursor: 'pointer',
+                    backgroundColor: selected对账单号 === record.对账单号 ? '#e6f7ff' : undefined,
+                  },
+                })}
+                pagination={{
+                  current: currentPage,
+                  pageSize: pageSize,
+                  total: total,
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+                  onChange: (page, size) => {
+                    setCurrentPage(page);
+                    setPageSize(size || 20);
+                    const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
+                    const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
+                    loadRecords(
+                      page,
+                      searchText?.trim() || undefined,
+                      search对账单号?.trim() || undefined,
+                      search记录状态.length > 0 ? search记录状态 : undefined,
+                      search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
+                      更新时间开始,
+                      更新时间结束,
+                      search采购单号?.trim() || undefined,
+                      search交易单号?.trim() || undefined,
+                    );
+                  },
+                }}
+              />
+            </div>
           </div>
 
           {/* 可拖拽调整的分隔线 */}
@@ -906,7 +909,7 @@ export default function FinanceReconciliationDifferencePage() {
           <div
             ref={subTableContainerRef}
             style={{
-              height: `${100 - topPanelHeight}%`,
+              flex: `0 0 ${100 - topPanelHeight}%`,
               minHeight: 200,
               display: 'flex',
               flexDirection: 'column',
@@ -1223,12 +1226,7 @@ export default function FinanceReconciliationDifferencePage() {
             />
           </Form.Item>
 
-          <Form.Item
-            label="财务审核状态"
-            name="financeReviewStatus"
-          >
-            <Input placeholder="请输入财务审核状态" maxLength={20} />
-          </Form.Item>
+          {/* 财务审核状态不允许编辑，新增时默认为"0" */}
 
           <Form.Item
             label="财务审核人"
@@ -1459,12 +1457,7 @@ export default function FinanceReconciliationDifferencePage() {
             <Input placeholder="请输入财务记账凭证号" />
           </Form.Item>
 
-          <Form.Item
-            label="财务审核状态"
-            name="财务审核状态"
-          >
-            <Input placeholder="请输入财务审核状态" />
-          </Form.Item>
+          {/* 财务审核状态不允许编辑，新增时默认为"0" */}
 
           <Form.Item
             label="财务审核人"

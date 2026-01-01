@@ -251,7 +251,7 @@ export class PurchaseAmountAdjustmentService {
                 data.adjustmentReason || null,
                 imageBuffer,
                 data.financeReviewRemark || null,
-                data.financeReviewStatus || null,
+                data.financeReviewStatus || '0', // 新增时默认为"0"
                 creator || null,
                 data.financeReviewer || null,
             ]);
@@ -325,7 +325,7 @@ export class PurchaseAmountAdjustmentService {
                         adjustment.adjustmentReason || null,
                         imageBuffer,
                         adjustment.financeReviewRemark || null,
-                        adjustment.financeReviewStatus || null,
+                        adjustment.financeReviewStatus || '0', // 批量新增时默认为"0"
                         creator || null,
                         adjustment.financeReviewer || null,
                     ]);

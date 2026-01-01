@@ -31,7 +31,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
-import { PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '../lib/api';
+import { aclApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '../lib/api';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -75,6 +75,9 @@ export default function PurchaseAmountAdjustmentPage() {
   // 选中的行
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  // 用户角色ID列表
+  const [userRoleIds, setUserRoleIds] = useState<number[]>([]);
+
   // 加载调整记录列表
   const loadAdjustments = async (
     page: number = currentPage,
@@ -104,6 +107,48 @@ export default function PurchaseAmountAdjustmentPage() {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 加载用户角色
+  useEffect(() => {
+    const loadUserRoles = async () => {
+      try {
+        const userId = localStorage.getItem('userId');
+        if (userId) {
+          const roleIds = await aclApi.userAssignedRoleIds(Number(userId));
+          setUserRoleIds(roleIds || []);
+        }
+      } catch (error) {
+        console.error('加载用户角色失败:', error);
+        setUserRoleIds([]);
+      }
+    };
+    loadUserRoles();
+  }, []);
+
+  // 检查是否有审核权限（role_id为1,4,7）
+  const hasReviewPermission = () => {
+    return userRoleIds.some(roleId => [1, 4, 7].includes(roleId));
+  };
+
+  // 审核通过/取消审核
+  const handleReview = async (adjustment: PurchaseAmountAdjustment) => {
+    if (!hasReviewPermission()) {
+      message.error('您没有审核权限');
+      return;
+    }
+
+    try {
+      const newStatus = adjustment.financeReviewStatus === '审核通过' ? '0' : '审核通过';
+      await purchaseAmountAdjustmentApi.update(adjustment.purchaseOrderNumber, {
+        financeReviewStatus: newStatus,
+      });
+      message.success(newStatus === '审核通过' ? '审核通过成功' : '取消审核成功');
+      refreshAdjustments();
+    } catch (error: any) {
+      message.error(error.message || '操作失败');
+      console.error(error);
     }
   };
 
@@ -206,7 +251,7 @@ export default function PurchaseAmountAdjustmentPage() {
       adjustmentAmount: adjustment.adjustmentAmount,
       adjustmentReason: adjustment.adjustmentReason,
       financeReviewRemark: adjustment.financeReviewRemark,
-      financeReviewStatus: adjustment.financeReviewStatus,
+      // 财务审核状态不允许编辑，不设置到表单中
       financeReviewer: adjustment.financeReviewer,
     });
 
@@ -313,12 +358,14 @@ export default function PurchaseAmountAdjustmentPage() {
         adjustmentReason: values.adjustmentReason || undefined,
         image: imageBase64,
         financeReviewRemark: values.financeReviewRemark || undefined,
-        financeReviewStatus: values.financeReviewStatus || undefined,
+        // 财务审核状态在新增时默认为"0"，编辑时不允许修改
+        financeReviewStatus: editingAdjustment ? undefined : '0',
         financeReviewer: values.financeReviewer || undefined,
       };
 
       if (editingAdjustment && editingAdjustment.purchaseOrderNumber) {
-        // 更新
+        // 更新时，不传递财务审核状态（保持原值）
+        delete adjustmentData.financeReviewStatus;
         await purchaseAmountAdjustmentApi.update(
           editingAdjustment.purchaseOrderNumber,
           adjustmentData
@@ -438,8 +485,9 @@ export default function PurchaseAmountAdjustmentPage() {
           adjustmentReason: parts[2] && parts[2].trim() !== '' ? parts[2].trim() : undefined,
           image: undefined, // 图片列忽略，设为空值
           financeReviewRemark: parts[3] && parts[3].trim() !== '' ? parts[3].trim() : undefined,
-          financeReviewStatus: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
-          financeReviewer: parts[5] && parts[5].trim() !== '' ? parts[5].trim() : undefined,
+          // 财务审核状态不允许编辑，批量新增时默认为"0"（后端处理）
+          financeReviewStatus: undefined,
+          financeReviewer: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
         };
 
         if (reasons.length > 0) {
@@ -632,7 +680,33 @@ export default function PurchaseAmountAdjustmentPage() {
       dataIndex: 'financeReviewStatus',
       key: 'financeReviewStatus',
       width: 150,
-      render: (text: string) => text || '-',
+      render: (text: string, record: PurchaseAmountAdjustment) => {
+        if (text === '审核通过') {
+          return <Tag color="blue">审核通过</Tag>;
+        }
+        return text || '-';
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      fixed: 'right' as const,
+      render: (_: any, record: PurchaseAmountAdjustment) => {
+        if (!hasReviewPermission()) {
+          return '-';
+        }
+        const isApproved = record.financeReviewStatus === '审核通过';
+        return (
+          <Button
+            type={isApproved ? 'default' : 'primary'}
+            size="small"
+            onClick={() => handleReview(record)}
+          >
+            {isApproved ? '取消审核' : '审核通过'}
+          </Button>
+        );
+      },
     },
     {
       title: '创建人',
@@ -1015,12 +1089,7 @@ export default function PurchaseAmountAdjustmentPage() {
             />
           </Form.Item>
 
-          <Form.Item
-            label="财务审核状态"
-            name="financeReviewStatus"
-          >
-            <Input placeholder="请输入财务审核状态" maxLength={20} />
-          </Form.Item>
+          {/* 财务审核状态不允许编辑，新增时默认为"0" */}
 
           <Form.Item
             label="财务审核人"
@@ -1057,10 +1126,10 @@ export default function PurchaseAmountAdjustmentPage() {
             color: '#666',
             fontSize: 14,
           }}>
-            提示：您可以从 Excel 中复制数据（包含采购单号(牵牛花)、调整金额、异常调整原因备注、财务审核意见备注、财务审核状态、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）。注意：图片列会被忽略，设为空值。
+            提示：您可以从 Excel 中复制数据（包含采购单号(牵牛花)、调整金额、异常调整原因备注、财务审核意见备注、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）。注意：图片列和财务审核状态列会被忽略，财务审核状态默认为"0"。
           </div>
           <Input.TextArea
-            placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：采购单号(牵牛花)	调整金额	异常调整原因备注	财务审核意见备注	财务审核状态	财务审核人&#10;示例：PO001	100.00	备注	审核意见	已审核	张三"
+            placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：采购单号(牵牛花)	调整金额	异常调整原因备注	财务审核意见备注	财务审核人&#10;示例：PO001	100.00	备注	审核意见	张三"
             rows={4}
             onPaste={handlePaste}
             style={{
