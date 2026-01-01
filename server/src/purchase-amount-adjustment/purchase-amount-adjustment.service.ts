@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
@@ -311,7 +311,12 @@ export class PurchaseAmountAdjustmentService {
                     success++;
                 } catch (error: any) {
                     failed++;
-                    errors.push(error.message || `采购单号 ${adjustment.purchaseOrderNumber}: 创建失败`);
+                    // 捕获主键冲突错误
+                    if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
+                        errors.push(`采购单号 ${adjustment.purchaseOrderNumber}: 该采购单号(牵牛花)已存在`);
+                    } else {
+                        errors.push(error.message || `采购单号 ${adjustment.purchaseOrderNumber}: 创建失败`);
+                    }
                 }
             }
 

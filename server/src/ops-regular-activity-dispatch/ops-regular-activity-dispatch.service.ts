@@ -182,8 +182,12 @@ export class OpsRegularActivityDispatchService {
             );
         } catch (error: any) {
             Logger.error('[OpsRegularActivityDispatchService] Create error:', error);
-            // 捕获 Prisma 主键冲突错误（双重保险）
-            if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
+            // 捕获数据库主键冲突错误（多种格式）
+            if (error?.code === 'P2010' || 
+                error?.code === 'ER_DUP_ENTRY' || 
+                error?.errno === 1062 ||
+                (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry')) ||
+                (error?.message && error.message.includes('Duplicate entry'))) {
                 throw new BadRequestException('该商品已存在');
             }
             if (error instanceof BadRequestException) {

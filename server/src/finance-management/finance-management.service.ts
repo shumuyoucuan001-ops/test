@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
@@ -263,6 +263,16 @@ export class FinanceManagementService {
                 throw new Error('创建账单失败');
             }
             return bill;
+        } catch (error: any) {
+            Logger.error('[FinanceManagementService] Failed to create bill:', error);
+            // 捕获主键冲突错误
+            if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
+                throw new BadRequestException('该交易单号和牵牛花采购单号的组合已存在');
+            }
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(error?.message || '创建失败');
         } finally {
             await connection.end();
         }
@@ -319,7 +329,12 @@ export class FinanceManagementService {
                     success++;
                 } catch (error: any) {
                     failed++;
-                    errors.push(error.message || `交易单号 ${bill.transactionNumber}: 创建失败`);
+                    // 捕获主键冲突错误
+                    if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
+                        errors.push(`交易单号 ${bill.transactionNumber}${bill.qianniuhuaPurchaseNumber ? `, 牵牛花采购单号 ${bill.qianniuhuaPurchaseNumber}` : ''}: 该交易单号和牵牛花采购单号的组合已存在`);
+                    } else {
+                        errors.push(error.message || `交易单号 ${bill.transactionNumber}: 创建失败`);
+                    }
                 }
             }
 

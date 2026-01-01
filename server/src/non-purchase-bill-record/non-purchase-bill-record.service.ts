@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
@@ -255,7 +255,14 @@ export class NonPurchaseBillRecordService {
             return record;
         } catch (error: any) {
             Logger.error('[NonPurchaseBillRecordService] Failed to create record:', error);
-            throw error;
+            // 捕获主键冲突错误
+            if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
+                throw new BadRequestException('该账单流水已存在');
+            }
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(error?.message || '创建失败');
         } finally {
             await connection.end();
         }
@@ -299,7 +306,12 @@ export class NonPurchaseBillRecordService {
                     success++;
                 } catch (error: any) {
                     failed++;
-                    errors.push(error.message || `账单流水 ${record.账单流水}: 创建失败`);
+                    // 捕获主键冲突错误
+                    if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
+                        errors.push(`账单流水 ${record.账单流水}: 该账单流水已存在`);
+                    } else {
+                        errors.push(error.message || `账单流水 ${record.账单流水}: 创建失败`);
+                    }
                 }
             }
 

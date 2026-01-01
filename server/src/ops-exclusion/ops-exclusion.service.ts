@@ -153,8 +153,12 @@ export class OpsExclusionService {
             );
         } catch (error: any) {
             Logger.error('[OpsExclusionService] Create error:', error);
-            // 捕获 Prisma 主键冲突错误
-            if (error?.code === 'P2010' || (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry'))) {
+            // 捕获数据库主键冲突错误（多种格式）
+            if (error?.code === 'P2010' || 
+                error?.code === 'ER_DUP_ENTRY' || 
+                error?.errno === 1062 ||
+                (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry')) ||
+                (error?.message && error.message.includes('Duplicate entry'))) {
                 throw new BadRequestException('该数据已存在');
             }
             if (error instanceof BadRequestException) {
