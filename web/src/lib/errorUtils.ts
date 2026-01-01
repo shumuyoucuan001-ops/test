@@ -19,6 +19,8 @@ import { Modal, message, notification } from 'antd';
  *   // showErrorMessage(error, '保存失败');    // 方式3：仅顶部提示
  *   // showErrorNotification(error, '保存失败'); // 方式4：仅通知
  * }
+ * 
+ * 注意：由于使用了 App.useApp()，这些函数需要在 React 组件内部调用
  */
 
 /**
@@ -101,11 +103,17 @@ export function showErrorMessage(error: any, defaultMessage: string = '操作失
  */
 export function showErrorModal(error: any, defaultMessage: string = '操作失败'): void {
     const errorMessage = extractErrorMessage(error);
+    // 先销毁所有现有的 Modal
+    Modal.destroyAll();
     Modal.error({
-        title: '操作失败',
+        title: '⚠️ 操作失败',
         content: errorMessage || defaultMessage,
         okText: '我知道了',
         width: 480,
+        centered: true,
+        maskClosable: false,
+        zIndex: 10000,
+        getContainer: () => document.body,
     });
 }
 
@@ -125,6 +133,8 @@ export function showErrorNotification(error: any, defaultMessage: string = '操�
 /**
  * 组合提示：同时使用 message 和 Modal（最明显，默认使用）
  * 先显示顶部提示（3秒），然后弹出 Modal 弹框（需要用户点击确认）
+ * 
+ * 注意：此函数需要在 React 组件内部调用，因为它使用了 App.useApp()
  */
 export function showErrorBoth(error: any, defaultMessage: string = '操作失败'): void {
     console.log('[showErrorBoth] 开始显示错误提示');
@@ -142,20 +152,38 @@ export function showErrorBoth(error: any, defaultMessage: string = '操作失败
     }
 
     // 然后显示弹框（确保用户看到）
+    // 使用静态方法，但添加 getContainer 确保正确显示
     setTimeout(() => {
         try {
+            // 先销毁所有现有的 Modal，避免冲突
+            Modal.destroyAll();
+
             Modal.error({
                 title: '⚠️ 操作失败',
                 content: finalMessage,
                 okText: '我知道了',
                 width: 480,
                 centered: true,
+                maskClosable: false, // 不允许点击遮罩关闭，确保用户看到
+                zIndex: 10000, // 确保在最上层
+                getContainer: () => document.body, // 明确指定容器
             });
             console.log('[showErrorBoth] Modal 弹框已显示');
         } catch (e) {
             console.error('[showErrorBoth] 显示 Modal 失败:', e);
-            // 如果 Modal 失败，至少显示一个 alert
-            alert('操作失败: ' + finalMessage);
+            // 如果 Modal 失败，使用 notification 作为备用
+            try {
+                notification.error({
+                    message: '⚠️ 操作失败',
+                    description: finalMessage,
+                    placement: 'top',
+                    duration: 0, // 不自动关闭
+                    style: { zIndex: 10000 },
+                });
+            } catch (e2) {
+                // 最后的备用方案：使用原生 alert
+                alert('操作失败: ' + finalMessage);
+            }
         }
     }, 300);
 }
