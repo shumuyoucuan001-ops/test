@@ -87,15 +87,27 @@ export default function FinanceReconciliationDifferencePage() {
   ) => {
     try {
       setLoading(true);
-      const result = await financeReconciliationDifferenceApi.getAll({
+      // 构建请求参数，只包含有值的参数
+      const params: any = {
         page,
         limit: pageSize,
-        search,
-        交易单号,
-        牵牛花采购单号,
-        对账单号,
-        记录状态: 记录状态 && 记录状态.length > 0 ? 记录状态 : undefined,
-      });
+      };
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+      if (交易单号 && 交易单号.trim()) {
+        params.交易单号 = 交易单号.trim();
+      }
+      if (牵牛花采购单号 && 牵牛花采购单号.trim()) {
+        params.牵牛花采购单号 = 牵牛花采购单号.trim();
+      }
+      if (对账单号 && 对账单号.trim()) {
+        params.对账单号 = 对账单号.trim();
+      }
+      if (记录状态 && 记录状态.length > 0) {
+        params.记录状态 = 记录状态;
+      }
+      const result = await financeReconciliationDifferenceApi.getAll(params);
       setRecords(result.data);
       setTotal(result.total);
     } catch (error: any) {
@@ -175,10 +187,10 @@ export default function FinanceReconciliationDifferencePage() {
     setCurrentPage(1);
     loadRecords(
       1,
-      searchText || undefined,
-      search交易单号 || undefined,
-      search牵牛花采购单号 || undefined,
-      search对账单号 || undefined,
+      searchText?.trim() || undefined,
+      search交易单号?.trim() || undefined,
+      search牵牛花采购单号?.trim() || undefined,
+      search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
     );
   };
@@ -187,10 +199,10 @@ export default function FinanceReconciliationDifferencePage() {
   const refreshRecords = () => {
     loadRecords(
       currentPage,
-      searchText || undefined,
-      search交易单号 || undefined,
-      search牵牛花采购单号 || undefined,
-      search对账单号 || undefined,
+      searchText?.trim() || undefined,
+      search交易单号?.trim() || undefined,
+      search牵牛花采购单号?.trim() || undefined,
+      search对账单号?.trim() || undefined,
       search记录状态.length > 0 ? search记录状态 : undefined,
     );
   };
@@ -408,6 +420,14 @@ export default function FinanceReconciliationDifferencePage() {
   // 表格列定义
   const allColumns = [
     {
+      title: '对账单号',
+      dataIndex: '对账单号',
+      key: '对账单号',
+      width: 150,
+      ellipsis: true,
+      render: (text: string) => text || '-',
+    },
+    {
       title: '交易单号',
       dataIndex: '交易单号',
       key: '交易单号',
@@ -436,14 +456,6 @@ export default function FinanceReconciliationDifferencePage() {
           {text}
         </a>
       ),
-    },
-    {
-      title: '对账单号',
-      dataIndex: '对账单号',
-      key: '对账单号',
-      width: 150,
-      ellipsis: true,
-      render: (text: string) => text || '-',
     },
     {
       title: '采购单金额',
@@ -671,7 +683,21 @@ export default function FinanceReconciliationDifferencePage() {
                 allowClear
                 style={{ width: 200 }}
                 value={search记录状态}
-                onChange={(value) => setSearch记录状态(value)}
+                onChange={(value) => {
+                  setSearch记录状态(value);
+                  // 选择后自动触发搜索
+                  setTimeout(() => {
+                    setCurrentPage(1);
+                    loadRecords(
+                      1,
+                      searchText?.trim() || undefined,
+                      search交易单号?.trim() || undefined,
+                      search牵牛花采购单号?.trim() || undefined,
+                      search对账单号?.trim() || undefined,
+                      value.length > 0 ? value : undefined,
+                    );
+                  }, 0);
+                }}
               >
                 {记录状态选项.map((状态) => (
                   <Select.Option key={状态} value={状态}>
@@ -701,10 +727,10 @@ export default function FinanceReconciliationDifferencePage() {
               setPageSize(size || 20);
               loadRecords(
                 page,
-                searchText || undefined,
-                search交易单号 || undefined,
-                search牵牛花采购单号 || undefined,
-                search对账单号 || undefined,
+                searchText?.trim() || undefined,
+                search交易单号?.trim() || undefined,
+                search牵牛花采购单号?.trim() || undefined,
+                search对账单号?.trim() || undefined,
                 search记录状态.length > 0 ? search记录状态 : undefined,
               );
             },

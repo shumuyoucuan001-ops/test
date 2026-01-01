@@ -333,8 +333,18 @@ export default function PurchaseAmountAdjustmentPage() {
       setModalVisible(false);
       refreshAdjustments();
     } catch (error: any) {
-      message.error(error.message || '保存失败');
-      console.error(error);
+      if (error?.errorFields) return;
+      // 提取后端返回的错误消息
+      let errorMessage = '保存失败';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      message.error(errorMessage);
+      console.error('保存失败:', error);
     }
   };
 
@@ -501,8 +511,17 @@ export default function PurchaseAmountAdjustmentPage() {
       setInvalidItems([]);
       refreshAdjustments();
     } catch (e: any) {
-      message.error(e?.response?.data?.message || e?.message || "批量创建失败");
-      console.error(e);
+      // 提取后端返回的错误消息
+      let errorMessage = '批量创建失败';
+      if (e?.response?.data?.message) {
+        errorMessage = e.response.data.message;
+      } else if (e?.response?.data?.error) {
+        errorMessage = e.response.data.error;
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      message.error(errorMessage);
+      console.error('批量创建失败:', e);
     }
   };
 

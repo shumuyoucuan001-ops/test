@@ -256,6 +256,8 @@ export default function OpsExclusionPage() {
             let errorMessage = '保存失败';
             if (e?.response?.data?.message) {
                 errorMessage = e.response.data.message;
+            } else if (e?.response?.data?.error) {
+                errorMessage = e.response.data.error;
             } else if (e?.message) {
                 errorMessage = e.message;
             }
@@ -539,8 +541,17 @@ export default function OpsExclusionPage() {
             setBatchItems([]);
             load();
         } catch (e: any) {
-            message.error(e?.response?.data?.message || e?.message || "批量创建失败");
-            console.error(e);
+            // 提取后端返回的错误消息
+            let errorMessage = '批量创建失败';
+            if (e?.response?.data?.message) {
+                errorMessage = e.response.data.message;
+            } else if (e?.response?.data?.error) {
+                errorMessage = e.response.data.error;
+            } else if (e?.message) {
+                errorMessage = e.message;
+            }
+            message.error(errorMessage);
+            console.error('批量创建失败:', e);
         }
     };
 

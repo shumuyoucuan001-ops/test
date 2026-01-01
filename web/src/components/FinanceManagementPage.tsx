@@ -1,40 +1,37 @@
 "use client";
 
+import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
   EditOutlined,
+  EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
   UploadOutlined,
-  EyeOutlined,
 } from '@ant-design/icons';
-import { formatDateTime } from '@/lib/dateUtils';
 import {
   Button,
   Card,
-  Col,
   Form,
+  Image,
   Input,
+  message,
   Modal,
   Popconfirm,
   Popover,
-  Row,
   Space,
   Table,
   Tag,
   Typography,
-  message,
-  Upload,
-  Image,
-  Checkbox,
+  Upload
 } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
+import { FinanceBill, financeManagementApi } from '../lib/api';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
-import { financeManagementApi, FinanceBill } from '../lib/api';
-import type { UploadFile } from 'antd/es/upload/interface';
 
 const { Search } = Input;
 const { Title } = Typography;
@@ -201,7 +198,7 @@ export default function FinanceManagementPage() {
       qianniuhuaPurchaseNumber: bill.qianniuhuaPurchaseNumber,
       importExceptionRemark: bill.importExceptionRemark,
     });
-    
+
     // 如果有图片标识，异步加载图片
     if (bill.hasImage === 1 && bill.transactionNumber) {
       try {
@@ -228,7 +225,7 @@ export default function FinanceManagementPage() {
       setImageFileList([]);
       form.setFieldsValue({ image: undefined });
     }
-    
+
     setModalVisible(true);
   };
 
@@ -323,8 +320,18 @@ export default function FinanceManagementPage() {
       setModalVisible(false);
       refreshBills();
     } catch (error: any) {
-      message.error(error.message || '保存失败');
-      console.error(error);
+      if (error?.errorFields) return;
+      // 提取后端返回的错误消息
+      let errorMessage = '保存失败';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      message.error(errorMessage);
+      console.error('保存失败:', error);
     }
   };
 
@@ -358,7 +365,7 @@ export default function FinanceManagementPage() {
           qianniuhuaPurchaseNumber: parts[1] || undefined
         };
       });
-      
+
       const result = await financeManagementApi.batchDelete(billsToDelete);
       message.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       setSelectedRowKeys([]);
@@ -487,8 +494,17 @@ export default function FinanceManagementPage() {
       setInvalidItems([]);
       refreshBills();
     } catch (e: any) {
-      message.error(e?.response?.data?.message || e?.message || "批量创建失败");
-      console.error(e);
+      // 提取后端返回的错误消息
+      let errorMessage = '批量创建失败';
+      if (e?.response?.data?.message) {
+        errorMessage = e.response.data.message;
+      } else if (e?.response?.data?.error) {
+        errorMessage = e.response.data.error;
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      message.error(errorMessage);
+      console.error('批量创建失败:', e);
     }
   };
 
@@ -671,7 +687,7 @@ export default function FinanceManagementPage() {
                   hiddenColumns={hiddenColumns}
                   columnOrder={columnOrder}
                   onToggleVisibility={handleToggleColumnVisibility}
-                  onMoveColumn={() => {}}
+                  onMoveColumn={() => { }}
                   onColumnOrderChange={handleColumnOrderChange}
                 />
               }
