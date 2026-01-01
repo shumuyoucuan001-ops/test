@@ -2,6 +2,7 @@
 
 import { OpsActivityDispatchItem, opsActivityDispatchApi, productMasterApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/dateUtils";
+import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Table, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
@@ -271,16 +272,8 @@ export default function OpsActivityDispatchPage() {
             load();
         } catch (e: any) {
             if (e?.errorFields) return;
-            // 提取后端返回的错误消息
-            let errorMessage = '保存失败';
-            if (e?.response?.data?.message) {
-                errorMessage = e.response.data.message;
-            } else if (e?.response?.data?.error) {
-                errorMessage = e.response.data.error;
-            } else if (e?.message) {
-                errorMessage = e.message;
-            }
-            message.error(errorMessage);
+            // 使用增强的错误提示（方式1：message + Modal弹框）
+            showErrorBoth(e, '保存失败');
             console.error('保存失败:', e);
         }
     };
@@ -511,16 +504,8 @@ export default function OpsActivityDispatchPage() {
             setInvalidItems([]);
             load();
         } catch (e: any) {
-            // 提取后端返回的错误消息
-            let errorMessage = '批量创建失败';
-            if (e?.response?.data?.message) {
-                errorMessage = e.response.data.message;
-            } else if (e?.response?.data?.error) {
-                errorMessage = e.response.data.error;
-            } else if (e?.message) {
-                errorMessage = e.message;
-            }
-            message.error(errorMessage);
+            // 使用增强的错误提示（方式1：message + Modal弹框）
+            showErrorBoth(e, '批量创建失败');
             console.error('批量创建失败:', e);
         }
     };
