@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   Form,
+  Image,
   Input,
   InputNumber,
   Modal,
@@ -23,8 +24,10 @@ import {
   Table,
   Tag,
   Typography,
+  Upload,
   message,
 } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
 import { NonPurchaseBillRecord, nonPurchaseBillRecordApi } from '../lib/api';
 import ColumnSettings from './ColumnSettings';
@@ -51,6 +54,9 @@ export default function NonPurchaseBillRecordPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<NonPurchaseBillRecord | null>(null);
   const [form] = Form.useForm();
+  const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
 
   // 批量新增模态框状态
   const [batchModalVisible, setBatchModalVisible] = useState(false);
@@ -180,10 +186,46 @@ export default function NonPurchaseBillRecordPage() {
     );
   };
 
+  // 将文件转换为base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // 移除 data:image/xxx;base64, 前缀
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 图片上传前验证
+  const beforeUpload = (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      message.error('只能上传图片文件！');
+      return false;
+    }
+    const isLt10M = file.size / 1024 / 1024 < 10;
+    if (!isLt10M) {
+      message.error('图片大小不能超过10MB！');
+      return false;
+    }
+    return false; // 阻止自动上传，手动处理
+  };
+
+  // 图片变化处理
+  const handleImageChange = (info: any) => {
+    setImageFileList(info.fileList);
+  };
+
   // 打开新增模态框
   const handleAdd = () => {
     setEditingRecord(null);
     form.resetFields();
+    setImageFileList([]);
     setModalVisible(true);
   };
 
@@ -200,6 +242,18 @@ export default function NonPurchaseBillRecordPage() {
       财务审核状态: record.财务审核状态,
       财务审核人: record.财务审核人,
     });
+    // 如果有图片，设置预览
+    if (record.图片) {
+      const imageUrl = `data:image/jpeg;base64,${record.图片}`;
+      setImageFileList([{
+        uid: '-1',
+        name: 'image.jpg',
+        status: 'done',
+        url: imageUrl,
+      }]);
+    } else {
+      setImageFileList([]);
+    }
     setModalVisible(true);
   };
 
@@ -208,12 +262,28 @@ export default function NonPurchaseBillRecordPage() {
     try {
       const values = await form.validateFields();
 
+      // 处理图片
+      let imageBase64: string | undefined;
+      if (imageFileList.length > 0) {
+        if (imageFileList[0].originFileObj) {
+          // 新上传的图片
+          imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
+        } else if (imageFileList[0].url) {
+          // 编辑时保留的图片（从url中提取base64）
+          const url = imageFileList[0].url;
+          if (url.startsWith('data:image')) {
+            imageBase64 = url.split(',')[1];
+          }
+        }
+      }
+
       const recordData: NonPurchaseBillRecord = {
         账单流水: values.账单流水,
         记账金额: values.记账金额 || undefined,
         账单类型: values.账单类型 || undefined,
         所属仓店: values.所属仓店 || undefined,
         账单流水备注: values.账单流水备注 || undefined,
+        图片: imageBase64,
         财务记账凭证号: values.财务记账凭证号 || undefined,
         财务审核状态: values.财务审核状态 || undefined,
         财务审核人: values.财务审核人 || undefined,
@@ -230,6 +300,7 @@ export default function NonPurchaseBillRecordPage() {
       }
 
       setModalVisible(false);
+      setImageFileList([]);
       refreshRecords();
     } catch (error: any) {
       if (error?.errorFields) {
@@ -495,6 +566,30 @@ export default function NonPurchaseBillRecordPage() {
       width: 200,
       ellipsis: true,
       render: (text: string) => text || '-',
+    },
+    {
+      title: '图片',
+      dataIndex: '图片',
+      key: '图片',
+      width: 100,
+      render: (text: string, record: NonPurchaseBillRecord) => {
+        if (record.图片) {
+          const imageUrl = `data:image/jpeg;base64,${record.图片}`;
+          return (
+            <Image
+              width={50}
+              height={50}
+              src={imageUrl}
+              alt="图片"
+              preview={{
+                src: imageUrl,
+              }}
+              style={{ cursor: 'pointer' }}
+            />
+          );
+        }
+        return '-';
+      },
     },
     {
       title: '财务记账凭证号',
@@ -792,6 +887,7 @@ export default function NonPurchaseBillRecordPage() {
           setModalVisible(false);
           setEditingRecord(null);
           form.resetFields();
+          setImageFileList([]);
         }}
         width={800}
         okText="保存"
@@ -847,6 +943,53 @@ export default function NonPurchaseBillRecordPage() {
               maxLength={245}
               showCount
             />
+          </Form.Item>
+
+          <Form.Item
+            label="图片"
+            help="支持上传图片，大小不超过10MB"
+            name="image"
+            style={{ display: 'none' }}
+          >
+            <Input type="hidden" />
+          </Form.Item>
+          <Form.Item
+            label=" "
+            colon={false}
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                listType="picture-card"
+                fileList={imageFileList}
+                beforeUpload={beforeUpload}
+                onChange={handleImageChange}
+                onRemove={() => {
+                  setImageFileList([]);
+                  form.setFieldValue('image', '');
+                  return true;
+                }}
+                maxCount={1}
+              >
+                {imageFileList.length < 1 && (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>上传图片</div>
+                  </div>
+                )}
+              </Upload>
+              {imageFileList.length > 0 && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setImageFileList([]);
+                    form.setFieldValue('image', '');
+                  }}
+                >
+                  清空图片
+                </Button>
+              )}
+            </Space>
           </Form.Item>
 
           <Form.Item
@@ -1061,6 +1204,26 @@ export default function NonPurchaseBillRecordPage() {
           }}>
             暂无数据，请粘贴数据到上方输入框
           </div>
+        )}
+      </Modal>
+
+      {/* 图片预览 */}
+      <Modal
+        open={previewVisible}
+        footer={null}
+        onCancel={() => {
+          setPreviewVisible(false);
+          setPreviewImage(null);
+        }}
+        width={800}
+        centered
+      >
+        {previewImage && (
+          <Image
+            src={previewImage}
+            alt="预览"
+            style={{ width: '100%' }}
+          />
         )}
       </Modal>
     </div>

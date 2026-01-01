@@ -8,6 +8,7 @@ export interface NonPurchaseBillRecord {
     账单类型?: string;
     所属仓店?: string;
     账单流水备注?: string;
+    图片?: string; // base64编码的图片数据
     财务记账凭证号?: string;
     财务审核状态?: string;
     记录修改人?: string;
@@ -127,6 +128,7 @@ export class NonPurchaseBillRecordService {
                     账单类型,
                     所属仓店,
                     账单流水备注,
+                    图片,
                     财务记账凭证号,
                     财务审核状态,
                     记录修改人,
@@ -151,6 +153,7 @@ export class NonPurchaseBillRecordService {
                     账单类型: row.账单类型 || undefined,
                     所属仓店: row.所属仓店 || undefined,
                     账单流水备注: row.账单流水备注 || undefined,
+                    图片: row.图片 ? Buffer.from(row.图片).toString('base64') : undefined,
                     财务记账凭证号: row.财务记账凭证号 || undefined,
                     财务审核状态: row.财务审核状态 || undefined,
                     记录修改人: row.记录修改人 || undefined,
@@ -180,6 +183,7 @@ export class NonPurchaseBillRecordService {
                     账单类型,
                     所属仓店,
                     账单流水备注,
+                    图片,
                     财务记账凭证号,
                     财务审核状态,
                     记录修改人,
@@ -203,6 +207,7 @@ export class NonPurchaseBillRecordService {
                 账单类型: row.账单类型 || undefined,
                 所属仓店: row.所属仓店 || undefined,
                 账单流水备注: row.账单流水备注 || undefined,
+                图片: row.图片 ? Buffer.from(row.图片).toString('base64') : undefined,
                 财务记账凭证号: row.财务记账凭证号 || undefined,
                 财务审核状态: row.财务审核状态 || undefined,
                 记录修改人: row.记录修改人 || undefined,
@@ -239,9 +244,15 @@ export class NonPurchaseBillRecordService {
 
             const insertQuery = `
                 INSERT INTO \`非采购单流水记录\` 
-                (账单流水, 记账金额, 账单类型, 所属仓店, 账单流水备注, 财务记账凭证号, 财务审核状态, 记录修改人, 财务审核人)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (账单流水, 记账金额, 账单类型, 所属仓店, 账单流水备注, 图片, 财务记账凭证号, 财务审核状态, 记录修改人, 财务审核人)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
+
+            // 处理图片：将base64字符串转换为Buffer
+            let imageBuffer: Buffer | null = null;
+            if (data.图片) {
+                imageBuffer = Buffer.from(data.图片, 'base64');
+            }
 
             await connection.execute(insertQuery, [
                 data.账单流水,
@@ -249,6 +260,7 @@ export class NonPurchaseBillRecordService {
                 data.账单类型 || null,
                 data.所属仓店 || null,
                 data.账单流水备注 || null,
+                imageBuffer,
                 data.财务记账凭证号 || null,
                 data.财务审核状态 || null,
                 记录修改人 || null,
@@ -299,9 +311,15 @@ export class NonPurchaseBillRecordService {
 
                     const insertQuery = `
                         INSERT INTO \`非采购单流水记录\` 
-                        (账单流水, 记账金额, 账单类型, 所属仓店, 账单流水备注, 财务记账凭证号, 财务审核状态, 记录修改人, 财务审核人)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (账单流水, 记账金额, 账单类型, 所属仓店, 账单流水备注, 图片, 财务记账凭证号, 财务审核状态, 记录修改人, 财务审核人)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     `;
+
+                    // 处理图片：将base64字符串转换为Buffer
+                    let imageBuffer: Buffer | null = null;
+                    if (record.图片) {
+                        imageBuffer = Buffer.from(record.图片, 'base64');
+                    }
 
                     await connection.execute(insertQuery, [
                         record.账单流水,
@@ -309,6 +327,7 @@ export class NonPurchaseBillRecordService {
                         record.账单类型 || null,
                         record.所属仓店 || null,
                         record.账单流水备注 || null,
+                        imageBuffer,
                         record.财务记账凭证号 || null,
                         record.财务审核状态 || null,
                         记录修改人 || null,
@@ -365,6 +384,15 @@ export class NonPurchaseBillRecordService {
             if (data.账单流水备注 !== undefined) {
                 updateFields.push('账单流水备注 = ?');
                 updateValues.push(data.账单流水备注 || null);
+            }
+            if (data.图片 !== undefined) {
+                updateFields.push('图片 = ?');
+                // 处理图片：将base64字符串转换为Buffer
+                if (data.图片) {
+                    updateValues.push(Buffer.from(data.图片, 'base64'));
+                } else {
+                    updateValues.push(null);
+                }
             }
             if (data.财务记账凭证号 !== undefined) {
                 updateFields.push('财务记账凭证号 = ?');

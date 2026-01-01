@@ -1059,6 +1059,7 @@ export interface NonPurchaseBillRecord {
   账单类型?: string;
   所属仓店?: string;
   账单流水备注?: string;
+  图片?: string; // base64编码的图片数据
   财务记账凭证号?: string;
   财务审核状态?: string;
   记录修改人?: string;

@@ -26,7 +26,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { Dayjs } from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -75,6 +75,9 @@ export default function FinanceReconciliationDifferencePage() {
   // 非采购单流水记录相关状态
   const [nonPurchaseRecordModalVisible, setNonPurchaseRecordModalVisible] = useState(false);
   const [nonPurchaseRecordForm] = Form.useForm();
+  const [nonPurchaseRecordImageFileList, setNonPurchaseRecordImageFileList] = useState<UploadFile[]>([]);
+  const [nonPurchaseRecordPreviewImage, setNonPurchaseRecordPreviewImage] = useState<string | null>(null);
+  const [nonPurchaseRecordPreviewVisible, setNonPurchaseRecordPreviewVisible] = useState(false);
   const [nonPurchaseRecordLoading, setNonPurchaseRecordLoading] = useState(false);
 
   // 选中行相关状态（改为点击整行选中，不再使用展开）
@@ -85,6 +88,12 @@ export default function FinanceReconciliationDifferencePage() {
 
   // 上下分栏高度比例（默认上2/3，下1/3）
   const [topPanelHeight, setTopPanelHeight] = useState<number>(66.67); // 百分比
+
+  // 表格滚动高度
+  const [tableScrollY, setTableScrollY] = useState<number | undefined>(undefined);
+  const [subTableScrollY, setSubTableScrollY] = useState<number | undefined>(undefined);
+  const topTableContainerRef = useRef<HTMLDivElement>(null);
+  const subTableContainerRef = useRef<HTMLDivElement>(null);
 
   // 加载记录列表（对账单号维度）
   const loadRecords = async (
@@ -147,6 +156,70 @@ export default function FinanceReconciliationDifferencePage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 计算上栏表格滚动高度
+  useEffect(() => {
+    const calculateScrollHeight = () => {
+      if (topTableContainerRef.current) {
+        const containerHeight = topTableContainerRef.current.clientHeight;
+        // 减去分页器高度（约64px）和一些边距
+        const scrollHeight = containerHeight - 80;
+        // 确保至少有一个最小值，以便表头固定
+        setTableScrollY(scrollHeight > 200 ? scrollHeight : 200);
+      }
+    };
+
+    calculateScrollHeight();
+
+    // 监听窗口大小变化
+    window.addEventListener('resize', calculateScrollHeight);
+
+    // 使用 ResizeObserver 监听容器大小变化
+    let resizeObserver: ResizeObserver | null = null;
+    if (topTableContainerRef.current) {
+      resizeObserver = new ResizeObserver(calculateScrollHeight);
+      resizeObserver.observe(topTableContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', calculateScrollHeight);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [topPanelHeight]); // 当分栏高度变化时重新计算
+
+  // 计算下栏表格滚动高度
+  useEffect(() => {
+    const calculateSubScrollHeight = () => {
+      if (subTableContainerRef.current) {
+        const containerHeight = subTableContainerRef.current.clientHeight;
+        // 减去搜索区域和按钮区域的高度（约120px）
+        const scrollHeight = containerHeight - 120;
+        // 确保至少有一个最小值，以便表头固定
+        setSubTableScrollY(scrollHeight > 150 ? scrollHeight : 150);
+      }
+    };
+
+    calculateSubScrollHeight();
+
+    // 监听窗口大小变化
+    window.addEventListener('resize', calculateSubScrollHeight);
+
+    // 使用 ResizeObserver 监听容器大小变化
+    let resizeObserver: ResizeObserver | null = null;
+    if (subTableContainerRef.current) {
+      resizeObserver = new ResizeObserver(calculateSubScrollHeight);
+      resizeObserver.observe(subTableContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', calculateSubScrollHeight);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [topPanelHeight, selected对账单号]); // 当分栏高度变化或选中行变化时重新计算
 
   // 从 localStorage 加载列显示偏好和顺序
   useEffect(() => {
@@ -313,6 +386,11 @@ export default function FinanceReconciliationDifferencePage() {
     setPurchaseAdjustmentImageFileList(info.fileList);
   };
 
+  // 图片变化处理（用于非采购单流水记录）
+  const handleNonPurchaseRecordImageChange = (info: any) => {
+    setNonPurchaseRecordImageFileList(info.fileList);
+  };
+
   // 将文件转换为base64（用于采购单金额调整）
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -426,12 +504,20 @@ export default function FinanceReconciliationDifferencePage() {
     try {
       const values = await nonPurchaseRecordForm.validateFields();
 
+      // 处理图片
+      let imageBase64: string | undefined;
+      if (nonPurchaseRecordImageFileList.length > 0 && nonPurchaseRecordImageFileList[0].originFileObj) {
+        // 新上传的图片
+        imageBase64 = await fileToBase64(nonPurchaseRecordImageFileList[0].originFileObj);
+      }
+
       const recordData: NonPurchaseBillRecord = {
         账单流水: values.账单流水,
         记账金额: values.记账金额 || undefined,
         账单类型: values.账单类型 || undefined,
         所属仓店: values.所属仓店 || undefined,
         账单流水备注: values.账单流水备注 || undefined,
+        图片: imageBase64,
         财务记账凭证号: values.财务记账凭证号 || undefined,
         财务审核状态: values.财务审核状态 || undefined,
         财务审核人: values.财务审核人 || undefined,
@@ -442,6 +528,7 @@ export default function FinanceReconciliationDifferencePage() {
       message.success('创建成功');
       setNonPurchaseRecordModalVisible(false);
       nonPurchaseRecordForm.resetFields();
+      setNonPurchaseRecordImageFileList([]);
 
       // 刷新子维度数据（如果已选中）
       if (selected对账单号) {
@@ -665,6 +752,7 @@ export default function FinanceReconciliationDifferencePage() {
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: 600 }}>
           {/* 上部分：对账单号维度数据（约2/3，可调整） */}
           <div
+            ref={topTableContainerRef}
             style={{
               height: `${topPanelHeight}%`,
               minHeight: 300,
@@ -679,7 +767,7 @@ export default function FinanceReconciliationDifferencePage() {
               rowKey={(record) => record.对账单号 || ''}
               loading={loading}
               isMobile={false}
-              scroll={{ x: 1500, y: 'calc(100% - 60px)' }}
+              scroll={{ x: 1500, y: tableScrollY || 200 }}
               onRow={(record) => ({
                 onClick: () => handleRowClick(record),
                 style: {
@@ -747,6 +835,7 @@ export default function FinanceReconciliationDifferencePage() {
 
           {/* 下部分：子维度数据（约1/3，可调整） */}
           <div
+            ref={subTableContainerRef}
             style={{
               height: `${100 - topPanelHeight}%`,
               minHeight: 200,
@@ -861,7 +950,7 @@ export default function FinanceReconciliationDifferencePage() {
                 </div>
 
                 {/* 子维度表格 */}
-                <div style={{ flex: 1, overflow: 'auto' }}>
+                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <ResponsiveTable<FinanceReconciliationDifference>
                     columns={[
                       {
@@ -928,7 +1017,7 @@ export default function FinanceReconciliationDifferencePage() {
                     rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
                     loading={subLoading}
                     isMobile={false}
-                    scroll={{ x: 1200 }}
+                    scroll={{ x: 1200, y: subTableScrollY || 150 }}
                     pagination={false}
                     size="small"
                   />
@@ -1187,6 +1276,7 @@ export default function FinanceReconciliationDifferencePage() {
         onCancel={() => {
           setNonPurchaseRecordModalVisible(false);
           nonPurchaseRecordForm.resetFields();
+          setNonPurchaseRecordImageFileList([]);
         }}
         width={800}
         okText="保存"
@@ -1243,6 +1333,53 @@ export default function FinanceReconciliationDifferencePage() {
               maxLength={245}
               showCount
             />
+          </Form.Item>
+
+          <Form.Item
+            label="图片"
+            help="支持上传图片，大小不超过10MB"
+            name="image"
+            style={{ display: 'none' }}
+          >
+            <Input type="hidden" />
+          </Form.Item>
+          <Form.Item
+            label=" "
+            colon={false}
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                listType="picture-card"
+                fileList={nonPurchaseRecordImageFileList}
+                beforeUpload={beforeUpload}
+                onChange={handleNonPurchaseRecordImageChange}
+                onRemove={() => {
+                  setNonPurchaseRecordImageFileList([]);
+                  nonPurchaseRecordForm.setFieldValue('image', '');
+                  return true;
+                }}
+                maxCount={1}
+              >
+                {nonPurchaseRecordImageFileList.length < 1 && (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>上传图片</div>
+                  </div>
+                )}
+              </Upload>
+              {nonPurchaseRecordImageFileList.length > 0 && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setNonPurchaseRecordImageFileList([]);
+                    nonPurchaseRecordForm.setFieldValue('image', '');
+                  }}
+                >
+                  清空图片
+                </Button>
+              )}
+            </Space>
           </Form.Item>
 
           <Form.Item
