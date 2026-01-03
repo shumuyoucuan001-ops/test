@@ -132,7 +132,7 @@ export class OpsActivityDispatchService {
             a.\`活动备注\`,
             a.\`剩余活动天数\`,
             a.\`活动确认人\`,
-            DATE_FORMAT(a.\`结束时间\`, '%Y-%m-%d %H:%i:%s') as \`结束时间\`,
+            DATE_FORMAT(a.\`结束时间\`, '%Y-%m-%d') as \`结束时间\`,
             DATE_FORMAT(a.\`数据更新时间\`, '%Y-%m-%d %H:%i:%s') as \`数据更新时间\`,
             c.\`采购单价 (基础单位)\`,
             c.\`采购单价 (采购单位)\`,

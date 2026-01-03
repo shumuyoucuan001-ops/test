@@ -687,7 +687,11 @@ export default function OpsActivityDispatchPage() {
                 dataIndex: '结束时间',
                 key: '结束时间',
                 width: 180,
-                render: (text: string) => formatDateTime(text),
+                render: (text: string) => {
+                    if (!text) return '-';
+                    // 只显示年月日，去掉时分秒
+                    return text.split(' ')[0] || text;
+                },
             },
             {
                 title: '数据更新时间',
@@ -1185,7 +1189,16 @@ export default function OpsActivityDispatchPage() {
                                 { title: '活动备注', dataIndex: '活动备注', key: '活动备注' },
                                 { title: '剩余活动天数', dataIndex: '剩余活动天数', key: '剩余活动天数', render: (v: any) => v !== null ? Number(v) : '-' },
                                 { title: '活动确认人', dataIndex: '活动确认人', key: '活动确认人' },
-                                { title: '结束时间', dataIndex: '结束时间', key: '结束时间', render: (v: any) => formatDateTime(v) },
+                                {
+                                    title: '结束时间',
+                                    dataIndex: '结束时间',
+                                    key: '结束时间',
+                                    render: (v: any) => {
+                                        if (!v) return '-';
+                                        // 只显示年月日，去掉时分秒
+                                        return v.split(' ')[0] || v;
+                                    }
+                                },
                                 {
                                     title: '操作',
                                     key: 'action',
@@ -1274,8 +1287,12 @@ export default function OpsActivityDispatchPage() {
                                 {
                                     title: '结束时间',
                                     key: '结束时间',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.结束时间 || '-'
+                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) => {
+                                        const endTime = record.item.结束时间;
+                                        if (!endTime) return '-';
+                                        // 只显示年月日，去掉时分秒
+                                        return endTime.split(' ')[0] || endTime;
+                                    }
                                 },
                                 {
                                     title: '失败原因',

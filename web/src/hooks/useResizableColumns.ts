@@ -91,9 +91,9 @@ export function useResizableColumns<T = any>(
       return {
         ...col,
         width: currentWidth,
-        onHeaderCell: (column: ColumnType<T>) => {
+        onHeaderCell: (column: any) => {
           const originalProps = originalOnHeaderCell
-            ? originalOnHeaderCell(column)
+            ? originalOnHeaderCell(column as any)
             : {};
 
           // 如果是固定列，不添加调整功能
@@ -201,7 +201,7 @@ export function useResizableColumns<T = any>(
       const state = resizeStateRef.current;
       if (!state.resizing || !state.currentColumnKey) return;
 
-      // 计算新的宽度（自由调整，最小 50px）
+      // 计算新的宽度（自由调整，最小 20px）
       const deltaX = e.clientX - state.startX;
       const newWidth = Math.max(20, state.startWidth + deltaX);
 
@@ -225,6 +225,31 @@ export function useResizableColumns<T = any>(
           (th as HTMLElement).style.minWidth = `${newWidth}px`;
           (th as HTMLElement).style.maxWidth = `${newWidth}px`;
         });
+
+        // 同步更新所有对应数据列的 td 宽度
+        // 找到表头在列中的索引位置
+        if (state.currentTh) {
+          const headerRow = state.currentTh.closest('tr');
+          if (headerRow) {
+            const thIndex = Array.from(headerRow.children).indexOf(state.currentTh);
+            if (thIndex >= 0) {
+              // 找到所有数据行的对应 td
+              const tbody = tableRef.current.querySelector('tbody');
+              if (tbody) {
+                const allRows = tbody.querySelectorAll('tr');
+                allRows.forEach((row) => {
+                  const tds = row.querySelectorAll('td');
+                  if (tds[thIndex]) {
+                    const td = tds[thIndex] as HTMLElement;
+                    td.style.width = `${newWidth}px`;
+                    td.style.minWidth = `${newWidth}px`;
+                    td.style.maxWidth = `${newWidth}px`;
+                  }
+                });
+              }
+            }
+          }
+        }
       }
     };
 
