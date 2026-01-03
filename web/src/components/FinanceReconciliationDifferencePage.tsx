@@ -426,7 +426,102 @@ export default function FinanceReconciliationDifferencePage() {
         // 显示左右框
         setDetailPanelsVisible(true);
         // 加载默认数据（所有交易单号和采购单号的数据）
-        await loadDefaultTransactionAndPurchaseData();
+        // 注意：这里result.data已经设置到subRecords，所以可以直接使用result.data
+        const 交易单号列表 = [...new Set(result.data.map(r => r.交易单号).filter(Boolean))];
+        const 采购单号列表 = [...new Set(result.data.map(r => r.牵牛花采购单号).filter(Boolean))];
+
+        // 查询所有交易单号对应的数据
+        try {
+          setTransactionRecordLoading(true);
+          const allTransactionResults: any[] = [];
+          for (const 交易单号 of 交易单号列表) {
+            try {
+              const transactionResult = await transactionRecordApi.getByTransactionBillNumber(交易单号);
+              if (transactionResult.data && transactionResult.data.length > 0) {
+                allTransactionResults.push(...transactionResult.data);
+              }
+            } catch (error) {
+              console.error(`查询交易单号 ${交易单号} 失败:`, error);
+            }
+          }
+          // 去重（基于交易账单号）
+          const uniqueTransactionData = Array.from(
+            new Map(allTransactionResults.map(item => [item.交易账单号, item])).values()
+          );
+          setTransactionRecordData(uniqueTransactionData);
+        } catch (error: any) {
+          message.error(error.message || '查询交易单号信息失败');
+          console.error(error);
+          setTransactionRecordData([]);
+        } finally {
+          setTransactionRecordLoading(false);
+        }
+
+        // 查询所有采购单号对应的数据
+        try {
+          setPurchaseOrderInfoLoading(true);
+          const allPurchaseResults: any[] = [];
+          for (const 采购单号 of 采购单号列表) {
+            try {
+              const purchaseResult = await purchaseOrderInfoApi.getByPurchaseOrderNumber(采购单号);
+              if (purchaseResult.data && purchaseResult.data.length > 0) {
+                allPurchaseResults.push(...purchaseResult.data);
+              }
+            } catch (error) {
+              console.error(`查询采购单号 ${采购单号} 失败:`, error);
+            }
+          }
+          // 去重（基于采购单号）
+          const uniquePurchaseData = Array.from(
+            new Map(allPurchaseResults.map(item => [item.采购单号, item])).values()
+          );
+          setPurchaseOrderInfoData(uniquePurchaseData);
+        } catch (error: any) {
+          message.error(error.message || '查询采购单号信息失败');
+          console.error(error);
+          setPurchaseOrderInfoData([]);
+        } finally {
+          setPurchaseOrderInfoLoading(false);
+        }
+
+        // 同时查询所有账单手动绑定采购单数据，建立存在性映射
+        const financeBillExistsMapTemp = new Map<string, boolean>();
+        for (const 交易单号 of 交易单号列表) {
+          try {
+            const financeBillResult = await financeManagementApi.getAll({
+              transactionNumber: 交易单号,
+              limit: 1,
+            });
+            if (financeBillResult.data && financeBillResult.data.length > 0) {
+              financeBillResult.data.forEach((bill: FinanceBill) => {
+                const key = bill.transactionNumber;
+                if (key) {
+                  financeBillExistsMapTemp.set(key, true);
+                }
+              });
+            }
+          } catch (error) {
+            console.error(`查询交易单号 ${交易单号} 的账单手动绑定采购单失败:`, error);
+          }
+        }
+        setFinanceBillExistsMap(financeBillExistsMapTemp);
+
+        // 同时查询所有采购单金额调整数据，建立存在性映射
+        const purchaseAdjustmentExistsMapTemp = new Map<string, boolean>();
+        for (const 采购单号 of 采购单号列表) {
+          try {
+            const adjustmentResult = await purchaseAmountAdjustmentApi.getAll({
+              purchaseOrderNumber: 采购单号,
+              limit: 1,
+            });
+            if (adjustmentResult.data && adjustmentResult.data.length > 0) {
+              purchaseAdjustmentExistsMapTemp.set(采购单号, true);
+            }
+          } catch (error) {
+            console.error(`查询采购单号 ${采购单号} 的采购单金额调整失败:`, error);
+          }
+        }
+        setPurchaseAdjustmentExistsMap(purchaseAdjustmentExistsMapTemp);
       } else {
         // 没有子维度数据，隐藏左右框
         setDetailPanelsVisible(false);
@@ -466,7 +561,13 @@ export default function FinanceReconciliationDifferencePage() {
 
   // 加载默认的交易单号和采购单号信息（所有数据）
   const loadDefaultTransactionAndPurchaseData = async () => {
-    if (!selected对账单号 || subRecords.length === 0) {
+    if (!selected对账单号) {
+      return;
+    }
+
+    // 如果subRecords为空，直接返回，不加载数据
+    if (subRecords.length === 0) {
+      console.log('[loadDefaultTransactionAndPurchaseData] subRecords为空，跳过加载');
       return;
     }
 
@@ -2097,6 +2198,7 @@ export default function FinanceReconciliationDifferencePage() {
                 },
               })}
               pagination={false}
+              size="small"
             />
           </div>
 
@@ -2153,7 +2255,8 @@ export default function FinanceReconciliationDifferencePage() {
                 const handleMouseMove = (moveEvent: MouseEvent) => {
                   const deltaY = moveEvent.clientY - startY;
                   const deltaPercent = (deltaY / containerHeight) * 100;
-                  const newTopHeight = Math.max(30, Math.min(80, startTopHeight + deltaPercent));
+                  // 去掉限制，允许自由调整，但确保最小高度为50px
+                  const newTopHeight = Math.max(5, Math.min(95, startTopHeight + deltaPercent));
                   setTopPanelHeight(newTopHeight);
                 };
 
@@ -2338,9 +2441,28 @@ export default function FinanceReconciliationDifferencePage() {
 
                         const handleMouseMove = (moveEvent: MouseEvent) => {
                           const deltaY = moveEvent.clientY - startY;
-                          const deltaPercent = (deltaY / containerHeight) * 100;
-                          const newHeight = Math.max(20, Math.min(70, detailPanelsHeight - deltaPercent));
-                          setDetailPanelsHeight(newHeight);
+                          const container = subTableContainerRef.current;
+                          if (!container) return;
+                          const containerRect = container.getBoundingClientRect();
+                          const containerTop = containerRect.top;
+                          const containerBottom = containerRect.bottom;
+                          const windowBottom = window.innerHeight;
+
+                          // 计算鼠标相对于容器的位置
+                          const mouseY = moveEvent.clientY;
+                          const relativeY = mouseY - containerTop;
+                          const containerHeight = container.clientHeight;
+
+                          // 计算新的高度百分比
+                          const newHeightPercent = (relativeY / containerHeight) * 100;
+
+                          // 限制：往上不能超过上下栏分割线位置（即容器顶部），往下不能超出浏览器底部
+                          // 确保最小高度为10%，最大高度为90%
+                          const minHeight = 10;
+                          const maxHeight = Math.min(90, ((windowBottom - containerTop) / containerHeight) * 100);
+                          const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeightPercent));
+
+                          setDetailPanelsHeight(clampedHeight);
                         };
 
                         const handleMouseUp = () => {
@@ -2375,13 +2497,31 @@ export default function FinanceReconciliationDifferencePage() {
                         backgroundColor: '#fff',
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>交易单号信息</span>
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<CloseOutlined />}
-                            onClick={handleCloseDetailPanels}
-                          />
+                          <span>交易单号详细信息</span>
+                          <Space size="small">
+                            <Button
+                              size="small"
+                              type="primary"
+                              style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
+                              onClick={() => {
+                                setFinanceBillModalVisible(true);
+                                // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
+                                const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
+                                financeBillForm.setFieldsValue({
+                                  transactionNumber: currentRecord?.交易单号 || '',
+                                  qianniuhuaPurchaseNumber: currentRecord?.牵牛花采购单号 || '',
+                                });
+                              }}
+                            >
+                              账单手动绑定采购单
+                            </Button>
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<CloseOutlined />}
+                              onClick={handleCloseDetailPanels}
+                            />
+                          </Space>
                         </div>
                         <div style={{ flex: 1, overflow: 'auto', marginBottom: 8 }}>
                           <ResponsiveTable<TransactionRecord>
@@ -2457,23 +2597,9 @@ export default function FinanceReconciliationDifferencePage() {
                             scroll={{ x: 800, y: 200 }}
                             pagination={false}
                             size="small"
+                            style={{ fontSize: '12px' }}
                           />
                         </div>
-                        <Button
-                          size="small"
-                          type="primary"
-                          onClick={() => {
-                            setFinanceBillModalVisible(true);
-                            // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
-                            const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
-                            financeBillForm.setFieldsValue({
-                              transactionNumber: currentRecord?.交易单号 || '',
-                              qianniuhuaPurchaseNumber: currentRecord?.牵牛花采购单号 || '',
-                            });
-                          }}
-                        >
-                          账单手动绑定采购单
-                        </Button>
                       </div>
 
                       {/* 分割线：左右框之间 */}
@@ -2520,13 +2646,30 @@ export default function FinanceReconciliationDifferencePage() {
                         backgroundColor: '#fff',
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>采购单号信息</span>
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<CloseOutlined />}
-                            onClick={handleCloseDetailPanels}
-                          />
+                          <span>采购单号详细信息</span>
+                          <Space size="small">
+                            <Button
+                              size="small"
+                              type="primary"
+                              style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
+                              onClick={() => {
+                                setPurchaseAdjustmentModalVisible(true);
+                                // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
+                                const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
+                                purchaseAdjustmentForm.setFieldsValue({
+                                  purchaseOrderNumber: currentRecord?.牵牛花采购单号 || '',
+                                });
+                              }}
+                            >
+                              采购单金额调整
+                            </Button>
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<CloseOutlined />}
+                              onClick={handleCloseDetailPanels}
+                            />
+                          </Space>
                         </div>
                         <div style={{ flex: 1, overflow: 'auto', marginBottom: 8 }}>
                           <ResponsiveTable<PurchaseOrderInfo>
@@ -2612,22 +2755,9 @@ export default function FinanceReconciliationDifferencePage() {
                             scroll={{ x: 1400, y: 200 }}
                             pagination={false}
                             size="small"
+                            style={{ fontSize: '12px' }}
                           />
                         </div>
-                        <Button
-                          size="small"
-                          type="primary"
-                          onClick={() => {
-                            setPurchaseAdjustmentModalVisible(true);
-                            // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
-                            const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
-                            purchaseAdjustmentForm.setFieldsValue({
-                              purchaseOrderNumber: currentRecord?.牵牛花采购单号 || '',
-                            });
-                          }}
-                        >
-                          采购单金额调整
-                        </Button>
                       </div>
                     </div>
                   )}
