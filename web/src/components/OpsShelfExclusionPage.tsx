@@ -142,17 +142,6 @@ export default function OpsShelfExclusionPage() {
                 await opsShelfExclusionApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
-                // 检查SPU是否已存在
-                try {
-                    const checkResult = await opsShelfExclusionApi.checkExists(submitData);
-                    if (checkResult && checkResult.exists) {
-                        message.error(`SPU"${submitData['SPU']}"已存在，请勿重复添加`);
-                        return;
-                    }
-                } catch (checkError: any) {
-                    console.error('检查重复数据失败:', checkError);
-                    // 如果检查失败，继续尝试创建，让后端验证
-                }
                 console.log('开始创建数据:', submitData);
                 await opsShelfExclusionApi.create(submitData);
                 message.success("新增成功");
@@ -405,19 +394,6 @@ export default function OpsShelfExclusionPage() {
         }
 
         try {
-            // 检查SPU是否已存在
-            try {
-                const checkResult = await opsShelfExclusionApi.checkBatchExists(batchItems);
-                if (checkResult && checkResult.exists) {
-                    const duplicateSpus = checkResult.duplicateItems.map(item => item['SPU']).filter(Boolean);
-                    message.error(`以下SPU已存在，请勿重复添加：${duplicateSpus.join('、')}`);
-                    return;
-                }
-            } catch (checkError: any) {
-                console.error('检查重复数据失败:', checkError);
-                // 如果检查失败，继续尝试创建，让后端验证
-            }
-
             const result = await opsShelfExclusionApi.batchCreate(batchItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {

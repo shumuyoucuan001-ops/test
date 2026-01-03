@@ -227,17 +227,6 @@ export default function OpsRegularActivityDispatchPage() {
                 await opsRegularActivityDispatchApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
-                // 检查SKU是否已存在
-                try {
-                    const checkResult = await opsRegularActivityDispatchApi.checkExists(submitData);
-                    if (checkResult && checkResult.exists) {
-                        message.error(`SKU"${submitData['SKU']}"已存在，请勿重复添加`);
-                        return;
-                    }
-                } catch (checkError: any) {
-                    console.error('检查重复数据失败:', checkError);
-                    // 如果检查失败，继续尝试创建，让后端验证
-                }
                 await opsRegularActivityDispatchApi.create(submitData);
                 message.success("新增成功");
             }
@@ -369,18 +358,6 @@ export default function OpsRegularActivityDispatchPage() {
         }
 
         try {
-            // 检查SKU是否已存在
-            try {
-                const checkResult = await opsRegularActivityDispatchApi.checkBatchExists(validItems);
-                if (checkResult && checkResult.exists) {
-                    const duplicateSkus = checkResult.duplicateItems.map(item => item['SKU']).filter(Boolean);
-                    message.error(`以下SKU已存在，请勿重复添加：${duplicateSkus.join('、')}`);
-                    return;
-                }
-            } catch (checkError: any) {
-                console.error('检查重复数据失败:', checkError);
-                // 如果检查失败，继续尝试创建，让后端验证
-            }
             const result = await opsRegularActivityDispatchApi.batchCreate(validItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {

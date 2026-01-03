@@ -258,24 +258,13 @@ export default function OpsActivityDispatchPage() {
                 '活动备注': values['活动备注']?.trim() || null,
                 '剩余活动天数': values['剩余活动天数'] !== undefined && values['剩余活动天数'] !== null ? Number(values['剩余活动天数']) : null,
                 '活动确认人': values['活动确认人']?.trim() || null,
-                '结束时间': values['结束时间'] ? (values['结束时间'] as unknown as Dayjs).format('YYYY-MM-DD HH:mm:ss') : null,
+                '结束时间': values['结束时间'] ? (values['结束时间'] as unknown as Dayjs).format('YYYY-MM-DD') : null,
                 '数据更新时间': null, // 由数据库自动更新
             };
             if (editing) {
                 await opsActivityDispatchApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
-                // 检查SKU是否已存在
-                try {
-                    const checkResult = await opsActivityDispatchApi.checkExists(submitData);
-                    if (checkResult && checkResult.exists) {
-                        message.error(`SKU"${submitData['SKU']}"已存在，请勿重复添加`);
-                        return;
-                    }
-                } catch (checkError: any) {
-                    console.error('检查重复数据失败:', checkError);
-                    // 如果检查失败，继续尝试创建，让后端验证
-                }
                 await opsActivityDispatchApi.create(submitData);
                 message.success("新增成功");
             }
@@ -415,11 +404,17 @@ export default function OpsActivityDispatchPage() {
 
                 // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数
                 let 剩余活动天数 = parts[6] ? Number(parts[6]) : null;
+                // 处理结束时间：只保留年月日，去掉时分秒
+                let 结束时间 = null;
                 if (parts[8]) {
                     const endDate = dayjs(parts[8]);
-                    const today = dayjs().startOf('day');
-                    const diffDays = endDate.startOf('day').diff(today, 'day');
-                    剩余活动天数 = diffDays >= 0 ? diffDays : null;
+                    if (endDate.isValid()) {
+                        // 只保留年月日
+                        结束时间 = endDate.format('YYYY-MM-DD');
+                        const today = dayjs().startOf('day');
+                        const diffDays = endDate.startOf('day').diff(today, 'day');
+                        剩余活动天数 = diffDays >= 0 ? diffDays : null;
+                    }
                 }
 
                 const item: OpsActivityDispatchItem = {
@@ -431,7 +426,7 @@ export default function OpsActivityDispatchPage() {
                     '活动备注': parts[5] || null,
                     '剩余活动天数': 剩余活动天数,
                     '活动确认人': parts[7] || null,
-                    '结束时间': parts[8] || null,
+                    '结束时间': 结束时间,
                     '数据更新时间': null, // 由数据库自动更新
                 };
 
@@ -519,20 +514,22 @@ export default function OpsActivityDispatchPage() {
             return;
         }
 
-        try {
-            // 检查SKU是否已存在
-            try {
-                const checkResult = await opsActivityDispatchApi.checkBatchExists(validItems);
-                if (checkResult && checkResult.exists) {
-                    const duplicateSkus = checkResult.duplicateItems.map(item => item['SKU']).filter(Boolean);
-                    message.error(`以下SKU已存在，请勿重复添加：${duplicateSkus.join('、')}`);
-                    return;
+        // 确保结束时间只保留年月日
+        const processedItems = validItems.map(item => {
+            if (item['结束时间']) {
+                const endDate = dayjs(item['结束时间']);
+                if (endDate.isValid()) {
+                    return {
+                        ...item,
+                        '结束时间': endDate.format('YYYY-MM-DD')
+                    };
                 }
-            } catch (checkError: any) {
-                console.error('检查重复数据失败:', checkError);
-                // 如果检查失败，继续尝试创建，让后端验证
             }
-            const result = await opsActivityDispatchApi.batchCreate(validItems);
+            return item;
+        });
+
+        try {
+            const result = await opsActivityDispatchApi.batchCreate(processedItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
@@ -1093,8 +1090,7 @@ export default function OpsActivityDispatchPage() {
                     >
                         <DatePicker
                             style={{ width: '100%' }}
-                            showTime
-                            format="YYYY-MM-DD HH:mm:ss"
+                            format="YYYY-MM-DD"
                             onChange={(date: Dayjs | null) => {
                                 if (date) {
                                     // 自动计算剩余活动天数：结束时间 - 今天

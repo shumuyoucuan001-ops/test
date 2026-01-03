@@ -51,6 +51,23 @@ export function useResizableColumns<T = any>(
     loadColumnWidths()
   );
 
+  // 使用 ref 存储拖拽状态，避免状态更新导致的重新渲染中断拖拽
+  const resizeStateRef = useRef<{
+    resizing: boolean;
+    startX: number;
+    startWidth: number;
+    currentColumnKey: string | null;
+    currentTh: HTMLElement | null;
+    currentCol: HTMLElement | null;
+  }>({
+    resizing: false,
+    startX: 0,
+    startWidth: 0,
+    currentColumnKey: null,
+    currentTh: null,
+    currentCol: null,
+  });
+
   // 获取列的唯一标识
   const getColumnKey = useCallback((col: ColumnType<T>): string | null => {
     return (col.key as string) || (col.dataIndex as string) || null;
@@ -133,16 +150,9 @@ export function useResizableColumns<T = any>(
       document.head.appendChild(styleElement);
     }
 
-    // 等待表格渲染完成后再绑定事件
-    let cleanup: (() => void) | null = null;
-    let resizing = false;
-    let startX = 0;
-    let startWidth = 0;
-    let currentColumnKey: string | null = null;
-
     const handleMouseDown = (e: MouseEvent) => {
       if (!tableRef.current) return;
-      
+
       const target = e.target as HTMLElement;
       const th = target.closest("th[data-column-key]");
       if (!th) return;
@@ -150,23 +160,37 @@ export function useResizableColumns<T = any>(
       const columnKey = th.getAttribute("data-column-key");
       if (!columnKey) return;
 
-      // 检查是否点击在列边界区域（右侧 5px 范围内）
+      // 检查是否点击在列边界区域（右侧 8px 范围内，扩大可点击区域）
       const rect = th.getBoundingClientRect();
-      const isNearRightEdge = e.clientX >= rect.right - 5 && e.clientX <= rect.right + 5;
+      const isNearRightEdge = e.clientX >= rect.right - 8 && e.clientX <= rect.right + 8;
 
       if (isNearRightEdge) {
         e.preventDefault();
         e.stopPropagation();
 
-        resizing = true;
-        startX = e.clientX;
-        currentColumnKey = columnKey;
+        // 获取当前列的实际宽度（从 DOM 读取，更准确）
+        const currentWidth = rect.width;
 
-        const col = columns.find((c) => getColumnKey(c) === currentColumnKey);
-        if (col) {
-          const savedWidth = columnWidths[currentColumnKey];
-          startWidth = savedWidth || (col.width as number) || 100;
+        // 找到对应的 col 元素
+        const table = tableRef.current;
+        const colgroup = table.querySelector("colgroup");
+        let col: HTMLElement | null = null;
+        if (colgroup) {
+          const cols = Array.from(colgroup.querySelectorAll("col"));
+          const thIndex = Array.from(th.parentElement?.children || []).indexOf(th);
+          if (thIndex >= 0 && cols[thIndex]) {
+            col = cols[thIndex] as HTMLElement;
+          }
         }
+
+        resizeStateRef.current = {
+          resizing: true,
+          startX: e.clientX,
+          startWidth: currentWidth,
+          currentColumnKey: columnKey,
+          currentTh: th as HTMLElement,
+          currentCol: col,
+        };
 
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
@@ -174,37 +198,77 @@ export function useResizableColumns<T = any>(
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!resizing || currentColumnKey === null) return;
+      const state = resizeStateRef.current;
+      if (!state.resizing || !state.currentColumnKey) return;
 
-      const deltaX = e.clientX - startX;
-      const newWidth = Math.max(50, Math.min(800, startWidth + deltaX)); // 最小 50px，最大 800px
+      // 计算新的宽度（自由调整，最小 50px）
+      const deltaX = e.clientX - state.startX;
+      const newWidth = Math.max(20, state.startWidth + deltaX);
 
-      // 实时更新列宽
-      setColumnWidths((prev) => {
-        const updated = { ...prev, [currentColumnKey!]: newWidth };
-        saveColumnWidths(updated);
-        return updated;
-      });
-    };
+      // 实时更新 DOM，提供流畅的拖拽体验
+      if (state.currentTh) {
+        state.currentTh.style.width = `${newWidth}px`;
+        state.currentTh.style.minWidth = `${newWidth}px`;
+        state.currentTh.style.maxWidth = `${newWidth}px`;
+      }
+      if (state.currentCol) {
+        state.currentCol.style.width = `${newWidth}px`;
+      }
 
-    const handleMouseUp = () => {
-      if (resizing) {
-        resizing = false;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        currentColumnKey = null;
+      // 同时更新所有相同列的 th（处理表头多行的情况）
+      if (tableRef.current && state.currentColumnKey) {
+        const allThs = tableRef.current.querySelectorAll(
+          `th[data-column-key="${state.currentColumnKey}"]`
+        );
+        allThs.forEach((th) => {
+          (th as HTMLElement).style.width = `${newWidth}px`;
+          (th as HTMLElement).style.minWidth = `${newWidth}px`;
+          (th as HTMLElement).style.maxWidth = `${newWidth}px`;
+        });
       }
     };
 
+    const handleMouseUp = () => {
+      const state = resizeStateRef.current;
+      if (state.resizing && state.currentColumnKey) {
+        // 从 DOM 读取实际宽度（更准确）
+        let actualWidth = state.startWidth;
+        if (state.currentTh) {
+          const rect = state.currentTh.getBoundingClientRect();
+          actualWidth = Math.max(20, rect.width); // 确保最小宽度
+        }
+
+        // 保存到状态和 localStorage
+        setColumnWidths((prev) => {
+          const updated = { ...prev, [state.currentColumnKey!]: actualWidth };
+          saveColumnWidths(updated);
+          return updated;
+        });
+
+        // 重置状态
+        resizeStateRef.current = {
+          resizing: false,
+          startX: 0,
+          startWidth: 0,
+          currentColumnKey: null,
+          currentTh: null,
+          currentCol: null,
+        };
+      }
+
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
     const setupResizeHandlers = () => {
-      if (!tableRef.current) return;
+      if (!tableRef.current) return null;
 
       const table = tableRef.current;
       table.addEventListener("mousedown", handleMouseDown);
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
 
-      cleanup = () => {
+      return () => {
         table.removeEventListener("mousedown", handleMouseDown);
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
@@ -212,7 +276,10 @@ export function useResizableColumns<T = any>(
     };
 
     // 使用 setTimeout 确保表格已渲染
-    const timeoutId = setTimeout(setupResizeHandlers, 100);
+    let cleanup: (() => void) | null = null;
+    const timeoutId = setTimeout(() => {
+      cleanup = setupResizeHandlers();
+    }, 100);
 
     return () => {
       clearTimeout(timeoutId);
@@ -220,7 +287,7 @@ export function useResizableColumns<T = any>(
         cleanup();
       }
     };
-  }, [enabled, tableId, columns, columnWidths, getColumnKey, saveColumnWidths]);
+  }, [enabled, tableId, columns, getColumnKey, saveColumnWidths]);
 
   // 重置列宽
   const resetColumnWidths = useCallback(() => {

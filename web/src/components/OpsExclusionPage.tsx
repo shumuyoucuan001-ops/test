@@ -230,17 +230,6 @@ export default function OpsExclusionPage() {
                 await opsExclusionApi.update(editing, submitData);
                 message.success("更新成功");
             } else {
-                // 检查SKU编码是否已存在
-                try {
-                    const checkResult = await opsExclusionApi.checkExists(submitData);
-                    if (checkResult && checkResult.exists) {
-                        message.error(`SKU编码"${submitData['SKU编码']}"已存在，请勿重复添加`);
-                        return;
-                    }
-                } catch (checkError: any) {
-                    console.error('检查重复数据失败:', checkError);
-                    // 如果检查失败，继续尝试创建，让后端验证
-                }
                 console.log('开始创建数据:', submitData);
                 await opsExclusionApi.create(submitData);
                 message.success("新增成功");
@@ -505,19 +494,6 @@ export default function OpsExclusionPage() {
         }
 
         try {
-            // 检查SKU编码是否已存在
-            try {
-                const checkResult = await opsExclusionApi.checkBatchExists(validItems);
-                if (checkResult && checkResult.exists) {
-                    const duplicateSkus = checkResult.duplicateItems.map(item => item['SKU编码']).filter(Boolean);
-                    message.error(`以下SKU编码已存在，请勿重复添加：${duplicateSkus.join('、')}`);
-                    return;
-                }
-            } catch (checkError: any) {
-                console.error('检查重复数据失败:', checkError);
-                // 如果检查失败，继续尝试创建，让后端验证
-            }
-
             const result = await opsExclusionApi.batchCreate(validItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {

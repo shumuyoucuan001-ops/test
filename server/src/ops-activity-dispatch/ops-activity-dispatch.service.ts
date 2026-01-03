@@ -189,27 +189,24 @@ export class OpsActivityDispatchService {
     async create(item: OpsActivityDispatchItem): Promise<void> {
         this.validate(item);
 
-        // 检查是否已存在（根据SKU主键）
-        const checkSql = `SELECT * FROM ${this.table} WHERE \`SKU\` = ?`;
-        const existing: any[] = await this.prisma.$queryRawUnsafe(
-            checkSql,
-            item['SKU'] || ''
-        );
-
-        if (existing && existing.length > 0) {
-            throw new BadRequestException('该商品已存在');
-        }
-
         // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数
         let 剩余活动天数 = item['剩余活动天数'];
+        // 处理结束时间：只保留年月日，去掉时分秒
+        let 结束时间Date: Date | null = null;
         if (item['结束时间']) {
-            const endDate = new Date(item['结束时间']);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            endDate.setHours(0, 0, 0, 0);
-            const diffTime = endDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            剩余活动天数 = diffDays >= 0 ? diffDays : null;
+            const endDateStr = String(item['结束时间']);
+            // 如果包含时分秒，只取年月日部分
+            const dateOnly = endDateStr.split(' ')[0]; // 取空格前的部分（年月日）
+            const endDate = new Date(dateOnly);
+            if (!isNaN(endDate.getTime())) {
+                endDate.setHours(0, 0, 0, 0);
+                结束时间Date = endDate;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const diffTime = endDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                剩余活动天数 = diffDays >= 0 ? diffDays : null;
+            }
         }
 
         try {
@@ -226,13 +223,13 @@ export class OpsActivityDispatchService {
                 item['活动备注'] || null,
                 剩余活动天数 !== null && 剩余活动天数 !== undefined ? 剩余活动天数 : null,
                 item['活动确认人'] || null,
-                item['结束时间'] ? new Date(item['结束时间']) : null,
+                结束时间Date,
             );
         } catch (error: any) {
             Logger.error('[OpsActivityDispatchService] Create error:', error);
             // 捕获数据库主键冲突错误（多种格式）
-            if (error?.code === 'P2010' || 
-                error?.code === 'ER_DUP_ENTRY' || 
+            if (error?.code === 'P2010' ||
+                error?.code === 'ER_DUP_ENTRY' ||
                 error?.errno === 1062 ||
                 (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry')) ||
                 (error?.message && error.message.includes('Duplicate entry'))) {

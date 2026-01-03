@@ -157,17 +157,6 @@ export class OpsRegularActivityDispatchService {
     async create(item: OpsRegularActivityDispatchItem): Promise<void> {
         this.validate(item);
 
-        // 检查是否已存在（根据SKU主键）
-        const checkSql = `SELECT * FROM ${this.table} WHERE \`SKU\` = ?`;
-        const existing: any[] = await this.prisma.$queryRawUnsafe(
-            checkSql,
-            item['SKU'] || ''
-        );
-
-        if (existing && existing.length > 0) {
-            throw new BadRequestException('该商品已存在');
-        }
-
         try {
             await this.prisma.$executeRawUnsafe(
                 `INSERT INTO ${this.table} (

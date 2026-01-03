@@ -18,6 +18,7 @@ import {
   InputNumber,
   message,
   Modal,
+  Pagination,
   Popover,
   Select,
   Space,
@@ -844,14 +845,28 @@ export default function FinanceReconciliationDifferencePage() {
                   backgroundColor: selected对账单号 === record.对账单号 ? '#e6f7ff' : undefined,
                 },
               })}
-              pagination={{
-                current: currentPage,
-                pageSize: pageSize,
-                total: total,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                onChange: (page, size) => {
+              pagination={false}
+            />
+          </div>
+
+          {/* 可拖拽调整的分隔线 */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              flexShrink: 0,
+            }}
+          >
+            {/* 分页功能 */}
+            <div style={{ padding: '8px 16px', backgroundColor: '#fafafa', borderTop: '1px solid #e8e8e8' }}>
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={total}
+                showSizeChanger={true}
+                showQuickJumper={true}
+                showTotal={(total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`}
+                onChange={(page, size) => {
                   setCurrentPage(page);
                   setPageSize(size || 20);
                   const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
@@ -867,42 +882,40 @@ export default function FinanceReconciliationDifferencePage() {
                     search采购单号?.trim() || undefined,
                     search交易单号?.trim() || undefined,
                   );
-                },
+                }}
+              />
+            </div>
+            {/* 分隔线 */}
+            <div
+              style={{
+                height: '4px',
+                backgroundColor: '#1890ff',
+                cursor: 'ns-resize',
+                position: 'relative',
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startY = e.clientY;
+                const startTopHeight = topPanelHeight;
+                const containerHeight = e.currentTarget.parentElement?.parentElement?.clientHeight || 600;
+
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  const deltaY = moveEvent.clientY - startY;
+                  const deltaPercent = (deltaY / containerHeight) * 100;
+                  const newTopHeight = Math.max(30, Math.min(80, startTopHeight + deltaPercent));
+                  setTopPanelHeight(newTopHeight);
+                };
+
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
               }}
             />
           </div>
-
-          {/* 可拖拽调整的分隔线 */}
-          <div
-            style={{
-              height: '4px',
-              backgroundColor: '#1890ff',
-              cursor: 'ns-resize',
-              position: 'relative',
-              flexShrink: 0,
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const startY = e.clientY;
-              const startTopHeight = topPanelHeight;
-              const containerHeight = e.currentTarget.parentElement?.clientHeight || 600;
-
-              const handleMouseMove = (moveEvent: MouseEvent) => {
-                const deltaY = moveEvent.clientY - startY;
-                const deltaPercent = (deltaY / containerHeight) * 100;
-                const newTopHeight = Math.max(30, Math.min(80, startTopHeight + deltaPercent));
-                setTopPanelHeight(newTopHeight);
-              };
-
-              const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseUp);
-              };
-
-              document.addEventListener('mousemove', handleMouseMove);
-              document.addEventListener('mouseup', handleMouseUp);
-            }}
-          />
 
           {/* 下部分：子维度数据（约1/3，可调整） */}
           <div
