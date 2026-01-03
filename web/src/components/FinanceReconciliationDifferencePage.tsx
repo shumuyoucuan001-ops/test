@@ -421,14 +421,17 @@ export default function FinanceReconciliationDifferencePage() {
       setSubRecords(result.data);
       setSubTotal(result.total);
 
-      // 加载默认的左右框数据（显示所有数据）
+      // 如果有子维度数据，加载默认的左右框数据（显示所有数据）
       if (result.data.length > 0) {
         // 显示左右框
         setDetailPanelsVisible(true);
-        // 使用setTimeout确保状态已更新后再加载数据
-        setTimeout(() => {
-          loadDefaultTransactionAndPurchaseData();
-        }, 100);
+        // 加载默认数据（所有交易单号和采购单号的数据）
+        await loadDefaultTransactionAndPurchaseData();
+      } else {
+        // 没有子维度数据，隐藏左右框
+        setDetailPanelsVisible(false);
+        setTransactionRecordData([]);
+        setPurchaseOrderInfoData([]);
       }
     } catch (error: any) {
       message.error(error.message || '加载子维度数据失败');
@@ -584,7 +587,7 @@ export default function FinanceReconciliationDifferencePage() {
     } else {
       // 选中新行
       setSelected对账单号(对账单号);
-      // 清空选中状态
+      // 清空选中状态（但保留左右框显示，会显示默认数据）
       setSelectedSubRecord(null);
       // 加载子维度数据（会自动加载默认的左右框数据）
       await loadSubRecords(对账单号);
@@ -726,10 +729,10 @@ export default function FinanceReconciliationDifferencePage() {
     }
   };
 
-  // 处理左右框关闭，恢复到默认状态
+  // 处理左右框关闭
   const handleCloseDetailPanels = async () => {
     setSelectedSubRecord(null);
-    // 恢复到默认数据（所有交易单号和采购单号）
+    // 恢复到默认数据（所有交易单号和采购单号的数据）
     await loadDefaultTransactionAndPurchaseData();
     // 保持左右框显示，但数据已恢复到默认状态
   };
@@ -1155,9 +1158,12 @@ export default function FinanceReconciliationDifferencePage() {
   };
 
   // 格式化金额
-  const formatAmount = (amount: number | null | undefined): string => {
-    if (amount === null || amount === undefined) return '-';
-    return amount.toFixed(2);
+  const formatAmount = (amount: number | null | undefined | string): string => {
+    if (amount === null || amount === undefined || amount === '') return '-';
+    // 确保是数字类型
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(numAmount)) return '-';
+    return numAmount.toFixed(2);
   };
 
   // 渲染标签内容（用于普通标签和分屏标签）
@@ -2179,91 +2185,7 @@ export default function FinanceReconciliationDifferencePage() {
           >
             {selected对账单号 ? (
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                {/* 当前查询的数据 - 固定在顶部 */}
-                {selectedSubRecord && (
-                  <div style={{
-                    marginBottom: 16,
-                    padding: 12,
-                    backgroundColor: '#fff',
-                    border: '1px solid #d9d9d9',
-                    borderRadius: '4px'
-                  }}>
-                    <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14 }}>当前查询的数据</div>
-                    <ResponsiveTable<FinanceReconciliationDifference>
-                      tableId="current-query-data"
-                      columns={[
-                        {
-                          title: '交易单号',
-                          dataIndex: '交易单号',
-                          key: '交易单号',
-                          width: 180,
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '牵牛花采购单号',
-                          dataIndex: '牵牛花采购单号',
-                          key: '牵牛花采购单号',
-                          width: 180,
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '采购单金额',
-                          dataIndex: '采购单金额',
-                          key: '采购单金额',
-                          width: 120,
-                          align: 'right' as const,
-                          render: (text: number) => formatAmount(text),
-                        },
-                        {
-                          title: '采购单调整金额',
-                          dataIndex: '采购单调整金额',
-                          key: '采购单调整金额',
-                          width: 140,
-                          align: 'right' as const,
-                          render: (text: number) => formatAmount(text),
-                        },
-                        {
-                          title: '调整后采购单金额',
-                          dataIndex: '调整后采购单金额',
-                          key: '调整后采购单金额',
-                          width: 160,
-                          align: 'right' as const,
-                          render: (text: number) => formatAmount(text),
-                        },
-                        {
-                          title: '采购单状态',
-                          dataIndex: '采购单状态',
-                          key: '采购单状态',
-                          width: 120,
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '门店/仓',
-                          dataIndex: '门店仓',
-                          key: '门店仓',
-                          width: 120,
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '下单账号',
-                          dataIndex: '下单账号',
-                          key: '下单账号',
-                          width: 120,
-                          render: (text: string) => text || '-',
-                        },
-                      ]}
-                      dataSource={[selectedSubRecord]}
-                      rowKey={() => `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}`}
-                      loading={false}
-                      isMobile={false}
-                      scroll={{ x: 1200 }}
-                      pagination={false}
-                      size="small"
-                    />
-                  </div>
-                )}
-
-                {/* 子维度数据列表 - 留三条数据高度的距离 */}
+                {/* 子维度数据列表 */}
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   {/* 搜索区域 */}
                   <div style={{ marginBottom: 8 }}>
@@ -2310,7 +2232,7 @@ export default function FinanceReconciliationDifferencePage() {
                   </div>
 
                   {/* 子维度数据表格 */}
-                  <div style={{ flex: selectedSubRecord && detailPanelsVisible ? '0 0 auto' : 1, overflow: 'auto' }}>
+                  <div style={{ flex: detailPanelsVisible ? '0 0 auto' : 1, overflow: 'auto' }}>
                     <ResponsiveTable<FinanceReconciliationDifference>
                       tableId="finance-reconciliation-difference-sub"
                       columns={[
@@ -2374,22 +2296,22 @@ export default function FinanceReconciliationDifferencePage() {
                           render: (text: string) => text || '-',
                         },
                       ]}
-                      dataSource={selectedSubRecord ? subRecords.filter(r =>
-                        `${r.交易单号}_${r.牵牛花采购单号}` !== `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}`
-                      ) : subRecords}
+                      dataSource={subRecords}
                       rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
                       loading={subLoading}
                       isMobile={false}
-                      scroll={{ x: 1200, y: selectedSubRecord && detailPanelsVisible ? 150 : undefined }}
+                      scroll={{ x: 1200, y: detailPanelsVisible ? 150 : undefined }}
                       pagination={false}
                       size="small"
                       onRow={(record) => {
                         const rowKey = `${record.交易单号}_${record.牵牛花采购单号}`;
+                        const isSelected = selectedSubRecord && `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}` === rowKey;
                         return {
                           onClick: () => handleSubRecordClick(record),
                           style: {
                             cursor: 'pointer',
-                            backgroundColor: selectedSubRecord && `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}` === rowKey ? '#e6f7ff' : undefined,
+                            backgroundColor: isSelected ? '#1890ff' : undefined,
+                            color: isSelected ? '#fff' : undefined,
                           },
                         };
                       }}
@@ -2397,7 +2319,7 @@ export default function FinanceReconciliationDifferencePage() {
                   </div>
 
                   {/* 分隔线：调整左右框高度 */}
-                  {selectedSubRecord && detailPanelsVisible && (
+                  {detailPanelsVisible && (
                     <div
                       style={{
                         height: '4px',
@@ -2433,7 +2355,7 @@ export default function FinanceReconciliationDifferencePage() {
                   )}
 
                   {/* 左右框：交易单号信息和采购单号信息 */}
-                  {selectedSubRecord && detailPanelsVisible && (
+                  {detailPanelsVisible && (
                     <div style={{
                       flex: `0 0 ${detailPanelsHeight}%`,
                       display: 'flex',
