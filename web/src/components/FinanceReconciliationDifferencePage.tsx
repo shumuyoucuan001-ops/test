@@ -5,6 +5,7 @@ import { formatDateTime } from '@/lib/dateUtils';
 import {
   CloseOutlined,
   ColumnWidthOutlined,
+  EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -100,6 +101,20 @@ export default function FinanceReconciliationDifferencePage() {
   const [transactionRecordLoading, setTransactionRecordLoading] = useState<boolean>(false);
   const [purchaseOrderInfoData, setPurchaseOrderInfoData] = useState<PurchaseOrderInfo[]>([]);
   const [purchaseOrderInfoLoading, setPurchaseOrderInfoLoading] = useState<boolean>(false);
+
+  // 关联数据映射（用于判断是否绑定/调整，只存储是否存在，不存储完整数据）
+  const [financeBillExistsMap, setFinanceBillExistsMap] = useState<Map<string, boolean>>(new Map()); // 交易账单号 -> 是否存在绑定记录
+  const [purchaseAdjustmentExistsMap, setPurchaseAdjustmentExistsMap] = useState<Map<string, boolean>>(new Map()); // 采购单号 -> 是否存在调整记录
+
+  // 详情弹窗状态
+  const [financeBillDetailModalVisible, setFinanceBillDetailModalVisible] = useState<boolean>(false);
+  const [financeBillDetailData, setFinanceBillDetailData] = useState<FinanceBill[]>([]);
+  const [financeBillDetailLoading, setFinanceBillDetailLoading] = useState<boolean>(false);
+  const [financeBillDetailTransactionNumber, setFinanceBillDetailTransactionNumber] = useState<string>('');
+  const [purchaseAdjustmentDetailModalVisible, setPurchaseAdjustmentDetailModalVisible] = useState<boolean>(false);
+  const [purchaseAdjustmentDetailData, setPurchaseAdjustmentDetailData] = useState<PurchaseAmountAdjustment[]>([]);
+  const [purchaseAdjustmentDetailLoading, setPurchaseAdjustmentDetailLoading] = useState<boolean>(false);
+  const [purchaseAdjustmentDetailPurchaseOrderNumber, setPurchaseAdjustmentDetailPurchaseOrderNumber] = useState<string>('');
 
   // 左右框高度（百分比，相对于下部分容器）
   const [detailPanelsHeight, setDetailPanelsHeight] = useState<number>(40);
@@ -405,6 +420,16 @@ export default function FinanceReconciliationDifferencePage() {
       );
       setSubRecords(result.data);
       setSubTotal(result.total);
+
+      // 加载默认的左右框数据（显示所有数据）
+      if (result.data.length > 0) {
+        // 显示左右框
+        setDetailPanelsVisible(true);
+        // 使用setTimeout确保状态已更新后再加载数据
+        setTimeout(() => {
+          loadDefaultTransactionAndPurchaseData();
+        }, 100);
+      }
     } catch (error: any) {
       message.error(error.message || '加载子维度数据失败');
       console.error(error);
@@ -436,8 +461,114 @@ export default function FinanceReconciliationDifferencePage() {
     }
   };
 
+  // 加载默认的交易单号和采购单号信息（所有数据）
+  const loadDefaultTransactionAndPurchaseData = async () => {
+    if (!selected对账单号 || subRecords.length === 0) {
+      return;
+    }
+
+    // 收集所有唯一的交易单号和采购单号
+    const 交易单号列表 = [...new Set(subRecords.map(r => r.交易单号).filter(Boolean))];
+    const 采购单号列表 = [...new Set(subRecords.map(r => r.牵牛花采购单号).filter(Boolean))];
+
+    // 查询所有交易单号对应的数据
+    try {
+      setTransactionRecordLoading(true);
+      const allTransactionResults: any[] = [];
+      for (const 交易单号 of 交易单号列表) {
+        try {
+          const result = await transactionRecordApi.getByTransactionBillNumber(交易单号);
+          if (result.data && result.data.length > 0) {
+            allTransactionResults.push(...result.data);
+          }
+        } catch (error) {
+          console.error(`查询交易单号 ${交易单号} 失败:`, error);
+        }
+      }
+      // 去重（基于交易账单号）
+      const uniqueTransactionData = Array.from(
+        new Map(allTransactionResults.map(item => [item.交易账单号, item])).values()
+      );
+      setTransactionRecordData(uniqueTransactionData);
+    } catch (error: any) {
+      message.error(error.message || '查询交易单号信息失败');
+      console.error(error);
+      setTransactionRecordData([]);
+    } finally {
+      setTransactionRecordLoading(false);
+    }
+
+    // 查询所有采购单号对应的数据
+    try {
+      setPurchaseOrderInfoLoading(true);
+      const allPurchaseResults: any[] = [];
+      for (const 采购单号 of 采购单号列表) {
+        try {
+          const result = await purchaseOrderInfoApi.getByPurchaseOrderNumber(采购单号);
+          if (result.data && result.data.length > 0) {
+            allPurchaseResults.push(...result.data);
+          }
+        } catch (error) {
+          console.error(`查询采购单号 ${采购单号} 失败:`, error);
+        }
+      }
+      // 去重（基于采购单号）
+      const uniquePurchaseData = Array.from(
+        new Map(allPurchaseResults.map(item => [item.采购单号, item])).values()
+      );
+      setPurchaseOrderInfoData(uniquePurchaseData);
+    } catch (error: any) {
+      message.error(error.message || '查询采购单号信息失败');
+      console.error(error);
+      setPurchaseOrderInfoData([]);
+    } finally {
+      setPurchaseOrderInfoLoading(false);
+    }
+
+    // 同时查询所有账单手动绑定采购单数据，建立存在性映射（只判断是否存在，不存储完整数据）
+    // 注意：financeBillExistsMap的key是交易账单号（即TransactionRecord中的交易账单号字段）
+    const financeBillExistsMapTemp = new Map<string, boolean>();
+    for (const 交易单号 of 交易单号列表) {
+      try {
+        const result = await financeManagementApi.getAll({
+          transactionNumber: 交易单号,
+          limit: 1, // 只需要判断是否存在，所以limit=1即可
+        });
+        if (result.data && result.data.length > 0) {
+          // 将查询结果按交易账单号（即transactionNumber）标记为存在
+          result.data.forEach((bill: FinanceBill) => {
+            const key = bill.transactionNumber;
+            if (key) {
+              financeBillExistsMapTemp.set(key, true);
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`查询交易单号 ${交易单号} 的账单手动绑定采购单失败:`, error);
+      }
+    }
+    setFinanceBillExistsMap(financeBillExistsMapTemp);
+
+    // 同时查询所有采购单金额调整数据，建立存在性映射（只判断是否存在，不存储完整数据）
+    const purchaseAdjustmentExistsMapTemp = new Map<string, boolean>();
+    for (const 采购单号 of 采购单号列表) {
+      try {
+        const result = await purchaseAmountAdjustmentApi.getAll({
+          purchaseOrderNumber: 采购单号,
+          limit: 1, // 只需要判断是否存在，所以limit=1即可
+        });
+        if (result.data && result.data.length > 0) {
+          purchaseAdjustmentExistsMapTemp.set(采购单号, true);
+        }
+      } catch (error) {
+        console.error(`查询采购单号 ${采购单号} 的采购单金额调整失败:`, error);
+      }
+    }
+    setPurchaseAdjustmentExistsMap(purchaseAdjustmentExistsMapTemp);
+  };
+
   // 处理行点击（选中对账单号）
-  const handleRowClick = (record: FinanceReconciliationDifference) => {
+  const handleRowClick = async (record: FinanceReconciliationDifference) => {
     const 对账单号 = record.对账单号;
     if (!对账单号) return;
 
@@ -453,13 +584,10 @@ export default function FinanceReconciliationDifferencePage() {
     } else {
       // 选中新行
       setSelected对账单号(对账单号);
-      // 加载子维度数据
-      loadSubRecords(对账单号);
       // 清空选中状态
       setSelectedSubRecord(null);
-      setDetailPanelsVisible(false);
-      setTransactionRecordData([]);
-      setPurchaseOrderInfoData([]);
+      // 加载子维度数据（会自动加载默认的左右框数据）
+      await loadSubRecords(对账单号);
     }
   };
 
@@ -468,12 +596,32 @@ export default function FinanceReconciliationDifferencePage() {
     setSelectedSubRecord(record);
     setDetailPanelsVisible(true);
 
-    // 查询交易单号信息
+    // 查询交易单号信息（具体记录）
     if (record.交易单号) {
       try {
         setTransactionRecordLoading(true);
         const result = await transactionRecordApi.getByTransactionBillNumber(record.交易单号);
         setTransactionRecordData(result.data || []);
+
+        // 更新该交易单号的账单手动绑定采购单存在性标记
+        try {
+          const financeBillResult = await financeManagementApi.getAll({
+            transactionNumber: record.交易单号,
+            limit: 1, // 只需要判断是否存在
+          });
+          const newMap = new Map(financeBillExistsMap);
+          if (financeBillResult.data && financeBillResult.data.length > 0) {
+            financeBillResult.data.forEach((bill: FinanceBill) => {
+              const key = bill.transactionNumber;
+              if (key) {
+                newMap.set(key, true);
+              }
+            });
+          }
+          setFinanceBillExistsMap(newMap);
+        } catch (error) {
+          console.error(`查询交易单号 ${record.交易单号} 的账单手动绑定采购单失败:`, error);
+        }
       } catch (error: any) {
         message.error(error.message || '查询交易单号信息失败');
         console.error(error);
@@ -485,12 +633,27 @@ export default function FinanceReconciliationDifferencePage() {
       setTransactionRecordData([]);
     }
 
-    // 查询采购单号信息
+    // 查询采购单号信息（具体记录）
     if (record.牵牛花采购单号) {
       try {
         setPurchaseOrderInfoLoading(true);
         const result = await purchaseOrderInfoApi.getByPurchaseOrderNumber(record.牵牛花采购单号);
         setPurchaseOrderInfoData(result.data || []);
+
+        // 更新该采购单号的采购单金额调整存在性标记
+        try {
+          const adjustmentResult = await purchaseAmountAdjustmentApi.getAll({
+            purchaseOrderNumber: record.牵牛花采购单号,
+            limit: 1, // 只需要判断是否存在
+          });
+          const newMap = new Map(purchaseAdjustmentExistsMap);
+          if (adjustmentResult.data && adjustmentResult.data.length > 0) {
+            newMap.set(record.牵牛花采购单号, true);
+          }
+          setPurchaseAdjustmentExistsMap(newMap);
+        } catch (error) {
+          console.error(`查询采购单号 ${record.牵牛花采购单号} 的采购单金额调整失败:`, error);
+        }
       } catch (error: any) {
         message.error(error.message || '查询采购单号信息失败');
         console.error(error);
@@ -501,6 +664,74 @@ export default function FinanceReconciliationDifferencePage() {
     } else {
       setPurchaseOrderInfoData([]);
     }
+  };
+
+  // 处理交易单号信息中的"是否手动绑定"点击
+  // 复用financeManagementApi.getAll接口，传入transactionNumber参数查询详情
+  const handleTransactionRecordIsBoundClick = async (交易账单号: string) => {
+    if (!交易账单号) return;
+
+    try {
+      setFinanceBillDetailLoading(true);
+      setFinanceBillDetailTransactionNumber(交易账单号);
+      setFinanceBillDetailModalVisible(true);
+
+      // 直接调用API查询完整数据（包括图片等）
+      const result = await financeManagementApi.getAll({
+        transactionNumber: 交易账单号,
+        limit: 1000, // 获取所有相关记录
+      });
+
+      setFinanceBillDetailData(result.data || []);
+
+      if (!result.data || result.data.length === 0) {
+        message.info('该交易单号无账单手动绑定采购单关联数据');
+      }
+    } catch (error: any) {
+      message.error(error.message || '查询账单手动绑定采购单详情失败');
+      console.error(error);
+      setFinanceBillDetailData([]);
+    } finally {
+      setFinanceBillDetailLoading(false);
+    }
+  };
+
+  // 处理采购单号信息中的"是否调整金额"点击
+  // 复用purchaseAmountAdjustmentApi.getAll接口，传入purchaseOrderNumber参数查询详情
+  const handlePurchaseOrderIsAdjustedClick = async (采购单号: string) => {
+    if (!采购单号) return;
+
+    try {
+      setPurchaseAdjustmentDetailLoading(true);
+      setPurchaseAdjustmentDetailPurchaseOrderNumber(采购单号);
+      setPurchaseAdjustmentDetailModalVisible(true);
+
+      // 直接调用API查询完整数据（包括图片等）
+      const result = await purchaseAmountAdjustmentApi.getAll({
+        purchaseOrderNumber: 采购单号,
+        limit: 1000, // 获取所有相关记录
+      });
+
+      setPurchaseAdjustmentDetailData(result.data || []);
+
+      if (!result.data || result.data.length === 0) {
+        message.info('该采购单号无采购单金额调整关联数据');
+      }
+    } catch (error: any) {
+      message.error(error.message || '查询采购单金额调整详情失败');
+      console.error(error);
+      setPurchaseAdjustmentDetailData([]);
+    } finally {
+      setPurchaseAdjustmentDetailLoading(false);
+    }
+  };
+
+  // 处理左右框关闭，恢复到默认状态
+  const handleCloseDetailPanels = async () => {
+    setSelectedSubRecord(null);
+    // 恢复到默认数据（所有交易单号和采购单号）
+    await loadDefaultTransactionAndPurchaseData();
+    // 保持左右框显示，但数据已恢复到默认状态
   };
 
   // 查询采购单金额调整
@@ -2227,7 +2458,7 @@ export default function FinanceReconciliationDifferencePage() {
                             type="text"
                             size="small"
                             icon={<CloseOutlined />}
-                            onClick={() => setDetailPanelsVisible(false)}
+                            onClick={handleCloseDetailPanels}
                           />
                         </div>
                         <div style={{ flex: 1, overflow: 'auto', marginBottom: 8 }}>
@@ -2270,6 +2501,32 @@ export default function FinanceReconciliationDifferencePage() {
                                 width: 180,
                                 render: (text: string) => formatDateTime(text),
                               },
+                              {
+                                title: '是否手动绑定',
+                                key: '是否手动绑定',
+                                width: 120,
+                                render: (_: any, record: TransactionRecord) => {
+                                  const 交易账单号 = record.交易账单号;
+                                  const isBound = 交易账单号 ? financeBillExistsMap.get(交易账单号) || false : false;
+                                  return (
+                                    <span
+                                      style={{
+                                        color: isBound ? '#1890ff' : '#999',
+                                        cursor: isBound ? 'pointer' : 'default',
+                                        textDecoration: isBound ? 'underline' : 'none',
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isBound && 交易账单号) {
+                                          handleTransactionRecordIsBoundClick(交易账单号);
+                                        }
+                                      }}
+                                    >
+                                      {isBound ? '是' : '否'}
+                                    </span>
+                                  );
+                                },
+                              },
                             ]}
                             dataSource={transactionRecordData}
                             rowKey={(record) => `${record.交易账单号 || ''}_${record.支付账号 || ''}_${record.账单交易时间 || ''}`}
@@ -2285,9 +2542,11 @@ export default function FinanceReconciliationDifferencePage() {
                           type="primary"
                           onClick={() => {
                             setFinanceBillModalVisible(true);
+                            // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
+                            const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
                             financeBillForm.setFieldsValue({
-                              transactionNumber: selectedSubRecord.交易单号,
-                              qianniuhuaPurchaseNumber: selectedSubRecord.牵牛花采购单号 || '',
+                              transactionNumber: currentRecord?.交易单号 || '',
+                              qianniuhuaPurchaseNumber: currentRecord?.牵牛花采购单号 || '',
                             });
                           }}
                         >
@@ -2344,7 +2603,7 @@ export default function FinanceReconciliationDifferencePage() {
                             type="text"
                             size="small"
                             icon={<CloseOutlined />}
-                            onClick={() => setDetailPanelsVisible(false)}
+                            onClick={handleCloseDetailPanels}
                           />
                         </div>
                         <div style={{ flex: 1, overflow: 'auto', marginBottom: 8 }}>
@@ -2438,8 +2697,10 @@ export default function FinanceReconciliationDifferencePage() {
                           type="primary"
                           onClick={() => {
                             setPurchaseAdjustmentModalVisible(true);
+                            // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
+                            const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
                             purchaseAdjustmentForm.setFieldsValue({
-                              purchaseOrderNumber: selectedSubRecord.牵牛花采购单号 || '',
+                              purchaseOrderNumber: currentRecord?.牵牛花采购单号 || '',
                             });
                           }}
                         >
@@ -2841,6 +3102,189 @@ export default function FinanceReconciliationDifferencePage() {
             style={{ width: '100%' }}
           />
         )}
+      </Modal>
+
+      {/* 账单手动绑定采购单详情弹窗 */}
+      <Modal
+        title={`账单手动绑定采购单详情 - ${financeBillDetailTransactionNumber}`}
+        open={financeBillDetailModalVisible}
+        onCancel={() => {
+          setFinanceBillDetailModalVisible(false);
+          setFinanceBillDetailData([]);
+          setFinanceBillDetailTransactionNumber('');
+        }}
+        width={1000}
+        footer={null}
+      >
+        <ResponsiveTable<FinanceBill>
+          tableId="finance-bill-detail-modal"
+          columns={[
+            {
+              title: '交易单号',
+              dataIndex: 'transactionNumber',
+              key: 'transactionNumber',
+              width: 200,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '牵牛花采购单号',
+              dataIndex: 'qianniuhuaPurchaseNumber',
+              key: 'qianniuhuaPurchaseNumber',
+              width: 200,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '导入异常备注',
+              dataIndex: 'importExceptionRemark',
+              key: 'importExceptionRemark',
+              width: 250,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '图片',
+              dataIndex: 'hasImage',
+              key: 'hasImage',
+              width: 100,
+              render: (hasImage: number, record: FinanceBill) => {
+                if (hasImage === 1 && record.image) {
+                  return (
+                    <Image
+                      width={50}
+                      src={`data:image/jpeg;base64,${record.image}`}
+                      preview={{
+                        mask: <EyeOutlined />,
+                      }}
+                    />
+                  );
+                }
+                return '-';
+              },
+            },
+            {
+              title: '修改人',
+              dataIndex: 'modifier',
+              key: 'modifier',
+              width: 100,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '修改时间',
+              dataIndex: 'modifyTime',
+              key: 'modifyTime',
+              width: 180,
+              render: (text: string) => formatDateTime(text),
+            },
+          ]}
+          dataSource={financeBillDetailData}
+          rowKey={(record) => `${record.transactionNumber}_${record.qianniuhuaPurchaseNumber || ''}`}
+          loading={financeBillDetailLoading}
+          isMobile={false}
+          scroll={{ x: 1100 }}
+          pagination={false}
+          size="small"
+        />
+      </Modal>
+
+      {/* 采购单金额调整详情弹窗 */}
+      <Modal
+        title={`采购单金额调整详情 - ${purchaseAdjustmentDetailPurchaseOrderNumber}`}
+        open={purchaseAdjustmentDetailModalVisible}
+        onCancel={() => {
+          setPurchaseAdjustmentDetailModalVisible(false);
+          setPurchaseAdjustmentDetailData([]);
+          setPurchaseAdjustmentDetailPurchaseOrderNumber('');
+        }}
+        width={1200}
+        footer={null}
+      >
+        <ResponsiveTable<PurchaseAmountAdjustment>
+          tableId="purchase-adjustment-detail-modal"
+          columns={[
+            {
+              title: '采购单号(牵牛花)',
+              dataIndex: 'purchaseOrderNumber',
+              key: 'purchaseOrderNumber',
+              width: 200,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '调整金额',
+              dataIndex: 'adjustmentAmount',
+              key: 'adjustmentAmount',
+              width: 120,
+              align: 'right' as const,
+              render: (text: number) => formatAmount(text),
+            },
+            {
+              title: '异常调整原因备注',
+              dataIndex: 'adjustmentReason',
+              key: 'adjustmentReason',
+              width: 200,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '图片',
+              dataIndex: 'hasImage',
+              key: 'hasImage',
+              width: 100,
+              render: (hasImage: number, record: PurchaseAmountAdjustment) => {
+                if (hasImage === 1 && record.image) {
+                  return (
+                    <Image
+                      width={50}
+                      src={`data:image/jpeg;base64,${record.image}`}
+                      preview={{
+                        mask: <EyeOutlined />,
+                      }}
+                    />
+                  );
+                }
+                return '-';
+              },
+            },
+            {
+              title: '财务审核意见备注',
+              dataIndex: 'financeReviewRemark',
+              key: 'financeReviewRemark',
+              width: 200,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '财务审核状态',
+              dataIndex: 'financeReviewStatus',
+              key: 'financeReviewStatus',
+              width: 120,
+              render: (text: string) => {
+                const statusMap: Record<string, string> = {
+                  '0': '待审核',
+                  '1': '已审核',
+                };
+                return statusMap[text || ''] || text || '-';
+              },
+            },
+            {
+              title: '创建人',
+              dataIndex: 'creator',
+              key: 'creator',
+              width: 100,
+              render: (text: string) => text || '-',
+            },
+            {
+              title: '财务审核人',
+              dataIndex: 'financeReviewer',
+              key: 'financeReviewer',
+              width: 100,
+              render: (text: string) => text || '-',
+            },
+          ]}
+          dataSource={purchaseAdjustmentDetailData}
+          rowKey={(record) => record.purchaseOrderNumber}
+          loading={purchaseAdjustmentDetailLoading}
+          isMobile={false}
+          scroll={{ x: 1200 }}
+          pagination={false}
+          size="small"
+        />
       </Modal>
     </div>
   );
