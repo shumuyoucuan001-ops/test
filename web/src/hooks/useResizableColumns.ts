@@ -204,6 +204,7 @@ export function useResizableColumns<T = any>(
       // 计算新的宽度（自由调整，最小 20px）
       const deltaX = e.clientX - state.startX;
       const newWidth = Math.max(20, state.startWidth + deltaX);
+      const newWidthStr = `${newWidth}px`;
 
       // 找到表头在行中的索引位置
       const headerRow = state.currentTh.closest('tr');
@@ -218,8 +219,8 @@ export function useResizableColumns<T = any>(
         const cols = colgroup.querySelectorAll('col');
         if (cols[thIndex]) {
           const col = cols[thIndex] as HTMLElement;
-          col.style.width = `${newWidth}px`;
-          col.style.minWidth = `${newWidth}px`;
+          col.style.width = newWidthStr;
+          col.style.minWidth = newWidthStr;
           // 更新 state 中的 col 引用
           if (!state.currentCol) {
             resizeStateRef.current.currentCol = col;
@@ -233,12 +234,12 @@ export function useResizableColumns<T = any>(
       );
       allThs.forEach((th) => {
         const thEl = th as HTMLElement;
-        thEl.style.width = `${newWidth}px`;
-        thEl.style.minWidth = `${newWidth}px`;
-        thEl.style.maxWidth = `${newWidth}px`;
+        thEl.style.width = newWidthStr;
+        thEl.style.minWidth = newWidthStr;
+        thEl.style.maxWidth = newWidthStr;
       });
 
-      // 3. 同步更新所有对应数据列的 td 宽度
+      // 3. 同步更新所有对应数据列的 td 宽度（实时同步，关键步骤）
       const tbody = tableRef.current.querySelector('tbody');
       if (tbody) {
         const allRows = tbody.querySelectorAll('tr');
@@ -246,9 +247,43 @@ export function useResizableColumns<T = any>(
           const tds = Array.from(row.querySelectorAll('td'));
           if (tds[thIndex]) {
             const td = tds[thIndex] as HTMLElement;
-            td.style.width = `${newWidth}px`;
-            td.style.minWidth = `${newWidth}px`;
-            td.style.maxWidth = `${newWidth}px`;
+            // 直接设置样式，确保实时更新
+            td.style.width = newWidthStr;
+            td.style.minWidth = newWidthStr;
+            td.style.maxWidth = newWidthStr;
+            // 强制重排，确保样式立即生效
+            td.offsetHeight; // 触发重排
+          }
+        });
+      }
+
+      // 4. 同时更新固定列区域（如果有固定列）
+      const fixedLeftBody = tableRef.current.querySelector('.ant-table-body-outer .ant-table-fixed-left tbody');
+      if (fixedLeftBody) {
+        const allRows = fixedLeftBody.querySelectorAll('tr');
+        allRows.forEach((row) => {
+          const tds = Array.from(row.querySelectorAll('td'));
+          if (tds[thIndex]) {
+            const td = tds[thIndex] as HTMLElement;
+            td.style.width = newWidthStr;
+            td.style.minWidth = newWidthStr;
+            td.style.maxWidth = newWidthStr;
+            td.offsetHeight; // 触发重排
+          }
+        });
+      }
+
+      const fixedRightBody = tableRef.current.querySelector('.ant-table-body-outer .ant-table-fixed-right tbody');
+      if (fixedRightBody) {
+        const allRows = fixedRightBody.querySelectorAll('tr');
+        allRows.forEach((row) => {
+          const tds = Array.from(row.querySelectorAll('td'));
+          if (tds[thIndex]) {
+            const td = tds[thIndex] as HTMLElement;
+            td.style.width = newWidthStr;
+            td.style.minWidth = newWidthStr;
+            td.style.maxWidth = newWidthStr;
+            td.offsetHeight; // 触发重排
           }
         });
       }
