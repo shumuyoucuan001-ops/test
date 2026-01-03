@@ -75,3 +75,52 @@ export class FinanceReconciliationDifferenceController {
     }
 }
 
+// 所有渠道交易记录接口
+export interface TransactionRecord {
+    支付渠道?: string;
+    支付账号?: string;
+    收支金额?: number;
+    交易账单号?: string;
+    账单交易时间?: string;
+}
+
+// 采购单信息接口
+export interface PurchaseOrderInfo {
+    采购单号?: string;
+    '门店/仓'?: string;
+    所属采购计划?: string;
+    采购金额?: number;
+    实收金额?: number;
+    关联收货单号?: string;
+    状态?: string;
+    付款状态?: string;
+    创建时间?: string;
+    创建人名称?: string;
+}
+
+@Controller('transaction-record')
+export class TransactionRecordController {
+    constructor(private readonly service: FinanceReconciliationDifferenceService) { }
+
+    // 根据交易账单号查询所有渠道交易记录
+    @Get('by-bill-number')
+    async getByTransactionBillNumber(
+        @Query('交易账单号') 交易账单号: string,
+    ): Promise<{ data: TransactionRecord[] }> {
+        return this.service.getTransactionRecordByBillNumber(交易账单号);
+    }
+}
+
+@Controller('purchase-order-info')
+export class PurchaseOrderInfoController {
+    constructor(private readonly service: FinanceReconciliationDifferenceService) { }
+
+    // 根据采购单号查询采购单信息
+    @Get('by-order-number')
+    async getByPurchaseOrderNumber(
+        @Query('采购单号') 采购单号: string,
+    ): Promise<{ data: PurchaseOrderInfo[] }> {
+        return this.service.getPurchaseOrderInfoByOrderNumber(采购单号);
+    }
+}
+

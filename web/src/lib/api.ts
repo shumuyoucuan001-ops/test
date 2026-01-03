@@ -1020,6 +1020,29 @@ export const financeManagementApi = {
     api.delete('/finance-management/batch', { data: { bills } }).then(res => res.data),
 };
 
+// 所有渠道交易记录接口
+export interface TransactionRecord {
+  支付渠道?: string;
+  支付账号?: string;
+  收支金额?: number;
+  交易账单号?: string;
+  账单交易时间?: string;
+}
+
+// 采购单信息接口
+export interface PurchaseOrderInfo {
+  采购单号?: string;
+  '门店/仓'?: string;
+  所属采购计划?: string;
+  采购金额?: number;
+  实收金额?: number;
+  关联收货单号?: string;
+  状态?: string;
+  付款状态?: string;
+  创建时间?: string;
+  创建人名称?: string;
+}
+
 // 账单对账汇总差异接口
 export interface FinanceReconciliationDifference {
   对账单号?: string;
@@ -1181,6 +1204,20 @@ export interface PurchaseAmountAdjustment {
   dataUpdateTime?: string; // 数据更新时间
   hasImage?: number; // 是否有图片（0: 无, 1: 有）
 }
+
+// 所有渠道交易记录API
+export const transactionRecordApi = {
+  // 根据交易账单号查询
+  getByTransactionBillNumber: (交易账单号: string): Promise<{ data: TransactionRecord[] }> =>
+    api.get('/transaction-record/by-bill-number', { params: { 交易账单号 } }).then(res => res.data),
+};
+
+// 采购单信息API
+export const purchaseOrderInfoApi = {
+  // 根据采购单号查询
+  getByPurchaseOrderNumber: (采购单号: string): Promise<{ data: PurchaseOrderInfo[] }> =>
+    api.get('/purchase-order-info/by-order-number', { params: { 采购单号 } }).then(res => res.data),
+};
 
 export const purchaseAmountAdjustmentApi = {
   // 获取所有调整记录（分页）

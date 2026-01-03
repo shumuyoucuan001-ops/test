@@ -439,5 +439,98 @@ export class FinanceReconciliationDifferenceService {
             await connection.end();
         }
     }
+
+    // 获取所有渠道交易记录的连接（sm_zhangdan_caiwu库）
+    private async getTransactionRecordConnection() {
+        if (!process.env.DB_PASSWORD) {
+            throw new Error('DB_PASSWORD environment variable is required');
+        }
+        return await mysql.createConnection({
+            host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
+            user: process.env.DB_USER || 'xitongquanju',
+            password: process.env.DB_PASSWORD,
+            database: 'sm_zhangdan_caiwu',
+            port: parseInt(process.env.DB_PORT || '3306'),
+        });
+    }
+
+    // 获取采购单信息的连接（sm_chaigou库）
+    private async getPurchaseOrderConnection() {
+        if (!process.env.DB_PASSWORD) {
+            throw new Error('DB_PASSWORD environment variable is required');
+        }
+        return await mysql.createConnection({
+            host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
+            user: process.env.DB_USER || 'xitongquanju',
+            password: process.env.DB_PASSWORD,
+            database: 'sm_chaigou',
+            port: parseInt(process.env.DB_PORT || '3306'),
+        });
+    }
+
+    // 根据交易账单号查询所有渠道交易记录
+    async getTransactionRecordByBillNumber(交易账单号: string): Promise<{ data: any[] }> {
+        const connection = await this.getTransactionRecordConnection();
+
+        try {
+            const query = `
+                SELECT 
+                    支付渠道,
+                    支付账号,
+                    收支金额,
+                    交易账单号,
+                    DATE_FORMAT(账单交易时间, '%Y-%m-%d %H:%i:%s') as 账单交易时间
+                FROM \`所有渠道交易记录\`
+                WHERE TRIM(交易账单号) = TRIM(?)
+                ORDER BY 账单交易时间 DESC
+            `;
+
+            const [rows]: any = await connection.execute(query, [交易账单号]);
+
+            return {
+                data: rows || [],
+            };
+        } catch (error: any) {
+            Logger.error('[FinanceReconciliationDifferenceService] Failed to get transaction record by bill number:', error);
+            throw error;
+        } finally {
+            await connection.end();
+        }
+    }
+
+    // 根据采购单号查询采购单信息
+    async getPurchaseOrderInfoByOrderNumber(采购单号: string): Promise<{ data: any[] }> {
+        const connection = await this.getPurchaseOrderConnection();
+
+        try {
+            const query = `
+                SELECT 
+                    采购单号,
+                    \`门店/仓\`,
+                    所属采购计划,
+                    采购金额,
+                    实收金额,
+                    关联收货单号,
+                    状态,
+                    付款状态,
+                    DATE_FORMAT(创建时间, '%Y-%m-%d %H:%i:%s') as 创建时间,
+                    创建人名称
+                FROM \`采购单信息\`
+                WHERE TRIM(采购单号) = TRIM(?)
+                ORDER BY 创建时间 DESC
+            `;
+
+            const [rows]: any = await connection.execute(query, [采购单号]);
+
+            return {
+                data: rows || [],
+            };
+        } catch (error: any) {
+            Logger.error('[FinanceReconciliationDifferenceService] Failed to get purchase order info by order number:', error);
+            throw error;
+        } finally {
+            await connection.end();
+        }
+    }
 }
 
