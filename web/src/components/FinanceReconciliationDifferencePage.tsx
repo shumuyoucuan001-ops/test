@@ -2255,8 +2255,8 @@ export default function FinanceReconciliationDifferencePage() {
                 const handleMouseMove = (moveEvent: MouseEvent) => {
                   const deltaY = moveEvent.clientY - startY;
                   const deltaPercent = (deltaY / containerHeight) * 100;
-                  // 去掉限制，允许自由调整，但确保最小高度为50px
-                  const newTopHeight = Math.max(5, Math.min(95, startTopHeight + deltaPercent));
+                  // 取消上限限制，只保留最小高度限制
+                  const newTopHeight = Math.max(5, startTopHeight + deltaPercent);
                   setTopPanelHeight(newTopHeight);
                 };
 
@@ -2335,7 +2335,11 @@ export default function FinanceReconciliationDifferencePage() {
                   </div>
 
                   {/* 子维度数据表格 */}
-                  <div style={{ flex: detailPanelsVisible ? '0 0 auto' : 1, overflow: 'auto' }}>
+                  <div style={{
+                    flex: detailPanelsVisible ? `0 0 ${100 - detailPanelsHeight}%` : 1,
+                    overflow: 'auto',
+                    minHeight: 0
+                  }}>
                     <ResponsiveTable<FinanceReconciliationDifference>
                       tableId="finance-reconciliation-difference-sub"
                       columns={[
@@ -2447,19 +2451,17 @@ export default function FinanceReconciliationDifferencePage() {
                           const containerTop = containerRect.top;
                           const containerHeight = container.clientHeight;
 
-                          // 计算鼠标相对于容器的位置
+                          // 计算鼠标相对于容器顶部的位置（即与上下栏分割线的距离）
                           const mouseY = moveEvent.clientY;
                           const relativeY = mouseY - containerTop;
 
-                          // 计算新的高度百分比（相对于容器顶部，即与上下栏分割线的距离）
-                          // detailPanelsHeight表示左右框占下栏容器的百分比
-                          // 这里要计算的是左右框与上下栏分割线的距离
+                          // 计算新的高度百分比（相对于容器顶部，即该分割线距离外部上下栏分割线的位置）
+                          // detailPanelsHeight表示左右框上方的分割线距离上下栏分割线的百分比
                           const newHeightPercent = (relativeY / containerHeight) * 100;
 
-                          // 限制：最小高度为10%，最大高度为90%
-                          // 往上不能超过上下栏分割线位置（即容器顶部0%），往下不能超出浏览器底部
-                          const minHeight = 10;
-                          const maxHeight = 90;
+                          // 限制：最小高度为5%（分割线不能超过容器顶部），最大高度为95%（留一些空间给子维度表格）
+                          const minHeight = 5;
+                          const maxHeight = 95;
                           const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeightPercent));
 
                           setDetailPanelsHeight(clampedHeight);
@@ -2517,7 +2519,7 @@ export default function FinanceReconciliationDifferencePage() {
                             />
                           </Space>
                         </div>
-                        <div style={{ flex: 1, overflow: 'auto', marginBottom: 8 }}>
+                        <div style={{ flex: 1, overflow: 'auto', marginBottom: 8, minHeight: 0 }}>
                           <ResponsiveTable<TransactionRecord>
                             tableId="transaction-record-data"
                             columns={[
@@ -2588,7 +2590,7 @@ export default function FinanceReconciliationDifferencePage() {
                             rowKey={(record) => `${record.交易账单号 || ''}_${record.支付账号 || ''}_${record.账单交易时间 || ''}`}
                             loading={transactionRecordLoading}
                             isMobile={false}
-                            scroll={{ x: Math.round(800 * 0.7), y: Math.round(200 * 0.7) }}
+                            scroll={{ x: Math.round(800 * 0.7) }}
                             pagination={false}
                             size="small"
                             style={{ fontSize: `${12 * 0.7}px` }}
@@ -2767,7 +2769,7 @@ export default function FinanceReconciliationDifferencePage() {
                             rowKey={(record) => `${record.采购单号 || ''}_${record.创建时间 || ''}`}
                             loading={purchaseOrderInfoLoading}
                             isMobile={false}
-                            scroll={{ x: Math.round(1400 * 0.7), y: Math.round(200 * 0.7) }}
+                            scroll={{ x: Math.round(1400 * 0.7) }}
                             pagination={false}
                             size="small"
                             style={{ fontSize: `${12 * 0.7}px` }}
