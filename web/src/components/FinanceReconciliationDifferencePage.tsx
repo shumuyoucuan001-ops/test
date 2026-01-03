@@ -2169,7 +2169,7 @@ export default function FinanceReconciliationDifferencePage() {
         }
       >
         {/* 上下分栏布局 */}
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: 600 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)', minHeight: 600, overflow: 'hidden' }}>
           {/* 上部分：对账单号维度数据（约2/3，可调整） */}
           <div
             ref={topTableContainerRef}
@@ -2343,21 +2343,21 @@ export default function FinanceReconciliationDifferencePage() {
                           title: '交易单号',
                           dataIndex: '交易单号',
                           key: '交易单号',
-                          width: 180,
+                          width: Math.round(180 * 0.7),
                           render: (text: string) => text || '-',
                         },
                         {
                           title: '牵牛花采购单号',
                           dataIndex: '牵牛花采购单号',
                           key: '牵牛花采购单号',
-                          width: 180,
+                          width: Math.round(180 * 0.7),
                           render: (text: string) => text || '-',
                         },
                         {
                           title: '采购单金额',
                           dataIndex: '采购单金额',
                           key: '采购单金额',
-                          width: 120,
+                          width: Math.round(120 * 0.7),
                           align: 'right' as const,
                           render: (text: number) => formatAmount(text),
                         },
@@ -2365,7 +2365,7 @@ export default function FinanceReconciliationDifferencePage() {
                           title: '采购单调整金额',
                           dataIndex: '采购单调整金额',
                           key: '采购单调整金额',
-                          width: 140,
+                          width: Math.round(140 * 0.7),
                           align: 'right' as const,
                           render: (text: number) => formatAmount(text),
                         },
@@ -2373,7 +2373,7 @@ export default function FinanceReconciliationDifferencePage() {
                           title: '调整后采购单金额',
                           dataIndex: '调整后采购单金额',
                           key: '调整后采购单金额',
-                          width: 160,
+                          width: Math.round(160 * 0.7),
                           align: 'right' as const,
                           render: (text: number) => formatAmount(text),
                         },
@@ -2381,21 +2381,21 @@ export default function FinanceReconciliationDifferencePage() {
                           title: '采购单状态',
                           dataIndex: '采购单状态',
                           key: '采购单状态',
-                          width: 120,
+                          width: Math.round(120 * 0.7),
                           render: (text: string) => text || '-',
                         },
                         {
                           title: '门店/仓',
                           dataIndex: '门店仓',
                           key: '门店仓',
-                          width: 120,
+                          width: Math.round(120 * 0.7),
                           render: (text: string) => text || '-',
                         },
                         {
                           title: '下单账号',
                           dataIndex: '下单账号',
                           key: '下单账号',
-                          width: 120,
+                          width: Math.round(120 * 0.7),
                           render: (text: string) => text || '-',
                         },
                       ]}
@@ -2403,9 +2403,10 @@ export default function FinanceReconciliationDifferencePage() {
                       rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
                       loading={subLoading}
                       isMobile={false}
-                      scroll={{ x: 1200, y: detailPanelsVisible ? 150 : undefined }}
+                      scroll={{ x: Math.round(1200 * 0.7), y: detailPanelsVisible ? Math.round(150 * 0.7) : undefined }}
                       pagination={false}
                       size="small"
+                      style={{ fontSize: `${12 * 0.7}px` }}
                       onRow={(record) => {
                         const rowKey = `${record.交易单号}_${record.牵牛花采购单号}`;
                         const isSelected = selectedSubRecord && `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}` === rowKey;
@@ -2440,26 +2441,25 @@ export default function FinanceReconciliationDifferencePage() {
                         const containerHeight = container.clientHeight;
 
                         const handleMouseMove = (moveEvent: MouseEvent) => {
-                          const deltaY = moveEvent.clientY - startY;
                           const container = subTableContainerRef.current;
                           if (!container) return;
                           const containerRect = container.getBoundingClientRect();
                           const containerTop = containerRect.top;
-                          const containerBottom = containerRect.bottom;
-                          const windowBottom = window.innerHeight;
+                          const containerHeight = container.clientHeight;
 
                           // 计算鼠标相对于容器的位置
                           const mouseY = moveEvent.clientY;
                           const relativeY = mouseY - containerTop;
-                          const containerHeight = container.clientHeight;
 
-                          // 计算新的高度百分比
+                          // 计算新的高度百分比（相对于容器顶部，即与上下栏分割线的距离）
+                          // detailPanelsHeight表示左右框占下栏容器的百分比
+                          // 这里要计算的是左右框与上下栏分割线的距离
                           const newHeightPercent = (relativeY / containerHeight) * 100;
 
-                          // 限制：往上不能超过上下栏分割线位置（即容器顶部），往下不能超出浏览器底部
-                          // 确保最小高度为10%，最大高度为90%
+                          // 限制：最小高度为10%，最大高度为90%
+                          // 往上不能超过上下栏分割线位置（即容器顶部0%），往下不能超出浏览器底部
                           const minHeight = 10;
-                          const maxHeight = Math.min(90, ((windowBottom - containerTop) / containerHeight) * 100);
+                          const maxHeight = 90;
                           const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeightPercent));
 
                           setDetailPanelsHeight(clampedHeight);
@@ -2505,12 +2505,6 @@ export default function FinanceReconciliationDifferencePage() {
                               style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
                               onClick={() => {
                                 setFinanceBillModalVisible(true);
-                                // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
-                                const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
-                                financeBillForm.setFieldsValue({
-                                  transactionNumber: currentRecord?.交易单号 || '',
-                                  qianniuhuaPurchaseNumber: currentRecord?.牵牛花采购单号 || '',
-                                });
                               }}
                             >
                               账单手动绑定采购单
@@ -2531,21 +2525,21 @@ export default function FinanceReconciliationDifferencePage() {
                                 title: '支付渠道',
                                 dataIndex: '支付渠道',
                                 key: '支付渠道',
-                                width: 150,
+                                width: Math.round(150 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '支付账号',
                                 dataIndex: '支付账号',
                                 key: '支付账号',
-                                width: 150,
+                                width: Math.round(150 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '收支金额',
                                 dataIndex: '收支金额',
                                 key: '收支金额',
-                                width: 120,
+                                width: Math.round(120 * 0.7),
                                 align: 'right' as const,
                                 render: (text: number) => formatAmount(text),
                               },
@@ -2553,20 +2547,20 @@ export default function FinanceReconciliationDifferencePage() {
                                 title: '交易账单号',
                                 dataIndex: '交易账单号',
                                 key: '交易账单号',
-                                width: 180,
+                                width: Math.round(180 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '账单交易时间',
                                 dataIndex: '账单交易时间',
                                 key: '账单交易时间',
-                                width: 180,
+                                width: Math.round(180 * 0.7),
                                 render: (text: string) => formatDateTime(text),
                               },
                               {
                                 title: '是否手动绑定',
                                 key: '是否手动绑定',
-                                width: 120,
+                                width: Math.round(120 * 0.7),
                                 render: (_: any, record: TransactionRecord) => {
                                   const 交易账单号 = record.交易账单号;
                                   const isBound = 交易账单号 ? financeBillExistsMap.get(交易账单号) || false : false;
@@ -2594,10 +2588,10 @@ export default function FinanceReconciliationDifferencePage() {
                             rowKey={(record) => `${record.交易账单号 || ''}_${record.支付账号 || ''}_${record.账单交易时间 || ''}`}
                             loading={transactionRecordLoading}
                             isMobile={false}
-                            scroll={{ x: 800, y: 200 }}
+                            scroll={{ x: Math.round(800 * 0.7), y: Math.round(200 * 0.7) }}
                             pagination={false}
                             size="small"
-                            style={{ fontSize: '12px' }}
+                            style={{ fontSize: `${12 * 0.7}px` }}
                           />
                         </div>
                       </div>
@@ -2654,11 +2648,6 @@ export default function FinanceReconciliationDifferencePage() {
                               style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
                               onClick={() => {
                                 setPurchaseAdjustmentModalVisible(true);
-                                // 如果有选中的子维度数据，使用选中的数据；否则使用第一条数据
-                                const currentRecord = selectedSubRecord || (subRecords.length > 0 ? subRecords[0] : null);
-                                purchaseAdjustmentForm.setFieldsValue({
-                                  purchaseOrderNumber: currentRecord?.牵牛花采购单号 || '',
-                                });
                               }}
                             >
                               采购单金额调整
@@ -2679,28 +2668,28 @@ export default function FinanceReconciliationDifferencePage() {
                                 title: '采购单号',
                                 dataIndex: '采购单号',
                                 key: '采购单号',
-                                width: 180,
+                                width: Math.round(180 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '门店/仓',
                                 dataIndex: '门店/仓',
                                 key: '门店/仓',
-                                width: 120,
+                                width: Math.round(120 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '所属采购计划',
                                 dataIndex: '所属采购计划',
                                 key: '所属采购计划',
-                                width: 150,
+                                width: Math.round(150 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '采购金额',
                                 dataIndex: '采购金额',
                                 key: '采购金额',
-                                width: 120,
+                                width: Math.round(120 * 0.7),
                                 align: 'right' as const,
                                 render: (text: number) => formatAmount(text),
                               },
@@ -2708,7 +2697,7 @@ export default function FinanceReconciliationDifferencePage() {
                                 title: '实收金额',
                                 dataIndex: '实收金额',
                                 key: '实收金额',
-                                width: 120,
+                                width: Math.round(120 * 0.7),
                                 align: 'right' as const,
                                 render: (text: number) => formatAmount(text),
                               },
@@ -2716,46 +2705,72 @@ export default function FinanceReconciliationDifferencePage() {
                                 title: '关联收货单号',
                                 dataIndex: '关联收货单号',
                                 key: '关联收货单号',
-                                width: 150,
+                                width: Math.round(150 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '状态',
                                 dataIndex: '状态',
                                 key: '状态',
-                                width: 100,
+                                width: Math.round(100 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '付款状态',
                                 dataIndex: '付款状态',
                                 key: '付款状态',
-                                width: 100,
+                                width: Math.round(100 * 0.7),
                                 render: (text: string) => text || '-',
                               },
                               {
                                 title: '创建时间',
                                 dataIndex: '创建时间',
                                 key: '创建时间',
-                                width: 180,
+                                width: Math.round(180 * 0.7),
                                 render: (text: string) => formatDateTime(text),
                               },
                               {
                                 title: '创建人名称',
                                 dataIndex: '创建人名称',
                                 key: '创建人名称',
-                                width: 120,
+                                width: Math.round(120 * 0.7),
                                 render: (text: string) => text || '-',
+                              },
+                              {
+                                title: '是否调整金额',
+                                key: '是否调整金额',
+                                width: Math.round(120 * 0.7),
+                                render: (_: any, record: PurchaseOrderInfo) => {
+                                  const 采购单号 = record.采购单号;
+                                  const isAdjusted = 采购单号 ? purchaseAdjustmentExistsMap.get(采购单号) || false : false;
+                                  return (
+                                    <span
+                                      style={{
+                                        color: isAdjusted ? '#1890ff' : '#999',
+                                        cursor: isAdjusted ? 'pointer' : 'default',
+                                        textDecoration: isAdjusted ? 'underline' : 'none',
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isAdjusted && 采购单号) {
+                                          handlePurchaseOrderIsAdjustedClick(采购单号);
+                                        }
+                                      }}
+                                    >
+                                      {isAdjusted ? '是' : '否'}
+                                    </span>
+                                  );
+                                },
                               },
                             ]}
                             dataSource={purchaseOrderInfoData}
                             rowKey={(record) => `${record.采购单号 || ''}_${record.创建时间 || ''}`}
                             loading={purchaseOrderInfoLoading}
                             isMobile={false}
-                            scroll={{ x: 1400, y: 200 }}
+                            scroll={{ x: Math.round(1400 * 0.7), y: Math.round(200 * 0.7) }}
                             pagination={false}
                             size="small"
-                            style={{ fontSize: '12px' }}
+                            style={{ fontSize: `${12 * 0.7}px` }}
                           />
                         </div>
                       </div>
