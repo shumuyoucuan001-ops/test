@@ -344,10 +344,12 @@ export default function StoreRejectionPage() {
                     </Space>
                 </div>
                 <ResponsiveTable<StoreRejectionItem>
+                    tableId="store-rejection"
                     columns={columns as any}
                     dataSource={data}
                     rowKey={(r) => `${r["采购单号"]}_${r["sku_id"]}_${r["门店/仓"]}`}
                     loading={loading}
+                    scroll={{ x: 2500, y: 600 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

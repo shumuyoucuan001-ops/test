@@ -577,11 +577,12 @@ export default function OpsShelfExclusionPage() {
                 extra={renderSearchAndActions()}
             >
                 <ResponsiveTable<OpsShelfExclusionItem>
+                    tableId="ops-shelf-exclusion"
                     columns={columns as any}
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
-                    scroll={{ x: 1500 }}
+                    scroll={{ x: 1500, y: 600 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

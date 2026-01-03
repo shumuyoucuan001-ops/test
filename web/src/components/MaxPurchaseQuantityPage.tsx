@@ -567,11 +567,12 @@ export default function MaxPurchaseQuantityPage() {
                     </Space>
                 </div>
                 <ResponsiveTable<MaxPurchaseQuantityItem>
+                    tableId="max-purchase-quantity"
                     columns={columns as any}
                     dataSource={data}
                     rowKey={(r) => `${r["仓店名称"]}_${r["SKU"]}`}
                     loading={loading}
-                    scroll={{ x: 2500 }}
+                    scroll={{ x: 2500, y: 600 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

@@ -3,13 +3,16 @@
 import { LeftOutlined, RightOutlined } from "@ant-design/icons";
 import { Button, Card, Select, Space, Table } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useResizableColumns } from "../hooks/useResizableColumns";
 
 interface ResponsiveTableProps<T> extends Omit<TableProps<T>, 'columns'> {
     columns: ColumnsType<T>;
     dataSource: T[];
     rowKey: string | ((record: T) => string);
     isMobile?: boolean; // 可选，如果不提供则自动检测
+    tableId?: string; // 表格唯一标识，用于保存列宽设置
+    resizable?: boolean; // 是否启用列宽调整，默认为 true
 }
 
 /**
@@ -21,9 +24,28 @@ export default function ResponsiveTable<T extends Record<string, any>>({
     dataSource,
     rowKey,
     isMobile: propIsMobile,
+    tableId,
+    resizable = true,
     ...tableProps
 }: ResponsiveTableProps<T>) {
     const [isMobile, setIsMobile] = useState(propIsMobile ?? false);
+    const tableContainerRef = useRef<HTMLDivElement>(null);
+
+    // 使用列宽调整功能（仅在桌面端且启用时）
+    const shouldEnableResize = !isMobile && resizable && !!tableId;
+    const { columns: resizableColumns, tableRef } = useResizableColumns(
+        tableId || 'default',
+        columns,
+        shouldEnableResize
+    );
+
+    // 合并 tableRef
+    const combinedTableRef = (node: HTMLDivElement) => {
+        tableContainerRef.current = node;
+        if (tableRef.current !== node && shouldEnableResize) {
+            (tableRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }
+    };
 
     // 自动检测移动端（如果未通过 props 传入）
     useEffect(() => {
@@ -285,13 +307,17 @@ export default function ResponsiveTable<T extends Record<string, any>>({
     }
 
     // 桌面端使用普通表格
+    const finalColumns = shouldEnableResize ? resizableColumns : columns;
+
     return (
-        <Table
-            {...tableProps}
-            columns={columns}
-            dataSource={dataSource}
-            rowKey={rowKey}
-        />
+        <div ref={combinedTableRef}>
+            <Table
+                {...tableProps}
+                columns={finalColumns}
+                dataSource={dataSource}
+                rowKey={rowKey}
+            />
+        </div>
     );
 }
 

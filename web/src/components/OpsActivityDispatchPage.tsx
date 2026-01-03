@@ -962,11 +962,12 @@ export default function OpsActivityDispatchPage() {
                 }
             >
                 <ResponsiveTable<OpsActivityDispatchItem>
+                    tableId="ops-activity-dispatch"
                     columns={visibleColumns as any}
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
-                    scroll={{ x: 2500 }}
+                    scroll={{ x: 2500, y: 600 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

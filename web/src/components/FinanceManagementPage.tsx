@@ -782,12 +782,13 @@ export default function FinanceManagementPage() {
           </Space>
         </div>
         <ResponsiveTable<FinanceBill>
+          tableId="finance-management"
           columns={columns as any}
           dataSource={bills}
           rowKey={(record) => `${record.transactionNumber}_${record.qianniuhuaPurchaseNumber || ''}`}
           loading={loading}
           isMobile={false}
-          scroll={{ x: 2000 }}
+          scroll={{ x: 2000, y: 600 }}
           rowSelection={rowSelection}
           pagination={{
             current: currentPage,

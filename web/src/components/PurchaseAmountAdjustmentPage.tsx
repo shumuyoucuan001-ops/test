@@ -688,8 +688,8 @@ export default function PurchaseAmountAdjustmentPage() {
       },
     },
     {
-      title: '操作',
-      key: 'action',
+      title: '审核操作',
+      key: 'reviewAction',
       width: 120,
       fixed: 'right' as const,
       render: (_: any, record: PurchaseAmountAdjustment) => {
@@ -942,12 +942,13 @@ export default function PurchaseAmountAdjustmentPage() {
           </Space>
         </div>
         <ResponsiveTable<PurchaseAmountAdjustment>
+          tableId="purchase-amount-adjustment"
           columns={columns as any}
           dataSource={adjustments}
           rowKey="purchaseOrderNumber"
           loading={loading}
           isMobile={false}
-          scroll={{ x: 2000 }}
+          scroll={{ x: 2000, y: 600 }}
           rowSelection={rowSelection}
           pagination={{
             current: currentPage,

@@ -152,9 +152,11 @@ export default function TemplatesPage() {
         }
       >
         <ResponsiveTable<LabelTemplate>
+          tableId="templates"
           columns={columns as any}
           dataSource={templates}
           rowKey="id"
+          scroll={{ y: 600 }}
           loading={loading}
           pagination={{ pageSize: 10 }}
         />

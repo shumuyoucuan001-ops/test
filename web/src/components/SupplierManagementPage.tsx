@@ -595,12 +595,13 @@ export default function SupplierManagementPage() {
         }
       >
         <ResponsiveTable<SupplierFullInfo>
+          tableId="supplier-management"
           columns={columns as any}
           dataSource={suppliers}
           rowKey="supplierCode"
           loading={loading}
           isMobile={false}
-          scroll={{ x: 2000 }}
+          scroll={{ x: 2000, y: 600 }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,

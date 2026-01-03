@@ -825,52 +825,51 @@ export default function FinanceReconciliationDifferencePage() {
               minHeight: 300,
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'visible',
+              overflow: 'hidden',
               boxSizing: 'border-box',
             }}
           >
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-              <ResponsiveTable<FinanceReconciliationDifference>
-                columns={columns as any}
-                dataSource={records}
-                rowKey={(record) => record.对账单号 || ''}
-                loading={loading}
-                isMobile={false}
-                scroll={{ x: 1500, y: tableScrollY || 200 }}
-                onRow={(record) => ({
-                  onClick: () => handleRowClick(record),
-                  style: {
-                    cursor: 'pointer',
-                    backgroundColor: selected对账单号 === record.对账单号 ? '#e6f7ff' : undefined,
-                  },
-                })}
-                pagination={{
-                  current: currentPage,
-                  pageSize: pageSize,
-                  total: total,
-                  showSizeChanger: true,
-                  showQuickJumper: true,
-                  showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                  onChange: (page, size) => {
-                    setCurrentPage(page);
-                    setPageSize(size || 20);
-                    const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
-                    const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
-                    loadRecords(
-                      page,
-                      searchText?.trim() || undefined,
-                      search对账单号?.trim() || undefined,
-                      search记录状态.length > 0 ? search记录状态 : undefined,
-                      search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
-                      更新时间开始,
-                      更新时间结束,
-                      search采购单号?.trim() || undefined,
-                      search交易单号?.trim() || undefined,
-                    );
-                  },
-                }}
-              />
-            </div>
+            <ResponsiveTable<FinanceReconciliationDifference>
+              tableId="finance-reconciliation-difference"
+              columns={columns as any}
+              dataSource={records}
+              rowKey={(record) => record.对账单号 || ''}
+              loading={loading}
+              isMobile={false}
+              scroll={{ x: 1500, y: tableScrollY || 200 }}
+              onRow={(record) => ({
+                onClick: () => handleRowClick(record),
+                style: {
+                  cursor: 'pointer',
+                  backgroundColor: selected对账单号 === record.对账单号 ? '#e6f7ff' : undefined,
+                },
+              })}
+              pagination={{
+                current: currentPage,
+                pageSize: pageSize,
+                total: total,
+                showSizeChanger: true,
+                showQuickJumper: true,
+                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+                onChange: (page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size || 20);
+                  const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
+                  const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
+                  loadRecords(
+                    page,
+                    searchText?.trim() || undefined,
+                    search对账单号?.trim() || undefined,
+                    search记录状态.length > 0 ? search记录状态 : undefined,
+                    search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
+                    更新时间开始,
+                    更新时间结束,
+                    search采购单号?.trim() || undefined,
+                    search交易单号?.trim() || undefined,
+                  );
+                },
+              }}
+            />
           </div>
 
           {/* 可拖拽调整的分隔线 */}
@@ -1024,6 +1023,7 @@ export default function FinanceReconciliationDifferencePage() {
                 {/* 子维度表格 */}
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <ResponsiveTable<FinanceReconciliationDifference>
+                    tableId="finance-reconciliation-difference-sub"
                     columns={[
                       {
                         title: '交易单号',

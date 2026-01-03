@@ -841,6 +841,7 @@ export default function Refund1688FollowUpPage() {
                 }
             >
                 <ResponsiveTable<Refund1688FollowUp>
+                    tableId="refund-1688-follow-up"
                     columns={visibleColumns}
                     dataSource={data}
                     rowKey="订单编号"

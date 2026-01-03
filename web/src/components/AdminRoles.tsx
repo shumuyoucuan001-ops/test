@@ -106,9 +106,11 @@ export default function RolePage() {
           />
         </Space>
         <ResponsiveTable<SysRole>
+          tableId="admin-roles"
           rowKey="id"
           columns={columns as any}
           dataSource={data}
+          scroll={{ y: 600 }}
           loading={loading}
           pagination={{
             current: currentPage,

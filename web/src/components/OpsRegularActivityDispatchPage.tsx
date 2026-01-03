@@ -782,11 +782,12 @@ export default function OpsRegularActivityDispatchPage() {
                 }
             >
                 <ResponsiveTable<OpsRegularActivityDispatchItem>
+                    tableId="ops-regular-activity-dispatch"
                     columns={visibleColumns as any}
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
-                    scroll={{ x: 2500 }}
+                    scroll={{ x: 2500, y: 600 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

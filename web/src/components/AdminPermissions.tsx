@@ -99,9 +99,11 @@ export default function PermissionPage() {
           />
         </Space>
         <ResponsiveTable<SysPermission>
+          tableId="admin-permissions"
           rowKey="id"
           columns={columns as any}
           dataSource={data}
+          scroll={{ y: 600 }}
           loading={loading}
           pagination={{
             current: currentPage,

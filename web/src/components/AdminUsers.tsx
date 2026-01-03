@@ -167,9 +167,11 @@ export default function UserPage() {
     <div style={{ padding: 24 }}>
       <Card title="账号管理" extra={<Space><Input placeholder="按用户名/显示名搜索" value={q} onChange={(e) => setQ(e.target.value)} onPressEnter={handleSearch} style={{ width: 240 }} /><Button onClick={handleSearch}>搜索</Button><Can code="button:user:create"><Button type="primary" onClick={() => onEdit()}>新增账号</Button></Can></Space>}>
         <ResponsiveTable<SysUser>
+          tableId="admin-users"
           rowKey="id"
           columns={columns as any}
           dataSource={data}
+          scroll={{ y: 600 }}
           loading={loading}
           pagination={{
             current: currentPage,

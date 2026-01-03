@@ -331,10 +331,12 @@ export default function ProductSupplementPage() {
         }
       >
         <ResponsiveTable<LabelDataRecord>
+          tableId="product-supplement"
           columns={columns}
           dataSource={data}
           rowKey={(r) => `${r.sku}_${r.supplierName}`}
           loading={loading}
+          scroll={{ y: 600 }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,

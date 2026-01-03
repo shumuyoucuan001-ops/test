@@ -865,11 +865,12 @@ export default function OpsExclusionPage() {
                 }
             >
                 <ResponsiveTable<OpsExclusionItem>
+                    tableId="ops-exclusion"
                     columns={columns as any}
                     dataSource={data}
                     rowKey={getRowKey}
                     loading={loading}
-                    scroll={{ x: 2500 }}
+                    scroll={{ x: 2500, y: 600 }}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,

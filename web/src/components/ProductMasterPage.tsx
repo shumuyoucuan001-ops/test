@@ -402,9 +402,11 @@ export default function ProductMasterPage() {
         }
       >
         <ResponsiveTable<MasterListItem>
+          tableId="product-master"
           columns={columns as any}
           dataSource={data}
           rowKey={(r) => r.skuCode}
+          scroll={{ y: 600 }}
           loading={loading}
           pagination={{ pageSize: 20, showSizeChanger: true }}
         />
@@ -446,9 +448,11 @@ export default function ProductMasterPage() {
               ),
               children: (
                 <ResponsiveTable<LabelDataItem>
+                  tableId="product-master-label"
                   columns={labelTableCols as any}
                   dataSource={labelDataSource}
                   rowKey={(r) => r.skuCode + (r.labelRaw?.["供应商名称"] || "")}
+                  scroll={{ y: 400 }}
                   size="small"
                   pagination={false}
                 />
