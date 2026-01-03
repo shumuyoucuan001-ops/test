@@ -32,7 +32,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import zhCN from 'antd/locale/zh_CN';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/zh-cn';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -93,6 +93,7 @@ export default function FinanceReconciliationDifferencePage() {
   const [activeTab, setActiveTab] = useState<string>('对账单详细数据');
   const [visibleTabs, setVisibleTabs] = useState<Set<string>>(new Set(['对账单详细数据'])); // 可见的标签页
   const [splitViewTabs, setSplitViewTabs] = useState<Set<string>>(new Set()); // 开启分屏的标签页
+  const [splitViewWidths, setSplitViewWidths] = useState<Record<string, number>>({}); // 每个分屏区域的宽度百分比
 
   // 三个查询结果的状态
   const [purchaseAdjustmentData, setPurchaseAdjustmentData] = useState<PurchaseAmountAdjustment[]>([]);
@@ -126,6 +127,7 @@ export default function FinanceReconciliationDifferencePage() {
   const [subTableScrollY, setSubTableScrollY] = useState<number | undefined>(undefined);
   const topTableContainerRef = useRef<HTMLDivElement>(null);
   const subTableContainerRef = useRef<HTMLDivElement>(null);
+  const splitViewContainerRef = useRef<HTMLDivElement>(null);
 
   // 加载记录列表（对账单号维度）
   const loadRecords = async (
@@ -475,16 +477,11 @@ export default function FinanceReconciliationDifferencePage() {
       setActiveTab('采购单金额调整');
 
       // 从子维度数据中提取所有唯一的牵牛花采购单号
-      let 牵牛花采购单号列表 = [...new Set(
+      const 牵牛花采购单号列表 = [...new Set(
         subRecords
           .map(r => r.牵牛花采购单号)
           .filter((v): v is string => !!v && v.trim() !== '')
       )];
-
-      // 如果有搜索条件，进行过滤
-      if (search采购单号 && search采购单号.trim()) {
-        牵牛花采购单号列表 = 牵牛花采购单号列表.filter(号 => 号.includes(search采购单号.trim()));
-      }
 
       if (牵牛花采购单号列表.length === 0) {
         setPurchaseAdjustmentData([]);
@@ -510,13 +507,22 @@ export default function FinanceReconciliationDifferencePage() {
         }
       }
 
-      if (allResults.length === 0) {
+      // 如果有搜索条件，在结果中进行精确过滤
+      let filteredResults = allResults;
+      if (search采购单号 && search采购单号.trim()) {
+        const searchTerm = search采购单号.trim();
+        filteredResults = filteredResults.filter(item =>
+          item.purchaseOrderNumber && item.purchaseOrderNumber === searchTerm
+        );
+      }
+
+      if (filteredResults.length === 0) {
         setPurchaseAdjustmentData([]);
         if (!search采购单号) {
           message.info('该对账单号无采购单金额调整关联数据');
         }
       } else {
-        setPurchaseAdjustmentData(allResults);
+        setPurchaseAdjustmentData(filteredResults);
       }
     } catch (error: any) {
       message.error(error.message || '查询采购单金额调整失败');
@@ -543,24 +549,16 @@ export default function FinanceReconciliationDifferencePage() {
       setActiveTab('账单手动绑定采购单');
 
       // 从子维度数据中提取所有唯一的牵牛花采购单号和交易单号
-      let 牵牛花采购单号列表 = [...new Set(
+      const 牵牛花采购单号列表 = [...new Set(
         subRecords
           .map(r => r.牵牛花采购单号)
           .filter((v): v is string => !!v && v.trim() !== '')
       )];
-      let 交易单号列表 = [...new Set(
+      const 交易单号列表 = [...new Set(
         subRecords
           .map(r => r.交易单号)
           .filter((v): v is string => !!v && v.trim() !== '')
       )];
-
-      // 如果有搜索条件，进行过滤
-      if (search牵牛花采购单号 && search牵牛花采购单号.trim()) {
-        牵牛花采购单号列表 = 牵牛花采购单号列表.filter(号 => 号.includes(search牵牛花采购单号.trim()));
-      }
-      if (search交易单号 && search交易单号.trim()) {
-        交易单号列表 = 交易单号列表.filter(号 => 号.includes(search交易单号.trim()));
-      }
 
       if (牵牛花采购单号列表.length === 0 && 交易单号列表.length === 0) {
         setFinanceBillData([]);
@@ -616,29 +614,28 @@ export default function FinanceReconciliationDifferencePage() {
         }
       }
 
-      // 如果还有搜索条件，进一步过滤结果
+      // 如果有搜索条件，在结果中进行精确过滤
+      let filteredResults = allResults;
       if (search交易单号 && search交易单号.trim()) {
-        allResults.forEach((item, index) => {
-          if (!item.transactionNumber || !item.transactionNumber.includes(search交易单号.trim())) {
-            allResults.splice(index, 1);
-          }
-        });
+        const searchTerm = search交易单号.trim();
+        filteredResults = filteredResults.filter(item =>
+          item.transactionNumber && item.transactionNumber === searchTerm
+        );
       }
       if (search牵牛花采购单号 && search牵牛花采购单号.trim()) {
-        allResults.forEach((item, index) => {
-          if (!item.qianniuhuaPurchaseNumber || !item.qianniuhuaPurchaseNumber.includes(search牵牛花采购单号.trim())) {
-            allResults.splice(index, 1);
-          }
-        });
+        const searchTerm = search牵牛花采购单号.trim();
+        filteredResults = filteredResults.filter(item =>
+          item.qianniuhuaPurchaseNumber && item.qianniuhuaPurchaseNumber === searchTerm
+        );
       }
 
-      if (allResults.length === 0) {
+      if (filteredResults.length === 0) {
         setFinanceBillData([]);
         if (!search交易单号 && !search牵牛花采购单号) {
           message.info('该对账单号无账单手动绑定采购单关联数据');
         }
       } else {
-        setFinanceBillData(allResults);
+        setFinanceBillData(filteredResults);
       }
     } catch (error: any) {
       message.error(error.message || '查询账单手动绑定采购单失败');
@@ -697,22 +694,22 @@ export default function FinanceReconciliationDifferencePage() {
         }
       }
 
-      // 如果有搜索条件，进行过滤
+      // 如果有搜索条件，在结果中进行精确过滤
+      let filteredResults = allResults;
       if (search账单流水 && search账单流水.trim()) {
-        const filtered = allResults.filter(item =>
-          item.账单流水 && item.账单流水.includes(search账单流水.trim())
+        const searchTerm = search账单流水.trim();
+        filteredResults = filteredResults.filter(item =>
+          item.账单流水 && item.账单流水 === searchTerm
         );
-        setNonPurchaseRecordData(filtered);
-        if (filtered.length === 0 && !search账单流水) {
+      }
+
+      if (filteredResults.length === 0) {
+        setNonPurchaseRecordData([]);
+        if (!search账单流水) {
           message.info('该对账单号无非采购单流水记录关联数据');
         }
       } else {
-        if (allResults.length === 0) {
-          setNonPurchaseRecordData([]);
-          message.info('该对账单号无非采购单流水记录关联数据');
-        } else {
-          setNonPurchaseRecordData(allResults);
-        }
+        setNonPurchaseRecordData(filteredResults);
       }
     } catch (error: any) {
       message.error(error.message || '查询非采购单流水记录失败');
@@ -735,34 +732,100 @@ export default function FinanceReconciliationDifferencePage() {
       setActiveTab('对账单详细数据');
     }
 
-    // 如果该标签在分屏中，也移除
-    const newSplitViewTabs = new Set(splitViewTabs);
-    newSplitViewTabs.delete(tabKey);
-    setSplitViewTabs(newSplitViewTabs);
+    // 如果该标签在分屏中，也移除并重新分配宽度
+    if (splitViewTabs.has(tabKey)) {
+      const newSplitViewTabs = new Set(splitViewTabs);
+      newSplitViewTabs.delete(tabKey);
+      setSplitViewTabs(newSplitViewTabs);
+
+      // 重新分配剩余分屏的宽度
+      const newWidths = { ...splitViewWidths };
+      delete newWidths[tabKey];
+      if (newSplitViewTabs.size > 0) {
+        const remainingWidth = 50 / newSplitViewTabs.size;
+        Array.from(newSplitViewTabs).forEach(key => {
+          newWidths[key] = remainingWidth;
+        });
+      }
+      setSplitViewWidths(newWidths);
+    }
   };
 
   // 切换分屏
   const handleToggleSplitView = (tabKey: string) => {
     const newSplitViewTabs = new Set(splitViewTabs);
+    const newWidths = { ...splitViewWidths };
+
     if (newSplitViewTabs.has(tabKey)) {
+      // 取消分屏
       newSplitViewTabs.delete(tabKey);
+      delete newWidths[tabKey];
+      // 重新分配剩余分屏的宽度
+      if (newSplitViewTabs.size > 0) {
+        const remainingWidth = 50 / newSplitViewTabs.size;
+        Array.from(newSplitViewTabs).forEach(key => {
+          newWidths[key] = remainingWidth;
+        });
+      }
     } else {
+      // 开启分屏
       newSplitViewTabs.add(tabKey);
+      // 计算初始宽度：如果有n个分屏，每个占 50/n%，左侧对账单详细数据占50%
+      const splitCount = newSplitViewTabs.size;
+      const splitWidth = splitCount > 0 ? 50 / splitCount : 0;
+      Array.from(newSplitViewTabs).forEach(key => {
+        newWidths[key] = splitWidth;
+      });
     }
     setSplitViewTabs(newSplitViewTabs);
+    setSplitViewWidths(newWidths);
+  };
+
+  // 调整分屏宽度
+  // separatorIndex: 0表示左侧和第一个分屏标签之间，1表示第一个和第二个之间，以此类推
+  const handleResizeSplitView = (separatorIndex: number, deltaX: number, containerWidth: number) => {
+    const deltaPercent = (deltaX / containerWidth) * 100;
+    const splitTabsArray = Array.from(splitViewTabs);
+
+    if (separatorIndex === 0) {
+      // 调整左侧对账单详细数据和第一个分屏标签之间的宽度
+      const firstTab = splitTabsArray[0];
+      if (!firstTab) return;
+      const currentTabWidth = splitViewWidths[firstTab] || (50 / splitViewTabs.size);
+      const newTabWidth = Math.max(10, Math.min(80, currentTabWidth + deltaPercent));
+      setSplitViewWidths(prev => ({
+        ...prev,
+        [firstTab]: newTabWidth,
+      }));
+    } else {
+      // 调整两个分屏标签之间的宽度
+      const prevTab = splitTabsArray[separatorIndex - 1];
+      const currentTab = splitTabsArray[separatorIndex];
+      if (!prevTab || !currentTab) return;
+
+      const prevWidth = splitViewWidths[prevTab] || (50 / splitViewTabs.size);
+      const currentWidth = splitViewWidths[currentTab] || (50 / splitViewTabs.size);
+
+      const newPrevWidth = Math.max(10, Math.min(80, prevWidth - deltaPercent));
+      const newCurrentWidth = Math.max(10, Math.min(80, currentWidth + deltaPercent));
+
+      setSplitViewWidths(prev => ({
+        ...prev,
+        [prevTab]: newPrevWidth,
+        [currentTab]: newCurrentWidth,
+      }));
+    }
   };
 
   // 根据采购单金额调整数据定位到对账单详细数据
   const handlePurchaseAdjustmentRowClick = (record: PurchaseAmountAdjustment) => {
     setSelectedPurchaseAdjustmentRow(record.purchaseOrderNumber);
-    // 在对账单详细数据中找到匹配的记录
-    const matchedRecord = subRecords.find(r => r.牵牛花采购单号 === record.purchaseOrderNumber);
-    if (matchedRecord) {
-      const rowKey = `${matchedRecord.交易单号}_${matchedRecord.牵牛花采购单号}`;
-      setSelectedDetailRow(rowKey);
-      // 切换到对账单详细数据标签（如果在分屏模式下）
-      if (!splitViewTabs.has('采购单金额调整')) {
-        setActiveTab('对账单详细数据');
+    // 只有在分屏模式下才定位到对账单详细数据
+    if (splitViewTabs.has('采购单金额调整')) {
+      const matchedRecord = subRecords.find(r => r.牵牛花采购单号 === record.purchaseOrderNumber);
+      if (matchedRecord) {
+        const rowKey = `${matchedRecord.交易单号}_${matchedRecord.牵牛花采购单号}`;
+        setSelectedDetailRow(rowKey);
       }
     }
   };
@@ -771,18 +834,16 @@ export default function FinanceReconciliationDifferencePage() {
   const handleFinanceBillRowClick = (record: FinanceBill) => {
     const rowKey = `${record.transactionNumber}_${record.qianniuhuaPurchaseNumber || ''}`;
     setSelectedFinanceBillRow(rowKey);
-    // 在对账单详细数据中找到匹配的记录
-    const matchedRecord = subRecords.find(r =>
-      (r.交易单号 === record.transactionNumber && r.牵牛花采购单号 === record.qianniuhuaPurchaseNumber) ||
-      r.交易单号 === record.transactionNumber ||
-      r.牵牛花采购单号 === record.qianniuhuaPurchaseNumber
-    );
-    if (matchedRecord) {
-      const detailRowKey = `${matchedRecord.交易单号}_${matchedRecord.牵牛花采购单号}`;
-      setSelectedDetailRow(detailRowKey);
-      // 切换到对账单详细数据标签（如果在分屏模式下）
-      if (!splitViewTabs.has('账单手动绑定采购单')) {
-        setActiveTab('对账单详细数据');
+    // 只有在分屏模式下才定位到对账单详细数据
+    if (splitViewTabs.has('账单手动绑定采购单')) {
+      const matchedRecord = subRecords.find(r =>
+        (r.交易单号 === record.transactionNumber && r.牵牛花采购单号 === record.qianniuhuaPurchaseNumber) ||
+        r.交易单号 === record.transactionNumber ||
+        r.牵牛花采购单号 === record.qianniuhuaPurchaseNumber
+      );
+      if (matchedRecord) {
+        const detailRowKey = `${matchedRecord.交易单号}_${matchedRecord.牵牛花采购单号}`;
+        setSelectedDetailRow(detailRowKey);
       }
     }
   };
@@ -790,14 +851,12 @@ export default function FinanceReconciliationDifferencePage() {
   // 根据非采购单流水记录定位到对账单详细数据
   const handleNonPurchaseRecordRowClick = (record: NonPurchaseBillRecord) => {
     setSelectedNonPurchaseRecordRow(record.账单流水);
-    // 在对账单详细数据中找到匹配的交易单号
-    const matchedRecord = subRecords.find(r => r.交易单号 === record.账单流水);
-    if (matchedRecord) {
-      const rowKey = `${matchedRecord.交易单号}_${matchedRecord.牵牛花采购单号}`;
-      setSelectedDetailRow(rowKey);
-      // 切换到对账单详细数据标签（如果在分屏模式下）
-      if (!splitViewTabs.has('非采购单流水记录')) {
-        setActiveTab('对账单详细数据');
+    // 只有在分屏模式下才定位到对账单详细数据
+    if (splitViewTabs.has('非采购单流水记录')) {
+      const matchedRecord = subRecords.find(r => r.交易单号 === record.账单流水);
+      if (matchedRecord) {
+        const rowKey = `${matchedRecord.交易单号}_${matchedRecord.牵牛花采购单号}`;
+        setSelectedDetailRow(rowKey);
       }
     }
   };
@@ -808,6 +867,427 @@ export default function FinanceReconciliationDifferencePage() {
     return amount.toFixed(2);
   };
 
+  // 渲染标签内容（用于普通标签和分屏标签）
+  const renderTabContent = (tabKey: string, isSplitView: boolean = false) => {
+    if (tabKey === '采购单金额调整') {
+      return (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '8px' }}>
+          {/* 搜索区域 */}
+          <div style={{ marginBottom: 8 }}>
+            <Space wrap>
+              <Input
+                placeholder="采购单号(牵牛花)"
+                allowClear
+                size="small"
+                style={{ width: isSplitView ? 160 : 180 }}
+                value={purchaseAdjustmentSearch采购单号}
+                onChange={(e) => setPurchaseAdjustmentSearch采购单号(e.target.value)}
+                onPressEnter={() => loadPurchaseAdjustmentData(purchaseAdjustmentSearch采购单号)}
+              />
+              <Button size="small" type="primary" icon={<SearchOutlined />} onClick={() => loadPurchaseAdjustmentData(purchaseAdjustmentSearch采购单号)}>搜索</Button>
+              <Button size="small" onClick={() => {
+                setPurchaseAdjustmentSearch采购单号('');
+                loadPurchaseAdjustmentData();
+              }}>重置</Button>
+            </Space>
+          </div>
+          {purchaseAdjustmentData.length === 0 && !purchaseAdjustmentQueryLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: 14 }}>
+              该对账单号无采购单金额调整关联数据
+            </div>
+          ) : (
+            <ResponsiveTable<PurchaseAmountAdjustment>
+              tableId={`purchase-adjustment-data-${isSplitView ? 'split' : 'normal'}`}
+              columns={[
+                {
+                  title: '采购单号(牵牛花)',
+                  dataIndex: 'purchaseOrderNumber',
+                  key: 'purchaseOrderNumber',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '调整金额',
+                  dataIndex: 'adjustmentAmount',
+                  key: 'adjustmentAmount',
+                  width: 120,
+                  align: 'right' as const,
+                  render: (text: number) => formatAmount(text),
+                },
+                {
+                  title: '异常调整原因备注',
+                  dataIndex: 'adjustmentReason',
+                  key: 'adjustmentReason',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '财务审核意见备注',
+                  dataIndex: 'financeReviewRemark',
+                  key: 'financeReviewRemark',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '财务审核状态',
+                  dataIndex: 'financeReviewStatus',
+                  key: 'financeReviewStatus',
+                  width: 120,
+                  render: (text: string) => {
+                    const statusMap: Record<string, string> = {
+                      '0': '待审核',
+                      '1': '已审核',
+                    };
+                    return statusMap[text || ''] || text || '-';
+                  },
+                },
+                {
+                  title: '创建人',
+                  dataIndex: 'creator',
+                  key: 'creator',
+                  width: 100,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '财务审核人',
+                  dataIndex: 'financeReviewer',
+                  key: 'financeReviewer',
+                  width: 100,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '数据更新时间',
+                  dataIndex: 'dataUpdateTime',
+                  key: 'dataUpdateTime',
+                  width: 180,
+                  render: (text: string) => formatDateTime(text),
+                },
+              ]}
+              dataSource={purchaseAdjustmentData}
+              rowKey={(record) => record.purchaseOrderNumber}
+              loading={purchaseAdjustmentQueryLoading}
+              isMobile={false}
+              scroll={{ x: isSplitView ? 600 : 1200, y: subTableScrollY || 150 }}
+              pagination={false}
+              size="small"
+              onRow={(record) => ({
+                onClick: () => handlePurchaseAdjustmentRowClick(record),
+                style: {
+                  cursor: 'pointer',
+                  backgroundColor: selectedPurchaseAdjustmentRow === record.purchaseOrderNumber ? '#e6f7ff' : undefined,
+                },
+              })}
+            />
+          )}
+        </div>
+      );
+    }
+
+    if (tabKey === '账单手动绑定采购单') {
+      return (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '8px' }}>
+          {/* 搜索区域 */}
+          <div style={{ marginBottom: 8 }}>
+            <Space wrap>
+              <Input
+                placeholder="交易单号"
+                allowClear
+                size="small"
+                style={{ width: isSplitView ? 140 : 140 }}
+                value={financeBillSearch交易单号}
+                onChange={(e) => setFinanceBillSearch交易单号(e.target.value)}
+                onPressEnter={() => loadFinanceBillData(financeBillSearch交易单号, financeBillSearch牵牛花采购单号)}
+              />
+              <Input
+                placeholder="牵牛花采购单号"
+                allowClear
+                size="small"
+                style={{ width: isSplitView ? 140 : 140 }}
+                value={financeBillSearch牵牛花采购单号}
+                onChange={(e) => setFinanceBillSearch牵牛花采购单号(e.target.value)}
+                onPressEnter={() => loadFinanceBillData(financeBillSearch交易单号, financeBillSearch牵牛花采购单号)}
+              />
+              <Button size="small" type="primary" icon={<SearchOutlined />} onClick={() => loadFinanceBillData(financeBillSearch交易单号, financeBillSearch牵牛花采购单号)}>搜索</Button>
+              <Button size="small" onClick={() => {
+                setFinanceBillSearch交易单号('');
+                setFinanceBillSearch牵牛花采购单号('');
+                loadFinanceBillData();
+              }}>重置</Button>
+            </Space>
+          </div>
+          {financeBillData.length === 0 && !financeBillQueryLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: 14 }}>
+              该对账单号无账单手动绑定采购单关联数据
+            </div>
+          ) : (
+            <ResponsiveTable<FinanceBill>
+              tableId={`finance-bill-data-${isSplitView ? 'split' : 'normal'}`}
+              columns={[
+                {
+                  title: '交易单号',
+                  dataIndex: 'transactionNumber',
+                  key: 'transactionNumber',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '牵牛花采购单号',
+                  dataIndex: 'qianniuhuaPurchaseNumber',
+                  key: 'qianniuhuaPurchaseNumber',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '导入异常备注',
+                  dataIndex: 'importExceptionRemark',
+                  key: 'importExceptionRemark',
+                  width: 250,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '修改人',
+                  dataIndex: 'modifier',
+                  key: 'modifier',
+                  width: 100,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '修改时间',
+                  dataIndex: 'modifyTime',
+                  key: 'modifyTime',
+                  width: 180,
+                  render: (text: string) => formatDateTime(text),
+                },
+                {
+                  title: '是否有图片',
+                  dataIndex: 'hasImage',
+                  key: 'hasImage',
+                  width: 100,
+                  render: (hasImage: number) => hasImage === 1 ? '是' : '否',
+                },
+              ]}
+              dataSource={financeBillData}
+              rowKey={(record) => `${record.transactionNumber}_${record.qianniuhuaPurchaseNumber || ''}`}
+              loading={financeBillQueryLoading}
+              isMobile={false}
+              scroll={{ x: isSplitView ? 600 : 1200, y: subTableScrollY || 150 }}
+              pagination={false}
+              size="small"
+              onRow={(record) => ({
+                onClick: () => handleFinanceBillRowClick(record),
+                style: {
+                  cursor: 'pointer',
+                  backgroundColor: selectedFinanceBillRow === `${record.transactionNumber}_${record.qianniuhuaPurchaseNumber || ''}` ? '#e6f7ff' : undefined,
+                },
+              })}
+            />
+          )}
+        </div>
+      );
+    }
+
+    if (tabKey === '非采购单流水记录') {
+      return (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '8px' }}>
+          {/* 搜索区域 */}
+          <div style={{ marginBottom: 8 }}>
+            <Space wrap>
+              <Input
+                placeholder="账单流水"
+                allowClear
+                size="small"
+                style={{ width: isSplitView ? 160 : 180 }}
+                value={nonPurchaseRecordSearch账单流水}
+                onChange={(e) => setNonPurchaseRecordSearch账单流水(e.target.value)}
+                onPressEnter={() => loadNonPurchaseRecordData(nonPurchaseRecordSearch账单流水)}
+              />
+              <Button size="small" type="primary" icon={<SearchOutlined />} onClick={() => loadNonPurchaseRecordData(nonPurchaseRecordSearch账单流水)}>搜索</Button>
+              <Button size="small" onClick={() => {
+                setNonPurchaseRecordSearch账单流水('');
+                loadNonPurchaseRecordData();
+              }}>重置</Button>
+            </Space>
+          </div>
+          {nonPurchaseRecordData.length === 0 && !nonPurchaseRecordQueryLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: 14 }}>
+              该对账单号无非采购单流水记录关联数据
+            </div>
+          ) : (
+            <ResponsiveTable<NonPurchaseBillRecord>
+              tableId={`non-purchase-record-data-${isSplitView ? 'split' : 'normal'}`}
+              columns={[
+                {
+                  title: '账单流水',
+                  dataIndex: '账单流水',
+                  key: '账单流水',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '记账金额',
+                  dataIndex: '记账金额',
+                  key: '记账金额',
+                  width: 120,
+                  align: 'right' as const,
+                  render: (text: number) => formatAmount(text),
+                },
+                {
+                  title: '账单类型',
+                  dataIndex: '账单类型',
+                  key: '账单类型',
+                  width: 120,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '所属仓店',
+                  dataIndex: '所属仓店',
+                  key: '所属仓店',
+                  width: 120,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '账单流水备注',
+                  dataIndex: '账单流水备注',
+                  key: '账单流水备注',
+                  width: 200,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '财务记账凭证号',
+                  dataIndex: '财务记账凭证号',
+                  key: '财务记账凭证号',
+                  width: 150,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '财务审核状态',
+                  dataIndex: '财务审核状态',
+                  key: '财务审核状态',
+                  width: 120,
+                  render: (text: string) => {
+                    const statusMap: Record<string, string> = {
+                      '0': '待审核',
+                      '1': '已审核',
+                    };
+                    return statusMap[text || ''] || text || '-';
+                  },
+                },
+                {
+                  title: '财务审核人',
+                  dataIndex: '财务审核人',
+                  key: '财务审核人',
+                  width: 100,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '记录修改人',
+                  dataIndex: '记录修改人',
+                  key: '记录修改人',
+                  width: 100,
+                  render: (text: string) => text || '-',
+                },
+                {
+                  title: '记录增加时间',
+                  dataIndex: '记录增加时间',
+                  key: '记录增加时间',
+                  width: 180,
+                  render: (text: string) => formatDateTime(text),
+                },
+                {
+                  title: '最近修改时间',
+                  dataIndex: '最近修改时间',
+                  key: '最近修改时间',
+                  width: 180,
+                  render: (text: string) => formatDateTime(text),
+                },
+              ]}
+              dataSource={nonPurchaseRecordData}
+              rowKey={(record) => record.账单流水}
+              loading={nonPurchaseRecordQueryLoading}
+              isMobile={false}
+              scroll={{ x: isSplitView ? 700 : 1500, y: subTableScrollY || 150 }}
+              pagination={false}
+              size="small"
+              onRow={(record) => ({
+                onClick: () => handleNonPurchaseRecordRowClick(record),
+                style: {
+                  cursor: 'pointer',
+                  backgroundColor: selectedNonPurchaseRecordRow === record.账单流水 ? '#e6f7ff' : undefined,
+                },
+              })}
+            />
+          )}
+        </div>
+      );
+    }
+
+    return <div>未知标签: {tabKey}</div>;
+  };
+
+  // 渲染标签项（用于Tabs items）
+  const renderTabItem = (tabKey: string) => {
+    return {
+      key: tabKey,
+      label: (
+        <Space>
+          <span>{tabKey}</span>
+          <Button
+            type="text"
+            size="small"
+            icon={<ColumnWidthOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleSplitView(tabKey);
+            }}
+            title={splitViewTabs.has(tabKey) ? '取消分屏' : '开启分屏'}
+          />
+        </Space>
+      ),
+      closable: true,
+      children: renderTabContent(tabKey, false),
+    };
+  };
+
+  // 渲染分屏标签内容
+  const renderSplitViewTabContent = (tabKey: string) => {
+    return (
+      <Tabs
+        activeKey={tabKey}
+        onChange={setActiveTab}
+        type="card"
+        hideAdd
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        items={[{
+          key: tabKey,
+          label: (
+            <Space>
+              <span>{tabKey}</span>
+              <Button
+                type="text"
+                size="small"
+                icon={<ColumnWidthOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleSplitView(tabKey);
+                }}
+                title="取消分屏"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<CloseOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCloseTab(tabKey);
+                }}
+              />
+            </Space>
+          ),
+          children: renderTabContent(tabKey, true),
+        }]}
+      />
+    );
+  };
 
   // 图片上传前处理（用于采购单金额调整）
   const beforeUpload = (file: File): boolean => {
@@ -1437,10 +1917,21 @@ export default function FinanceReconciliationDifferencePage() {
                 {/* 标签页表格 - 支持分屏 */}
                 <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   {splitViewTabs.size > 0 ? (
-                    // 分屏模式
-                    <div style={{ flex: 1, display: 'flex', gap: '8px', overflow: 'hidden' }}>
+                    // 分屏模式：左侧对账单详细数据，右侧多个分屏标签
+                    <div style={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden' }} ref={(el) => {
+                      if (el && !splitViewContainerRef.current) {
+                        splitViewContainerRef.current = el;
+                      }
+                    }}>
                       {/* 左侧：对账单详细数据 */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                      <div style={{
+                        flex: `0 0 ${100 - Object.values(splitViewWidths).reduce((sum, w) => sum + w, 0)}%`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        border: '1px solid #d9d9d9',
+                        borderRadius: '4px'
+                      }}>
                         <Tabs
                           activeKey={activeTab === '对账单详细数据' ? activeTab : '对账单详细数据'}
                           onChange={(key) => setActiveTab(key)}
@@ -1577,127 +2068,106 @@ export default function FinanceReconciliationDifferencePage() {
                                 />
                               </div>
                             ),
-                          },
-                          ]}
+                          }]}
                         />
                       </div>
+                      {/* 分隔线：左侧和第一个分屏标签之间 */}
+                      <div
+                        style={{
+                          width: '4px',
+                          backgroundColor: '#1890ff',
+                          cursor: 'ew-resize',
+                          flexShrink: 0,
+                          position: 'relative',
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const startX = e.clientX;
+                          const container = splitViewContainerRef.current;
+                          if (!container) return;
+                          const containerWidth = container.clientWidth;
+
+                          const handleMouseMove = (moveEvent: MouseEvent) => {
+                            const deltaX = moveEvent.clientX - startX;
+                            handleResizeSplitView(0, deltaX, containerWidth);
+                          };
+
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      />
                       {/* 右侧：分屏显示的标签 */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <Tabs
-                          activeKey={activeTab}
-                          onChange={setActiveTab}
-                          type="card"
-                          hideAdd
-                          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-                          items={Array.from(splitViewTabs).map(tabKey => {
-                            if (tabKey === '采购单金额调整') {
-                              return {
-                                key: tabKey,
-                                label: (
-                                  <Space>
-                                    <span>{tabKey}</span>
-                                    <Button
-                                      type="text"
-                                      size="small"
-                                      icon={<ColumnWidthOutlined />}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleSplitView(tabKey);
-                                      }}
-                                      title="取消分屏"
-                                    />
-                                    <Button
-                                      type="text"
-                                      size="small"
-                                      icon={<CloseOutlined />}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleCloseTab(tabKey);
-                                      }}
-                                    />
-                                  </Space>
-                                ),
-                                children: (
-                                  <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '8px' }}>
-                                    {/* 搜索区域 */}
-                                    <div style={{ marginBottom: 8 }}>
-                                      <Space wrap>
-                                        <Input
-                                          placeholder="采购单号(牵牛花)"
-                                          allowClear
-                                          size="small"
-                                          style={{ width: 180 }}
-                                          value={purchaseAdjustmentSearch采购单号}
-                                          onChange={(e) => setPurchaseAdjustmentSearch采购单号(e.target.value)}
-                                          onPressEnter={() => loadPurchaseAdjustmentData(purchaseAdjustmentSearch采购单号)}
-                                        />
-                                        <Button size="small" type="primary" icon={<SearchOutlined />} onClick={() => loadPurchaseAdjustmentData(purchaseAdjustmentSearch采购单号)}>搜索</Button>
-                                        <Button size="small" onClick={() => {
-                                          setPurchaseAdjustmentSearch采购单号('');
-                                          loadPurchaseAdjustmentData();
-                                        }}>重置</Button>
-                                      </Space>
-                                    </div>
-                                    {purchaseAdjustmentData.length === 0 && !purchaseAdjustmentQueryLoading ? (
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: 14 }}>
-                                        该对账单号无采购单金额调整关联数据
-                                      </div>
-                                    ) : (
-                                      <ResponsiveTable<PurchaseAmountAdjustment>
-                                        tableId="purchase-adjustment-data-split"
-                                        columns={[
-                                          {
-                                            title: '采购单号(牵牛花)',
-                                            dataIndex: 'purchaseOrderNumber',
-                                            key: 'purchaseOrderNumber',
-                                            width: 200,
-                                            render: (text: string) => text || '-',
-                                          },
-                                          {
-                                            title: '调整金额',
-                                            dataIndex: 'adjustmentAmount',
-                                            key: 'adjustmentAmount',
-                                            width: 120,
-                                            align: 'right' as const,
-                                            render: (text: number) => formatAmount(text),
-                                          },
-                                          {
-                                            title: '异常调整原因备注',
-                                            dataIndex: 'adjustmentReason',
-                                            key: 'adjustmentReason',
-                                            width: 200,
-                                            render: (text: string) => text || '-',
-                                          },
-                                        ]}
-                                        dataSource={purchaseAdjustmentData}
-                                        rowKey={(record) => record.purchaseOrderNumber}
-                                        loading={purchaseAdjustmentQueryLoading}
-                                        isMobile={false}
-                                        scroll={{ x: 600, y: subTableScrollY || 150 }}
-                                        pagination={false}
-                                        size="small"
-                                        onRow={(record) => ({
-                                          onClick: () => handlePurchaseAdjustmentRowClick(record),
-                                          style: {
-                                            cursor: 'pointer',
-                                            backgroundColor: selectedPurchaseAdjustmentRow === record.purchaseOrderNumber ? '#e6f7ff' : undefined,
-                                          },
-                                        })}
-                                      />
-                                    )}
-                                  </div>
-                                ),
-                              };
-                            }
-                            // 其他标签类似处理...
-                            return {
-                              key: tabKey,
-                              label: tabKey,
-                              children: <div>未实现</div>,
-                            };
-                          })}
-                        />
-                      </div>
+                      {Array.from(splitViewTabs).map((tabKey, index) => {
+                        const tabWidth = splitViewWidths[tabKey] || (50 / splitViewTabs.size);
+                        const isLast = index === splitViewTabs.size - 1;
+
+                        return (
+                          <React.Fragment key={tabKey}>
+                            {/* 分屏标签区域 */}
+                            <div style={{ flex: `0 0 ${tabWidth}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                              {renderSplitViewTabContent(tabKey)}
+                            </div>
+                            {/* 分隔线：分屏标签之间，或最后一个分屏标签和右侧未分屏标签之间 */}
+                            {(!isLast || Array.from(visibleTabs).filter(t => !splitViewTabs.has(t) && t !== '对账单详细数据').length > 0) && (
+                              <div
+                                style={{
+                                  width: '4px',
+                                  backgroundColor: '#1890ff',
+                                  cursor: 'ew-resize',
+                                  flexShrink: 0,
+                                  position: 'relative',
+                                }}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  const startX = e.clientX;
+                                  const container = splitViewContainerRef.current;
+                                  if (!container) return;
+                                  const containerWidth = container.clientWidth;
+
+                                  const handleMouseMove = (moveEvent: MouseEvent) => {
+                                    const deltaX = moveEvent.clientX - startX;
+                                    handleResizeSplitView(index + 1, deltaX, containerWidth);
+                                  };
+
+                                  const handleMouseUp = () => {
+                                    document.removeEventListener('mousemove', handleMouseMove);
+                                    document.removeEventListener('mouseup', handleMouseUp);
+                                  };
+
+                                  document.addEventListener('mousemove', handleMouseMove);
+                                  document.addEventListener('mouseup', handleMouseUp);
+                                }}
+                              />
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                      {/* 右侧：未分屏的标签（如果存在） */}
+                      {Array.from(visibleTabs).filter(t => !splitViewTabs.has(t) && t !== '对账单详细数据').length > 0 && (
+                        <>
+                          <div style={{ width: '4px', backgroundColor: '#d9d9d9', flexShrink: 0 }} />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
+                            <Tabs
+                              activeKey={activeTab}
+                              onChange={setActiveTab}
+                              type="editable-card"
+                              hideAdd
+                              onEdit={(targetKey, action) => {
+                                if (action === 'remove' && typeof targetKey === 'string') {
+                                  handleCloseTab(targetKey);
+                                }
+                              }}
+                              style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                              items={Array.from(visibleTabs).filter(t => !splitViewTabs.has(t) && t !== '对账单详细数据').map(tabKey => renderTabItem(tabKey))}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     // 非分屏模式：普通Tabs
