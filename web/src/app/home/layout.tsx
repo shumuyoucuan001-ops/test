@@ -606,6 +606,11 @@ export default function HomeLayout({
             label: '供应商管理',
           },
           {
+            key: 'supplier-conversion-relation',
+            icon: <ShoppingOutlined />,
+            label: '供应商推送换算关系变更',
+          },
+          {
             key: 'purchase-pass-difference',
             icon: <ShoppingOutlined />,
             label: '采购通过差异单',
