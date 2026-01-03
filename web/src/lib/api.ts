@@ -542,6 +542,51 @@ export const opsRegularActivityDispatchApi = {
     api.post('/ops-regular-activity-dispatch/check-batch-exists', { items }).then(res => res.data),
 };
 
+// 采购管理 - 供应商推送换算关系变更
+export interface SupplierConversionRelationItem {
+  '供应商编码': string;
+  '*SKU编码': string;
+  '二次换算关系': string;
+  '数据更新时间': string | null;
+}
+
+export const supplierConversionRelationApi = {
+  list: (params?: {
+    供应商编码?: string;
+    '*SKU编码'?: string;
+    二次换算关系?: string;
+    keyword?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: SupplierConversionRelationItem[]; total: number }> => {
+    const queryParams: any = {};
+    if (params?.['供应商编码']) queryParams['供应商编码'] = params['供应商编码'];
+    if (params?.['*SKU编码']) queryParams['*SKU编码'] = params['*SKU编码'];
+    if (params?.['二次换算关系']) queryParams['二次换算关系'] = params['二次换算关系'];
+    if (params?.keyword) queryParams.keyword = params.keyword;
+    queryParams.page = params?.page || 1;
+    queryParams.limit = params?.limit || 20;
+    return api.get('/supplier-conversion-relation', { params: queryParams }).then(res => res.data);
+  },
+  create: (data: SupplierConversionRelationItem): Promise<{ success: boolean }> =>
+    api.post('/supplier-conversion-relation', data).then(res => res.data),
+  update: (
+    original: SupplierConversionRelationItem,
+    data: SupplierConversionRelationItem
+  ): Promise<{ success: boolean }> =>
+    api.patch('/supplier-conversion-relation', { original, data }).then(res => res.data),
+  remove: (data: SupplierConversionRelationItem): Promise<{ success: boolean }> =>
+    api.delete('/supplier-conversion-relation', { data }).then(res => res.data),
+  batchDelete: (items: SupplierConversionRelationItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    api.post('/supplier-conversion-relation/batch-delete', { items }).then(res => res.data),
+  batchCreate: (items: SupplierConversionRelationItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
+    api.post('/supplier-conversion-relation/batch-create', { items }).then(res => res.data),
+  checkExists: (data: SupplierConversionRelationItem): Promise<{ exists: boolean }> =>
+    api.post('/supplier-conversion-relation/check-exists', data).then(res => res.data),
+  checkBatchExists: (items: SupplierConversionRelationItem[]): Promise<{ exists: boolean; duplicateItems: SupplierConversionRelationItem[] }> =>
+    api.post('/supplier-conversion-relation/check-batch-exists', { items }).then(res => res.data),
+};
+
 // 运营组管理 - 排除上下架商品
 export interface OpsShelfExclusionItem {
   SPU: string;

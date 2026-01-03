@@ -199,57 +199,58 @@ export function useResizableColumns<T = any>(
 
     const handleMouseMove = (e: MouseEvent) => {
       const state = resizeStateRef.current;
-      if (!state.resizing || !state.currentColumnKey) return;
+      if (!state.resizing || !state.currentColumnKey || !tableRef.current || !state.currentTh) return;
 
       // 计算新的宽度（自由调整，最小 20px）
       const deltaX = e.clientX - state.startX;
       const newWidth = Math.max(20, state.startWidth + deltaX);
 
-      // 实时更新 DOM，提供流畅的拖拽体验
-      if (state.currentTh) {
-        state.currentTh.style.width = `${newWidth}px`;
-        state.currentTh.style.minWidth = `${newWidth}px`;
-        state.currentTh.style.maxWidth = `${newWidth}px`;
-      }
-      if (state.currentCol) {
-        state.currentCol.style.width = `${newWidth}px`;
-      }
+      // 找到表头在行中的索引位置
+      const headerRow = state.currentTh.closest('tr');
+      if (!headerRow) return;
 
-      // 同时更新所有相同列的 th（处理表头多行的情况）
-      if (tableRef.current && state.currentColumnKey) {
-        const allThs = tableRef.current.querySelectorAll(
-          `th[data-column-key="${state.currentColumnKey}"]`
-        );
-        allThs.forEach((th) => {
-          (th as HTMLElement).style.width = `${newWidth}px`;
-          (th as HTMLElement).style.minWidth = `${newWidth}px`;
-          (th as HTMLElement).style.maxWidth = `${newWidth}px`;
-        });
+      const thIndex = Array.from(headerRow.children).indexOf(state.currentTh);
+      if (thIndex < 0) return;
 
-        // 同步更新所有对应数据列的 td 宽度
-        // 找到表头在列中的索引位置
-        if (state.currentTh) {
-          const headerRow = state.currentTh.closest('tr');
-          if (headerRow) {
-            const thIndex = Array.from(headerRow.children).indexOf(state.currentTh);
-            if (thIndex >= 0) {
-              // 找到所有数据行的对应 td
-              const tbody = tableRef.current.querySelector('tbody');
-              if (tbody) {
-                const allRows = tbody.querySelectorAll('tr');
-                allRows.forEach((row) => {
-                  const tds = row.querySelectorAll('td');
-                  if (tds[thIndex]) {
-                    const td = tds[thIndex] as HTMLElement;
-                    td.style.width = `${newWidth}px`;
-                    td.style.minWidth = `${newWidth}px`;
-                    td.style.maxWidth = `${newWidth}px`;
-                  }
-                });
-              }
-            }
+      // 1. 更新 colgroup 中的 col 元素（这是最关键的，控制整列的宽度）
+      const colgroup = tableRef.current.querySelector('colgroup');
+      if (colgroup) {
+        const cols = colgroup.querySelectorAll('col');
+        if (cols[thIndex]) {
+          const col = cols[thIndex] as HTMLElement;
+          col.style.width = `${newWidth}px`;
+          col.style.minWidth = `${newWidth}px`;
+          // 更新 state 中的 col 引用
+          if (!state.currentCol) {
+            resizeStateRef.current.currentCol = col;
           }
         }
+      }
+
+      // 2. 更新所有相同列的 th（表头）
+      const allThs = tableRef.current.querySelectorAll(
+        `th[data-column-key="${state.currentColumnKey}"]`
+      );
+      allThs.forEach((th) => {
+        const thEl = th as HTMLElement;
+        thEl.style.width = `${newWidth}px`;
+        thEl.style.minWidth = `${newWidth}px`;
+        thEl.style.maxWidth = `${newWidth}px`;
+      });
+
+      // 3. 同步更新所有对应数据列的 td 宽度
+      const tbody = tableRef.current.querySelector('tbody');
+      if (tbody) {
+        const allRows = tbody.querySelectorAll('tr');
+        allRows.forEach((row) => {
+          const tds = Array.from(row.querySelectorAll('td'));
+          if (tds[thIndex]) {
+            const td = tds[thIndex] as HTMLElement;
+            td.style.width = `${newWidth}px`;
+            td.style.minWidth = `${newWidth}px`;
+            td.style.maxWidth = `${newWidth}px`;
+          }
+        });
       }
     };
 

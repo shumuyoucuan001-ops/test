@@ -26,7 +26,9 @@ import {
   Upload,
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
-import { Dayjs } from 'dayjs';
+import zhCN from 'antd/locale/zh_CN';
+import dayjs, { Dayjs } from 'dayjs';
+import 'dayjs/locale/zh-cn';
 import { useEffect, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
@@ -151,6 +153,11 @@ export default function FinanceReconciliationDifferencePage() {
       setLoading(false);
     }
   };
+
+  // 设置 dayjs 中文 locale
+  useEffect(() => {
+    dayjs.locale('zh-cn');
+  }, []);
 
   // 初始化加载
   useEffect(() => {
@@ -761,6 +768,7 @@ export default function FinanceReconciliationDifferencePage() {
               }}
               format="YYYY-MM-DD"
               placeholder={['更新时间开始', '更新时间结束']}
+              locale={zhCN.DatePicker}
             />
             {/* 综合搜索框 */}
             <Input

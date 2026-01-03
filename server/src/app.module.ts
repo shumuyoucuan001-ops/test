@@ -24,6 +24,7 @@ import { PurchasePassDifferenceModule } from './purchase-pass-difference/purchas
 import { ReceiptModule } from './receipt/receipt.module';
 import { Refund1688FollowUpModule } from './refund-1688-follow-up/refund-1688-follow-up.module';
 import { StoreRejectionModule } from './store-rejection/store-rejection.module';
+import { SupplierConversionRelationModule } from './supplier-conversion-relation/supplier-conversion-relation.module';
 import { SupplierManagementModule } from './supplier-management/supplier-management.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
@@ -58,6 +59,7 @@ import { VersionModule } from './version/version.module';
     FinanceReconciliationDifferenceModule,
     NonPurchaseBillRecordModule,
     PurchaseAmountAdjustmentModule,
+    SupplierConversionRelationModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

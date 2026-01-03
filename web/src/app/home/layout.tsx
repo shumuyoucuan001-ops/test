@@ -142,6 +142,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <ShoppingOutlined />,
     url: '/home/purchase',
   },
+  'supplier-conversion-relation': {
+    title: '供应商推送换算关系变更',
+    icon: <ShoppingOutlined />,
+    url: '/home/supplier-conversion-relation',
+  },
   'templates': {
     title: '标签模板',
     icon: <FileTextOutlined />,
