@@ -487,7 +487,7 @@ export class LabelDataService {
       `;
       const [existsResult]: any = await connection.execute(existsQuery, [data.sku, data.supplierName]);
 
-      const action = existsResult[0]?.count > 0 ? 'update' : 'create';
+      const action = existsResult.length > 0 ? 'update' : 'create';
       const changes: Record<string, any> = {};
 
       if (existsResult.length > 0) {
@@ -557,7 +557,7 @@ export class LabelDataService {
         ]);
       }
 
-      // 记录日志
+      // 记录日志（保留原有日志系统）
       Logger.log('[LabelDataService] Recording change log:', {
         sku: data.sku,
         supplierName: data.supplierName,
@@ -573,6 +573,24 @@ export class LabelDataService {
         changes,
         userId: data.userId,
         userName: data.userName,
+      });
+
+      // 记录通用操作日志
+      const operationType = action === 'create' ? 'CREATE' : 'UPDATE';
+      const logChanges: Record<string, { old?: any; new?: any }> = {};
+      Object.keys(changes).forEach(key => {
+        logChanges[key] = changes[key];
+      });
+
+      await this.operationLogService.logOperation({
+        userId: data.userId,
+        displayName: data.userName,
+        operationType: operationType,
+        targetDatabase: 'sm_xitongkaifa',
+        targetTable: 'label_data_audit',
+        recordIdentifier: { sku: data.sku, supplier_name: data.supplierName },
+        changes: logChanges,
+        operationDetails: { action, changeCount: Object.keys(changes).length },
       });
 
       Logger.log('[LabelDataService] Change log recorded successfully');

@@ -65,7 +65,7 @@ export class OperationLogService {
       }
 
       const insertLogQuery = `
-        INSERT INTO operation_log 
+        INSERT INTO sm_xitongkaifa.operation_log 
         (user_id, display_name, operation_type, target_database, target_table, 
          record_identifier, changes, operation_details, ip_address, user_agent, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -97,7 +97,18 @@ export class OperationLogService {
       });
     } catch (error) {
       // 不记录完整的错误对象，避免暴露敏感信息
-      Logger.error('[OperationLogService] Failed to insert operation log:', (error as Error)?.message || '未知错误');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      Logger.error('[OperationLogService] Failed to insert operation log:', {
+        message: errorMessage,
+        stack: errorStack,
+        data: {
+          operationType: data.operationType,
+          targetDatabase: data.targetDatabase,
+          targetTable: data.targetTable,
+          userId: data.userId,
+        }
+      });
       // 记录日志失败不应该影响主业务流程，只记录错误但不抛出异常
     } finally {
       await connection.end();
@@ -133,7 +144,7 @@ export class OperationLogService {
 
       // 批量插入日志
       const insertLogQuery = `
-        INSERT INTO operation_log 
+        INSERT INTO sm_xitongkaifa.operation_log 
         (user_id, display_name, operation_type, target_database, target_table, 
          record_identifier, changes, operation_details, ip_address, user_agent, created_at)
         VALUES ?
@@ -222,7 +233,7 @@ export class OperationLogService {
           changes,
           operation_details as operationDetails,
           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as createdAt
-        FROM operation_log
+        FROM sm_xitongkaifa.operation_log
         ${whereClause}
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
@@ -234,11 +245,11 @@ export class OperationLogService {
       // 处理JSON字段（MySQL的JSON字段会被自动解析为JavaScript对象）
       return rows.map((row: any) => ({
         ...row,
-        recordIdentifier: typeof row.recordIdentifier === 'string' 
-          ? JSON.parse(row.recordIdentifier) 
+        recordIdentifier: typeof row.recordIdentifier === 'string'
+          ? JSON.parse(row.recordIdentifier)
           : row.recordIdentifier || {},
-        changes: typeof row.changes === 'string' 
-          ? JSON.parse(row.changes) 
+        changes: typeof row.changes === 'string'
+          ? JSON.parse(row.changes)
           : row.changes || null,
         operationDetails: typeof row.operationDetails === 'string'
           ? JSON.parse(row.operationDetails)
@@ -281,7 +292,7 @@ export class OperationLogService {
           changes,
           operation_details as operationDetails,
           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as createdAt
-        FROM operation_log
+        FROM sm_xitongkaifa.operation_log
         WHERE target_database = ? 
           AND target_table = ?
           AND JSON_CONTAINS(record_identifier, ?)
@@ -300,11 +311,11 @@ export class OperationLogService {
       // 处理JSON字段
       return rows.map((row: any) => ({
         ...row,
-        recordIdentifier: typeof row.recordIdentifier === 'string' 
-          ? JSON.parse(row.recordIdentifier) 
+        recordIdentifier: typeof row.recordIdentifier === 'string'
+          ? JSON.parse(row.recordIdentifier)
           : row.recordIdentifier || {},
-        changes: typeof row.changes === 'string' 
-          ? JSON.parse(row.changes) 
+        changes: typeof row.changes === 'string'
+          ? JSON.parse(row.changes)
           : row.changes || null,
         operationDetails: typeof row.operationDetails === 'string'
           ? JSON.parse(row.operationDetails)
