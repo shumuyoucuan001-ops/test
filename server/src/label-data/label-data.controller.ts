@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { Logger } from '../utils/logger.util';
 import { LabelDataService } from './label-data.service';
 
@@ -156,16 +156,22 @@ export class LabelDataController {
       };
     }
 
-    return this.service.createOrUpdateLabelData(data);
+    const userIdNum = userId ? parseInt(userId, 10) : undefined;
+    return this.service.createOrUpdateLabelData({
+      ...data,
+      userId: userIdNum,
+    });
   }
 
   // 删除标签数据
   @Delete('delete/:sku/:supplierName')
   async deleteLabelData(
     @Param('sku') sku: string,
-    @Param('supplierName') supplierName: string
+    @Param('supplierName') supplierName: string,
+    @Headers('x-user-id') userId?: string
   ) {
-    return this.service.deleteLabelData(sku, supplierName);
+    const userIdNum = userId ? parseInt(userId, 10) : undefined;
+    return this.service.deleteLabelData(sku, supplierName, userIdNum);
   }
 
   // 获取标签数据修改日志

@@ -503,11 +503,10 @@ export default function FinanceManagementPage() {
   const handleBatchSave = useCallback(async (validItems: FinanceBill[]) => {
     try {
       const result = await financeManagementApi.batchCreate(validItems);
-      message.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       if (result.errors && result.errors.length > 0) {
         message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
-      setBatchModalVisible(false);
+      message.success('账单手动绑定采购单-批量新增数据已完成');
       refreshBills();
     } catch (e: any) {
       let errorMessage = '未知错误';

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
+import { OperationLogService } from '../operation-log/operation-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
 
@@ -15,7 +16,10 @@ export interface LabelDataItem {
 
 @Injectable()
 export class LabelDataService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private operationLogService: OperationLogService,
+  ) { }
 
   private async getXitongkaifaConnection() {
     if (!process.env.DB_PASSWORD) {
@@ -580,7 +584,7 @@ export class LabelDataService {
   }
 
   // 新增方法：删除标签数据
-  async deleteLabelData(sku: string, supplierName: string): Promise<any> {
+  async deleteLabelData(sku: string, supplierName: string, userId?: number, userName?: string): Promise<any> {
     const connection = await this.getXitongkaifaConnection();
 
     try {
@@ -590,6 +594,19 @@ export class LabelDataService {
       `;
 
       await connection.execute(deleteQuery, [sku, supplierName]);
+
+      // 记录通用操作日志
+      await this.operationLogService.logOperation({
+        userId: userId,
+        displayName: userName,
+        operationType: 'DELETE',
+        targetDatabase: 'sm_xitongkaifa',
+        targetTable: 'label_data_audit',
+        recordIdentifier: { sku, supplier_name: supplierName },
+        changes: {},
+        operationDetails: { deleted: true },
+      });
+
       return { success: true };
     } finally {
       await connection.end();

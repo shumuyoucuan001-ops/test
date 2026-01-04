@@ -359,11 +359,10 @@ export default function OpsExclusionPage() {
     const handleBatchSave = useCallback(async (validItems: OpsExclusionItem[]) => {
         try {
             const result = await opsExclusionApi.batchCreate(validItems);
-            message.success(result.message);
+            message.success('排除活动商品-批量新增数据已完成');
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
-            setBatchModalOpen(false);
             load();
         } catch (e: any) {
             showErrorBoth(e, '批量创建失败');

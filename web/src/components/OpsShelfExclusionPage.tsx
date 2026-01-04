@@ -263,11 +263,10 @@ export default function OpsShelfExclusionPage() {
     const handleBatchSave = useCallback(async (validItems: OpsShelfExclusionItem[]) => {
         try {
             const result = await opsShelfExclusionApi.batchCreate(validItems);
-            message.success(result.message);
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
-            setBatchModalOpen(false);
+            message.success('排除上下架商品-批量新增数据已完成');
             load();
         } catch (e: any) {
             showErrorBoth(e, '批量创建失败');

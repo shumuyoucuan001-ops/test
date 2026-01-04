@@ -346,11 +346,10 @@ export default function SupplierConversionRelationPage() {
     const handleBatchSave = useCallback(async (validItems: SupplierConversionRelationItem[]) => {
         try {
             const result = await supplierConversionRelationApi.batchCreate(validItems);
-            message.success(result.message);
+            message.success('供应商换算关系-批量新增数据已完成');
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
-            setBatchModalOpen(false);
             load();
         } catch (e: any) {
             showErrorBoth(e, '批量创建失败');

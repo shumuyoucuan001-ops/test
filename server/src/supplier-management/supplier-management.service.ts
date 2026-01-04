@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 @Injectable()
 export class SupplierManagementService {

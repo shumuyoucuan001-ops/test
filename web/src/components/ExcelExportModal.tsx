@@ -1,0 +1,250 @@
+"use client";
+
+import { DownloadOutlined } from "@ant-design/icons";
+import { Button, Checkbox, Modal, Space, message } from "antd";
+import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+
+export interface ExcelExportField {
+    /** 字段名（对应数据对象的key） */
+    key: string;
+    /** 字段显示名称（Excel表头） */
+    label: string;
+}
+
+export interface ExcelExportModalProps<T = any> {
+    /** 是否显示模态框 */
+    open: boolean;
+    /** 模态框标题 */
+    title?: string;
+    /** 字段配置 */
+    fields: ExcelExportField[];
+    /** 当前选中的数据 */
+    selectedData: T[];
+    /** 获取全部数据的函数 */
+    fetchAllData: () => Promise<T[]>;
+    /** 关闭模态框 */
+    onCancel: () => void;
+    /** 文件名（不包含扩展名） */
+    fileName?: string;
+}
+
+export default function ExcelExportModal<T = any>({
+    open,
+    title = "导出数据为Excel",
+    fields,
+    selectedData,
+    fetchAllData,
+    onCancel,
+    fileName = "导出数据",
+}: ExcelExportModalProps<T>) {
+    const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set(fields.map(f => f.key)));
+    const [exportType, setExportType] = useState<"all" | "selected">("all");
+    const [exporting, setExporting] = useState(false);
+
+    // 初始化选中的字段（默认全选）
+    useEffect(() => {
+        if (open) {
+            setSelectedFields(new Set(fields.map(f => f.key)));
+        }
+    }, [open, fields]);
+
+    // 切换字段选择
+    const toggleField = (key: string) => {
+        const newSelected = new Set(selectedFields);
+        if (newSelected.has(key)) {
+            newSelected.delete(key);
+        } else {
+            newSelected.add(key);
+        }
+        setSelectedFields(newSelected);
+    };
+
+    // 全选/取消全选字段
+    const toggleAllFields = (checked: boolean) => {
+        if (checked) {
+            setSelectedFields(new Set(fields.map(f => f.key)));
+        } else {
+            setSelectedFields(new Set());
+        }
+    };
+
+    // 格式化数据值
+    const formatValue = (value: any): string | number => {
+        if (value === null || value === undefined) {
+            return "";
+        }
+        if (typeof value === "number") {
+            return value;
+        }
+        if (typeof value === "boolean") {
+            return value ? "是" : "否";
+        }
+        if (typeof value === "object") {
+            return JSON.stringify(value);
+        }
+        return String(value);
+    };
+
+    // 执行导出
+    const handleExport = async () => {
+        if (selectedFields.size === 0) {
+            message.warning("请至少选择一个要导出的字段");
+            return;
+        }
+
+        setExporting(true);
+        try {
+            // 获取要导出的数据
+            let dataToExport: T[];
+            if (exportType === "selected") {
+                if (selectedData.length === 0) {
+                    message.warning("没有选中的数据");
+                    setExporting(false);
+                    return;
+                }
+                dataToExport = selectedData;
+            } else {
+                message.loading({ content: "正在获取全部数据...", key: "export" });
+                dataToExport = await fetchAllData();
+                message.destroy("export");
+            }
+
+            if (dataToExport.length === 0) {
+                message.warning("没有可导出的数据");
+                setExporting(false);
+                return;
+            }
+
+            // 构建表头（只包含选中的字段）
+            const selectedFieldsArray = fields.filter(f => selectedFields.has(f.key));
+            const headers = selectedFieldsArray.map(f => f.label);
+
+            // 构建数据行
+            const rows = dataToExport.map(item => {
+                return selectedFieldsArray.map(field => {
+                    const value = (item as any)[field.key];
+                    return formatValue(value);
+                });
+            });
+
+            // 创建工作簿
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+            // 设置列宽（自动调整）
+            const colWidths = selectedFieldsArray.map((_, index) => {
+                const columnData = rows.map(row => row[index]);
+                const maxLength = Math.max(
+                    headers[index]?.length || 10,
+                    ...columnData.map(cell => String(cell).length)
+                );
+                return { wch: Math.min(Math.max(maxLength + 2, 10), 50) };
+            });
+            ws["!cols"] = colWidths;
+
+            // 将工作表添加到工作簿
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+
+            // 生成文件名（添加时间戳）
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+            const finalFileName = `${fileName}_${timestamp}.xlsx`;
+
+            // 导出文件
+            XLSX.writeFile(wb, finalFileName);
+
+            message.success(`成功导出 ${dataToExport.length} 条数据`);
+            onCancel();
+        } catch (error: any) {
+            console.error("导出失败:", error);
+            message.error(`导出失败: ${error?.message || "未知错误"}`);
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const allFieldsSelected = selectedFields.size === fields.length;
+    const someFieldsSelected = selectedFields.size > 0 && selectedFields.size < fields.length;
+
+    return (
+        <Modal
+            open={open}
+            title={title}
+            onCancel={onCancel}
+            footer={
+                <Space>
+                    <Button onClick={onCancel}>取消</Button>
+                    <Button
+                        type="primary"
+                        icon={<DownloadOutlined />}
+                        onClick={handleExport}
+                        loading={exporting}
+                    >
+                        导出
+                    </Button>
+                </Space>
+            }
+            width={600}
+        >
+            <div style={{ padding: "16px 0" }}>
+                {/* 导出范围选择 */}
+                <div style={{ marginBottom: 24 }}>
+                    <div style={{ marginBottom: 8, fontWeight: 500 }}>导出范围：</div>
+                    <Space direction="vertical" style={{ width: "100%" }}>
+                        <Checkbox
+                            checked={exportType === "all"}
+                            onChange={(e) => setExportType(e.target.checked ? "all" : "selected")}
+                        >
+                            导出全部数据
+                        </Checkbox>
+                        <Checkbox
+                            checked={exportType === "selected"}
+                            onChange={(e) => setExportType(e.target.checked ? "selected" : "all")}
+                            disabled={selectedData.length === 0}
+                        >
+                            导出选中的数据 ({selectedData.length} 条)
+                        </Checkbox>
+                    </Space>
+                </div>
+
+                {/* 字段选择 */}
+                <div>
+                    <div style={{ marginBottom: 8, fontWeight: 500 }}>
+                        选择要导出的字段：
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                        <Checkbox
+                            checked={allFieldsSelected}
+                            indeterminate={someFieldsSelected}
+                            onChange={(e) => toggleAllFields(e.target.checked)}
+                        >
+                            全选
+                        </Checkbox>
+                    </div>
+                    <div
+                        style={{
+                            maxHeight: 300,
+                            overflowY: "auto",
+                            border: "1px solid #d9d9d9",
+                            borderRadius: 4,
+                            padding: "8px",
+                        }}
+                    >
+                        <Space direction="vertical" style={{ width: "100%" }}>
+                            {fields.map((field) => (
+                                <Checkbox
+                                    key={field.key}
+                                    checked={selectedFields.has(field.key)}
+                                    onChange={() => toggleField(field.key)}
+                                >
+                                    {field.label}
+                                </Checkbox>
+                            ))}
+                        </Space>
+                    </div>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+

@@ -3,12 +3,13 @@
 import { OpsRegularActivityDispatchItem, opsRegularActivityDispatchApi, productMasterApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
-import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
+import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
+import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof OpsRegularActivityDispatchItem, string> = {
@@ -48,6 +49,7 @@ export default function OpsRegularActivityDispatchPage() {
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+    const [exportModalOpen, setExportModalOpen] = useState(false);
 
     // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
@@ -346,15 +348,54 @@ export default function OpsRegularActivityDispatchPage() {
         };
     }, []);
 
+    // 获取全部数据（用于导出）
+    const fetchAllData = useCallback(async (): Promise<OpsRegularActivityDispatchItem[]> => {
+        try {
+            const cleanFilters = Object.fromEntries(
+                Object.entries(searchFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+            );
+            const res = await opsRegularActivityDispatchApi.list({
+                ...cleanFilters,
+                keyword: searchText || undefined,
+                page: 1,
+                limit: 100000, // 使用一个很大的limit来获取全部数据
+            });
+            if (Array.isArray(res)) {
+                return res || [];
+            } else if (res && typeof res === 'object') {
+                return res?.data || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('获取全部数据失败:', error);
+            message.error('获取全部数据失败');
+            return [];
+        }
+    }, [searchFilters, searchText]);
+
+    // 导出字段配置
+    const exportFields: ExcelExportField[] = useMemo(() => [
+        { key: 'SKU', label: 'SKU' },
+        { key: '商品名称', label: '商品名称' },
+        { key: '商品UPC', label: '商品UPC' },
+        { key: '规格', label: '规格' },
+        { key: '采购单价 (基础单位)', label: '采购单价 (基础单位)' },
+        { key: '采购单价 (采购单位)', label: '采购单价 (采购单位)' },
+        { key: '活动价', label: '活动价' },
+        { key: '活动类型', label: '活动类型' },
+        { key: '活动备注', label: '活动备注' },
+        { key: '活动确认人', label: '活动确认人' },
+        { key: '数据更新时间', label: '数据更新时间' },
+    ], []);
+
     // 批量保存
     const handleBatchSave = useCallback(async (validItems: OpsRegularActivityDispatchItem[]) => {
         try {
             const result = await opsRegularActivityDispatchApi.batchCreate(validItems);
-            message.success(result.message);
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
-            setBatchModalOpen(false);
+            message.success('手动常规活动分发-批量新增数据已完成');
             load();
         } catch (e: any) {
             showErrorBoth(e, '批量创建失败');
@@ -649,6 +690,7 @@ export default function OpsRegularActivityDispatchPage() {
                             </Space>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate} block>批量新增</Button>
+                            <Button icon={<DownloadOutlined />} onClick={() => setExportModalOpen(true)} block>导出数据</Button>
                             <Popover
                                 content={columnSettingsContent}
                                 title={null}
@@ -719,6 +761,7 @@ export default function OpsRegularActivityDispatchPage() {
                             }}>重置</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate}>批量新增</Button>
+                            <Button icon={<DownloadOutlined />} onClick={() => setExportModalOpen(true)}>导出数据</Button>
                             <Popover
                                 content={columnSettingsContent}
                                 title={null}
@@ -854,6 +897,17 @@ export default function OpsRegularActivityDispatchPage() {
                 onCancel={() => setBatchModalOpen(false)}
                 onSave={handleBatchSave}
                 createItem={createBatchItem}
+            />
+
+            {/* Excel导出弹窗 */}
+            <ExcelExportModal<OpsRegularActivityDispatchItem>
+                open={exportModalOpen}
+                title="导出数据为Excel"
+                fields={exportFields}
+                selectedData={data.filter(item => selectedRowKeys.includes(getRowKey(item)))}
+                fetchAllData={fetchAllData}
+                onCancel={() => setExportModalOpen(false)}
+                fileName="手动常规活动分发数据"
             />
         </div>
     );

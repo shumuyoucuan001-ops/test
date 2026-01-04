@@ -378,13 +378,15 @@ export default function BatchAddModal<T = any>({
             return;
         }
 
-        try {
-            await onSave(validItems);
-            setBatchItems([]);
-            setInvalidItems([]);
-        } catch (error) {
+        // 立即关闭弹框并清空数据
+        setBatchItems([]);
+        setInvalidItems([]);
+        onCancel();
+
+        // 在后台异步执行保存操作（不阻塞UI）
+        onSave(validItems).catch((error) => {
             console.error('批量保存失败:', error);
-        }
+        });
     };
 
     // 关闭模态框
