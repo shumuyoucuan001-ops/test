@@ -132,6 +132,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <TeamOutlined />,
     url: '/home/supplier-management',
   },
+  'seller-wangwang': {
+    title: '卖家旺旺',
+    icon: <TeamOutlined />,
+    url: '/home/seller-wangwang',
+  },
   'purchase-pass-difference': {
     title: '采购通过差异单',
     icon: <ShoppingOutlined />,
@@ -604,6 +609,11 @@ export default function HomeLayout({
             key: 'supplier-management',
             icon: <TeamOutlined />,
             label: '供应商管理',
+          },
+          {
+            key: 'seller-wangwang',
+            icon: <TeamOutlined />,
+            label: '卖家旺旺',
           },
           {
             key: 'supplier-conversion-relation',

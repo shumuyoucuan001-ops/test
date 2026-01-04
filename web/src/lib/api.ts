@@ -590,6 +590,47 @@ export const supplierConversionRelationApi = {
     api.post('/supplier-conversion-relation/check-batch-exists', { items }).then(res => res.data),
 };
 
+// 采购管理 - 卖家旺旺
+export interface SellerWangwangItem {
+  '供应商编码': string;
+  '卖家旺旺': string;
+}
+
+export const sellerWangwangApi = {
+  list: (params?: {
+    供应商编码?: string;
+    卖家旺旺?: string;
+    keyword?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: SellerWangwangItem[]; total: number }> => {
+    const queryParams: any = {};
+    if (params?.['供应商编码']) queryParams['供应商编码'] = params['供应商编码'];
+    if (params?.['卖家旺旺']) queryParams['卖家旺旺'] = params['卖家旺旺'];
+    if (params?.keyword) queryParams.keyword = params.keyword;
+    queryParams.page = params?.page || 1;
+    queryParams.limit = params?.limit || 20;
+    return api.get('/seller-wangwang', { params: queryParams }).then(res => res.data);
+  },
+  create: (data: SellerWangwangItem): Promise<{ success: boolean }> =>
+    api.post('/seller-wangwang', data).then(res => res.data),
+  update: (
+    original: SellerWangwangItem,
+    data: SellerWangwangItem
+  ): Promise<{ success: boolean }> =>
+    api.patch('/seller-wangwang', { original, data }).then(res => res.data),
+  remove: (data: SellerWangwangItem): Promise<{ success: boolean }> =>
+    api.delete('/seller-wangwang', { data }).then(res => res.data),
+  batchDelete: (items: SellerWangwangItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> =>
+    api.post('/seller-wangwang/batch-delete', { items }).then(res => res.data),
+  batchCreate: (items: SellerWangwangItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> =>
+    api.post('/seller-wangwang/batch-create', { items }).then(res => res.data),
+  checkExists: (data: SellerWangwangItem): Promise<{ exists: boolean }> =>
+    api.post('/seller-wangwang/check-exists', data).then(res => res.data),
+  checkBatchExists: (items: SellerWangwangItem[]): Promise<{ exists: boolean; duplicateItems: SellerWangwangItem[] }> =>
+    api.post('/seller-wangwang/check-batch-exists', { items }).then(res => res.data),
+};
+
 // 运营组管理 - 排除上下架商品
 export interface OpsShelfExclusionItem {
   SPU: string;

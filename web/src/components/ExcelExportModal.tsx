@@ -2,7 +2,7 @@
 
 import { DownloadOutlined } from "@ant-design/icons";
 import { Button, Checkbox, Modal, Space, message } from "antd";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
 export interface ExcelExportField {
@@ -38,16 +38,48 @@ export default function ExcelExportModal<T = any>({
     onCancel,
     fileName = "导出数据",
 }: ExcelExportModalProps<T>) {
-    const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set(fields.map(f => f.key)));
+    // 生成 localStorage key
+    const storageKey = `excel_export_fields_${fileName}`;
+
+    const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());
     const [exportType, setExportType] = useState<"all" | "selected">("all");
     const [exporting, setExporting] = useState(false);
 
-    // 初始化选中的字段（默认全选）
+    // 从 localStorage 加载保存的字段选择
+    const loadSavedFields = useCallback((): Set<string> => {
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                const savedKeys = JSON.parse(saved) as string[];
+                // 只保留在当前 fields 中存在的字段
+                const validKeys = savedKeys.filter(key => fields.some(f => f.key === key));
+                if (validKeys.length > 0) {
+                    return new Set(validKeys);
+                }
+            }
+        } catch (error) {
+            console.error('加载保存的字段选择失败:', error);
+        }
+        // 默认全选所有字段
+        return new Set(fields.map(f => f.key));
+    }, [fields, storageKey]);
+
+    // 保存字段选择到 localStorage
+    const saveFields = useCallback((fieldsToSave: Set<string>) => {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(Array.from(fieldsToSave)));
+        } catch (error) {
+            console.error('保存字段选择失败:', error);
+        }
+    }, [storageKey]);
+
+    // 初始化选中的字段（从 localStorage 加载或默认全选）
     useEffect(() => {
         if (open) {
-            setSelectedFields(new Set(fields.map(f => f.key)));
+            const saved = loadSavedFields();
+            setSelectedFields(saved);
         }
-    }, [open, fields]);
+    }, [open, loadSavedFields]);
 
     // 切换字段选择
     const toggleField = (key: string) => {
@@ -58,15 +90,16 @@ export default function ExcelExportModal<T = any>({
             newSelected.add(key);
         }
         setSelectedFields(newSelected);
+        saveFields(newSelected); // 保存到 localStorage
     };
 
     // 全选/取消全选字段
     const toggleAllFields = (checked: boolean) => {
-        if (checked) {
-            setSelectedFields(new Set(fields.map(f => f.key)));
-        } else {
-            setSelectedFields(new Set());
-        }
+        const newSelected: Set<string> = checked
+            ? new Set<string>(fields.map(f => f.key))
+            : new Set<string>();
+        setSelectedFields(newSelected);
+        saveFields(newSelected); // 保存到 localStorage
     };
 
     // 格式化数据值
