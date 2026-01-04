@@ -65,16 +65,20 @@ export class FinanceManagementController {
   @Delete()
   async deleteBill(
     @Body() body: { transactionNumber: string; qianniuhuaPurchaseNumber?: string },
+    @Headers('x-user-id') userId?: string,
   ): Promise<boolean> {
-    return this.service.deleteBill(body.transactionNumber, body.qianniuhuaPurchaseNumber);
+    const userIdNum = userId ? parseInt(userId, 10) : undefined;
+    return this.service.deleteBill(body.transactionNumber, body.qianniuhuaPurchaseNumber, userIdNum);
   }
 
   // 批量删除账单
   @Delete('batch')
   async deleteBills(
     @Body() body: { bills: Array<{ transactionNumber: string; qianniuhuaPurchaseNumber?: string }> },
+    @Headers('x-user-id') userId?: string,
   ): Promise<{ success: number; failed: number }> {
-    return this.service.deleteBills(body.bills);
+    const userIdNum = userId ? parseInt(userId, 10) : undefined;
+    return this.service.deleteBills(body.bills, userIdNum);
   }
 }
 

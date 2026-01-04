@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Patch, Post, Query } from '@nestjs/common';
 import type { OpsActivityDispatchItem } from './ops-activity-dispatch.service';
 import { OpsActivityDispatchService } from './ops-activity-dispatch.service';
 
@@ -38,32 +38,52 @@ export class OpsActivityDispatchController {
     }
 
     @Post()
-    async create(@Body() body: OpsActivityDispatchItem) {
-        await this.service.create(body);
+    async create(
+        @Body() body: OpsActivityDispatchItem,
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        await this.service.create(body, userIdNum);
         return { success: true };
     }
 
     @Patch()
-    async update(@Body() body: { original: OpsActivityDispatchItem; data: OpsActivityDispatchItem }) {
-        await this.service.update(body.original, body.data);
+    async update(
+        @Body() body: { original: OpsActivityDispatchItem; data: OpsActivityDispatchItem },
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        await this.service.update(body.original, body.data, userIdNum);
         return { success: true };
     }
 
     @Delete()
-    async remove(@Body() body: OpsActivityDispatchItem) {
-        await this.service.remove(body);
+    async remove(
+        @Body() body: OpsActivityDispatchItem,
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        await this.service.remove(body, userIdNum);
         return { success: true };
     }
 
     @Post('batch-delete')
-    async batchRemove(@Body() body: { items: OpsActivityDispatchItem[] }) {
-        const result = await this.service.batchRemove(body.items);
+    async batchRemove(
+        @Body() body: { items: OpsActivityDispatchItem[] },
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        const result = await this.service.batchRemove(body.items, userIdNum);
         return result;
     }
 
     @Post('batch-create')
-    async batchCreate(@Body() body: { items: OpsActivityDispatchItem[] }) {
-        const result = await this.service.batchCreate(body.items);
+    async batchCreate(
+        @Body() body: { items: OpsActivityDispatchItem[] },
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        const result = await this.service.batchCreate(body.items, userIdNum);
         return result;
     }
 

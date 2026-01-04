@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Patch, Post, Query } from '@nestjs/common';
 import type { OpsShelfExclusionItem } from './ops-shelf-exclusion.service';
 import { OpsShelfExclusionService } from './ops-shelf-exclusion.service';
 
@@ -28,32 +28,52 @@ export class OpsShelfExclusionController {
     }
 
     @Post()
-    async create(@Body() body: OpsShelfExclusionItem) {
-        await this.service.create(body);
+    async create(
+        @Body() body: OpsShelfExclusionItem,
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        await this.service.create(body, userIdNum);
         return { success: true };
     }
 
     @Patch()
-    async update(@Body() body: { original: OpsShelfExclusionItem; data: OpsShelfExclusionItem }) {
-        await this.service.update(body.original, body.data);
+    async update(
+        @Body() body: { original: OpsShelfExclusionItem; data: OpsShelfExclusionItem },
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        await this.service.update(body.original, body.data, userIdNum);
         return { success: true };
     }
 
     @Delete()
-    async remove(@Body() body: OpsShelfExclusionItem) {
-        await this.service.remove(body);
+    async remove(
+        @Body() body: OpsShelfExclusionItem,
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        await this.service.remove(body, userIdNum);
         return { success: true };
     }
 
     @Post('batch-delete')
-    async batchRemove(@Body() body: { items: OpsShelfExclusionItem[] }) {
-        const result = await this.service.batchRemove(body.items);
+    async batchRemove(
+        @Body() body: { items: OpsShelfExclusionItem[] },
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        const result = await this.service.batchRemove(body.items, userIdNum);
         return result;
     }
 
     @Post('batch-create')
-    async batchCreate(@Body() body: { items: OpsShelfExclusionItem[] }) {
-        const result = await this.service.batchCreate(body.items);
+    async batchCreate(
+        @Body() body: { items: OpsShelfExclusionItem[] },
+        @Headers('x-user-id') userId?: string
+    ) {
+        const userIdNum = userId ? parseInt(userId, 10) : undefined;
+        const result = await this.service.batchCreate(body.items, userIdNum);
         return result;
     }
 

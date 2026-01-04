@@ -97,6 +97,7 @@ export class MaxPurchaseQuantityController {
             storeName: string;
             sku: string;
         },
+        @Headers('x-user-id') userId?: string,
     ): Promise<{ success: boolean }> {
         Logger.log('[MaxPurchaseQuantityController] ========== 删除请求开始 ==========');
         // 安全序列化 body（处理可能的 BigInt）
@@ -112,7 +113,8 @@ export class MaxPurchaseQuantityController {
         Logger.log('[MaxPurchaseQuantityController] body.sku 类型:', typeof body?.sku);
 
         try {
-            await this.service.delete(body);
+            const userIdNum = userId ? Number(userId) : undefined;
+            await this.service.delete(body, userIdNum);
             Logger.log('[MaxPurchaseQuantityController] 删除成功');
             Logger.log('[MaxPurchaseQuantityController] ========== 删除请求结束 ==========');
             return { success: true };

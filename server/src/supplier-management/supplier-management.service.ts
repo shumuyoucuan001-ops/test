@@ -5,6 +5,8 @@ import { OperationLogService } from '../operation-log/operation-log.service';
 
 @Injectable()
 export class SupplierManagementService {
+  constructor(private operationLogService: OperationLogService) {}
+
   private async getXitongkaifaConnection() {
     if (!process.env.DB_PASSWORD) {
       throw new Error('DB_PASSWORD environment variable is required');
@@ -151,13 +153,31 @@ export class SupplierManagementService {
         ]);
       }
 
-      // 记录日志
+      // 记录日志（保留原有日志系统）
       await this.logChange(connection, {
         supplierCode: data.supplierCode,
         action,
         changes,
         userId: data.userId,
         userName: data.userName,
+      });
+
+      // 记录通用操作日志
+      const operationType = action === 'create' ? 'CREATE' : 'UPDATE';
+      const logChanges: Record<string, { old?: any; new?: any }> = {};
+      Object.keys(changes).forEach(key => {
+        logChanges[key] = changes[key];
+      });
+
+      await this.operationLogService.logOperation({
+        userId: data.userId,
+        displayName: data.userName,
+        operationType: operationType,
+        targetDatabase: 'sm_xitongkaifa',
+        targetTable: 'supplier_management',
+        recordIdentifier: { supplier_code: data.supplierCode },
+        changes: logChanges,
+        operationDetails: { action, changeCount: Object.keys(changes).length },
       });
 
       return { success: true };

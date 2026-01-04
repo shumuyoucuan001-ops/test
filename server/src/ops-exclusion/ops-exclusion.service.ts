@@ -2,6 +2,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface OpsExclusionItem {
     '视图名称': string;
@@ -18,7 +19,10 @@ export interface OpsExclusionItem {
 
 @Injectable()
 export class OpsExclusionService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private operationLogService: OperationLogService,
+    ) { }
 
     private table = '`sm_cuxiaohuodong`.`活动视图排除规则`';
 
@@ -140,7 +144,7 @@ export class OpsExclusionService {
         return { data, total };
     }
 
-    async create(item: OpsExclusionItem): Promise<void> {
+    async create(item: OpsExclusionItem, userId?: number, userName?: string): Promise<void> {
         this.validate(item);
         try {
             await this.prisma.$executeRawUnsafe(
@@ -151,6 +155,23 @@ export class OpsExclusionService {
                 item['SPU编码'] || '',
                 item['备注'] || null,
             );
+
+            // 记录操作日志
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: userName,
+                operationType: 'CREATE',
+                targetDatabase: 'sm_cuxiaohuodong',
+                targetTable: '活动视图排除规则',
+                recordIdentifier: {
+                    视图名称: item['视图名称'],
+                    门店编码: item['门店编码'],
+                    SKU编码: item['SKU编码'],
+                    SPU编码: item['SPU编码'],
+                },
+                changes: {},
+                operationDetails: { new_data: item },
+            });
         } catch (error: any) {
             Logger.error('[OpsExclusionService] Create error:', error);
             // 捕获数据库主键冲突错误（多种格式）
@@ -168,7 +189,7 @@ export class OpsExclusionService {
         }
     }
 
-    async update(original: OpsExclusionItem, data: OpsExclusionItem): Promise<void> {
+    async update(original: OpsExclusionItem, data: OpsExclusionItem, userId?: number, userName?: string): Promise<void> {
         this.validate(data);
         const affected = await this.prisma.$executeRawUnsafe(
             `UPDATE ${this.table}
@@ -181,9 +202,43 @@ export class OpsExclusionService {
         if (!affected) {
             throw new BadRequestException('未找到原记录，更新失败');
         }
+
+        // 记录操作日志
+        const changes: Record<string, { old?: any; new?: any }> = {};
+        if (original['视图名称'] !== data['视图名称']) {
+            changes['视图名称'] = { old: original['视图名称'], new: data['视图名称'] };
+        }
+        if (original['门店编码'] !== data['门店编码']) {
+            changes['门店编码'] = { old: original['门店编码'], new: data['门店编码'] };
+        }
+        if (original['SKU编码'] !== data['SKU编码']) {
+            changes['SKU编码'] = { old: original['SKU编码'], new: data['SKU编码'] };
+        }
+        if (original['SPU编码'] !== data['SPU编码']) {
+            changes['SPU编码'] = { old: original['SPU编码'], new: data['SPU编码'] };
+        }
+        if (original['备注'] !== data['备注']) {
+            changes['备注'] = { old: original['备注'], new: data['备注'] };
+        }
+
+        await this.operationLogService.logOperation({
+            userId: userId,
+            displayName: userName,
+            operationType: 'UPDATE',
+            targetDatabase: 'sm_cuxiaohuodong',
+            targetTable: '活动视图排除规则',
+            recordIdentifier: {
+                视图名称: original['视图名称'],
+                门店编码: original['门店编码'],
+                SKU编码: original['SKU编码'],
+                SPU编码: original['SPU编码'],
+            },
+            changes: changes,
+            operationDetails: { original, updated: data },
+        });
     }
 
-    async remove(item: OpsExclusionItem): Promise<void> {
+    async remove(item: OpsExclusionItem, userId?: number, userName?: string): Promise<void> {
         const affected = await this.prisma.$executeRawUnsafe(
             `DELETE FROM ${this.table} WHERE \`视图名称\`=? AND COALESCE(\`门店编码\`, '') = COALESCE(?, '') AND COALESCE(\`SKU编码\`, '') = COALESCE(?, '') AND COALESCE(\`SPU编码\`, '') = COALESCE(?, '')`,
             item['视图名称'] || '', item['门店编码'] || '', item['SKU编码'] || '', item['SPU编码'] || '',
@@ -192,6 +247,23 @@ export class OpsExclusionService {
         if (!affected) {
             throw new BadRequestException('未找到记录，删除失败');
         }
+
+        // 记录操作日志
+        await this.operationLogService.logOperation({
+            userId: userId,
+            displayName: userName,
+            operationType: 'DELETE',
+            targetDatabase: 'sm_cuxiaohuodong',
+            targetTable: '活动视图排除规则',
+            recordIdentifier: {
+                视图名称: item['视图名称'],
+                门店编码: item['门店编码'],
+                SKU编码: item['SKU编码'],
+                SPU编码: item['SPU编码'],
+            },
+            changes: {},
+            operationDetails: { deleted_data: item },
+        });
     }
 
     async batchRemove(items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> {
@@ -211,6 +283,22 @@ export class OpsExclusionService {
                 // @ts-ignore
                 if (affected) {
                     deletedCount++;
+                    // 记录操作日志
+                    await this.operationLogService.logOperation({
+                        userId: userId,
+                        displayName: userName,
+                        operationType: 'DELETE',
+                        targetDatabase: 'sm_cuxiaohuodong',
+                        targetTable: '活动视图排除规则',
+                        recordIdentifier: {
+                            视图名称: item['视图名称'],
+                            门店编码: item['门店编码'],
+                            SKU编码: item['SKU编码'],
+                            SPU编码: item['SPU编码'],
+                        },
+                        changes: {},
+                        operationDetails: { deleted_data: item },
+                    });
                 }
             } catch (error: any) {
                 errors.push(`删除失败: ${item['视图名称']} - ${error?.message || '未知错误'}`);
@@ -246,7 +334,7 @@ export class OpsExclusionService {
         // 逐条插入，避免批量插入时的错误处理复杂
         for (const item of items) {
             try {
-                await this.create(item);
+                await this.create(item, userId, userName);
                 createdCount++;
             } catch (error: any) {
                 const errorMsg = error?.message || '创建失败';

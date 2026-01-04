@@ -101,8 +101,10 @@ export class MaxStoreSkuInventoryController {
             storeName: string;
             sku: string;
         },
+        @Headers('x-user-id') userId?: string,
     ): Promise<{ success: boolean }> {
-        await this.service.delete(body);
+        const userIdNum = userId ? Number(userId) : undefined;
+        await this.service.delete(body, userIdNum);
         return { success: true };
     }
 }

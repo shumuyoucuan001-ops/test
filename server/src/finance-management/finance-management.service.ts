@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface FinanceBill {
     transactionNumber: string; // 交易单号（主键之一）
@@ -14,6 +15,8 @@ export interface FinanceBill {
 
 @Injectable()
 export class FinanceManagementService {
+    constructor(private operationLogService: OperationLogService) {}
+
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
             throw new Error('DB_PASSWORD environment variable is required');
@@ -278,6 +281,22 @@ export class FinanceManagementService {
             if (!bill) {
                 throw new Error('创建账单失败');
             }
+
+            // 记录操作日志
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: modifier || undefined,
+                operationType: 'CREATE',
+                targetDatabase: 'sm_zhangdan_caiwu',
+                targetTable: '手动绑定对账单号',
+                recordIdentifier: {
+                    交易单号: data.transactionNumber,
+                    牵牛花采购单号: data.qianniuhuaPurchaseNumber || null,
+                },
+                changes: {},
+                operationDetails: { new_data: { ...bill, image: bill.hasImage ? '[图片已保存]' : null } },
+            });
+
             return bill;
         } catch (error: any) {
             Logger.error('[FinanceManagementService] Failed to create bill:', error);
@@ -353,6 +372,24 @@ export class FinanceManagementService {
                         imageBuffer,
                         modifier || null,
                     ]);
+
+                    // 记录操作日志
+                    const createdBill = await this.getBill(bill.transactionNumber, bill.qianniuhuaPurchaseNumber || undefined);
+                    if (createdBill) {
+                        await this.operationLogService.logOperation({
+                            userId: userId,
+                            displayName: modifier || undefined,
+                            operationType: 'CREATE',
+                            targetDatabase: 'sm_zhangdan_caiwu',
+                            targetTable: '手动绑定对账单号',
+                            recordIdentifier: {
+                                交易单号: bill.transactionNumber,
+                                牵牛花采购单号: bill.qianniuhuaPurchaseNumber || null,
+                            },
+                            changes: {},
+                            operationDetails: { new_data: { ...createdBill, image: createdBill.hasImage ? '[图片已保存]' : null } },
+                        });
+                    }
 
                     success++;
                 } catch (error: any) {
@@ -442,12 +479,47 @@ export class FinanceManagementService {
         WHERE ${whereClause}
       `;
 
+            // 先获取原记录
+            const oldBill = await this.getBill(transactionNumber, qianniuhuaPurchaseNumber);
+            
             await connection.execute(updateQuery, updateValues);
 
             const bill = await this.getBill(transactionNumber, data.qianniuhuaPurchaseNumber || qianniuhuaPurchaseNumber);
             if (!bill) {
                 throw new Error('更新账单失败');
             }
+
+            // 记录操作日志
+            const changes: Record<string, { old?: any; new?: any }> = {};
+            if (oldBill) {
+                if (data.qianniuhuaPurchaseNumber !== undefined && oldBill.qianniuhuaPurchaseNumber !== bill.qianniuhuaPurchaseNumber) {
+                    changes['牵牛花采购单号'] = { old: oldBill.qianniuhuaPurchaseNumber || null, new: bill.qianniuhuaPurchaseNumber || null };
+                }
+                if (data.importExceptionRemark !== undefined && oldBill.importExceptionRemark !== bill.importExceptionRemark) {
+                    changes['导入异常备注'] = { old: oldBill.importExceptionRemark || null, new: bill.importExceptionRemark || null };
+                }
+                if (data.image !== undefined) {
+                    changes['图片'] = { old: oldBill.hasImage ? '[图片已保存]' : null, new: bill.hasImage ? '[图片已保存]' : null };
+                }
+                if (oldBill.modifier !== bill.modifier) {
+                    changes['修改人'] = { old: oldBill.modifier || null, new: bill.modifier || null };
+                }
+            }
+
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: modifier || undefined,
+                operationType: 'UPDATE',
+                targetDatabase: 'sm_zhangdan_caiwu',
+                targetTable: '手动绑定对账单号',
+                recordIdentifier: {
+                    交易单号: transactionNumber,
+                    牵牛花采购单号: qianniuhuaPurchaseNumber || null,
+                },
+                changes: changes,
+                operationDetails: { original: oldBill ? { ...oldBill, image: oldBill.hasImage ? '[图片已保存]' : null } : null, updated: { ...bill, image: bill.hasImage ? '[图片已保存]' : null } },
+            });
+
             return bill;
         } finally {
             await connection.end();
@@ -455,11 +527,14 @@ export class FinanceManagementService {
     }
 
     // 删除账单（根据交易单号和牵牛花采购单号）
-    async deleteBill(transactionNumber: string, qianniuhuaPurchaseNumber?: string): Promise<boolean> {
+    async deleteBill(transactionNumber: string, qianniuhuaPurchaseNumber?: string, userId?: number): Promise<boolean> {
         const connection = await this.getConnection();
 
         try {
             await this.ensureTableExists(connection);
+
+            // 先获取要删除的记录信息
+            const oldBill = await this.getBill(transactionNumber, qianniuhuaPurchaseNumber);
 
             let deleteQuery: string;
             let params: any[];
@@ -475,6 +550,29 @@ export class FinanceManagementService {
             }
 
             await connection.execute(deleteQuery, params);
+
+            // 记录操作日志
+            if (oldBill) {
+                let displayName: string | null = null;
+                if (userId) {
+                    displayName = await this.getDisplayNameByUserId(userId);
+                }
+
+                await this.operationLogService.logOperation({
+                    userId: userId,
+                    displayName: displayName || undefined,
+                    operationType: 'DELETE',
+                    targetDatabase: 'sm_zhangdan_caiwu',
+                    targetTable: '手动绑定对账单号',
+                    recordIdentifier: {
+                        交易单号: transactionNumber,
+                        牵牛花采购单号: qianniuhuaPurchaseNumber || null,
+                    },
+                    changes: {},
+                    operationDetails: { deleted_data: { ...oldBill, image: oldBill.hasImage ? '[图片已保存]' : null } },
+                });
+            }
+
             return true;
         } finally {
             await connection.end();
@@ -482,7 +580,7 @@ export class FinanceManagementService {
     }
 
     // 批量删除账单（根据交易单号和牵牛花采购单号列表）
-    async deleteBills(bills: Array<{ transactionNumber: string; qianniuhuaPurchaseNumber?: string }>): Promise<{ success: number; failed: number }> {
+    async deleteBills(bills: Array<{ transactionNumber: string; qianniuhuaPurchaseNumber?: string }>, userId?: number): Promise<{ success: number; failed: number }> {
         const connection = await this.getConnection();
 
         try {
@@ -497,7 +595,7 @@ export class FinanceManagementService {
 
             for (const bill of bills) {
                 try {
-                    await this.deleteBill(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
+                    await this.deleteBill(bill.transactionNumber, bill.qianniuhuaPurchaseNumber, userId);
                     success++;
                 } catch (error) {
                     failed++;

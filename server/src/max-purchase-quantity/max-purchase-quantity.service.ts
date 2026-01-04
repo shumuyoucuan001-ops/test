@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface MaxPurchaseQuantityItem {
     '仓店名称': string;
@@ -16,7 +17,10 @@ export interface MaxPurchaseQuantityItem {
 
 @Injectable()
 export class MaxPurchaseQuantityService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private operationLogService: OperationLogService,
+    ) { }
 
     private readonly table = '`sm_chaigou`.`单次最高采购量`';
     private readonly warehousePriorityTable = '`sm_chaigou`.`仓库优先级`';
@@ -467,7 +471,7 @@ export class MaxPurchaseQuantityService {
 
             if (result && result.length > 0) {
                 const r = result[0];
-                return {
+                const createdItem = {
                     '仓店名称': String(r['仓店名称'] || ''),
                     'SKU': String(r['SKU'] || ''),
                     '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
@@ -478,6 +482,23 @@ export class MaxPurchaseQuantityService {
                     '商品UPC': null,
                     '规格': null,
                 };
+
+                // 记录操作日志
+                await this.operationLogService.logOperation({
+                    userId: userId,
+                    displayName: modifier,
+                    operationType: 'CREATE',
+                    targetDatabase: 'sm_chaigou',
+                    targetTable: '单次最高采购量',
+                    recordIdentifier: {
+                        仓店名称: data.storeName.trim(),
+                        SKU: data.sku.trim(),
+                    },
+                    changes: {},
+                    operationDetails: { new_data: createdItem },
+                });
+
+                return createdItem;
             }
 
             throw new Error('创建失败，无法获取创建的记录');
@@ -609,7 +630,7 @@ export class MaxPurchaseQuantityService {
 
             if (result && result.length > 0) {
                 const r = result[0];
-                return {
+                const updatedItem = {
                     '仓店名称': String(r['仓店名称'] || ''),
                     'SKU': String(r['SKU'] || ''),
                     '单次最高采购量(基本单位)': Number(r['单次最高采购量(基本单位)'] || 0),
@@ -620,6 +641,38 @@ export class MaxPurchaseQuantityService {
                     '商品UPC': null,
                     '规格': null,
                 };
+
+                // 记录操作日志
+                const oldRecord = existing[0];
+                const changes: Record<string, { old?: any; new?: any }> = {};
+                if (data.storeName !== undefined && oldRecord['仓店名称'] !== newStoreName) {
+                    changes['仓店名称'] = { old: oldRecord['仓店名称'], new: newStoreName };
+                }
+                if (data.sku !== undefined && oldRecord['SKU'] !== newSku) {
+                    changes['SKU'] = { old: oldRecord['SKU'], new: newSku };
+                }
+                if (data.maxQuantity !== undefined && oldRecord['单次最高采购量(基本单位)'] !== data.maxQuantity) {
+                    changes['单次最高采购量(基本单位)'] = { old: oldRecord['单次最高采购量(基本单位)'], new: data.maxQuantity };
+                }
+                if (oldRecord['修改人'] !== modifier) {
+                    changes['修改人'] = { old: oldRecord['修改人'], new: modifier };
+                }
+
+                await this.operationLogService.logOperation({
+                    userId: userId,
+                    displayName: modifier,
+                    operationType: 'UPDATE',
+                    targetDatabase: 'sm_chaigou',
+                    targetTable: '单次最高采购量',
+                    recordIdentifier: {
+                        仓店名称: original.storeName.trim(),
+                        SKU: original.sku.trim(),
+                    },
+                    changes: changes,
+                    operationDetails: { original: oldRecord, updated: updatedItem },
+                });
+
+                return updatedItem;
             }
 
             throw new Error('更新失败，无法获取更新的记录');
@@ -638,7 +691,7 @@ export class MaxPurchaseQuantityService {
     async delete(data: {
         storeName: string;
         sku: string;
-    }): Promise<void> {
+    }, userId?: number): Promise<void> {
         Logger.log('[MaxPurchaseQuantityService] ========== 开始删除记录 ==========');
         Logger.log('[MaxPurchaseQuantityService] 接收到的数据:', this.safeStringify(data));
         Logger.log('[MaxPurchaseQuantityService] storeName:', data?.storeName);
@@ -652,6 +705,14 @@ export class MaxPurchaseQuantityService {
         Logger.log('[MaxPurchaseQuantityService] SQL参数2 (SKU):', data.sku.trim());
 
         try {
+            // 先获取要删除的记录信息
+            const selectSql = `SELECT * FROM ${this.table} WHERE \`仓店名称\` = ? AND \`SKU\` = ?`;
+            const existing: any[] = await this.prisma.$queryRawUnsafe(
+                selectSql,
+                data.storeName.trim(),
+                data.sku.trim()
+            );
+
             const affected = await this.prisma.$executeRawUnsafe(
                 deleteSql,
                 data.storeName.trim(),
@@ -666,6 +727,33 @@ export class MaxPurchaseQuantityService {
                 Logger.warn('[MaxPurchaseQuantityService] 未找到记录，删除失败');
                 throw new BadRequestException('未找到记录，删除失败');
             }
+
+            // 记录操作日志
+            if (existing && existing.length > 0) {
+                const deletedRecord = existing[0];
+                let displayName = '系统';
+                if (userId) {
+                    const userName = await this.getUserDisplayName(userId);
+                    if (userName) {
+                        displayName = userName;
+                    }
+                }
+
+                await this.operationLogService.logOperation({
+                    userId: userId,
+                    displayName: displayName,
+                    operationType: 'DELETE',
+                    targetDatabase: 'sm_chaigou',
+                    targetTable: '单次最高采购量',
+                    recordIdentifier: {
+                        仓店名称: data.storeName.trim(),
+                        SKU: data.sku.trim(),
+                    },
+                    changes: {},
+                    operationDetails: { deleted_data: deletedRecord },
+                });
+            }
+
             Logger.log('[MaxPurchaseQuantityService] 删除成功，影响行数:', affected);
             Logger.log('[MaxPurchaseQuantityService] ========== 删除记录结束 ==========');
         } catch (error: any) {

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface NonPurchaseBillRecord {
     账单流水: string; // 主键
@@ -19,6 +20,8 @@ export interface NonPurchaseBillRecord {
 
 @Injectable()
 export class NonPurchaseBillRecordService {
+    constructor(private operationLogService: OperationLogService) {}
+
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
             throw new Error('DB_PASSWORD environment variable is required');
@@ -272,6 +275,19 @@ export class NonPurchaseBillRecordService {
             if (!record) {
                 throw new Error('创建记录失败');
             }
+
+            // 记录操作日志
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: 记录修改人 || undefined,
+                operationType: 'CREATE',
+                targetDatabase: 'sm_zhangdan_caiwu',
+                targetTable: '非采购单流水记录',
+                recordIdentifier: { 账单流水: data.账单流水 },
+                changes: {},
+                operationDetails: { new_data: { ...record, 图片: record.图片 ? '[图片已保存]' : null } },
+            });
+
             return record;
         } catch (error: any) {
             Logger.error('[NonPurchaseBillRecordService] Failed to create record:', error);
@@ -333,6 +349,21 @@ export class NonPurchaseBillRecordService {
                         记录修改人 || null,
                         record.财务审核人 || null,
                     ]);
+
+                    // 记录操作日志
+                    const createdRecord = await this.getRecord(record.账单流水);
+                    if (createdRecord) {
+                        await this.operationLogService.logOperation({
+                            userId: userId,
+                            displayName: 记录修改人 || undefined,
+                            operationType: 'CREATE',
+                            targetDatabase: 'sm_zhangdan_caiwu',
+                            targetTable: '非采购单流水记录',
+                            recordIdentifier: { 账单流水: record.账单流水 },
+                            changes: {},
+                            operationDetails: { new_data: { ...createdRecord, 图片: createdRecord.图片 ? '[图片已保存]' : null } },
+                        });
+                    }
 
                     success++;
                 } catch (error: any) {
@@ -426,12 +457,60 @@ export class NonPurchaseBillRecordService {
                 WHERE 账单流水 = ?
             `;
 
+            // 先获取原记录
+            const oldRecord = await this.getRecord(账单流水);
+            if (!oldRecord) {
+                throw new BadRequestException('要更新的记录不存在');
+            }
+
             await connection.execute(updateQuery, updateValues);
 
             const record = await this.getRecord(账单流水);
             if (!record) {
                 throw new Error('更新记录失败');
             }
+
+            // 记录操作日志
+            const changes: Record<string, { old?: any; new?: any }> = {};
+            if (data.记账金额 !== undefined && oldRecord.记账金额 !== record.记账金额) {
+                changes['记账金额'] = { old: oldRecord.记账金额 || null, new: record.记账金额 || null };
+            }
+            if (data.账单类型 !== undefined && oldRecord.账单类型 !== record.账单类型) {
+                changes['账单类型'] = { old: oldRecord.账单类型 || null, new: record.账单类型 || null };
+            }
+            if (data.所属仓店 !== undefined && oldRecord.所属仓店 !== record.所属仓店) {
+                changes['所属仓店'] = { old: oldRecord.所属仓店 || null, new: record.所属仓店 || null };
+            }
+            if (data.账单流水备注 !== undefined && oldRecord.账单流水备注 !== record.账单流水备注) {
+                changes['账单流水备注'] = { old: oldRecord.账单流水备注 || null, new: record.账单流水备注 || null };
+            }
+            if (data.图片 !== undefined) {
+                changes['图片'] = { old: oldRecord.图片 ? '[图片已保存]' : null, new: record.图片 ? '[图片已保存]' : null };
+            }
+            if (data.财务记账凭证号 !== undefined && oldRecord.财务记账凭证号 !== record.财务记账凭证号) {
+                changes['财务记账凭证号'] = { old: oldRecord.财务记账凭证号 || null, new: record.财务记账凭证号 || null };
+            }
+            if (data.财务审核状态 !== undefined && oldRecord.财务审核状态 !== record.财务审核状态) {
+                changes['财务审核状态'] = { old: oldRecord.财务审核状态 || null, new: record.财务审核状态 || null };
+            }
+            if (data.财务审核人 !== undefined && oldRecord.财务审核人 !== record.财务审核人) {
+                changes['财务审核人'] = { old: oldRecord.财务审核人 || null, new: record.财务审核人 || null };
+            }
+            if (oldRecord.记录修改人 !== record.记录修改人) {
+                changes['记录修改人'] = { old: oldRecord.记录修改人 || null, new: record.记录修改人 || null };
+            }
+
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: 记录修改人 || undefined,
+                operationType: 'UPDATE',
+                targetDatabase: 'sm_zhangdan_caiwu',
+                targetTable: '非采购单流水记录',
+                recordIdentifier: { 账单流水: 账单流水 },
+                changes: changes,
+                operationDetails: { original: { ...oldRecord, 图片: oldRecord.图片 ? '[图片已保存]' : null }, updated: { ...record, 图片: record.图片 ? '[图片已保存]' : null } },
+            });
+
             return record;
         } catch (error: any) {
             Logger.error('[NonPurchaseBillRecordService] Failed to update record:', error);
@@ -442,12 +521,35 @@ export class NonPurchaseBillRecordService {
     }
 
     // 删除记录
-    async deleteRecord(账单流水: string): Promise<boolean> {
+    async deleteRecord(账单流水: string, userId?: number): Promise<boolean> {
         const connection = await this.getConnection();
 
         try {
+            // 先获取要删除的记录信息
+            const oldRecord = await this.getRecord(账单流水);
+
             const deleteQuery = `DELETE FROM \`非采购单流水记录\` WHERE 账单流水 = ?`;
             await connection.execute(deleteQuery, [账单流水]);
+
+            // 记录操作日志
+            if (oldRecord) {
+                let displayName: string | null = null;
+                if (userId) {
+                    displayName = await this.getDisplayNameByUserId(userId);
+                }
+
+                await this.operationLogService.logOperation({
+                    userId: userId,
+                    displayName: displayName || undefined,
+                    operationType: 'DELETE',
+                    targetDatabase: 'sm_zhangdan_caiwu',
+                    targetTable: '非采购单流水记录',
+                    recordIdentifier: { 账单流水: 账单流水 },
+                    changes: {},
+                    operationDetails: { deleted_data: { ...oldRecord, 图片: oldRecord.图片 ? '[图片已保存]' : null } },
+                });
+            }
+
             return true;
         } catch (error: any) {
             Logger.error('[NonPurchaseBillRecordService] Failed to delete record:', error);
@@ -458,7 +560,7 @@ export class NonPurchaseBillRecordService {
     }
 
     // 批量删除记录
-    async deleteRecords(账单流水列表: string[]): Promise<{ success: number; failed: number }> {
+    async deleteRecords(账单流水列表: string[], userId?: number): Promise<{ success: number; failed: number }> {
         const connection = await this.getConnection();
 
         try {
@@ -471,7 +573,7 @@ export class NonPurchaseBillRecordService {
 
             for (const 账单流水 of 账单流水列表) {
                 try {
-                    await this.deleteRecord(账单流水);
+                    await this.deleteRecord(账单流水, userId);
                     success++;
                 } catch (error) {
                     failed++;

@@ -2,6 +2,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface OpsActivityDispatchItem {
     'SKU': string;
@@ -24,7 +25,10 @@ export interface OpsActivityDispatchItem {
 
 @Injectable()
 export class OpsActivityDispatchService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private operationLogService: OperationLogService,
+    ) { }
 
     private table = '`sm_cuxiaohuodong`.`手动强制活动分发`';
 
@@ -225,6 +229,18 @@ export class OpsActivityDispatchService {
                 item['活动确认人'] || null,
                 结束时间Date,
             );
+
+            // 记录操作日志
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: userName,
+                operationType: 'CREATE',
+                targetDatabase: 'sm_cuxiaohuodong',
+                targetTable: '手动强制活动分发',
+                recordIdentifier: { SKU: item['SKU'] },
+                changes: {},
+                operationDetails: { new_data: item },
+            });
         } catch (error: any) {
             Logger.error('[OpsActivityDispatchService] Create error:', error);
             // 捕获数据库主键冲突错误（多种格式）
@@ -242,7 +258,7 @@ export class OpsActivityDispatchService {
         }
     }
 
-    async update(original: OpsActivityDispatchItem, data: OpsActivityDispatchItem): Promise<void> {
+    async update(original: OpsActivityDispatchItem, data: OpsActivityDispatchItem, userId?: number, userName?: string): Promise<void> {
         this.validate(data);
 
         // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数；如果结束时间为空，则不修改剩余活动天数
@@ -280,7 +296,7 @@ export class OpsActivityDispatchService {
         }
     }
 
-    async remove(item: OpsActivityDispatchItem): Promise<void> {
+    async remove(item: OpsActivityDispatchItem, userId?: number, userName?: string): Promise<void> {
         const affected = await this.prisma.$executeRawUnsafe(
             `DELETE FROM ${this.table} WHERE \`SKU\`=?`,
             item['SKU'] || '',
@@ -289,9 +305,21 @@ export class OpsActivityDispatchService {
         if (!affected) {
             throw new BadRequestException('未找到记录，删除失败');
         }
+
+        // 记录操作日志
+        await this.operationLogService.logOperation({
+            userId: userId,
+            displayName: userName,
+            operationType: 'DELETE',
+            targetDatabase: 'sm_cuxiaohuodong',
+            targetTable: '手动强制活动分发',
+            recordIdentifier: { SKU: item['SKU'] },
+            changes: {},
+            operationDetails: { deleted_data: item },
+        });
     }
 
-    async batchRemove(items: OpsActivityDispatchItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    async batchRemove(items: OpsActivityDispatchItem[], userId?: number, userName?: string): Promise<{ success: boolean; message: string; deletedCount: number }> {
         if (!items || items.length === 0) {
             throw new BadRequestException('请选择要删除的记录');
         }
@@ -308,6 +336,17 @@ export class OpsActivityDispatchService {
                 // @ts-ignore
                 if (affected) {
                     deletedCount++;
+                    // 记录操作日志
+                    await this.operationLogService.logOperation({
+                        userId: userId,
+                        displayName: userName,
+                        operationType: 'DELETE',
+                        targetDatabase: 'sm_cuxiaohuodong',
+                        targetTable: '手动强制活动分发',
+                        recordIdentifier: { SKU: item['SKU'] },
+                        changes: {},
+                        operationDetails: { deleted_data: item },
+                    });
                 }
             } catch (error: any) {
                 errors.push(`删除失败: ${item['SKU']} - ${error?.message || '未知错误'}`);
@@ -327,7 +366,7 @@ export class OpsActivityDispatchService {
         };
     }
 
-    async batchCreate(items: OpsActivityDispatchItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
+    async batchCreate(items: OpsActivityDispatchItem[], userId?: number, userName?: string): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
         if (!items || items.length === 0) {
             throw new BadRequestException('请提供要创建的数据');
         }
@@ -343,7 +382,7 @@ export class OpsActivityDispatchService {
         // 逐条插入，避免批量插入时的错误处理复杂
         for (const item of items) {
             try {
-                await this.create(item);
+                await this.create(item, userId, userName);
                 createdCount++;
             } catch (error: any) {
                 const errorMsg = error?.message || '创建失败';

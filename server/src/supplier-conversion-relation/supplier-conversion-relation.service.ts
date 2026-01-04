@@ -2,6 +2,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface SupplierConversionRelationItem {
     '供应商编码': string;
@@ -13,7 +14,10 @@ export interface SupplierConversionRelationItem {
 
 @Injectable()
 export class SupplierConversionRelationService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private operationLogService: OperationLogService,
+    ) { }
 
     private table = '`sm_chaigou`.`供应商推送换算关系变更`';
 
@@ -104,7 +108,7 @@ export class SupplierConversionRelationService {
         return { data, total };
     }
 
-    async create(item: SupplierConversionRelationItem): Promise<void> {
+    async create(item: SupplierConversionRelationItem, userId?: number, userName?: string): Promise<void> {
         this.validate(item);
 
         try {
@@ -117,6 +121,21 @@ export class SupplierConversionRelationService {
                 item['换算关系'] || '',
                 item['二次换算关系'] || '',
             );
+
+            // 记录操作日志
+            await this.operationLogService.logOperation({
+                userId: userId,
+                displayName: userName,
+                operationType: 'CREATE',
+                targetDatabase: 'sm_chaigou',
+                targetTable: '供应商推送换算关系变更',
+                recordIdentifier: {
+                    供应商编码: item['供应商编码'],
+                    SKU编码: item['*SKU编码'],
+                },
+                changes: {},
+                operationDetails: { new_data: item },
+            });
         } catch (error: any) {
             Logger.error('[SupplierConversionRelationService] Create error:', error);
             // 捕获数据库主键冲突错误（多种格式）
@@ -134,7 +153,7 @@ export class SupplierConversionRelationService {
         }
     }
 
-    async update(original: SupplierConversionRelationItem, data: SupplierConversionRelationItem): Promise<void> {
+    async update(original: SupplierConversionRelationItem, data: SupplierConversionRelationItem, userId?: number, userName?: string): Promise<void> {
         this.validate(data);
 
         // 供应商编码和*SKU编码是主键，更新时不应该修改这两个字段
@@ -151,9 +170,32 @@ export class SupplierConversionRelationService {
         if (!affected) {
             throw new BadRequestException('未找到原记录，更新失败');
         }
+
+        // 记录操作日志
+        const changes: Record<string, { old?: any; new?: any }> = {};
+        if (original['换算关系'] !== data['换算关系']) {
+            changes['换算关系'] = { old: original['换算关系'], new: data['换算关系'] };
+        }
+        if (original['二次换算关系'] !== data['二次换算关系']) {
+            changes['二次换算关系'] = { old: original['二次换算关系'], new: data['二次换算关系'] };
+        }
+
+        await this.operationLogService.logOperation({
+            userId: userId,
+            displayName: userName,
+            operationType: 'UPDATE',
+            targetDatabase: 'sm_chaigou',
+            targetTable: '供应商推送换算关系变更',
+            recordIdentifier: {
+                供应商编码: original['供应商编码'],
+                SKU编码: original['*SKU编码'],
+            },
+            changes: changes,
+            operationDetails: { original, updated: data },
+        });
     }
 
-    async remove(item: SupplierConversionRelationItem): Promise<void> {
+    async remove(item: SupplierConversionRelationItem, userId?: number, userName?: string): Promise<void> {
         const affected = await this.prisma.$executeRawUnsafe(
             `DELETE FROM ${this.table} WHERE \`供应商编码\`=? AND \`*SKU编码\`=?`,
             item['供应商编码'] || '',
@@ -163,9 +205,24 @@ export class SupplierConversionRelationService {
         if (!affected) {
             throw new BadRequestException('未找到记录，删除失败');
         }
+
+        // 记录操作日志
+        await this.operationLogService.logOperation({
+            userId: userId,
+            displayName: userName,
+            operationType: 'DELETE',
+            targetDatabase: 'sm_chaigou',
+            targetTable: '供应商推送换算关系变更',
+            recordIdentifier: {
+                供应商编码: item['供应商编码'],
+                SKU编码: item['*SKU编码'],
+            },
+            changes: {},
+            operationDetails: { deleted_data: item },
+        });
     }
 
-    async batchRemove(items: SupplierConversionRelationItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    async batchRemove(items: SupplierConversionRelationItem[], userId?: number, userName?: string): Promise<{ success: boolean; message: string; deletedCount: number }> {
         if (!items || items.length === 0) {
             throw new BadRequestException('请选择要删除的记录');
         }
@@ -202,7 +259,7 @@ export class SupplierConversionRelationService {
         };
     }
 
-    async batchCreate(items: SupplierConversionRelationItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
+    async batchCreate(items: SupplierConversionRelationItem[], userId?: number, userName?: string): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
         if (!items || items.length === 0) {
             throw new BadRequestException('请提供要创建的数据');
         }
