@@ -12,9 +12,11 @@ export interface FieldConfig<T = any> {
     key: keyof T;
     /** 字段显示名称 */
     label: string;
+    /** Excel表头名称（如果不指定，则使用label进行匹配，必须完全一致） */
+    excelHeaderName?: string;
     /** 是否必填 */
     required?: boolean;
-    /** 字段在Excel/粘贴数据中的索引位置（从0开始） */
+    /** 字段在Excel/粘贴数据中的索引位置（从0开始，仅用于粘贴时按顺序解析） */
     index: number;
     /** 自定义验证函数，返回错误信息数组 */
     validator?: (value: any, row: Partial<T>) => string[];
@@ -165,6 +167,101 @@ export default function BatchAddModal<T = any>({
         }
     }, [parseTextData]);
 
+    // 解析带表头的Excel数据
+    const parseExcelWithHeader = useCallback((jsonData: string[][]): { valid: T[]; invalid: Array<{ item: Partial<T>; reasons: string[] }> } => {
+        if (jsonData.length === 0) {
+            return { valid: [], invalid: [] };
+        }
+
+        // 第一行作为表头
+        const headerRow = jsonData[0].map(cell => String(cell || '').trim());
+
+        // 建立表头名称到字段配置的映射
+        const headerToFieldMap = new Map<number, FieldConfig<T>>();
+
+        for (const field of fields) {
+            // 获取字段在Excel中的表头名称（必须完全一致）
+            const expectedHeaderName = field.excelHeaderName || field.label;
+
+            // 在表头中查找完全匹配的列
+            for (let colIndex = 0; colIndex < headerRow.length; colIndex++) {
+                const headerName = headerRow[colIndex].trim();
+                if (headerName === expectedHeaderName.trim()) {
+                    headerToFieldMap.set(colIndex, field);
+                    break; // 找到匹配的就停止
+                }
+            }
+        }
+
+        // 检查是否有字段未匹配到
+        const unmatchedFields = fields.filter(field => {
+            const expectedHeaderName = field.excelHeaderName || field.label;
+            return !headerRow.some(header => header.trim() === expectedHeaderName.trim());
+        });
+
+        if (unmatchedFields.length > 0 && unmatchedFields.some(f => f.required)) {
+            message.warning(`以下必填字段在Excel中未找到匹配的表头：${unmatchedFields.map(f => f.label).join('、')}`);
+        }
+
+        // 从第二行开始解析数据
+        const dataRows = jsonData.slice(1);
+        const valid: T[] = [];
+        const invalid: Array<{ item: Partial<T>; reasons: string[] }> = [];
+
+        for (const row of dataRows) {
+            // 跳过空行
+            if (row.every(cell => !cell || String(cell).trim() === '')) {
+                continue;
+            }
+
+            // 根据表头映射提取数据
+            const parts: string[] = [];
+            for (let i = 0; i < fields.length; i++) {
+                const field = fields[i];
+                const matchedColIndex = Array.from(headerToFieldMap.entries())
+                    .find(([_, f]) => f.key === field.key)?.[0];
+
+                if (matchedColIndex !== undefined && matchedColIndex < row.length) {
+                    parts.push(String(row[matchedColIndex] || '').trim());
+                } else {
+                    // 如果未匹配到，使用index作为后备（兼容旧方式）
+                    const colIndex = field.index < row.length ? field.index : i;
+                    parts.push(String(row[colIndex] || '').trim());
+                }
+            }
+
+            // 创建数据项
+            const item = createItem(parts) as Partial<T>;
+
+            // 验证数据
+            const reasons: string[] = [];
+
+            if (validateItem) {
+                const customReasons = validateItem(item);
+                reasons.push(...customReasons);
+            } else {
+                for (const field of fields) {
+                    const value = item[field.key];
+                    if (field.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
+                        reasons.push(`${field.label}为必填`);
+                    }
+                    if (field.validator) {
+                        const fieldReasons = field.validator(value, item);
+                        reasons.push(...fieldReasons);
+                    }
+                }
+            }
+
+            if (reasons.length > 0) {
+                invalid.push({ item, reasons });
+            } else {
+                valid.push(item as T);
+            }
+        }
+
+        return { valid, invalid };
+    }, [fields, createItem, validateItem]);
+
     // 处理Excel文件上传
     const handleExcelUpload = useCallback(async (file: File) => {
         setUploading(true);
@@ -183,17 +280,28 @@ export default function BatchAddModal<T = any>({
                 return false;
             }
 
-            // 跳过标题行（如果有）
-            const dataRows = jsonData.length > 1 && jsonData[0].some(cell => typeof cell === 'string' && cell.trim() !== '')
-                ? jsonData.slice(1)
-                : jsonData;
+            // 判断第一行是否是表头（如果第一行有文本内容，且第二行存在，则认为是表头）
+            const hasHeader = jsonData.length > 1 &&
+                jsonData[0].some(cell => typeof cell === 'string' && String(cell).trim() !== '');
 
-            // 将Excel行转换为文本格式（制表符分隔）
-            const textLines = dataRows
-                .map(row => row.map(cell => String(cell || '').trim()).join('\t'))
-                .join('\n');
+            let valid: T[] = [];
+            let invalid: Array<{ item: Partial<T>; reasons: string[] }> = [];
 
-            const { valid, invalid } = parseTextData(textLines);
+            if (hasHeader) {
+                // 使用表头匹配方式解析
+                const result = parseExcelWithHeader(jsonData);
+                valid = result.valid;
+                invalid = result.invalid;
+            } else {
+                // 没有表头，使用原来的按顺序解析方式
+                const dataRows = jsonData;
+                const textLines = dataRows
+                    .map(row => row.map(cell => String(cell || '').trim()).join('\t'))
+                    .join('\n');
+                const result = parseTextData(textLines);
+                valid = result.valid;
+                invalid = result.invalid;
+            }
 
             if (valid.length > 0 || invalid.length > 0) {
                 setBatchItems(prev => [...prev, ...valid]);
@@ -217,7 +325,7 @@ export default function BatchAddModal<T = any>({
             setUploading(false);
             return false;
         }
-    }, [parseTextData]);
+    }, [parseTextData, parseExcelWithHeader]);
 
     // 批量保存
     const handleBatchSave = async () => {

@@ -301,18 +301,21 @@ export default function SupplierConversionRelationPage() {
         {
             key: '供应商编码',
             label: '供应商编码',
+            excelHeaderName: '供应商编码', // Excel表头名称，必须完全一致
             required: true,
             index: 0,
         },
         {
             key: '*SKU编码',
             label: 'SKU编码',
+            excelHeaderName: 'SKU编码', // Excel表头名称，必须完全一致
             required: true,
             index: 1,
         },
         {
             key: '二次换算关系',
             label: '二次换算关系',
+            excelHeaderName: '二次换算关系', // Excel表头名称，必须完全一致
             required: true,
             index: 2,
         },
