@@ -3,12 +3,14 @@ import { randomBytes } from 'crypto';
 import { DingTalkService, DingTalkUserInfo } from '../dingtalk/dingtalk.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 @Injectable()
 export class AclService {
   constructor(
     private prisma: PrismaService,
     private dingTalkService: DingTalkService,
+    private operationLogService: OperationLogService,
   ) { }
 
   // 私有方法：检查列是否存在
@@ -253,26 +255,110 @@ export class AclService {
 
     return { data, total };
   }
-  createPermission(p: { code: string; name: string; path: string }) {
-    return this.prisma.$executeRawUnsafe(
+  async createPermission(p: { code: string; name: string; path: string }, userId?: number) {
+    await this.prisma.$executeRawUnsafe(
       `INSERT INTO sm_xitongkaifa.sys_permissions(code,name,path) VALUES(?,?,?)`,
       p.code,
       p.name,
       p.path,
     );
+    // 记录操作日志
+    if (userId) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'CREATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_permissions',
+          recordIdentifier: { id: null, code: p.code },
+          changes: {},
+          operationDetails: { new_data: p },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
   }
-  updatePermission(id: number, p: { code?: string; name?: string; path?: string }) {
+  async updatePermission(id: number, p: { code?: string; name?: string; path?: string }, userId?: number) {
+    // 获取原始数据
+    const [originalRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM sm_xitongkaifa.sys_permissions WHERE id=?`,
+      id
+    );
+    const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
+
     const sets: string[] = [];
     const vals: any[] = [];
-    if (p.code !== undefined) { sets.push('code=?'); vals.push(p.code); }
-    if (p.name !== undefined) { sets.push('name=?'); vals.push(p.name); }
-    if (p.path !== undefined) { sets.push('path=?'); vals.push(p.path); }
+    const changes: Record<string, { old?: any; new?: any }> = {};
+    if (p.code !== undefined) { 
+      sets.push('code=?'); 
+      vals.push(p.code);
+      if (original && String(original.code) !== String(p.code)) {
+        changes.code = { old: original.code, new: p.code };
+      }
+    }
+    if (p.name !== undefined) { 
+      sets.push('name=?'); 
+      vals.push(p.name);
+      if (original && String(original.name) !== String(p.name)) {
+        changes.name = { old: original.name, new: p.name };
+      }
+    }
+    if (p.path !== undefined) { 
+      sets.push('path=?'); 
+      vals.push(p.path);
+      if (original && String(original.path) !== String(p.path)) {
+        changes.path = { old: original.path, new: p.path };
+      }
+    }
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
-    return this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_permissions SET ${sets.join(',')} WHERE id=?`, ...vals);
+    await this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_permissions SET ${sets.join(',')} WHERE id=?`, ...vals);
+    
+    // 记录操作日志
+    if (userId && Object.keys(changes).length > 0) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'UPDATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_permissions',
+          recordIdentifier: { id: id },
+          changes: changes,
+          operationDetails: { original_data: original, new_data: p },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
+    return Promise.resolve(1);
   }
-  deletePermission(id: number) {
-    return this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_permissions WHERE id=?`, id);
+  async deletePermission(id: number, userId?: number) {
+    // 获取原始数据
+    const [originalRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM sm_xitongkaifa.sys_permissions WHERE id=?`,
+      id
+    );
+    const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
+
+    await this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_permissions WHERE id=?`, id);
+    
+    // 记录操作日志
+    if (userId && original) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'DELETE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_permissions',
+          recordIdentifier: { id: id },
+          changes: {},
+          operationDetails: { deleted_data: original },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
   }
 
   // 角色与授权
@@ -298,27 +384,131 @@ export class AclService {
 
     return { data, total };
   }
-  createRole(r: { name: string; remark?: string }) {
-    return this.prisma.$executeRawUnsafe(`INSERT INTO sm_xitongkaifa.sys_roles(name,remark) VALUES(?,?)`, r.name, r.remark || null);
+  async createRole(r: { name: string; remark?: string }, userId?: number) {
+    await this.prisma.$executeRawUnsafe(`INSERT INTO sm_xitongkaifa.sys_roles(name,remark) VALUES(?,?)`, r.name, r.remark || null);
+    // 记录操作日志
+    if (userId) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'CREATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_roles',
+          recordIdentifier: { id: null, name: r.name },
+          changes: {},
+          operationDetails: { new_data: r },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
   }
-  updateRole(id: number, r: { name?: string; remark?: string }) {
+  async updateRole(id: number, r: { name?: string; remark?: string }, userId?: number) {
+    // 获取原始数据
+    const [originalRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM sm_xitongkaifa.sys_roles WHERE id=?`,
+      id
+    );
+    const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
+
     const sets: string[] = []; const vals: any[] = [];
-    if (r.name !== undefined) { sets.push('name=?'); vals.push(r.name); }
-    if (r.remark !== undefined) { sets.push('remark=?'); vals.push(r.remark); }
+    const changes: Record<string, { old?: any; new?: any }> = {};
+    if (r.name !== undefined) { 
+      sets.push('name=?'); 
+      vals.push(r.name);
+      if (original && String(original.name) !== String(r.name)) {
+        changes.name = { old: original.name, new: r.name };
+      }
+    }
+    if (r.remark !== undefined) { 
+      sets.push('remark=?'); 
+      vals.push(r.remark);
+      if (original && String(original.remark || '') !== String(r.remark || '')) {
+        changes.remark = { old: original.remark, new: r.remark };
+      }
+    }
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
-    return this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_roles SET ${sets.join(',')} WHERE id=?`, ...vals);
+    await this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_roles SET ${sets.join(',')} WHERE id=?`, ...vals);
+    
+    // 记录操作日志
+    if (userId && Object.keys(changes).length > 0) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'UPDATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_roles',
+          recordIdentifier: { id: id },
+          changes: changes,
+          operationDetails: { original_data: original, new_data: r },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
+    return Promise.resolve(1);
   }
-  deleteRole(id: number) { return this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_roles WHERE id=?`, id); }
+  async deleteRole(id: number, userId?: number) {
+    // 获取原始数据
+    const [originalRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM sm_xitongkaifa.sys_roles WHERE id=?`,
+      id
+    );
+    const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
 
-  setRolePermissions(roleId: number, permissionIds: number[]) {
-    return this.prisma.$transaction([
+    await this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_roles WHERE id=?`, id);
+    
+    // 记录操作日志
+    if (userId && original) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'DELETE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_roles',
+          recordIdentifier: { id: id },
+          changes: {},
+          operationDetails: { deleted_data: original },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
+  }
+
+  async setRolePermissions(roleId: number, permissionIds: number[], userId?: number) {
+    // 获取原始权限列表
+    const [originalPermissionRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT permission_id FROM sm_xitongkaifa.sys_role_permissions WHERE role_id=?`,
+      roleId
+    );
+    const originalPermissionIds = (originalPermissionRows || []).map((r: any) => Number(r.permission_id));
+
+    await this.prisma.$transaction([
       this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_role_permissions WHERE role_id=?`, roleId),
       this.prisma.$executeRawUnsafe(
         `INSERT INTO sm_xitongkaifa.sys_role_permissions(role_id,permission_id) VALUES ${permissionIds.map(() => '(?,?)').join(',')}`,
         ...permissionIds.flatMap(pid => [roleId, pid])
       )
     ]);
+    
+    // 记录操作日志
+    if (userId) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: userId,
+          operationType: 'UPDATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_role_permissions',
+          recordIdentifier: { role_id: roleId },
+          changes: { permission_ids: { old: originalPermissionIds, new: permissionIds } },
+          operationDetails: { original_permission_ids: originalPermissionIds, new_permission_ids: permissionIds },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
   }
 
   async getRolePermissionIds(roleId: number) {
@@ -360,7 +550,7 @@ export class AclService {
 
     return { data: users, total };
   }
-  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: string | number; user_id?: string }) {
+  async createUser(u: { username: string; password: string; display_name: string; code?: string; status?: number; department_id?: string | number; user_id?: string }, operatorUserId?: number) {
     await this.ensureSysUsersSchema();
     const username = (u.username || '').trim();
     const password = (u.password || '').trim();
@@ -381,35 +571,73 @@ export class AclService {
     if (exists.length) throw new BadRequestException('用户名已存在');
 
     try {
-      return await this.prisma.$executeRawUnsafe(
+      await this.prisma.$executeRawUnsafe(
         `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id,user_id) VALUES(?,?,?,?,?,?,?)`,
         username, password, displayName, code || null, status, departmentId, userId
       );
+      // 记录操作日志
+      if (operatorUserId) {
+        try {
+          // 获取新创建的用户ID
+          const [newUserRows]: any = await this.prisma.$queryRawUnsafe(`SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`, username);
+          const newUserId = newUserRows && newUserRows.length > 0 ? newUserRows[0].id : null;
+          await this.operationLogService.logOperation({
+            userId: operatorUserId,
+            operationType: 'CREATE',
+            targetDatabase: 'sm_xitongkaifa',
+            targetTable: 'sys_users',
+            recordIdentifier: { id: newUserId, username: username },
+            changes: {},
+            operationDetails: { new_data: { username, display_name: displayName, status, code, department_id: departmentId } },
+          });
+        } catch (error) {
+          Logger.error('[AclService] 记录操作日志失败:', error);
+        }
+      }
     } catch (e: any) {
       // 兜底：若仍提示列不存在，再次尝试修复一次
       await this.ensureSysUsersSchema();
-      return await this.prisma.$executeRawUnsafe(
+      await this.prisma.$executeRawUnsafe(
         `INSERT INTO sm_xitongkaifa.sys_users(username,password,display_name,code,status,department_id,user_id) VALUES(?,?,?,?,?,?,?)`,
         username, password, displayName, code || null, status, departmentId, userId
       );
+      // 记录操作日志
+      if (operatorUserId) {
+        try {
+          const [newUserRows]: any = await this.prisma.$queryRawUnsafe(`SELECT id FROM sm_xitongkaifa.sys_users WHERE username=? LIMIT 1`, username);
+          const newUserId = newUserRows && newUserRows.length > 0 ? newUserRows[0].id : null;
+          await this.operationLogService.logOperation({
+            userId: operatorUserId,
+            operationType: 'CREATE',
+            targetDatabase: 'sm_xitongkaifa',
+            targetTable: 'sys_users',
+            recordIdentifier: { id: newUserId, username: username },
+            changes: {},
+            operationDetails: { new_data: { username, display_name: displayName, status, code, department_id: departmentId } },
+          });
+        } catch (error) {
+          Logger.error('[AclService] 记录操作日志失败:', error);
+        }
+      }
     }
   }
-  async updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: string | number }) {
+  async updateUser(id: number, u: { display_name?: string; status?: number; password?: string; code?: string; department_id?: string | number }, operatorUserId?: number) {
     await this.ensureSysUsersSchema();
+
+    // 获取原始数据用于记录变更
+    const [originalRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM sm_xitongkaifa.sys_users WHERE id=? LIMIT 1`,
+      id
+    );
+    if (originalRows.length === 0) {
+      throw new BadRequestException('用户不存在');
+    }
+    const original = originalRows[0];
 
     // 如果要更新 display_name，检查编辑次数
     if (u.display_name !== undefined) {
-      const userRows: any[] = await this.prisma.$queryRawUnsafe(
-        `SELECT display_name, display_name_edit_count FROM sm_xitongkaifa.sys_users WHERE id=? LIMIT 1`,
-        id
-      );
-
-      if (userRows.length === 0) {
-        throw new BadRequestException('用户不存在');
-      }
-
-      const currentDisplayName = userRows[0].display_name;
-      const editCount = Number(userRows[0].display_name_edit_count || 0);
+      const currentDisplayName = original.display_name;
+      const editCount = Number(original.display_name_edit_count || 0);
 
       // 准备其他字段的更新（无论 display_name 是否变化，都要处理其他字段）
       const otherSets: string[] = [];
@@ -450,6 +678,42 @@ export class AclService {
           `UPDATE sm_xitongkaifa.sys_users SET ${otherSets.join(',')} WHERE id=?`,
           ...otherVals
         );
+        
+        // 记录操作日志
+        if (operatorUserId) {
+          try {
+            const changes: Record<string, { old?: any; new?: any }> = {};
+            if (u.status !== undefined && String(original.status) !== String(u.status)) {
+              changes.status = { old: original.status, new: u.status };
+            }
+            if (u.display_name !== undefined && String(original.display_name) !== String(u.display_name)) {
+              changes.display_name = { old: original.display_name, new: u.display_name };
+            }
+            if (u.code !== undefined && String(original.code || '') !== String(u.code || '')) {
+              changes.code = { old: original.code, new: u.code };
+            }
+            if (u.department_id !== undefined && String(original.department_id || '') !== String(u.department_id || '')) {
+              changes.department_id = { old: original.department_id, new: u.department_id };
+            }
+            if (u.password !== undefined) {
+              changes.password = { old: '***', new: '***' }; // 密码不记录具体值
+            }
+            if (Object.keys(changes).length > 0) {
+              await this.operationLogService.logOperation({
+                userId: operatorUserId,
+                operationType: 'UPDATE',
+                targetDatabase: 'sm_xitongkaifa',
+                targetTable: 'sys_users',
+                recordIdentifier: { id: id },
+                changes: changes,
+                operationDetails: { original_data: { id: original.id, username: original.username, display_name: original.display_name, status: original.status }, new_data: u },
+              });
+            }
+          } catch (error) {
+            Logger.error('[AclService] 记录操作日志失败:', error);
+          }
+        }
+        
         return Promise.resolve(1);
       }
 
@@ -460,20 +724,59 @@ export class AclService {
     // 如果不是更新 display_name，使用原来的逻辑
     const sets: string[] = [];
     const vals: any[] = [];
+    const changes: Record<string, { old?: any; new?: any }> = {};
     if (u.status !== undefined) {
       sets.push('status=?');
       vals.push(u.status);
+      if (String(original.status) !== String(u.status)) {
+        changes.status = { old: original.status, new: u.status };
+      }
       // 当账号被禁用时，立即清空 session_token，强制下线
       if (Number(u.status) === 0) {
         sets.push('session_token=NULL');
       }
     }
-    if (u.password !== undefined) { sets.push('password=?'); vals.push(u.password); }
-    if (u.code !== undefined) { sets.push('code=?'); vals.push(u.code); }
-    if (u.department_id !== undefined) { sets.push('department_id=?'); vals.push(u.department_id); }
+    if (u.password !== undefined) { 
+      sets.push('password=?'); 
+      vals.push(u.password);
+      changes.password = { old: '***', new: '***' }; // 密码不记录具体值
+    }
+    if (u.code !== undefined) { 
+      sets.push('code=?'); 
+      vals.push(u.code);
+      if (String(original.code || '') !== String(u.code || '')) {
+        changes.code = { old: original.code, new: u.code };
+      }
+    }
+    if (u.department_id !== undefined) { 
+      sets.push('department_id=?'); 
+      vals.push(u.department_id);
+      if (String(original.department_id || '') !== String(u.department_id || '')) {
+        changes.department_id = { old: original.department_id, new: u.department_id };
+      }
+    }
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
-    return this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_users SET ${sets.join(',')} WHERE id=?`, ...vals);
+    await this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_users SET ${sets.join(',')} WHERE id=?`, ...vals);
+    
+    // 记录操作日志
+    if (operatorUserId && Object.keys(changes).length > 0) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: operatorUserId,
+          operationType: 'UPDATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_users',
+          recordIdentifier: { id: id },
+          changes: changes,
+          operationDetails: { original_data: { id: original.id, username: original.username, display_name: original.display_name, status: original.status }, new_data: u },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
+    
+    return Promise.resolve(1);
   }
 
   // 获取用户的 display_name 编辑次数信息
@@ -494,13 +797,63 @@ export class AclService {
       remaining: Math.max(0, 2 - editCount)
     };
   }
-  deleteUser(id: number) { return this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_users WHERE id=?`, id); }
-  setUserRoles(userId: number, roleIds: number[]) {
-    return this.prisma.$transaction([
+  async deleteUser(id: number, operatorUserId?: number) {
+    // 获取原始数据
+    const [originalRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM sm_xitongkaifa.sys_users WHERE id=?`,
+      id
+    );
+    const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
+
+    await this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_users WHERE id=?`, id);
+    
+    // 记录操作日志
+    if (operatorUserId && original) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: operatorUserId,
+          operationType: 'DELETE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_users',
+          recordIdentifier: { id: id },
+          changes: {},
+          operationDetails: { deleted_data: { id: original.id, username: original.username, display_name: original.display_name } },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
+  }
+  async setUserRoles(userId: number, roleIds: number[], operatorUserId?: number) {
+    // 获取原始角色列表
+    const [originalRoleRows]: any = await this.prisma.$queryRawUnsafe(
+      `SELECT role_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`,
+      userId
+    );
+    const originalRoleIds = (originalRoleRows || []).map((r: any) => Number(r.role_id));
+
+    await this.prisma.$transaction([
       this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`, userId),
       this.prisma.$executeRawUnsafe(`INSERT INTO sm_xitongkaifa.sys_user_roles(user_id,role_id) VALUES ${roleIds.map(() => '(?,?)').join(',')}`,
         ...roleIds.flatMap(rid => [userId, rid]))
     ]);
+    
+    // 记录操作日志
+    if (operatorUserId) {
+      try {
+        await this.operationLogService.logOperation({
+          userId: operatorUserId,
+          operationType: 'UPDATE',
+          targetDatabase: 'sm_xitongkaifa',
+          targetTable: 'sys_user_roles',
+          recordIdentifier: { user_id: userId },
+          changes: { role_ids: { old: originalRoleIds, new: roleIds } },
+          operationDetails: { original_role_ids: originalRoleIds, new_role_ids: roleIds },
+        });
+      } catch (error) {
+        Logger.error('[AclService] 记录操作日志失败:', error);
+      }
+    }
   }
 
   // 查询用户已分配的角色ID集合（用于前端展示与预勾选）

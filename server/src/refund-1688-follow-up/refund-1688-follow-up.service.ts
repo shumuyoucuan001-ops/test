@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
+import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface Refund1688FollowUp {
   订单编号: string; // 主键
@@ -26,6 +27,7 @@ export interface Refund1688FollowUp {
 
 @Injectable()
 export class Refund1688FollowUpService {
+  constructor(private operationLogService: OperationLogService) {}
   private async getChaigouConnection() {
     if (!process.env.DB_PASSWORD) {
       throw new Error('DB_PASSWORD environment variable is required');
@@ -260,6 +262,13 @@ export class Refund1688FollowUpService {
         }
       }
 
+      // 获取原始数据用于记录变更
+      const [originalRows]: any = await connection.execute(
+        `SELECT * FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        [orderNo],
+      );
+      const originalData = originalRows && originalRows.length > 0 ? originalRows[0] : null;
+
       // 如果提供了userId，自动获取跟进人的display_name
       let followUpPerson: string | undefined;
       if (userId) {
@@ -292,16 +301,26 @@ export class Refund1688FollowUpService {
         '跟进情况图片': '跟进情况/图片',
       };
 
+      // 记录变更
+      const changes: Record<string, { old?: any; new?: any }> = {};
+
       for (const [key, dbField] of Object.entries(fieldMapping)) {
         if (key in data) {
           const value = data[key as keyof Refund1688FollowUp];
+          const oldValue = originalData ? originalData[dbField] : undefined;
           // 对于跟进情况图片字段，空字符串表示要清空
           if (key === '跟进情况图片' && value === '') {
             updateFields.push(`\`${dbField}\` = ?`);
             updateValues.push(null); // 使用 null 来清空数据库字段
+            if (String(oldValue) !== '') {
+              changes[key] = { old: oldValue, new: null };
+            }
           } else if (value !== undefined) {
             updateFields.push(`\`${dbField}\` = ?`);
             updateValues.push(value);
+            if (String(oldValue) !== String(value)) {
+              changes[key] = { old: oldValue, new: value };
+            }
           }
         }
       }
@@ -310,6 +329,10 @@ export class Refund1688FollowUpService {
       if (followUpPerson) {
         updateFields.push(`\`跟进人\` = ?`);
         updateValues.push(followUpPerson);
+        const oldFollowUpPerson = originalData ? originalData['跟进人'] : undefined;
+        if (String(oldFollowUpPerson) !== String(followUpPerson)) {
+          changes['跟进人'] = { old: oldFollowUpPerson, new: followUpPerson };
+        }
       }
 
       // 自动更新跟进时间（每次编辑时更新为当前时间）
@@ -332,6 +355,23 @@ export class Refund1688FollowUpService {
       await connection.execute(sql, updateValues);
 
       Logger.log(`[Refund1688FollowUpService] 更新成功: 订单编号=${orderNo}`);
+
+      // 记录操作日志
+      if (userId) {
+        try {
+          await this.operationLogService.logOperation({
+            userId: userId,
+            operationType: 'UPDATE',
+            targetDatabase: 'sm_chaigou',
+            targetTable: '1688退款售后',
+            recordIdentifier: { 订单编号: orderNo },
+            changes: changes,
+            operationDetails: { original_data: originalData, new_data: data },
+          });
+        } catch (error) {
+          Logger.error('[Refund1688FollowUpService] 记录操作日志失败:', error);
+        }
+      }
     } catch (error) {
       Logger.error('[Refund1688FollowUpService] 更新失败:', error);
       throw error;
@@ -465,13 +505,15 @@ export class Refund1688FollowUpService {
 
       // 订单编号是主键，直接使用主键匹配（不使用TRIM，以利用主键索引）
       const [existingRecords]: any = await connection.execute(
-        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        `SELECT * FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
         [cleanedOrderNo]
       );
 
       if (!existingRecords || existingRecords.length === 0) {
         throw new Error('记录不存在');
       }
+
+      const deletedData = existingRecords[0];
 
       // 删除记录（直接使用主键匹配）
       await connection.execute(
@@ -480,6 +522,23 @@ export class Refund1688FollowUpService {
       );
 
       Logger.log(`[Refund1688FollowUpService] 删除记录成功: 订单编号=${orderNo}`);
+
+      // 记录操作日志
+      if (userId) {
+        try {
+          await this.operationLogService.logOperation({
+            userId: userId,
+            operationType: 'DELETE',
+            targetDatabase: 'sm_chaigou',
+            targetTable: '1688退款售后',
+            recordIdentifier: { 订单编号: orderNo },
+            changes: {},
+            operationDetails: { deleted_data: deletedData },
+          });
+        } catch (error) {
+          Logger.error('[Refund1688FollowUpService] 记录操作日志失败:', error);
+        }
+      }
     } catch (error: any) {
       Logger.error(`[Refund1688FollowUpService] 删除记录失败: ${error?.message || error}`);
       throw error;
@@ -519,7 +578,7 @@ export class Refund1688FollowUpService {
       // 订单编号是主键，直接使用主键匹配（不使用TRIM，以利用主键索引）
       const placeholders = cleanedOrderNos.map(() => '?').join(',');
       const [existingRecords]: any = await connection.execute(
-        `SELECT \`订单编号\` FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` IN (${placeholders})`,
+        `SELECT * FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` IN (${placeholders})`,
         cleanedOrderNos
       );
 
@@ -543,6 +602,25 @@ export class Refund1688FollowUpService {
 
       const deletedCount = deleteResult.affectedRows || 0;
       Logger.log(`[Refund1688FollowUpService] 批量删除记录成功: 共删除 ${deletedCount} 条记录`);
+
+      // 记录操作日志（为每条删除的记录记录日志）
+      if (userId && existingRecords && existingRecords.length > 0) {
+        try {
+          for (const record of existingRecords) {
+            await this.operationLogService.logOperation({
+              userId: userId,
+              operationType: 'DELETE',
+              targetDatabase: 'sm_chaigou',
+              targetTable: '1688退款售后',
+              recordIdentifier: { 订单编号: record.订单编号 },
+              changes: {},
+              operationDetails: { deleted_data: record },
+            });
+          }
+        } catch (error) {
+          Logger.error('[Refund1688FollowUpService] 记录操作日志失败:', error);
+        }
+      }
 
       return {
         success: true,
