@@ -935,14 +935,14 @@ export default function FinanceManagementPage() {
                 <span style={{ color: '#ff4d4f' }}>{transactionNumberValidation.error}</span>
               ) : transactionNumberValidation.result ? (
                 <span style={{ color: '#52c41a' }}>
-                  支付渠道: {transactionNumberValidation.result.支付渠道 || '-'}, 
-                  收支金额: {transactionNumberValidation.result.收支金额 !== undefined ? transactionNumberValidation.result.收支金额.toFixed(2) : '-'}
+                  支付渠道: {transactionNumberValidation.result.支付渠道 || '-'},
+                  收支金额: {transactionNumberValidation.result.收支金额 !== undefined ? Number(transactionNumberValidation.result.收支金额).toFixed(2) : '-'}
                 </span>
               ) : null
             }
           >
-            <Input 
-              placeholder="请输入交易单号" 
+            <Input
+              placeholder="请输入交易单号"
               disabled={!!editingBill}
               onBlur={(e) => {
                 const value = e.target.value;
@@ -965,13 +965,13 @@ export default function FinanceManagementPage() {
                 <span style={{ color: '#ff4d4f' }}>{purchaseOrderNumberValidation.error}</span>
               ) : purchaseOrderNumberValidation.result ? (
                 <span style={{ color: '#52c41a' }}>
-                  门店/仓: {purchaseOrderNumberValidation.result['门店/仓'] || '-'}, 
-                  采购金额: {purchaseOrderNumberValidation.result.采购金额 !== undefined ? purchaseOrderNumberValidation.result.采购金额.toFixed(2) : '-'}
+                  门店/仓: {purchaseOrderNumberValidation.result['门店/仓'] || '-'},
+                  采购金额: {purchaseOrderNumberValidation.result.采购金额 !== undefined ? Number(purchaseOrderNumberValidation.result.采购金额).toFixed(2) : '-'}
                 </span>
               ) : null
             }
           >
-            <Input 
+            <Input
               placeholder="请输入牵牛花采购单号"
               onBlur={(e) => {
                 const value = e.target.value;

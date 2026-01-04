@@ -2392,7 +2392,7 @@ export default function FinanceReconciliationDifferencePage() {
           <div
             ref={subTableContainerRef}
             style={{
-              flex: `0 0 ${100 - topPanelHeight}%`,
+              flex: `1 1 ${100 - topPanelHeight}%`,
               minHeight: 200,
               display: 'flex',
               flexDirection: 'column',
@@ -2401,6 +2401,7 @@ export default function FinanceReconciliationDifferencePage() {
               borderRadius: '4px',
               padding: '16px',
               backgroundColor: '#fafafa',
+              boxSizing: 'border-box',
             }}
           >
             {selected对账单号 ? (
@@ -2626,6 +2627,8 @@ export default function FinanceReconciliationDifferencePage() {
                       gap: 0,
                       overflow: 'hidden',
                       minHeight: 200,
+                      maxHeight: '100%',
+                      boxSizing: 'border-box',
                     }}>
                       {/* 左框：交易单号信息 */}
                       <div style={{
@@ -2638,6 +2641,8 @@ export default function FinanceReconciliationDifferencePage() {
                         padding: '8px',
                         backgroundColor: '#fff',
                         minHeight: 0,
+                        maxHeight: '100%',
+                        boxSizing: 'border-box',
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <span>交易单详细信息</span>
@@ -2786,6 +2791,8 @@ export default function FinanceReconciliationDifferencePage() {
                         padding: '8px',
                         backgroundColor: '#fff',
                         minHeight: 0,
+                        maxHeight: '100%',
+                        boxSizing: 'border-box',
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <span>采购单详细信息</span>
@@ -3120,7 +3127,7 @@ export default function FinanceReconciliationDifferencePage() {
               ) : financeBillTransactionNumberValidation.result ? (
                 <span style={{ color: '#52c41a' }}>
                   支付渠道: {financeBillTransactionNumberValidation.result.支付渠道 || '-'},
-                  收支金额: {financeBillTransactionNumberValidation.result.收支金额 !== undefined ? financeBillTransactionNumberValidation.result.收支金额.toFixed(2) : '-'}
+                  收支金额: {financeBillTransactionNumberValidation.result.收支金额 !== undefined ? Number(financeBillTransactionNumberValidation.result.收支金额).toFixed(2) : '-'}
                 </span>
               ) : null
             }
@@ -3149,7 +3156,7 @@ export default function FinanceReconciliationDifferencePage() {
               ) : financeBillPurchaseOrderNumberValidation.result ? (
                 <span style={{ color: '#52c41a' }}>
                   门店/仓: {financeBillPurchaseOrderNumberValidation.result['门店/仓'] || '-'},
-                  采购金额: {financeBillPurchaseOrderNumberValidation.result.采购金额 !== undefined ? financeBillPurchaseOrderNumberValidation.result.采购金额.toFixed(2) : '-'}
+                  采购金额: {financeBillPurchaseOrderNumberValidation.result.采购金额 !== undefined ? Number(financeBillPurchaseOrderNumberValidation.result.采购金额).toFixed(2) : '-'}
                 </span>
               ) : null
             }
