@@ -2331,6 +2331,7 @@ export default function FinanceReconciliationDifferencePage() {
                       />
                       <Button size="small" type="primary" icon={<SearchOutlined />} onClick={handleDetailSearch}>搜索</Button>
                       <Button size="small" onClick={handleDetailReset}>重置</Button>
+                      <span style={{ marginLeft: 8, fontWeight: 500, fontSize: 14 }}>对账单详细信息</span>
                     </Space>
                   </div>
 
@@ -2455,16 +2456,21 @@ export default function FinanceReconciliationDifferencePage() {
                           const mouseY = moveEvent.clientY;
                           const relativeY = mouseY - containerTop;
 
-                          // 计算新的高度百分比（相对于容器顶部，即该分割线距离外部上下栏分割线的位置）
-                          // detailPanelsHeight表示左右框上方的分割线距离上下栏分割线的百分比
-                          const newHeightPercent = (relativeY / containerHeight) * 100;
+                          // 计算分割线距离容器顶部的百分比
+                          // 鼠标下移时，relativeY增加，分割线应该下移
+                          // 分割线的位置 = 子维度表格的高度百分比
+                          // 左右框的高度 = 100% - 分割线位置
+                          // detailPanelsHeight表示左右框的高度百分比
+                          const splitLinePosition = (relativeY / containerHeight) * 100;
 
-                          // 限制：最小高度为5%（分割线不能超过容器顶部），最大高度为95%（留一些空间给子维度表格）
-                          const minHeight = 5;
-                          const maxHeight = 95;
-                          const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeightPercent));
+                          // 限制：分割线最小位置为5%（不能超过容器顶部），最大位置为95%（留一些空间给左右框）
+                          const minPosition = 5;
+                          const maxPosition = 95;
+                          const clampedPosition = Math.max(minPosition, Math.min(maxPosition, splitLinePosition));
 
-                          setDetailPanelsHeight(clampedHeight);
+                          // 左右框的高度 = 100% - 分割线位置
+                          // 当分割线下移时，左右框应该变小
+                          setDetailPanelsHeight(100 - clampedPosition);
                         };
 
                         const handleMouseUp = () => {
@@ -2499,7 +2505,7 @@ export default function FinanceReconciliationDifferencePage() {
                         backgroundColor: '#fff',
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>交易单号详细信息</span>
+                          <span>交易单详细信息</span>
                           <Space size="small">
                             <Button
                               size="small"
@@ -2642,7 +2648,7 @@ export default function FinanceReconciliationDifferencePage() {
                         backgroundColor: '#fff',
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>采购单号详细信息</span>
+                          <span>采购单详细信息</span>
                           <Space size="small">
                             <Button
                               size="small"
