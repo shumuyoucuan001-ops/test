@@ -25,6 +25,7 @@ import {
   Popover,
   Select,
   Space,
+  Table,
   Tabs,
   Typography,
   Upload,
@@ -33,7 +34,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import zhCN from 'antd/locale/zh_CN';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/zh-cn';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -837,6 +838,36 @@ export default function FinanceReconciliationDifferencePage() {
     await loadDefaultTransactionAndPurchaseData();
     // 保持左右框显示，但数据已恢复到默认状态
   };
+
+  // 计算对账单详细信息的合计值
+  const subRecordsSummary = useMemo(() => {
+    const total采购单金额 = subRecords.reduce((sum, record) => {
+      const amount = typeof record.采购单金额 === 'number' ? record.采购单金额 : (typeof record.采购单金额 === 'string' ? parseFloat(record.采购单金额) : 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    const total采购单调整金额 = subRecords.reduce((sum, record) => {
+      const amount = typeof record.采购单调整金额 === 'number' ? record.采购单调整金额 : (typeof record.采购单调整金额 === 'string' ? parseFloat(record.采购单调整金额) : 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    const total调整后采购单金额 = subRecords.reduce((sum, record) => {
+      const amount = typeof record.调整后采购单金额 === 'number' ? record.调整后采购单金额 : (typeof record.调整后采购单金额 === 'string' ? parseFloat(record.调整后采购单金额) : 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    return { total采购单金额, total采购单调整金额, total调整后采购单金额 };
+  }, [subRecords]);
+
+  // 计算采购单详细信息的合计值
+  const purchaseOrderInfoSummary = useMemo(() => {
+    const total采购金额 = purchaseOrderInfoData.reduce((sum, record) => {
+      const amount = typeof record.采购金额 === 'number' ? record.采购金额 : (typeof record.采购金额 === 'string' ? parseFloat(record.采购金额) : 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    const total实收金额 = purchaseOrderInfoData.reduce((sum, record) => {
+      const amount = typeof record.实收金额 === 'number' ? record.实收金额 : (typeof record.实收金额 === 'string' ? parseFloat(record.实收金额) : 0);
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+    return { total采购金额, total实收金额 };
+  }, [purchaseOrderInfoData]);
 
   // 查询采购单金额调整
   const loadPurchaseAdjustmentData = async (search采购单号?: string) => {
@@ -2412,6 +2443,23 @@ export default function FinanceReconciliationDifferencePage() {
                       pagination={false}
                       size="small"
                       style={{ fontSize: `${12 * 0.7}px` }}
+                      summary={() => (
+                        <Table.Summary fixed>
+                          <Table.Summary.Row>
+                            <Table.Summary.Cell index={0} colSpan={2} />
+                            <Table.Summary.Cell index={2} align="right">
+                              <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total采购单金额)}</span>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={3} align="right">
+                              <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total采购单调整金额)}</span>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={4} align="right">
+                              <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total调整后采购单金额)}</span>
+                            </Table.Summary.Cell>
+                            <Table.Summary.Cell index={5} colSpan={3} />
+                          </Table.Summary.Row>
+                        </Table.Summary>
+                      )}
                       onRow={(record) => {
                         const rowKey = `${record.交易单号}_${record.牵牛花采购单号}`;
                         const isSelected = selectedSubRecord && `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}` === rowKey;
@@ -2781,6 +2829,20 @@ export default function FinanceReconciliationDifferencePage() {
                             pagination={false}
                             size="small"
                             style={{ fontSize: `${12 * 0.7}px` }}
+                            summary={() => (
+                              <Table.Summary fixed>
+                                <Table.Summary.Row>
+                                  <Table.Summary.Cell index={0} colSpan={3} />
+                                  <Table.Summary.Cell index={3} align="right">
+                                    <span style={{ fontWeight: 'bold' }}>{formatAmount(purchaseOrderInfoSummary.total采购金额)}</span>
+                                  </Table.Summary.Cell>
+                                  <Table.Summary.Cell index={4} align="right">
+                                    <span style={{ fontWeight: 'bold' }}>{formatAmount(purchaseOrderInfoSummary.total实收金额)}</span>
+                                  </Table.Summary.Cell>
+                                  <Table.Summary.Cell index={5} colSpan={6} />
+                                </Table.Summary.Row>
+                              </Table.Summary>
+                            )}
                           />
                         </div>
                       </div>
