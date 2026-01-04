@@ -29,7 +29,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
-import { FinanceBill, financeManagementApi } from '../lib/api';
+import { FinanceBill, financeManagementApi, purchaseOrderInfoApi, transactionRecordApi } from '../lib/api';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -70,6 +70,18 @@ export default function FinanceManagementPage() {
 
   // 选中的行
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  // 校验相关状态
+  const [transactionNumberValidation, setTransactionNumberValidation] = useState<{
+    loading: boolean;
+    result: { 支付渠道?: string; 收支金额?: number } | null;
+    error: string | null;
+  }>({ loading: false, result: null, error: null });
+  const [purchaseOrderNumberValidation, setPurchaseOrderNumberValidation] = useState<{
+    loading: boolean;
+    result: { '门店/仓'?: string; 采购金额?: number } | null;
+    error: string | null;
+  }>({ loading: false, result: null, error: null });
 
   // 加载账单列表
   const loadBills = async (
@@ -187,6 +199,8 @@ export default function FinanceManagementPage() {
     setEditingBill(null);
     form.resetFields();
     setImageFileList([]);
+    setTransactionNumberValidation({ loading: false, result: null, error: null });
+    setPurchaseOrderNumberValidation({ loading: false, result: null, error: null });
     setModalVisible(true);
   };
 
@@ -262,6 +276,78 @@ export default function FinanceManagementPage() {
       };
       reader.onerror = (error) => reject(error);
     });
+  };
+
+  // 校验交易单号
+  const validateTransactionNumber = async (transactionNumber: string) => {
+    if (!transactionNumber || !transactionNumber.trim()) {
+      setTransactionNumberValidation({ loading: false, result: null, error: null });
+      return;
+    }
+
+    setTransactionNumberValidation({ loading: true, result: null, error: null });
+    try {
+      const result = await transactionRecordApi.getByTransactionBillNumber(transactionNumber.trim());
+      if (result.data && result.data.length > 0) {
+        const record = result.data[0];
+        setTransactionNumberValidation({
+          loading: false,
+          result: {
+            支付渠道: record.支付渠道,
+            收支金额: record.收支金额,
+          },
+          error: null,
+        });
+      } else {
+        setTransactionNumberValidation({
+          loading: false,
+          result: null,
+          error: '该交易单号在数据库中不存在,请核对是否输入有误(仅提示)',
+        });
+      }
+    } catch (error: any) {
+      setTransactionNumberValidation({
+        loading: false,
+        result: null,
+        error: '该交易单号在数据库中不存在,请核对是否输入有误(仅提示)',
+      });
+    }
+  };
+
+  // 校验采购单号
+  const validatePurchaseOrderNumber = async (purchaseOrderNumber: string) => {
+    if (!purchaseOrderNumber || !purchaseOrderNumber.trim()) {
+      setPurchaseOrderNumberValidation({ loading: false, result: null, error: null });
+      return;
+    }
+
+    setPurchaseOrderNumberValidation({ loading: true, result: null, error: null });
+    try {
+      const result = await purchaseOrderInfoApi.getByPurchaseOrderNumber(purchaseOrderNumber.trim());
+      if (result.data && result.data.length > 0) {
+        const record = result.data[0];
+        setPurchaseOrderNumberValidation({
+          loading: false,
+          result: {
+            '门店/仓': record['门店/仓'],
+            采购金额: record.采购金额,
+          },
+          error: null,
+        });
+      } else {
+        setPurchaseOrderNumberValidation({
+          loading: false,
+          result: null,
+          error: '该采购单号在数据库中不存在,请核对是否输入有误(仅提示)',
+        });
+      }
+    } catch (error: any) {
+      setPurchaseOrderNumberValidation({
+        loading: false,
+        result: null,
+        error: '该采购单号在数据库中不存在,请核对是否输入有误(仅提示)',
+      });
+    }
   };
 
   // 保存账单
@@ -824,6 +910,8 @@ export default function FinanceManagementPage() {
           setEditingBill(null);
           form.resetFields();
           setImageFileList([]);
+          setTransactionNumberValidation({ loading: false, result: null, error: null });
+          setPurchaseOrderNumberValidation({ loading: false, result: null, error: null });
         }}
         width={800}
         okText="保存"
@@ -840,15 +928,60 @@ export default function FinanceManagementPage() {
               { required: true, message: '请输入交易单号' },
               { whitespace: true, message: '交易单号不能为空' }
             ]}
+            help={
+              transactionNumberValidation.loading ? (
+                <span style={{ color: '#1890ff' }}>校验中...</span>
+              ) : transactionNumberValidation.error ? (
+                <span style={{ color: '#ff4d4f' }}>{transactionNumberValidation.error}</span>
+              ) : transactionNumberValidation.result ? (
+                <span style={{ color: '#52c41a' }}>
+                  支付渠道: {transactionNumberValidation.result.支付渠道 || '-'}, 
+                  收支金额: {transactionNumberValidation.result.收支金额 !== undefined ? transactionNumberValidation.result.收支金额.toFixed(2) : '-'}
+                </span>
+              ) : null
+            }
           >
-            <Input placeholder="请输入交易单号" disabled={!!editingBill} />
+            <Input 
+              placeholder="请输入交易单号" 
+              disabled={!!editingBill}
+              onBlur={(e) => {
+                const value = e.target.value;
+                if (value && value.trim()) {
+                  validateTransactionNumber(value);
+                } else {
+                  setTransactionNumberValidation({ loading: false, result: null, error: null });
+                }
+              }}
+            />
           </Form.Item>
 
           <Form.Item
             label="牵牛花采购单号"
             name="qianniuhuaPurchaseNumber"
+            help={
+              purchaseOrderNumberValidation.loading ? (
+                <span style={{ color: '#1890ff' }}>校验中...</span>
+              ) : purchaseOrderNumberValidation.error ? (
+                <span style={{ color: '#ff4d4f' }}>{purchaseOrderNumberValidation.error}</span>
+              ) : purchaseOrderNumberValidation.result ? (
+                <span style={{ color: '#52c41a' }}>
+                  门店/仓: {purchaseOrderNumberValidation.result['门店/仓'] || '-'}, 
+                  采购金额: {purchaseOrderNumberValidation.result.采购金额 !== undefined ? purchaseOrderNumberValidation.result.采购金额.toFixed(2) : '-'}
+                </span>
+              ) : null
+            }
           >
-            <Input placeholder="请输入牵牛花采购单号" />
+            <Input 
+              placeholder="请输入牵牛花采购单号"
+              onBlur={(e) => {
+                const value = e.target.value;
+                if (value && value.trim()) {
+                  validatePurchaseOrderNumber(value);
+                } else {
+                  setPurchaseOrderNumberValidation({ loading: false, result: null, error: null });
+                }
+              }}
+            />
           </Form.Item>
 
           <Form.Item
