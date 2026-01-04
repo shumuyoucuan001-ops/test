@@ -11,8 +11,6 @@ export interface OperationLogData {
   recordIdentifier: Record<string, any>;
   changes?: Record<string, { old?: any; new?: any }>;
   operationDetails?: Record<string, any>;
-  ipAddress?: string;
-  userAgent?: string;
 }
 
 @Injectable()
@@ -67,8 +65,8 @@ export class OperationLogService {
       const insertLogQuery = `
         INSERT INTO sm_xitongkaifa.operation_log 
         (user_id, display_name, operation_type, target_database, target_table, 
-         record_identifier, changes, operation_details, ip_address, user_agent, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         record_identifier, changes, operation_details, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
 
       const recordIdentifierJson = JSON.stringify(data.recordIdentifier);
@@ -84,8 +82,6 @@ export class OperationLogService {
         recordIdentifierJson,
         changesJson,
         operationDetailsJson,
-        data.ipAddress || null,
-        data.userAgent || null,
       ]);
 
       Logger.log('[OperationLogService] Operation log inserted successfully', {
@@ -146,7 +142,7 @@ export class OperationLogService {
       const insertLogQuery = `
         INSERT INTO sm_xitongkaifa.operation_log 
         (user_id, display_name, operation_type, target_database, target_table, 
-         record_identifier, changes, operation_details, ip_address, user_agent, created_at)
+         record_identifier, changes, operation_details, created_at)
         VALUES ?
       `;
 
@@ -161,8 +157,6 @@ export class OperationLogService {
           JSON.stringify(log.recordIdentifier),
           log.changes ? JSON.stringify(log.changes) : null,
           log.operationDetails ? JSON.stringify(log.operationDetails) : null,
-          log.ipAddress || null,
-          log.userAgent || null,
         ];
       });
 
