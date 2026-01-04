@@ -14,6 +14,7 @@ import ResponsiveTable from "./ResponsiveTable";
 const fieldLabels: Record<keyof SupplierConversionRelationItem, string> = {
     "供应商编码": "供应商编码",
     "*SKU编码": "SKU编码",
+    "换算关系": "换算关系",
     "二次换算关系": "二次换算关系",
     "数据更新时间": "数据更新时间",
 };
@@ -34,6 +35,7 @@ export default function SupplierConversionRelationPage() {
     const [searchFilters, setSearchFilters] = useState<{
         供应商编码?: string;
         '*SKU编码'?: string;
+        换算关系?: string;
         二次换算关系?: string;
     }>({});
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
@@ -209,6 +211,7 @@ export default function SupplierConversionRelationPage() {
             const submitData: SupplierConversionRelationItem = {
                 '供应商编码': values['供应商编码']?.trim() || '',
                 '*SKU编码': values['*SKU编码']?.trim() || '',
+                '换算关系': values['换算关系']?.trim() || '',
                 '二次换算关系': values['二次换算关系']?.trim() || '',
                 '数据更新时间': null, // 由数据库自动更新
             };
@@ -313,11 +316,18 @@ export default function SupplierConversionRelationPage() {
             index: 1,
         },
         {
+            key: '换算关系',
+            label: '换算关系',
+            excelHeaderName: '换算关系', // Excel表头名称，必须完全一致
+            required: false,
+            index: 2,
+        },
+        {
             key: '二次换算关系',
             label: '二次换算关系',
             excelHeaderName: '二次换算关系', // Excel表头名称，必须完全一致
             required: true,
-            index: 2,
+            index: 3,
         },
     ];
 
@@ -326,7 +336,8 @@ export default function SupplierConversionRelationPage() {
         return {
             '供应商编码': parts[0] || '',
             '*SKU编码': parts[1] || '',
-            '二次换算关系': parts[2] || '',
+            '换算关系': parts[2] || '',
+            '二次换算关系': parts[3] || '',
             '数据更新时间': null,
         };
     }, []);
@@ -381,6 +392,13 @@ export default function SupplierConversionRelationPage() {
                 key: '*SKU编码',
                 width: 220,
                 fixed: 'left',
+            },
+            {
+                title: '换算关系',
+                dataIndex: '换算关系',
+                key: '换算关系',
+                width: 200,
+                ellipsis: true,
             },
             {
                 title: '二次换算关系',
@@ -527,6 +545,13 @@ export default function SupplierConversionRelationPage() {
                                 allowClear
                             />
                             <Input
+                                placeholder="换算关系"
+                                style={{ width: '100%' }}
+                                value={searchFilters.换算关系}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, 换算关系: e.target.value })}
+                                allowClear
+                            />
+                            <Input
                                 placeholder="二次换算关系"
                                 style={{ width: '100%' }}
                                 value={searchFilters.二次换算关系}
@@ -596,6 +621,13 @@ export default function SupplierConversionRelationPage() {
                                 style={{ width: 150 }}
                                 value={searchFilters['*SKU编码']}
                                 onChange={(e) => setSearchFilters({ ...searchFilters, '*SKU编码': e.target.value })}
+                                allowClear
+                            />
+                            <Input
+                                placeholder="换算关系"
+                                style={{ width: 150 }}
+                                value={searchFilters.换算关系}
+                                onChange={(e) => setSearchFilters({ ...searchFilters, 换算关系: e.target.value })}
                                 allowClear
                             />
                             <Input
@@ -706,6 +738,11 @@ export default function SupplierConversionRelationPage() {
                             disabled={!!editing}
                         />
                     </Form.Item>
+                    <Form.Item name="换算关系" label="换算关系">
+                        <Input
+                            maxLength={50}
+                        />
+                    </Form.Item>
                     <Form.Item name="二次换算关系" label="二次换算关系" rules={[{ required: true, message: "请输入二次换算关系" }]}>
                         <Input
                             maxLength={50}
@@ -718,10 +755,10 @@ export default function SupplierConversionRelationPage() {
             <BatchAddModal<SupplierConversionRelationItem>
                 open={batchModalOpen}
                 title="批量新增记录"
-                hint="您可以从 Excel 中复制数据（包含供应商编码、SKU编码、二次换算关系列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件"
+                hint="您可以从 Excel 中复制数据（包含供应商编码、SKU编码、换算关系、二次换算关系列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件"
                 fields={batchAddFields}
-                formatHint="格式：供应商编码	SKU编码	二次换算关系"
-                example="SUP001	SKU001	1:10"
+                formatHint="格式：供应商编码	SKU编码	换算关系	二次换算关系"
+                example="SUP001	SKU001	1:5	1:10"
                 onCancel={() => setBatchModalOpen(false)}
                 onSave={handleBatchSave}
                 createItem={createBatchItem}

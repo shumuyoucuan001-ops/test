@@ -546,6 +546,7 @@ export const opsRegularActivityDispatchApi = {
 export interface SupplierConversionRelationItem {
   '供应商编码': string;
   '*SKU编码': string;
+  '换算关系': string;
   '二次换算关系': string;
   '数据更新时间': string | null;
 }
@@ -554,6 +555,7 @@ export const supplierConversionRelationApi = {
   list: (params?: {
     供应商编码?: string;
     '*SKU编码'?: string;
+    换算关系?: string;
     二次换算关系?: string;
     keyword?: string;
     page?: number;
@@ -562,6 +564,7 @@ export const supplierConversionRelationApi = {
     const queryParams: any = {};
     if (params?.['供应商编码']) queryParams['供应商编码'] = params['供应商编码'];
     if (params?.['*SKU编码']) queryParams['*SKU编码'] = params['*SKU编码'];
+    if (params?.['换算关系']) queryParams['换算关系'] = params['换算关系'];
     if (params?.['二次换算关系']) queryParams['二次换算关系'] = params['二次换算关系'];
     if (params?.keyword) queryParams.keyword = params.keyword;
     queryParams.page = params?.page || 1;

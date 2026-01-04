@@ -12,8 +12,8 @@ export interface FieldConfig<T = any> {
     key: keyof T;
     /** 字段显示名称 */
     label: string;
-    /** Excel表头名称（如果不指定，则使用label进行匹配，必须完全一致） */
-    excelHeaderName?: string;
+    /** Excel表头名称（如果不指定，则使用label进行匹配，必须完全一致）。可以是字符串或字符串数组，支持别名匹配 */
+    excelHeaderName?: string | string[];
     /** 是否必填 */
     required?: boolean;
     /** 字段在Excel/粘贴数据中的索引位置（从0开始，仅用于粘贴时按顺序解析） */
@@ -180,13 +180,15 @@ export default function BatchAddModal<T = any>({
         const headerToFieldMap = new Map<number, FieldConfig<T>>();
 
         for (const field of fields) {
-            // 获取字段在Excel中的表头名称（必须完全一致）
-            const expectedHeaderName = field.excelHeaderName || field.label;
+            // 获取字段在Excel中的表头名称（支持字符串或字符串数组）
+            const expectedHeaderNames = Array.isArray(field.excelHeaderName)
+                ? field.excelHeaderName
+                : [field.excelHeaderName || field.label];
 
             // 在表头中查找完全匹配的列
             for (let colIndex = 0; colIndex < headerRow.length; colIndex++) {
                 const headerName = headerRow[colIndex].trim();
-                if (headerName === expectedHeaderName.trim()) {
+                if (expectedHeaderNames.some(name => headerName === name.trim())) {
                     headerToFieldMap.set(colIndex, field);
                     break; // 找到匹配的就停止
                 }
@@ -195,8 +197,10 @@ export default function BatchAddModal<T = any>({
 
         // 检查是否有字段未匹配到
         const unmatchedFields = fields.filter(field => {
-            const expectedHeaderName = field.excelHeaderName || field.label;
-            return !headerRow.some(header => header.trim() === expectedHeaderName.trim());
+            const expectedHeaderNames = Array.isArray(field.excelHeaderName)
+                ? field.excelHeaderName
+                : [field.excelHeaderName || field.label];
+            return !headerRow.some(header => expectedHeaderNames.some(name => header.trim() === name.trim()));
         });
 
         if (unmatchedFields.length > 0 && unmatchedFields.some(f => f.required)) {
@@ -573,7 +577,7 @@ export default function BatchAddModal<T = any>({
                     showUploadList={false}
                 >
                     <Button icon={<UploadOutlined />} loading={uploading}>
-                        导入Excel文件
+                        导入Excel文件(可选)
                     </Button>
                 </Upload>
             </div>

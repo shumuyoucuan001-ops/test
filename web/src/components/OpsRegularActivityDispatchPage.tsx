@@ -4,9 +4,10 @@ import { OpsRegularActivityDispatchItem, opsRegularActivityDispatchApi, productM
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Popover, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ResponsiveTable from "./ResponsiveTable";
 
@@ -36,7 +37,6 @@ export default function OpsRegularActivityDispatchPage() {
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
     const [batchModalOpen, setBatchModalOpen] = useState(false);
-    const [batchItems, setBatchItems] = useState<OpsRegularActivityDispatchItem[]>([]);
     const [searchText, setSearchText] = useState('');
     const [searchFilters, setSearchFilters] = useState<{
         SKU?: string;
@@ -292,71 +292,62 @@ export default function OpsRegularActivityDispatchPage() {
 
     const openBatchCreate = () => {
         setBatchModalOpen(true);
-        setBatchItems([]);
     };
 
-    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-        const lines = pastedText
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
+    // 批量新增字段配置
+    const batchAddFields: FieldConfig<OpsRegularActivityDispatchItem>[] = [
+        {
+            key: 'SKU',
+            label: 'SKU',
+            excelHeaderName: 'SKU',
+            required: true,
+            index: 0,
+        },
+        {
+            key: '活动价',
+            label: '活动价',
+            excelHeaderName: '活动价',
+            required: false,
+            index: 1,
+            transform: (value: string) => value ? Number(value) : null,
+        },
+        {
+            key: '活动类型',
+            label: '活动类型',
+            excelHeaderName: '活动类型',
+            required: false,
+            index: 2,
+        },
+        {
+            key: '活动备注',
+            label: '活动备注',
+            excelHeaderName: '活动备注',
+            required: false,
+            index: 3,
+        },
+        {
+            key: '活动确认人',
+            label: '活动确认人',
+            excelHeaderName: '活动确认人',
+            required: false,
+            index: 4,
+        },
+    ];
 
-        if (lines.length === 0) {
-            message.warning('粘贴的内容为空');
-            return;
-        }
-
-        const newItems: OpsRegularActivityDispatchItem[] = [];
-        for (const line of lines) {
-            let parts: string[];
-            if (line.includes('\t')) {
-                parts = line.split('\t').map(p => p.trim());
-            } else if (line.includes(',')) {
-                parts = line.split(',').map(p => p.trim());
-            } else {
-                parts = line.split(/\s{2,}/).map(p => p.trim());
-            }
-
-            if (parts.length >= 1 && parts[0]) {
-                newItems.push({
-                    'SKU': parts[0] || '',
-                    '活动价': parts[1] ? Number(parts[1]) : null,
-                    '活动类型': parts[2] || null,
-                    '活动备注': parts[3] || null,
-                    '活动确认人': parts[4] || null,
-                    '数据更新时间': null, // 由数据库自动更新
-                });
-            }
-        }
-
-        if (newItems.length > 0) {
-            setBatchItems(prev => [...prev, ...newItems]);
-            message.success(`已粘贴 ${newItems.length} 条数据`);
-        } else {
-            message.warning('未能解析出有效数据，请检查格式');
-        }
-
-        const target = e.target as HTMLTextAreaElement;
-        if (target) {
-            target.value = '';
-        }
+    // 创建数据项
+    const createBatchItem = useCallback((parts: string[]): Partial<OpsRegularActivityDispatchItem> => {
+        return {
+            'SKU': parts[0] || '',
+            '活动价': parts[1] ? Number(parts[1]) : null,
+            '活动类型': parts[2] || null,
+            '活动备注': parts[3] || null,
+            '活动确认人': parts[4] || null,
+            '数据更新时间': null,
+        };
     }, []);
 
-    const handleBatchSave = async () => {
-        if (batchItems.length === 0) {
-            message.warning('请先粘贴数据');
-            return;
-        }
-
-        const validItems = batchItems.filter(item => item['SKU']);
-
-        if (validItems.length === 0) {
-            message.warning('请至少填写一条有效数据（SKU为必填）');
-            return;
-        }
-
+    // 批量保存
+    const handleBatchSave = useCallback(async (validItems: OpsRegularActivityDispatchItem[]) => {
         try {
             const result = await opsRegularActivityDispatchApi.batchCreate(validItems);
             message.success(result.message);
@@ -364,14 +355,12 @@ export default function OpsRegularActivityDispatchPage() {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
             setBatchModalOpen(false);
-            setBatchItems([]);
             load();
         } catch (e: any) {
-            // 使用增强的错误提示（方式1：message + Modal弹框）
             showErrorBoth(e, '批量创建失败');
             console.error('批量创建失败:', e);
         }
-    };
+    }, []);
 
     const columns = useMemo(() => {
         const selectionCol = {
@@ -855,95 +844,17 @@ export default function OpsRegularActivityDispatchPage() {
             </Modal>
 
             {/* 批量新增弹窗 */}
-            <Modal
+            <BatchAddModal<OpsRegularActivityDispatchItem>
                 open={batchModalOpen}
                 title="批量新增记录"
-                onCancel={() => {
-                    setBatchModalOpen(false);
-                    setBatchItems([]);
-                }}
-                onOk={handleBatchSave}
-                okText="确定创建"
-                cancelText="取消"
-                width={900}
-                destroyOnClose
-            >
-                <div style={{
-                    marginBottom: 16,
-                    padding: '16px',
-                    background: '#f5f5f5',
-                    borderRadius: '4px',
-                }}>
-                    <div style={{
-                        marginBottom: 8,
-                        color: '#666',
-                        fontSize: 14,
-                    }}>
-                        提示：您可以从 Excel 中复制数据（包含SKU、活动价、活动类型、活动备注、活动确认人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
-                    </div>
-                    <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SKU	活动价	活动类型	活动备注	活动确认人&#10;示例：SKU001	100.00	促销	备注	张三"
-                        rows={4}
-                        onPaste={handlePaste}
-                        style={{
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                        }}
-                    />
-                </div>
-
-                {/* 预览表格 */}
-                {batchItems.length > 0 ? (
-                    <Table
-                        columns={[
-                            {
-                                title: 'SKU',
-                                dataIndex: 'SKU',
-                                key: 'SKU',
-                                render: (text: string) => (
-                                    <span style={{ color: !text ? 'red' : 'inherit' }}>
-                                        {text || '(必填)'}
-                                    </span>
-                                ),
-                            },
-                            { title: '活动价', dataIndex: '活动价', key: '活动价', render: (v: any) => v !== null ? Number(v).toFixed(2) : '-' },
-                            { title: '活动类型', dataIndex: '活动类型', key: '活动类型' },
-                            { title: '活动备注', dataIndex: '活动备注', key: '活动备注' },
-                            { title: '活动确认人', dataIndex: '活动确认人', key: '活动确认人' },
-                            {
-                                title: '操作',
-                                key: 'action',
-                                width: 100,
-                                render: (_: any, record: OpsRegularActivityDispatchItem, index: number) => (
-                                    <Button
-                                        type="link"
-                                        danger
-                                        size="small"
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => {
-                                            setBatchItems(prev => prev.filter((_, i) => i !== index));
-                                        }}
-                                    >
-                                        删除
-                                    </Button>
-                                ),
-                            },
-                        ]}
-                        dataSource={batchItems.map((item, index) => ({ ...item, key: index }))}
-                        pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-                        size="small"
-                    />
-                ) : (
-                    <div style={{
-                        padding: 40,
-                        textAlign: 'center',
-                        color: '#999',
-                        fontSize: 14
-                    }}>
-                        暂无数据，请粘贴数据到上方输入框
-                    </div>
-                )}
-            </Modal>
+                hint="您可以从 Excel 中复制数据（包含SKU、活动价、活动类型、活动备注、活动确认人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件"
+                fields={batchAddFields}
+                formatHint="格式：SKU	活动价	活动类型	活动备注	活动确认人"
+                example="SKU001	100.00	促销	备注	张三"
+                onCancel={() => setBatchModalOpen(false)}
+                onSave={handleBatchSave}
+                createItem={createBatchItem}
+            />
         </div>
     );
 }

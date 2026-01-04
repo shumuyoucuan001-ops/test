@@ -3,9 +3,10 @@
 import { OpsExclusionItem, opsExclusionApi, productMasterApi } from "@/lib/api";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ResponsiveTable from "./ResponsiveTable";
 
@@ -34,7 +35,6 @@ export default function OpsExclusionPage() {
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]); // 选中的行
     const [batchModalOpen, setBatchModalOpen] = useState(false); // 批量新增弹窗
-    const [batchItems, setBatchItems] = useState<OpsExclusionItem[]>([]); // 批量新增的数据
     const [searchText, setSearchText] = useState(''); // 总搜索（全字段）
     const [searchFilters, setSearchFilters] = useState<{
         视图名称?: string;
@@ -303,10 +303,75 @@ export default function OpsExclusionPage() {
     // 打开批量新增弹窗
     const openBatchCreate = () => {
         setBatchModalOpen(true);
-        setBatchItems([]);
     };
 
-    // 使用转义机制解析行数据（处理备注列中的分隔符）
+    // 批量新增字段配置
+    const batchAddFields: FieldConfig<OpsExclusionItem>[] = [
+        {
+            key: '视图名称',
+            label: '视图名称',
+            excelHeaderName: '视图名称',
+            required: true,
+            index: 0,
+        },
+        {
+            key: '门店编码',
+            label: '门店编码',
+            excelHeaderName: '门店编码',
+            required: false,
+            index: 1,
+        },
+        {
+            key: 'SKU编码',
+            label: 'SKU编码',
+            excelHeaderName: 'SKU编码',
+            required: false,
+            index: 2,
+        },
+        {
+            key: 'SPU编码',
+            label: 'SPU编码',
+            excelHeaderName: 'SPU编码',
+            required: false,
+            index: 3,
+        },
+        {
+            key: '备注',
+            label: '备注',
+            excelHeaderName: '备注',
+            required: false,
+            index: 4,
+        },
+    ];
+
+    // 创建数据项
+    const createBatchItem = useCallback((parts: string[]): Partial<OpsExclusionItem> => {
+        return {
+            '视图名称': parts[0] || '',
+            '门店编码': parts[1] || '',
+            'SKU编码': parts[2] || '',
+            'SPU编码': parts[3] || '',
+            '备注': parts[4] || null,
+        };
+    }, []);
+
+    // 批量保存
+    const handleBatchSave = useCallback(async (validItems: OpsExclusionItem[]) => {
+        try {
+            const result = await opsExclusionApi.batchCreate(validItems);
+            message.success(result.message);
+            if (result.errors && result.errors.length > 0) {
+                message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+            }
+            setBatchModalOpen(false);
+            load();
+        } catch (e: any) {
+            showErrorBoth(e, '批量创建失败');
+            console.error('批量创建失败:', e);
+        }
+    }, []);
+
+    // 使用转义机制解析行数据（处理备注列中的分隔符）- 已废弃，保留用于兼容
     const parseLineWithEscapedDelimiter = (line: string, delimiter: string, expectedColumns: number): string[] => {
         // 占位符：使用一个不太可能出现在数据中的字符串
         const PLACEHOLDER_TAB = '___TAB_PLACEHOLDER___';
@@ -370,145 +435,6 @@ export default function OpsExclusionPage() {
         }
     };
 
-    // 处理粘贴事件（参考 purchase-pass-difference 的方式）
-    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-
-        // 将粘贴的内容按行分割（不trim，保留原始格式，因为备注列可能包含换行）
-        const rawLines = pastedText.split(/\r?\n/);
-
-        if (rawLines.length === 0) {
-            message.warning('粘贴的内容为空');
-            return;
-        }
-
-        // 检测分隔符类型（使用第一行）
-        const firstLine = rawLines[0].trim();
-        if (!firstLine) {
-            message.warning('粘贴的内容为空');
-            return;
-        }
-
-        // 合并多行：如果某行的列数不足，说明是上一行备注列的延续
-        const mergedLines: string[] = [];
-        for (let i = 0; i < rawLines.length; i++) {
-            const line = rawLines[i];
-            if (!line.trim()) continue; // 跳过空行
-
-            // 检测当前行的列数（通过统计分隔符数量）
-            let columnCount = 1; // 至少1列
-            if (line.includes('\t')) {
-                columnCount = (line.match(/\t/g) || []).length + 1;
-            } else if (line.includes(',')) {
-                columnCount = (line.match(/,/g) || []).length + 1;
-            } else {
-                columnCount = line.split(/\s{2,}/).length;
-            }
-
-            // 如果列数不足5列，且上一行有数据，则合并到上一行
-            if (columnCount < 5 && mergedLines.length > 0) {
-                // 这是备注列的延续，合并到上一行（用空格连接，替换换行符）
-                mergedLines[mergedLines.length - 1] += ' ' + line.trim();
-            } else {
-                // 这是新的一行数据
-                mergedLines.push(line);
-            }
-        }
-
-        // 解析合并后的行
-        const newItems: OpsExclusionItem[] = [];
-        for (const line of mergedLines) {
-            let parts: string[] = [];
-
-            // 优先使用制表符分隔（Excel 粘贴通常是制表符）
-            if (line.includes('\t')) {
-                parts = parseLineWithEscapedDelimiter(line, '\t', 5);
-            }
-            // 其次使用逗号分隔
-            else if (line.includes(',')) {
-                parts = parseLineWithEscapedDelimiter(line, ',', 5);
-            }
-            // 最后使用多个空格分隔
-            else {
-                // 对于空格分隔，先尝试分割前4个字段，剩余作为备注
-                const spaceParts = line.split(/\s{2,}/);
-                if (spaceParts.length > 4) {
-                    // 前4个字段，剩余部分合并作为备注
-                    parts = [
-                        ...spaceParts.slice(0, 4).map(p => p.trim()),
-                        spaceParts.slice(4).join('  ').trim()
-                    ];
-                } else {
-                    parts = spaceParts.map(p => p.trim());
-                }
-            }
-
-            // 确保至少有视图名称（必填字段）
-            if (parts.length >= 1 && parts[0]) {
-                // 如果列数不足5列，在后面补空值
-                while (parts.length < 5) {
-                    parts.push('');
-                }
-
-                // 备注列中的换行符替换为空格
-                const remark = parts[4] ? parts[4].replace(/\r?\n/g, ' ').trim() : null;
-                newItems.push({
-                    '视图名称': parts[0] || '',
-                    '门店编码': parts[1] || '',
-                    'SKU编码': parts[2] || '',
-                    'SPU编码': parts[3] || '',
-                    // 备注列：如果分割后只有4列，则备注为空；如果有第5列，则使用第5列（已包含所有剩余内容，换行符已替换为空格）
-                    '备注': remark,
-                });
-            }
-        }
-
-        if (newItems.length > 0) {
-            setBatchItems(prev => [...prev, ...newItems]);
-            message.success(`已粘贴 ${newItems.length} 条数据`);
-        } else {
-            message.warning('未能解析出有效数据，请检查格式');
-        }
-
-        // 清空输入框
-        const target = e.target as HTMLTextAreaElement;
-        if (target) {
-            target.value = '';
-        }
-    }, [message]);
-
-    // 批量保存
-    const handleBatchSave = async () => {
-        if (batchItems.length === 0) {
-            message.warning('请先粘贴数据');
-            return;
-        }
-
-        // 过滤掉视图名称为空的项
-        const validItems = batchItems.filter(item => item['视图名称']);
-
-        if (validItems.length === 0) {
-            message.warning('请至少填写一条有效数据（视图名称为必填）');
-            return;
-        }
-
-        try {
-            const result = await opsExclusionApi.batchCreate(validItems);
-            message.success(result.message);
-            if (result.errors && result.errors.length > 0) {
-                message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
-            }
-
-            setBatchModalOpen(false);
-            setBatchItems([]);
-            load();
-        } catch (e: any) {
-            // 使用增强的错误提示（方式1：message + Modal弹框）
-            showErrorBoth(e, '批量创建失败');
-            console.error('批量创建失败:', e);
-        }
-    };
 
     const columns = useMemo(() => {
         const selectionCol = {
@@ -935,95 +861,17 @@ export default function OpsExclusionPage() {
             </Modal>
 
             {/* 批量新增弹窗 */}
-            <Modal
+            <BatchAddModal<OpsExclusionItem>
                 open={batchModalOpen}
                 title="批量新增规则"
-                onCancel={() => {
-                    setBatchModalOpen(false);
-                    setBatchItems([]);
-                }}
-                onOk={handleBatchSave}
-                okText="确定创建"
-                cancelText="取消"
-                width={900}
-                destroyOnClose
-            >
-                <div style={{
-                    marginBottom: 16,
-                    padding: '16px',
-                    background: '#f5f5f5',
-                    borderRadius: '4px',
-                }}>
-                    <div style={{
-                        marginBottom: 8,
-                        color: '#666',
-                        fontSize: 14,
-                    }}>
-                        提示：您可以从 Excel 中复制数据（包含视图名称、门店编码、SKU编码、SPU编码、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
-                    </div>
-                    <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：视图名称	门店编码	SKU编码	SPU编码	备注&#10;示例：视图1	门店1	SKU1	SPU1	备注1"
-                        rows={4}
-                        onPaste={handlePaste}
-                        style={{
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                        }}
-                    />
-                </div>
-
-                {/* 预览表格 */}
-                {batchItems.length > 0 ? (
-                    <Table
-                        columns={[
-                            {
-                                title: '视图名称',
-                                dataIndex: '视图名称',
-                                key: '视图名称',
-                                render: (text: string) => (
-                                    <span style={{ color: !text ? 'red' : 'inherit' }}>
-                                        {text || '(必填)'}
-                                    </span>
-                                ),
-                            },
-                            { title: '门店编码', dataIndex: '门店编码', key: '门店编码' },
-                            { title: 'SKU编码', dataIndex: 'SKU编码', key: 'SKU编码' },
-                            { title: 'SPU编码', dataIndex: 'SPU编码', key: 'SPU编码' },
-                            { title: '备注', dataIndex: '备注', key: '备注' },
-                            {
-                                title: '操作',
-                                key: 'action',
-                                width: 100,
-                                render: (_: any, record: OpsExclusionItem, index: number) => (
-                                    <Button
-                                        type="link"
-                                        danger
-                                        size="small"
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => {
-                                            setBatchItems(prev => prev.filter((_, i) => i !== index));
-                                        }}
-                                    >
-                                        删除
-                                    </Button>
-                                ),
-                            },
-                        ]}
-                        dataSource={batchItems.map((item, index) => ({ ...item, key: index }))}
-                        pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-                        size="small"
-                    />
-                ) : (
-                    <div style={{
-                        padding: 40,
-                        textAlign: 'center',
-                        color: '#999',
-                        fontSize: 14
-                    }}>
-                        暂无数据，请粘贴数据到上方输入框
-                    </div>
-                )}
-            </Modal>
+                hint="您可以从 Excel 中复制数据（包含视图名称、门店编码、SKU编码、SPU编码、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件"
+                fields={batchAddFields}
+                formatHint="格式：视图名称	门店编码	SKU编码	SPU编码	备注"
+                example="视图1	门店1	SKU1	SPU1	备注1"
+                onCancel={() => setBatchModalOpen(false)}
+                onSave={handleBatchSave}
+                createItem={createBatchItem}
+            />
         </div>
     );
 }

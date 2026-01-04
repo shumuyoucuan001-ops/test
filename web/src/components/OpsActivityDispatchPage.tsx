@@ -4,10 +4,11 @@ import { OpsActivityDispatchItem, opsActivityDispatchApi, productMasterApi } fro
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Table, Tag, message } from "antd";
+import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import dayjs, { Dayjs } from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ResponsiveTable from "./ResponsiveTable";
 
@@ -41,8 +42,6 @@ export default function OpsActivityDispatchPage() {
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
     const [batchModalOpen, setBatchModalOpen] = useState(false);
-    const [batchItems, setBatchItems] = useState<OpsActivityDispatchItem[]>([]);
-    const [invalidItems, setInvalidItems] = useState<Array<{ item: OpsActivityDispatchItem; reasons: string[] }>>([]);
     const [searchText, setSearchText] = useState('');
     const [searchFilters, setSearchFilters] = useState<{
         SKU?: string;
@@ -345,175 +344,141 @@ export default function OpsActivityDispatchPage() {
 
     const openBatchCreate = () => {
         setBatchModalOpen(true);
-        setBatchItems([]);
     };
 
-    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        // 确保门店名称列表已加载
-        if (storeNames.length === 0) {
-            message.warning('门店名称列表正在加载中，请稍后再试');
-            return;
-        }
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-        const lines = pastedText
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
+    // 批量新增字段配置
+    const batchAddFields: FieldConfig<OpsActivityDispatchItem>[] = [
+        {
+            key: 'SKU',
+            label: 'SKU',
+            excelHeaderName: 'SKU',
+            required: true,
+            index: 0,
+        },
+        {
+            key: '活动价',
+            label: '活动价',
+            excelHeaderName: '活动价',
+            required: false,
+            index: 1,
+            transform: (value: string) => value ? Number(value) : null,
+        },
+        {
+            key: '最低活动价',
+            label: '最低活动价',
+            excelHeaderName: '最低活动价',
+            required: false,
+            index: 2,
+            transform: (value: string) => value ? Number(value) : null,
+        },
+        {
+            key: '活动类型',
+            label: '活动类型',
+            excelHeaderName: '活动类型',
+            required: false,
+            index: 3,
+        },
+        {
+            key: '门店名称',
+            label: '门店名称',
+            excelHeaderName: '门店名称',
+            required: false,
+            index: 4,
+        },
+        {
+            key: '活动备注',
+            label: '活动备注',
+            excelHeaderName: '活动备注',
+            required: false,
+            index: 5,
+        },
+        {
+            key: '剩余活动天数',
+            label: '剩余活动天数',
+            excelHeaderName: '剩余活动天数',
+            required: false,
+            index: 6,
+            transform: (value: string) => value ? Number(value) : null,
+        },
+        {
+            key: '活动确认人',
+            label: '活动确认人',
+            excelHeaderName: '活动确认人',
+            required: false,
+            index: 7,
+        },
+        {
+            key: '结束时间',
+            label: '结束时间',
+            excelHeaderName: '结束时间',
+            required: false,
+            index: 8,
+        },
+    ];
 
-        if (lines.length === 0) {
-            message.warning('粘贴的内容为空');
-            return;
-        }
-
-        const newItems: OpsActivityDispatchItem[] = [];
-        const newInvalidItems: Array<{ item: OpsActivityDispatchItem; reasons: string[] }> = [];
-
-        for (const line of lines) {
-            let parts: string[];
-            if (line.includes('\t')) {
-                parts = line.split('\t').map(p => p.trim());
-            } else if (line.includes(',')) {
-                parts = line.split(',').map(p => p.trim());
-            } else {
-                parts = line.split(/\s{2,}/).map(p => p.trim());
-            }
-
-            if (parts.length >= 1 && parts[0]) {
-                const reasons: string[] = [];
-
-                // 验证活动类型是否为"折扣商品"或"爆品活动"
-                if (parts[3] && parts[3].trim() !== '' && parts[3] !== '折扣商品' && parts[3] !== '爆品活动') {
-                    reasons.push(`活动类型无效（应为"折扣商品"或"爆品活动"）`);
-                }
-
-                // 验证门店名称是否在选择范围内
-                if (parts[4] && parts[4].trim() !== '' && !storeNames.includes(parts[4].trim())) {
-                    reasons.push(`门店名称"${parts[4]}"不在选择范围内`);
-                }
-
-                // 验证结束时间不能超过今天之后31天
-                if (parts[8]) {
-                    const endDate = dayjs(parts[8]);
-                    const today = dayjs().startOf('day');
-                    const maxDate = today.add(31, 'day');
-                    if (endDate.isAfter(maxDate)) {
-                        reasons.push(`结束时间超过今天之后31天`);
-                    }
-                }
-
-                // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数
-                let 剩余活动天数 = parts[6] ? Number(parts[6]) : null;
-                // 处理结束时间：只保留年月日，去掉时分秒
-                let 结束时间 = null;
-                if (parts[8]) {
-                    const endDate = dayjs(parts[8]);
-                    if (endDate.isValid()) {
-                        // 只保留年月日
-                        结束时间 = endDate.format('YYYY-MM-DD');
-                        const today = dayjs().startOf('day');
-                        const diffDays = endDate.startOf('day').diff(today, 'day');
-                        剩余活动天数 = diffDays >= 0 ? diffDays : null;
-                    }
-                }
-
-                const item: OpsActivityDispatchItem = {
-                    'SKU': parts[0] || '',
-                    '活动价': parts[1] ? Number(parts[1]) : null,
-                    '最低活动价': parts[2] ? Number(parts[2]) : null,
-                    '活动类型': parts[3] && (parts[3] === '折扣商品' || parts[3] === '爆品活动') ? parts[3] : null,
-                    '门店名称': parts[4] || null,
-                    '活动备注': parts[5] || null,
-                    '剩余活动天数': 剩余活动天数,
-                    '活动确认人': parts[7] || null,
-                    '结束时间': 结束时间,
-                    '数据更新时间': null, // 由数据库自动更新
-                };
-
-                if (reasons.length > 0) {
-                    newInvalidItems.push({ item, reasons });
-                } else {
-                    newItems.push(item);
-                }
+    // 创建数据项
+    const createBatchItem = useCallback((parts: string[]): Partial<OpsActivityDispatchItem> => {
+        // 处理结束时间：只保留年月日，去掉时分秒
+        let 结束时间 = null;
+        let 剩余活动天数 = parts[6] ? Number(parts[6]) : null;
+        if (parts[8]) {
+            const endDate = dayjs(parts[8]);
+            if (endDate.isValid()) {
+                // 只保留年月日
+                结束时间 = endDate.format('YYYY-MM-DD');
+                const today = dayjs().startOf('day');
+                const diffDays = endDate.startOf('day').diff(today, 'day');
+                剩余活动天数 = diffDays >= 0 ? diffDays : null;
             }
         }
 
-        if (newItems.length > 0 || newInvalidItems.length > 0) {
-            setBatchItems(prev => [...prev, ...newItems]);
-            setInvalidItems(prev => [...prev, ...newInvalidItems]);
-            if (newItems.length > 0 && newInvalidItems.length > 0) {
-                message.warning(`已粘贴 ${newItems.length} 条有效数据，${newInvalidItems.length} 条数据验证失败，请查看下方验证失败列表`);
-            } else if (newItems.length > 0) {
-                message.success(`已粘贴 ${newItems.length} 条数据`);
-            } else {
-                message.error(`粘贴的 ${newInvalidItems.length} 条数据全部验证失败，请查看下方验证失败列表`);
-            }
-        } else {
-            message.warning('未能解析出有效数据，请检查格式');
+        return {
+            'SKU': parts[0] || '',
+            '活动价': parts[1] ? Number(parts[1]) : null,
+            '最低活动价': parts[2] ? Number(parts[2]) : null,
+            '活动类型': parts[3] && (parts[3] === '折扣商品' || parts[3] === '爆品活动') ? parts[3] : null,
+            '门店名称': parts[4] || null,
+            '活动备注': parts[5] || null,
+            '剩余活动天数': 剩余活动天数,
+            '活动确认人': parts[7] || null,
+            '结束时间': 结束时间,
+            '数据更新时间': null,
+        };
+    }, []);
+
+    // 验证数据项
+    const validateBatchItem = useCallback((item: Partial<OpsActivityDispatchItem>): string[] => {
+        const reasons: string[] = [];
+
+        if (!item['SKU'] || !item['SKU'].trim()) {
+            reasons.push('SKU为必填');
         }
 
-        const target = e.target as HTMLTextAreaElement;
-        if (target) {
-            target.value = '';
-        }
-    }, [storeNames, message]);
-
-    const handleBatchSave = async () => {
-        if (batchItems.length === 0 && invalidItems.length === 0) {
-            message.warning('请先粘贴数据');
-            return;
+        // 验证活动类型
+        if (item['活动类型'] && item['活动类型'] !== '折扣商品' && item['活动类型'] !== '爆品活动') {
+            reasons.push(`活动类型无效（应为"折扣商品"或"爆品活动"）`);
         }
 
-        // 验证活动类型、门店名称和结束时间
-        const today = dayjs().startOf('day');
-        const maxDate = today.add(31, 'day');
-        const newInvalidItems: Array<{ item: OpsActivityDispatchItem; reasons: string[] }> = [];
-
-        const validItems = batchItems.filter(item => {
-            if (!item['SKU']) {
-                newInvalidItems.push({ item, reasons: ['SKU为必填'] });
-                return false;
-            }
-
-            const reasons: string[] = [];
-
-            // 验证活动类型
-            if (item['活动类型'] && item['活动类型'] !== '折扣商品' && item['活动类型'] !== '爆品活动') {
-                reasons.push(`活动类型无效（应为"折扣商品"或"爆品活动"）`);
-            }
-
-            // 验证门店名称是否在选择范围内
-            if (item['门店名称'] && item['门店名称'].trim() !== '' && !storeNames.includes(item['门店名称'].trim())) {
-                reasons.push(`门店名称"${item['门店名称']}"不在选择范围内`);
-            }
-
-            // 验证结束时间
-            if (item['结束时间']) {
-                const endDate = dayjs(item['结束时间']);
-                if (endDate.isAfter(maxDate)) {
-                    reasons.push(`结束时间超过今天之后31天`);
-                }
-            }
-
-            if (reasons.length > 0) {
-                newInvalidItems.push({ item, reasons });
-                return false;
-            }
-            return true;
-        });
-
-        // 更新验证失败的数据列表
-        if (newInvalidItems.length > 0) {
-            setInvalidItems(prev => [...prev, ...newInvalidItems]);
-            message.error(`有 ${newInvalidItems.length} 条数据验证失败，请查看下方验证失败列表`);
-            return;
+        // 验证门店名称是否在选择范围内
+        if (item['门店名称'] && item['门店名称'].trim() !== '' && storeNames.length > 0 && !storeNames.includes(item['门店名称'].trim())) {
+            reasons.push(`门店名称"${item['门店名称']}"不在选择范围内`);
         }
 
-        if (validItems.length === 0) {
-            message.warning('请至少填写一条有效数据（SKU为必填）');
-            return;
+        // 验证结束时间不能超过今天之后31天
+        if (item['结束时间']) {
+            const endDate = dayjs(item['结束时间']);
+            const today = dayjs().startOf('day');
+            const maxDate = today.add(31, 'day');
+            if (endDate.isAfter(maxDate)) {
+                reasons.push(`结束时间超过今天之后31天`);
+            }
         }
 
+        return reasons;
+    }, [storeNames]);
+
+    // 批量保存
+    const handleBatchSave = useCallback(async (validItems: OpsActivityDispatchItem[]) => {
         // 确保结束时间只保留年月日
         const processedItems = validItems.map(item => {
             if (item['结束时间']) {
@@ -535,15 +500,12 @@ export default function OpsActivityDispatchPage() {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
             setBatchModalOpen(false);
-            setBatchItems([]);
-            setInvalidItems([]);
             load();
         } catch (e: any) {
-            // 使用增强的错误提示（方式1：message + Modal弹框）
             showErrorBoth(e, '批量创建失败');
             console.error('批量创建失败:', e);
         }
-    };
+    }, []);
 
     const columns = useMemo(() => {
         const selectionCol = {
@@ -1126,229 +1088,18 @@ export default function OpsActivityDispatchPage() {
             </Modal>
 
             {/* 批量新增弹窗 */}
-            <Modal
+            <BatchAddModal<OpsActivityDispatchItem>
                 open={batchModalOpen}
                 title="批量新增记录"
-                onCancel={() => {
-                    setBatchModalOpen(false);
-                    setBatchItems([]);
-                    setInvalidItems([]);
-                }}
-                onOk={handleBatchSave}
-                okText="确定创建"
-                cancelText="取消"
-                width={900}
-                destroyOnClose
-            >
-                <div style={{
-                    marginBottom: 16,
-                    padding: '16px',
-                    background: '#f5f5f5',
-                    borderRadius: '4px',
-                }}>
-                    <div style={{
-                        marginBottom: 8,
-                        color: '#666',
-                        fontSize: 14,
-                    }}>
-                        提示：您可以从 Excel 中复制数据（包含SKU、活动价、最低活动价、活动类型、门店名称、活动备注、剩余活动天数、活动确认人、结束时间列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
-                    </div>
-                    <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SKU	活动价	最低活动价	活动类型	门店名称	活动备注	剩余活动天数	活动确认人	结束时间&#10;示例：SKU001	100.00	90.00	促销	门店A	备注	30	张三	2024-12-31 23:59:59"
-                        rows={4}
-                        onPaste={handlePaste}
-                        style={{
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                        }}
-                    />
-                </div>
-
-                {/* 有效数据预览表格 */}
-                {batchItems.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                        <div style={{ marginBottom: 8, fontWeight: 'bold', color: '#52c41a' }}>
-                            ✓ 有效数据 ({batchItems.length} 条)
-                        </div>
-                        <Table
-                            columns={[
-                                {
-                                    title: 'SKU',
-                                    dataIndex: 'SKU',
-                                    key: 'SKU',
-                                    render: (text: string) => (
-                                        <span style={{ color: !text ? 'red' : 'inherit' }}>
-                                            {text || '(必填)'}
-                                        </span>
-                                    ),
-                                },
-                                { title: '活动价', dataIndex: '活动价', key: '活动价', render: (v: any) => v !== null ? Number(v).toFixed(2) : '-' },
-                                { title: '最低活动价', dataIndex: '最低活动价', key: '最低活动价', render: (v: any) => v !== null ? Number(v).toFixed(2) : '-' },
-                                { title: '活动类型', dataIndex: '活动类型', key: '活动类型' },
-                                { title: '门店名称', dataIndex: '门店名称', key: '门店名称' },
-                                { title: '活动备注', dataIndex: '活动备注', key: '活动备注' },
-                                { title: '剩余活动天数', dataIndex: '剩余活动天数', key: '剩余活动天数', render: (v: any) => v !== null ? Number(v) : '-' },
-                                { title: '活动确认人', dataIndex: '活动确认人', key: '活动确认人' },
-                                {
-                                    title: '结束时间',
-                                    dataIndex: '结束时间',
-                                    key: '结束时间',
-                                    render: (v: any) => {
-                                        if (!v) return '-';
-                                        // 只显示年月日，去掉时分秒
-                                        return v.split(' ')[0] || v;
-                                    }
-                                },
-                                {
-                                    title: '操作',
-                                    key: 'action',
-                                    width: 100,
-                                    render: (_: any, record: OpsActivityDispatchItem, index: number) => (
-                                        <Button
-                                            type="link"
-                                            danger
-                                            size="small"
-                                            icon={<DeleteOutlined />}
-                                            onClick={() => {
-                                                setBatchItems(prev => prev.filter((_, i) => i !== index));
-                                            }}
-                                        >
-                                            删除
-                                        </Button>
-                                    ),
-                                },
-                            ]}
-                            dataSource={batchItems.map((item, index) => ({ ...item, key: index }))}
-                            pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-                            size="small"
-                        />
-                    </div>
-                )}
-
-                {/* 验证失败数据表格 */}
-                {invalidItems.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                        <div style={{ marginBottom: 8, fontWeight: 'bold', color: '#ff4d4f' }}>
-                            ✗ 验证失败数据 ({invalidItems.length} 条)
-                        </div>
-                        <Table
-                            columns={[
-                                {
-                                    title: 'SKU',
-                                    key: 'SKU',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) => (
-                                        <span style={{ color: !record.item.SKU ? 'red' : 'inherit' }}>
-                                            {record.item.SKU || '(必填)'}
-                                        </span>
-                                    ),
-                                },
-                                {
-                                    title: '活动价',
-                                    key: '活动价',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.活动价 !== null ? Number(record.item.活动价).toFixed(2) : '-'
-                                },
-                                {
-                                    title: '最低活动价',
-                                    key: '最低活动价',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.最低活动价 !== null ? Number(record.item.最低活动价).toFixed(2) : '-'
-                                },
-                                {
-                                    title: '活动类型',
-                                    key: '活动类型',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.活动类型 || '-'
-                                },
-                                {
-                                    title: '门店名称',
-                                    key: '门店名称',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.门店名称 || '-'
-                                },
-                                {
-                                    title: '活动备注',
-                                    key: '活动备注',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.活动备注 || '-'
-                                },
-                                {
-                                    title: '剩余活动天数',
-                                    key: '剩余活动天数',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.剩余活动天数 !== null ? Number(record.item.剩余活动天数) : '-'
-                                },
-                                {
-                                    title: '活动确认人',
-                                    key: '活动确认人',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) =>
-                                        record.item.活动确认人 || '-'
-                                },
-                                {
-                                    title: '结束时间',
-                                    key: '结束时间',
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) => {
-                                        const endTime = record.item.结束时间;
-                                        if (!endTime) return '-';
-                                        // 只显示年月日，去掉时分秒
-                                        return endTime.split(' ')[0] || endTime;
-                                    }
-                                },
-                                {
-                                    title: '失败原因',
-                                    key: 'reasons',
-                                    width: 300,
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }) => (
-                                        <div>
-                                            {record.reasons.map((reason, idx) => (
-                                                <Tag key={idx} color="error" style={{ marginBottom: 4, display: 'block' }}>
-                                                    {reason}
-                                                </Tag>
-                                            ))}
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    title: '操作',
-                                    key: 'action',
-                                    width: 100,
-                                    render: (_: any, record: { item: OpsActivityDispatchItem; reasons: string[] }, index: number) => (
-                                        <Button
-                                            type="link"
-                                            danger
-                                            size="small"
-                                            icon={<DeleteOutlined />}
-                                            onClick={() => {
-                                                setInvalidItems(prev => prev.filter((_, i) => i !== index));
-                                            }}
-                                        >
-                                            删除
-                                        </Button>
-                                    ),
-                                },
-                            ]}
-                            dataSource={invalidItems.map((item, index) => ({ ...item, key: index }))}
-                            pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-                            size="small"
-                            style={{
-                                backgroundColor: '#fff1f0',
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* 无数据提示 */}
-                {batchItems.length === 0 && invalidItems.length === 0 && (
-                    <div style={{
-                        padding: 40,
-                        textAlign: 'center',
-                        color: '#999',
-                        fontSize: 14
-                    }}>
-                        暂无数据，请粘贴数据到上方输入框
-                    </div>
-                )}
-            </Modal>
+                hint="您可以从 Excel 中复制数据（包含SKU、活动价、最低活动价、活动类型、门店名称、活动备注、剩余活动天数、活动确认人、结束时间列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件"
+                fields={batchAddFields}
+                formatHint="格式：SKU	活动价	最低活动价	活动类型	门店名称	活动备注	剩余活动天数	活动确认人	结束时间"
+                example="SKU001	100.00	90.00	折扣商品	门店A	备注	30	张三	2024-12-31"
+                onCancel={() => setBatchModalOpen(false)}
+                onSave={handleBatchSave}
+                createItem={createBatchItem}
+                validateItem={validateBatchItem}
+            />
         </div>
     );
 }

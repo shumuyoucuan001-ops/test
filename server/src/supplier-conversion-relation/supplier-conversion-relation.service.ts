@@ -6,6 +6,7 @@ import { Logger } from '../utils/logger.util';
 export interface SupplierConversionRelationItem {
     '供应商编码': string;
     '*SKU编码': string;
+    '换算关系': string;
     '二次换算关系': string;
     '数据更新时间': string | Date | null;
 }
@@ -20,6 +21,7 @@ export class SupplierConversionRelationService {
         filters?: {
             供应商编码?: string;
             '*SKU编码'?: string;
+            换算关系?: string;
             二次换算关系?: string;
             keyword?: string; // 关键词搜索（全字段）
         },
@@ -40,10 +42,11 @@ export class SupplierConversionRelationService {
             const whereCondition = `(
                 \`供应商编码\` LIKE ? OR 
                 \`*SKU编码\` LIKE ? OR 
+                \`换算关系\` LIKE ? OR 
                 \`二次换算关系\` LIKE ?
             )`;
             clauses.push(whereCondition);
-            params.push(like, like, like);
+            params.push(like, like, like, like);
         }
 
         // 按字段精确搜索（AND）
@@ -54,6 +57,10 @@ export class SupplierConversionRelationService {
         if (filters?.['*SKU编码']?.trim()) {
             clauses.push(`\`*SKU编码\` LIKE ?`);
             params.push(buildLike(filters['*SKU编码']));
+        }
+        if (filters?.['换算关系']?.trim()) {
+            clauses.push(`\`换算关系\` LIKE ?`);
+            params.push(buildLike(filters['换算关系']));
         }
         if (filters?.['二次换算关系']?.trim()) {
             clauses.push(`\`二次换算关系\` LIKE ?`);
@@ -70,6 +77,7 @@ export class SupplierConversionRelationService {
         const sql = `SELECT 
             \`供应商编码\`,
             \`*SKU编码\`,
+            \`换算关系\`,
             \`二次换算关系\`,
             DATE_FORMAT(\`数据更新时间\`, '%Y-%m-%d %H:%i:%s') as \`数据更新时间\`
          FROM ${this.table}
@@ -87,6 +95,7 @@ export class SupplierConversionRelationService {
             return {
                 '供应商编码': String(r['供应商编码'] || ''),
                 '*SKU编码': String(r['*SKU编码'] || ''),
+                '换算关系': String(r['换算关系'] || ''),
                 '二次换算关系': String(r['二次换算关系'] || ''),
                 '数据更新时间': 数据更新时间,
             };
@@ -101,10 +110,11 @@ export class SupplierConversionRelationService {
         try {
             await this.prisma.$executeRawUnsafe(
                 `INSERT INTO ${this.table} (
-                    \`供应商编码\`, \`*SKU编码\`, \`二次换算关系\`, \`数据更新时间\`
-                ) VALUES (?, ?, ?, NOW())`,
+                    \`供应商编码\`, \`*SKU编码\`, \`换算关系\`, \`二次换算关系\`, \`数据更新时间\`
+                ) VALUES (?, ?, ?, ?, NOW())`,
                 item['供应商编码'] || '',
                 item['*SKU编码'] || '',
+                item['换算关系'] || '',
                 item['二次换算关系'] || '',
             );
         } catch (error: any) {
@@ -130,8 +140,9 @@ export class SupplierConversionRelationService {
         // 供应商编码和*SKU编码是主键，更新时不应该修改这两个字段
         const affected = await this.prisma.$executeRawUnsafe(
             `UPDATE ${this.table}
-       SET \`二次换算关系\`=?, \`数据更新时间\`=NOW()
+       SET \`换算关系\`=?, \`二次换算关系\`=?, \`数据更新时间\`=NOW()
        WHERE \`供应商编码\`=? AND \`*SKU编码\`=?`,
+            data['换算关系'] || '',
             data['二次换算关系'] || '',
             original['供应商编码'] || '',
             original['*SKU编码'] || '',
@@ -261,6 +272,7 @@ export class SupplierConversionRelationService {
         if (!item['*SKU编码'] || !item['*SKU编码'].trim()) {
             throw new BadRequestException('SKU编码为必填');
         }
+        // 换算关系为可选字段，不进行必填验证
         if (!item['二次换算关系'] || !item['二次换算关系'].trim()) {
             throw new BadRequestException('二次换算关系为必填');
         }

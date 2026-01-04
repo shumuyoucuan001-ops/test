@@ -11,6 +11,7 @@ export class SupplierConversionRelationController {
     async list(
         @Query('供应商编码') 供应商编码?: string,
         @Query('*SKU编码') SKU编码?: string,
+        @Query('换算关系') 换算关系?: string,
         @Query('二次换算关系') 二次换算关系?: string,
         @Query('keyword') keyword?: string,
         @Query('page') page?: string,
@@ -22,6 +23,7 @@ export class SupplierConversionRelationController {
         const filters: any = {};
         if (供应商编码) filters['供应商编码'] = 供应商编码;
         if (SKU编码) filters['*SKU编码'] = SKU编码;
+        if (换算关系) filters['换算关系'] = 换算关系;
         if (二次换算关系) filters['二次换算关系'] = 二次换算关系;
         if (keyword) filters.keyword = keyword;
 

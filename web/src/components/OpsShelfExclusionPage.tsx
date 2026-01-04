@@ -3,8 +3,9 @@
 import { OpsShelfExclusionItem, opsShelfExclusionApi } from "@/lib/api";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Space, Table, message } from "antd";
+import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Space, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof OpsShelfExclusionItem, string> = {
@@ -26,7 +27,6 @@ export default function OpsShelfExclusionPage() {
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]); // 选中的行
     const [batchModalOpen, setBatchModalOpen] = useState(false); // 批量新增弹窗
-    const [batchItems, setBatchItems] = useState<OpsShelfExclusionItem[]>([]); // 批量新增的数据
     const [searchText, setSearchText] = useState(''); // 总搜索（全字段）
     const [searchFilters, setSearchFilters] = useState<{
         SPU?: string;
@@ -215,200 +215,66 @@ export default function OpsShelfExclusionPage() {
     // 打开批量新增弹窗
     const openBatchCreate = () => {
         setBatchModalOpen(true);
-        setBatchItems([]);
     };
 
-    // 检测分隔符类型
-    const detectDelimiter = (line: string): string | RegExp => {
-        if (line.includes('\t')) return '\t';
-        if (line.includes(',')) return ',';
-        return /\s{2,}/;
-    };
+    // 批量新增字段配置
+    const batchAddFields: FieldConfig<OpsShelfExclusionItem>[] = [
+        {
+            key: 'SPU',
+            label: 'SPU',
+            excelHeaderName: 'SPU',
+            required: false,
+            index: 0,
+        },
+        {
+            key: '门店编码',
+            label: '门店编码',
+            excelHeaderName: '门店编码',
+            required: false,
+            index: 1,
+        },
+        {
+            key: '渠道编码',
+            label: '渠道编码',
+            excelHeaderName: '渠道编码',
+            required: false,
+            index: 2,
+        },
+        {
+            key: '备注',
+            label: '备注',
+            excelHeaderName: '备注',
+            required: false,
+            index: 3,
+        },
+    ];
 
-    // 解析单行数据（处理备注列可能包含分隔符的情况）
-    // 方法：先找到前N-1个分隔符，将后面的分隔符临时替换为占位符，分割后再恢复
-    const parseLine = (line: string, delimiter: string | RegExp): string[] => {
-        if (delimiter === '\t' || delimiter === ',') {
-            return parseWithDelimiterEscaped(line, delimiter as string);
-        } else {
-            // 空格分隔
-            const spaceParts = line.split(/\s{2,}/);
-            if (spaceParts.length > 3) {
-                return [
-                    ...spaceParts.slice(0, 3).map(p => p.trim()),
-                    spaceParts.slice(3).join('  ').trim()
-                ];
-            }
-            return spaceParts.map(p => p.trim());
-        }
-    };
-
-    // 通用分隔符解析函数（使用转义机制处理备注列中的分隔符）
-    const parseWithDelimiterEscaped = (line: string, delimiter: string): string[] => {
-        // 占位符：使用一个不太可能出现在数据中的字符串
-        const PLACEHOLDER_TAB = '___TAB_PLACEHOLDER___';
-        const PLACEHOLDER_COMMA = '___COMMA_PLACEHOLDER___';
-        const placeholder = delimiter === '\t' ? PLACEHOLDER_TAB : PLACEHOLDER_COMMA;
-
-        // 找到前3个分隔符的位置
-        const indices: number[] = [];
-        for (let i = 0; i < line.length && indices.length < 3; i++) {
-            if (line[i] === delimiter) {
-                indices.push(i);
-            }
-        }
-
-        if (indices.length >= 3) {
-            // 将第4个分隔符之后的所有分隔符替换为占位符
-            let processedLine = line;
-            if (indices.length < line.split(delimiter).length - 1) {
-                // 说明备注列中还有分隔符，需要转义
-                const beforeRemark = line.substring(0, indices[2] + 1);
-                const remarkPart = line.substring(indices[2] + 1);
-                // 将备注部分的分隔符替换为占位符
-                const escapedRemark = remarkPart.replace(new RegExp(delimiter === '\t' ? '\\t' : ',', 'g'), placeholder);
-                processedLine = beforeRemark + escapedRemark;
-            }
-
-            // 现在可以安全地分割了
-            const parts = processedLine.split(delimiter);
-
-            // 恢复备注列中的占位符
-            if (parts.length > 3) {
-                parts[3] = parts[3].replace(new RegExp(placeholder, 'g'), delimiter);
-                // 如果备注被分割成多部分，合并它们
-                if (parts.length > 4) {
-                    parts[3] = [parts[3], ...parts.slice(4)].join(delimiter);
-                    parts.splice(4);
-                }
-            }
-
-            return [
-                parts[0]?.trim() || '',
-                parts[1]?.trim() || '',
-                parts[2]?.trim() || '',
-                parts[3]?.trim() || ''
-            ];
-        } else {
-            // 如果分隔符少于3个，直接使用split
-            const splitParts = line.split(delimiter);
-            return [
-                splitParts[0]?.trim() || '',
-                splitParts[1]?.trim() || '',
-                splitParts[2]?.trim() || '',
-                splitParts.slice(3).join(delimiter) || ''
-            ];
-        }
-    };
-
-    // 处理粘贴事件
-    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        e.preventDefault();
-        const pastedText = e.clipboardData.getData('text');
-
-        // 将粘贴的内容按行分割（不trim，保留原始格式，因为备注列可能包含换行）
-        const rawLines = pastedText.split(/\r?\n/);
-
-        if (rawLines.length === 0) {
-            message.warning('粘贴的内容为空');
-            return;
-        }
-
-        // 检测分隔符类型（使用第一行）
-        const firstLine = rawLines[0].trim();
-        if (!firstLine) {
-            message.warning('粘贴的内容为空');
-            return;
-        }
-        const delimiter = detectDelimiter(firstLine);
-
-        // 合并多行：如果某行的列数不足，说明是上一行备注列的延续
-        const mergedLines: string[] = [];
-        for (let i = 0; i < rawLines.length; i++) {
-            const line = rawLines[i];
-            if (!line.trim()) continue; // 跳过空行
-
-            // 检测当前行的列数（通过统计分隔符数量）
-            let columnCount = 1; // 至少1列
-            if (delimiter === '\t') {
-                columnCount = (line.match(/\t/g) || []).length + 1;
-            } else if (delimiter === ',') {
-                columnCount = (line.match(/,/g) || []).length + 1;
-            } else {
-                columnCount = line.split(/\s{2,}/).length;
-            }
-
-            // 如果列数不足4列，且上一行有数据，则合并到上一行
-            if (columnCount < 4 && mergedLines.length > 0) {
-                // 这是备注列的延续，合并到上一行（用空格连接，替换换行符）
-                mergedLines[mergedLines.length - 1] += ' ' + line.trim();
-            } else {
-                // 这是新的一行数据
-                mergedLines.push(line);
-            }
-        }
-
-        // 解析合并后的行
-        const newItems: OpsShelfExclusionItem[] = [];
-        for (const line of mergedLines) {
-            let parts = parseLine(line, delimiter);
-
-            // 确保至少有SPU（必填字段）
-            if (parts.length >= 1 && parts[0]) {
-                // 如果列数不足4列，在后面补空值
-                while (parts.length < 4) {
-                    parts.push('');
-                }
-
-                // 只取前4列，确保列对应关系正确（SPU、门店编码、渠道编码、备注）
-                // 备注列中的换行符替换为空格
-                const remark = parts[3] ? parts[3].replace(/\r?\n/g, ' ').trim() : null;
-                newItems.push({
-                    'SPU': parts[0] || '',
-                    '门店编码': parts[1] || '',
-                    '渠道编码': parts[2] || '',
-                    '备注': remark,
-                });
-            }
-        }
-
-        if (newItems.length > 0) {
-            setBatchItems(prev => [...prev, ...newItems]);
-            message.success(`已粘贴 ${newItems.length} 条数据`);
-        } else {
-            message.warning('未能解析出有效数据，请检查格式');
-        }
-
-        // 清空输入框
-        const target = e.target as HTMLTextAreaElement;
-        if (target) {
-            target.value = '';
-        }
+    // 创建数据项
+    const createBatchItem = useCallback((parts: string[]): Partial<OpsShelfExclusionItem> => {
+        return {
+            'SPU': parts[0] || '',
+            '门店编码': parts[1] || '',
+            '渠道编码': parts[2] || '',
+            '备注': parts[3] || null,
+        };
     }, []);
 
     // 批量保存
-    const handleBatchSave = async () => {
-        if (batchItems.length === 0) {
-            message.warning('请先粘贴数据');
-            return;
-        }
-
+    const handleBatchSave = useCallback(async (validItems: OpsShelfExclusionItem[]) => {
         try {
-            const result = await opsShelfExclusionApi.batchCreate(batchItems);
+            const result = await opsShelfExclusionApi.batchCreate(validItems);
             message.success(result.message);
             if (result.errors && result.errors.length > 0) {
                 message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
-
             setBatchModalOpen(false);
-            setBatchItems([]);
             load();
         } catch (e: any) {
-            // 使用增强的错误提示（方式1：message + Modal弹框）
             showErrorBoth(e, '批量创建失败');
             console.error('批量创建失败:', e);
         }
-    };
+    }, []);
+
 
     const columns = useMemo(() => {
         const selectionCol = {
@@ -606,86 +472,17 @@ export default function OpsShelfExclusionPage() {
             </Modal>
 
             {/* 批量新增弹窗 */}
-            <Modal
+            <BatchAddModal<OpsShelfExclusionItem>
                 open={batchModalOpen}
                 title="批量新增规则"
-                onCancel={() => {
-                    setBatchModalOpen(false);
-                    setBatchItems([]);
-                }}
-                onOk={handleBatchSave}
-                okText="确定创建"
-                cancelText="取消"
-                width={900}
-                destroyOnClose
-            >
-                <div style={{
-                    marginBottom: 16,
-                    padding: '16px',
-                    background: '#f5f5f5',
-                    borderRadius: '4px',
-                }}>
-                    <div style={{
-                        marginBottom: 8,
-                        color: '#666',
-                        fontSize: 14,
-                    }}>
-                        提示：您可以从 Excel 中复制数据（包含SPU、门店编码、渠道编码、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）
-                    </div>
-                    <Input.TextArea
-                        placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：SPU	门店编码	渠道编码	备注&#10;示例：SPU1	门店1	渠道1	备注1"
-                        rows={4}
-                        onPaste={handlePaste}
-                        style={{
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                        }}
-                    />
-                </div>
-
-                {/* 预览表格 */}
-                {batchItems.length > 0 ? (
-                    <Table
-                        columns={[
-                            ...(Object.keys(fieldLabels) as (keyof OpsShelfExclusionItem)[]).map((key) => ({
-                                title: fieldLabels[key],
-                                dataIndex: key,
-                                key,
-                            })),
-                            {
-                                title: '操作',
-                                key: 'action',
-                                width: 100,
-                                render: (_: any, _record: OpsShelfExclusionItem, index: number) => (
-                                    <Button
-                                        type="link"
-                                        danger
-                                        size="small"
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => {
-                                            setBatchItems(prev => prev.filter((_, i) => i !== index));
-                                        }}
-                                    >
-                                        删除
-                                    </Button>
-                                ),
-                            },
-                        ]}
-                        dataSource={batchItems.map((item, index) => ({ ...item, key: index }))}
-                        pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-                        size="small"
-                    />
-                ) : (
-                    <div style={{
-                        padding: 40,
-                        textAlign: 'center',
-                        color: '#999',
-                        fontSize: 14
-                    }}>
-                        暂无数据，请粘贴数据到上方输入框
-                    </div>
-                )}
-            </Modal>
+                hint="您可以从 Excel 中复制数据（包含SPU、门店编码、渠道编码、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件"
+                fields={batchAddFields}
+                formatHint="格式：SPU	门店编码	渠道编码	备注"
+                example="SPU1	门店1	渠道1	备注1"
+                onCancel={() => setBatchModalOpen(false)}
+                onSave={handleBatchSave}
+                createItem={createBatchItem}
+            />
         </div>
     );
 }

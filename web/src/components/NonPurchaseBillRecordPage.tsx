@@ -22,15 +22,15 @@ import {
   Popconfirm,
   Popover,
   Space,
-  Table,
   Tag,
   Typography,
   Upload,
-  message,
+  message
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
 import { NonPurchaseBillRecord, aclApi, nonPurchaseBillRecordApi } from '../lib/api';
+import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -61,8 +61,6 @@ export default function NonPurchaseBillRecordPage() {
 
   // 批量新增模态框状态
   const [batchModalVisible, setBatchModalVisible] = useState(false);
-  const [batchItems, setBatchItems] = useState<NonPurchaseBillRecord[]>([]);
-  const [invalidItems, setInvalidItems] = useState<Array<{ item: NonPurchaseBillRecord; reasons: string[] }>>([]);
 
   // 列设置相关状态
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
@@ -441,179 +439,98 @@ export default function NonPurchaseBillRecordPage() {
     }
   };
 
-  // 打开批量新增模态框
   const handleBatchAdd = () => {
     setBatchModalVisible(true);
-    setBatchItems([]);
-    setInvalidItems([]);
   };
 
-  // 处理粘贴事件
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-    const pastedText = e.clipboardData.getData('text');
-    const lines = pastedText
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+  // 批量新增字段配置
+  const batchAddFields: FieldConfig<NonPurchaseBillRecord>[] = [
+    {
+      key: '账单流水' as keyof NonPurchaseBillRecord,
+      label: '账单流水',
+      excelHeaderName: '账单流水',
+      required: true,
+      index: 0,
+    },
+    {
+      key: '记账金额' as keyof NonPurchaseBillRecord,
+      label: '记账金额',
+      excelHeaderName: '记账金额',
+      required: false,
+      index: 1,
+      transform: (value: string) => value ? parseFloat(value) : undefined,
+    },
+    {
+      key: '账单类型' as keyof NonPurchaseBillRecord,
+      label: '账单类型',
+      excelHeaderName: '账单类型',
+      required: false,
+      index: 2,
+    },
+    {
+      key: '所属仓店' as keyof NonPurchaseBillRecord,
+      label: '所属仓店',
+      excelHeaderName: '所属仓店',
+      required: false,
+      index: 3,
+    },
+    {
+      key: '账单流水备注' as keyof NonPurchaseBillRecord,
+      label: '账单流水备注',
+      excelHeaderName: '账单流水备注',
+      required: false,
+      index: 4,
+    },
+    {
+      key: '财务记账凭证号' as keyof NonPurchaseBillRecord,
+      label: '财务记账凭证号',
+      excelHeaderName: '财务记账凭证号',
+      required: false,
+      index: 5,
+    },
+    {
+      key: '财务审核人' as keyof NonPurchaseBillRecord,
+      label: '财务审核人',
+      excelHeaderName: '财务审核人',
+      required: false,
+      index: 6,
+    },
+  ];
 
-    if (lines.length === 0) {
-      message.warning('粘贴的内容为空');
-      return;
-    }
-
-    const newItems: NonPurchaseBillRecord[] = [];
-    const newInvalidItems: Array<{ item: NonPurchaseBillRecord; reasons: string[] }> = [];
-
-    for (const line of lines) {
-      let parts: string[];
-      if (line.includes('\t')) {
-        parts = line.split('\t').map(p => p.trim());
-      } else if (line.includes(',')) {
-        parts = line.split(',').map(p => p.trim());
-      } else {
-        parts = line.split(/\s{2,}/).map(p => p.trim());
-      }
-
-      if (parts.length >= 1 && parts[0]) {
-        const reasons: string[] = [];
-
-        // 验证账单流水必填
-        if (!parts[0] || parts[0].trim() === '') {
-          reasons.push('账单流水为必填');
-        }
-
-        const item: NonPurchaseBillRecord = {
-          账单流水: parts[0] || '',
-          记账金额: parts[1] && parts[1].trim() !== '' ? parseFloat(parts[1]) : undefined,
-          账单类型: parts[2] && parts[2].trim() !== '' ? parts[2].trim() : undefined,
-          所属仓店: parts[3] && parts[3].trim() !== '' ? parts[3].trim() : undefined,
-          账单流水备注: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
-          财务记账凭证号: parts[5] && parts[5].trim() !== '' ? parts[5].trim() : undefined,
-          // 财务审核状态不允许编辑，批量新增时默认为"0"（后端处理）
-          财务审核状态: undefined,
-          财务审核人: parts[6] && parts[6].trim() !== '' ? parts[6].trim() : undefined,
-        };
-
-        if (reasons.length > 0) {
-          newInvalidItems.push({ item, reasons });
-        } else {
-          newItems.push(item);
-        }
-      }
-    }
-
-    if (newItems.length > 0 || newInvalidItems.length > 0) {
-      setBatchItems(prev => [...prev, ...newItems]);
-      setInvalidItems(prev => [...prev, ...newInvalidItems]);
-      if (newItems.length > 0 && newInvalidItems.length > 0) {
-        message.warning(`已粘贴 ${newItems.length} 条有效数据，${newInvalidItems.length} 条数据验证失败，请查看下方验证失败列表`);
-      } else if (newItems.length > 0) {
-        message.success(`已粘贴 ${newItems.length} 条数据`);
-      } else {
-        message.error(`粘贴的 ${newInvalidItems.length} 条数据全部验证失败，请查看下方验证失败列表`);
-      }
-    } else {
-      message.warning('未能解析出有效数据，请检查格式');
-    }
-
-    const target = e.target as HTMLTextAreaElement;
-    if (target) {
-      target.value = '';
-    }
+  // 创建数据项
+  const createBatchItem = useCallback((parts: string[]): Partial<NonPurchaseBillRecord> => {
+    return {
+      账单流水: parts[0] || '',
+      记账金额: parts[1] && parts[1].trim() !== '' ? parseFloat(parts[1]) : undefined,
+      账单类型: parts[2] && parts[2].trim() !== '' ? parts[2].trim() : undefined,
+      所属仓店: parts[3] && parts[3].trim() !== '' ? parts[3].trim() : undefined,
+      账单流水备注: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
+      财务记账凭证号: parts[5] && parts[5].trim() !== '' ? parts[5].trim() : undefined,
+      财务审核状态: undefined, // 财务审核状态不允许编辑，批量新增时默认为"0"（后端处理）
+      财务审核人: parts[6] && parts[6].trim() !== '' ? parts[6].trim() : undefined,
+    };
   }, []);
 
-  // 批量新增保存
-  const handleBatchSave = async () => {
-    if (batchItems.length === 0 && invalidItems.length === 0) {
-      message.warning('请先粘贴数据');
-      return;
-    }
-
-    // 验证数据
-    const newInvalidItems: Array<{ item: NonPurchaseBillRecord; reasons: string[] }> = [];
-
-    const validItems = batchItems.filter(item => {
-      if (!item.账单流水 || item.账单流水.trim() === '') {
-        newInvalidItems.push({ item, reasons: ['账单流水为必填'] });
-        return false;
-      }
-      return true;
-    });
-
-    // 更新验证失败的数据列表
-    if (newInvalidItems.length > 0) {
-      setInvalidItems(prev => [...prev, ...newInvalidItems]);
-      message.error(`有 ${newInvalidItems.length} 条数据验证失败，请查看下方验证失败列表`);
-      return;
-    }
-
-    if (validItems.length === 0) {
-      message.warning('请至少填写一条有效数据（账单流水为必填）');
-      return;
-    }
-
+  // 批量保存
+  const handleBatchSave = useCallback(async (validItems: NonPurchaseBillRecord[]) => {
     try {
       const result = await nonPurchaseBillRecordApi.batchCreate(validItems);
       message.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
-
-      // 如果有错误，解析错误信息并将失败的记录添加到invalidItems中
       if (result.errors && result.errors.length > 0) {
-        const failedItems: Array<{ item: NonPurchaseBillRecord; reasons: string[] }> = [];
-
-        // 解析每个错误信息，格式：账单流水 XXX: 错误消息
-        for (const errorMsg of result.errors) {
-          // 提取账单流水（错误格式：账单流水 XXX: 错误消息）
-          const match = errorMsg.match(/账单流水\s+([^:]+):\s*(.+)/);
-          if (match) {
-            const 账单流水 = match[1].trim();
-            const errorReason = match[2].trim();
-
-            // 从validItems中找到对应的记录
-            const failedItem = validItems.find(item => item.账单流水 === 账单流水);
-            if (failedItem) {
-              failedItems.push({ item: failedItem, reasons: [errorReason] });
-            }
-          } else {
-            // 如果格式不匹配，尝试从错误消息中提取账单流水
-            // 或者创建一个通用的错误项
-            console.warn('无法解析错误信息格式:', errorMsg);
-          }
-        }
-
-        // 将失败的记录添加到invalidItems中
-        if (failedItems.length > 0) {
-          setInvalidItems(prev => [...prev, ...failedItems]);
-          // 清空batchItems（成功的记录已创建，失败的记录已移到invalidItems）
-          setBatchItems([]);
-          message.warning(`有 ${failedItems.length} 条记录创建失败，请查看下方验证失败列表`);
-        } else {
-          message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
-        }
-
-        // 如果有成功的记录，刷新列表，但不关闭模态框（让用户查看失败记录）
-        if (result.success > 0) {
-          refreshRecords();
-        }
-      } else {
-        // 全部成功，关闭模态框并刷新
-        setBatchModalVisible(false);
-        setBatchItems([]);
-        setInvalidItems([]);
-        refreshRecords();
+        message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
-    } catch (error: any) {
-      // 提取后端返回的错误消息
+      setBatchModalVisible(false);
+      refreshRecords();
+    } catch (e: any) {
       let errorMessage = '未知错误';
-      if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.message) {
-        errorMessage = error.message;
+      if (e?.response?.data?.message) {
+        errorMessage = e.response.data.message;
+      } else if (e?.message) {
+        errorMessage = e.message;
       }
       message.error('批量创建失败: ' + errorMessage);
-      console.error('批量创建失败:', error);
     }
-  };
+  }, []);
 
   // 格式化金额
   const formatAmount = (amount: number | null | undefined): string => {
@@ -1125,196 +1042,17 @@ export default function NonPurchaseBillRecordPage() {
       </Modal>
 
       {/* 批量新增模态框 */}
-      <Modal
-        title="批量新增记录"
+      <BatchAddModal<NonPurchaseBillRecord>
         open={batchModalVisible}
-        onOk={handleBatchSave}
-        onCancel={() => {
-          setBatchModalVisible(false);
-          setBatchItems([]);
-          setInvalidItems([]);
-        }}
-        okText="确定创建"
-        cancelText="取消"
-        width={1000}
-        destroyOnClose
-      >
-        <div style={{
-          marginBottom: 16,
-          padding: '16px',
-          background: '#f5f5f5',
-          borderRadius: '4px',
-        }}>
-          <div style={{
-            marginBottom: 8,
-            color: '#666',
-            fontSize: 14,
-          }}>
-            提示：您可以从 Excel 中复制数据（包含账单流水、记账金额、账单类型、所属仓店、账单流水备注、财务记账凭证号、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴）。注意：财务审核状态列会被忽略，财务审核状态默认为"0"。
-          </div>
-          <Input.TextArea
-            placeholder="在此处粘贴 Excel 数据（Ctrl+V），每行一条记录，字段用制表符或逗号分隔&#10;格式：账单流水	记账金额	账单类型	所属仓店	账单流水备注	财务记账凭证号	财务审核人&#10;示例：BL001	1000.00	类型A	仓店1	备注	凭证001	审核人"
-            rows={4}
-            onPaste={handlePaste}
-            style={{
-              fontFamily: 'monospace',
-              fontSize: 14,
-            }}
-          />
-        </div>
-
-        {/* 有效数据预览表格 */}
-        {batchItems.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 8, fontWeight: 'bold', color: '#52c41a' }}>
-              ✓ 有效数据 ({batchItems.length} 条)
-            </div>
-            <Table
-              columns={[
-                {
-                  title: '账单流水',
-                  dataIndex: '账单流水',
-                  key: '账单流水',
-                  render: (text: string) => (
-                    <span style={{ color: !text ? 'red' : 'inherit' }}>
-                      {text || '(必填)'}
-                    </span>
-                  ),
-                },
-                {
-                  title: '记账金额',
-                  dataIndex: '记账金额',
-                  key: '记账金额',
-                  render: (v: any) => v ? formatAmount(v) : '-',
-                },
-                {
-                  title: '账单类型',
-                  dataIndex: '账单类型',
-                  key: '账单类型',
-                  render: (v: any) => v || '-',
-                },
-                {
-                  title: '所属仓店',
-                  dataIndex: '所属仓店',
-                  key: '所属仓店',
-                  render: (v: any) => v || '-',
-                },
-                {
-                  title: '操作',
-                  key: 'action',
-                  width: 100,
-                  render: (_: any, record: NonPurchaseBillRecord, index: number) => (
-                    <Button
-                      type="link"
-                      danger
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      onClick={() => {
-                        setBatchItems(prev => prev.filter((_, i) => i !== index));
-                      }}
-                    >
-                      删除
-                    </Button>
-                  ),
-                },
-              ]}
-              dataSource={batchItems.map((item, index) => ({ ...item, key: index }))}
-              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-              size="small"
-            />
-          </div>
-        )}
-
-        {/* 验证失败数据表格 */}
-        {invalidItems.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 8, fontWeight: 'bold', color: '#ff4d4f' }}>
-              ✗ 验证失败数据 ({invalidItems.length} 条)
-            </div>
-            <Table
-              columns={[
-                {
-                  title: '账单流水',
-                  key: '账单流水',
-                  render: (_: any, record: { item: NonPurchaseBillRecord; reasons: string[] }) => (
-                    <span style={{ color: !record.item.账单流水 ? 'red' : 'inherit' }}>
-                      {record.item.账单流水 || '(必填)'}
-                    </span>
-                  ),
-                },
-                {
-                  title: '记账金额',
-                  key: '记账金额',
-                  render: (_: any, record: { item: NonPurchaseBillRecord; reasons: string[] }) =>
-                    record.item.记账金额 ? formatAmount(record.item.记账金额) : '-'
-                },
-                {
-                  title: '账单类型',
-                  key: '账单类型',
-                  render: (_: any, record: { item: NonPurchaseBillRecord; reasons: string[] }) =>
-                    record.item.账单类型 || '-'
-                },
-                {
-                  title: '所属仓店',
-                  key: '所属仓店',
-                  render: (_: any, record: { item: NonPurchaseBillRecord; reasons: string[] }) =>
-                    record.item.所属仓店 || '-'
-                },
-                {
-                  title: '失败原因',
-                  key: 'reasons',
-                  width: 300,
-                  render: (_: any, record: { item: NonPurchaseBillRecord; reasons: string[] }) => (
-                    <div>
-                      {record.reasons.map((reason, idx) => (
-                        <Tag key={idx} color="error" style={{ marginBottom: 4, display: 'block' }}>
-                          {reason}
-                        </Tag>
-                      ))}
-                    </div>
-                  ),
-                },
-                {
-                  title: '操作',
-                  key: 'action',
-                  width: 100,
-                  render: (_: any, record: { item: NonPurchaseBillRecord; reasons: string[] }, index: number) => (
-                    <Button
-                      type="link"
-                      danger
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      onClick={() => {
-                        setInvalidItems(prev => prev.filter((_, i) => i !== index));
-                      }}
-                    >
-                      删除
-                    </Button>
-                  ),
-                },
-              ]}
-              dataSource={invalidItems.map((item, index) => ({ ...item, key: index }))}
-              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 条记录` }}
-              size="small"
-              style={{
-                backgroundColor: '#fff1f0',
-              }}
-            />
-          </div>
-        )}
-
-        {/* 无数据提示 */}
-        {batchItems.length === 0 && invalidItems.length === 0 && (
-          <div style={{
-            padding: 40,
-            textAlign: 'center',
-            color: '#999',
-            fontSize: 14
-          }}>
-            暂无数据，请粘贴数据到上方输入框
-          </div>
-        )}
-      </Modal>
+        title="批量新增记录"
+        hint="您可以从 Excel 中复制数据（包含账单流水、记账金额、账单类型、所属仓店、账单流水备注、财务记账凭证号、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。注意：财务审核状态列会被忽略，财务审核状态默认为'0'。"
+        fields={batchAddFields}
+        formatHint="格式：账单流水	记账金额	账单类型	所属仓店	账单流水备注	财务记账凭证号	财务审核人"
+        example="BL001	1000.00	类型A	仓店1	备注	凭证001	审核人"
+        onCancel={() => setBatchModalVisible(false)}
+        onSave={handleBatchSave}
+        createItem={createBatchItem}
+      />
 
       {/* 图片预览 */}
       <Modal
