@@ -18,7 +18,7 @@ export class OpsRegularActivityDispatchController {
         @Query('limit') limit?: string,
     ): Promise<{ data: OpsRegularActivityDispatchItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
-        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 100000));
 
         const filters: any = {};
         if (SKU) filters.SKU = SKU;
