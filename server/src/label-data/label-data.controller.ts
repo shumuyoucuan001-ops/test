@@ -112,17 +112,20 @@ export class LabelDataController {
 
   // 创建或更新标签数据（移除productSpec字段）
   @Post('create-or-update')
-  async createOrUpdate(@Body() data: {
-    sku: string;
-    supplierName: string;
-    productName?: string;
-    headerInfo?: string;
-    executionStandard?: string;
-    manufacturerName?: string;
-    addressInfo?: string;
-    material?: string;
-    otherInfo?: string;
-  }) {
+  async createOrUpdate(
+    @Body() data: {
+      sku: string;
+      supplierName: string;
+      productName?: string;
+      headerInfo?: string;
+      executionStandard?: string;
+      manufacturerName?: string;
+      addressInfo?: string;
+      material?: string;
+      otherInfo?: string;
+    },
+    @Headers('x-user-id') userId?: string
+  ) {
     // 字数验证（移除productSpec验证）
     const validationErrors: string[] = [];
 

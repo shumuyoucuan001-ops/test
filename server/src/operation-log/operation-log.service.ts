@@ -60,7 +60,8 @@ export class OperationLogService {
       // 如果提供了userId但没有displayName，尝试从数据库获取
       let displayName = data.displayName;
       if (data.userId && !displayName) {
-        displayName = await this.getUserDisplayName(connection, data.userId) || null;
+        const fetchedDisplayName = await this.getUserDisplayName(connection, data.userId);
+        displayName = fetchedDisplayName || undefined;
       }
 
       const insertLogQuery = `
