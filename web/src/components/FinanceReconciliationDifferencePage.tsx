@@ -2408,7 +2408,7 @@ export default function FinanceReconciliationDifferencePage() {
                       rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
                       loading={subLoading}
                       isMobile={false}
-                      scroll={{ x: Math.round(1200 * 0.7), y: detailPanelsVisible ? Math.round(150 * 0.7) : undefined }}
+                      scroll={{ x: Math.round(1200 * 0.7) }}
                       pagination={false}
                       size="small"
                       style={{ fontSize: `${12 * 0.7}px` }}
@@ -2503,8 +2503,9 @@ export default function FinanceReconciliationDifferencePage() {
                         borderRadius: '4px',
                         padding: '8px',
                         backgroundColor: '#fff',
+                        minHeight: 0,
                       }}>
-                        <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <span>交易单详细信息</span>
                           <Space size="small">
                             <Button
@@ -2525,7 +2526,7 @@ export default function FinanceReconciliationDifferencePage() {
                             />
                           </Space>
                         </div>
-                        <div style={{ flex: 1, overflow: 'auto', marginBottom: 8, minHeight: 0 }}>
+                        <div style={{ flex: 1, overflow: 'auto', marginBottom: 0, minHeight: 0 }}>
                           <ResponsiveTable<TransactionRecord>
                             tableId="transaction-record-data"
                             columns={[
@@ -2646,8 +2647,9 @@ export default function FinanceReconciliationDifferencePage() {
                         borderRadius: '4px',
                         padding: '8px',
                         backgroundColor: '#fff',
+                        minHeight: 0,
                       }}>
-                        <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <span>采购单详细信息</span>
                           <Space size="small">
                             <Button
@@ -2668,7 +2670,7 @@ export default function FinanceReconciliationDifferencePage() {
                             />
                           </Space>
                         </div>
-                        <div style={{ flex: 1, overflow: 'auto', marginBottom: 8 }}>
+                        <div style={{ flex: 1, overflow: 'auto', marginBottom: 0, minHeight: 0 }}>
                           <ResponsiveTable<PurchaseOrderInfo>
                             tableId="purchase-order-info-data"
                             columns={[
