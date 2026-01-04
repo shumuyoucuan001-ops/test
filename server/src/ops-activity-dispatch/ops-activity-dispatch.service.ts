@@ -190,7 +190,7 @@ export class OpsActivityDispatchService {
         return { data, total };
     }
 
-    async create(item: OpsActivityDispatchItem): Promise<void> {
+    async create(item: OpsActivityDispatchItem, userId?: number, userName?: string): Promise<void> {
         this.validate(item);
 
         // 计算剩余活动天数：如果结束时间不为空，则计算结束时间-今天的天数

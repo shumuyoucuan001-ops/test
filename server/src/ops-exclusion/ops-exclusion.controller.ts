@@ -65,7 +65,7 @@ export class OpsExclusionController {
         @Headers('x-user-id') userId?: string
     ) {
         const userIdNum = userId ? parseInt(userId, 10) : undefined;
-        const result = await this.service.batchRemove(body.items, userIdNum);
+        const result = await this.service.batchRemove(body.items, userIdNum, undefined);
         return result;
     }
 
@@ -75,7 +75,7 @@ export class OpsExclusionController {
         @Headers('x-user-id') userId?: string
     ) {
         const userIdNum = userId ? parseInt(userId, 10) : undefined;
-        const result = await this.service.batchCreate(body.items, userIdNum);
+        const result = await this.service.batchCreate(body.items, userIdNum, undefined);
         return result;
     }
 

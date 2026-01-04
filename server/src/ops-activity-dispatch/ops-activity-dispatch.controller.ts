@@ -43,7 +43,7 @@ export class OpsActivityDispatchController {
         @Headers('x-user-id') userId?: string
     ) {
         const userIdNum = userId ? parseInt(userId, 10) : undefined;
-        await this.service.create(body, userIdNum);
+        await this.service.create(body, userIdNum, undefined);
         return { success: true };
     }
 
@@ -73,7 +73,7 @@ export class OpsActivityDispatchController {
         @Headers('x-user-id') userId?: string
     ) {
         const userIdNum = userId ? parseInt(userId, 10) : undefined;
-        const result = await this.service.batchRemove(body.items, userIdNum);
+        const result = await this.service.batchRemove(body.items, userIdNum, undefined);
         return result;
     }
 
@@ -83,7 +83,7 @@ export class OpsActivityDispatchController {
         @Headers('x-user-id') userId?: string
     ) {
         const userIdNum = userId ? parseInt(userId, 10) : undefined;
-        const result = await this.service.batchCreate(body.items, userIdNum);
+        const result = await this.service.batchCreate(body.items, userIdNum, undefined);
         return result;
     }
 

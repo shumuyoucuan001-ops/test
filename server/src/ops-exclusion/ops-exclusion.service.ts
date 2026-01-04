@@ -266,7 +266,7 @@ export class OpsExclusionService {
         });
     }
 
-    async batchRemove(items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; deletedCount: number }> {
+    async batchRemove(items: OpsExclusionItem[], userId?: number, userName?: string): Promise<{ success: boolean; message: string; deletedCount: number }> {
         if (!items || items.length === 0) {
             throw new BadRequestException('请选择要删除的记录');
         }
@@ -318,7 +318,7 @@ export class OpsExclusionService {
         };
     }
 
-    async batchCreate(items: OpsExclusionItem[]): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
+    async batchCreate(items: OpsExclusionItem[], userId?: number, userName?: string): Promise<{ success: boolean; message: string; createdCount: number; errors?: string[] }> {
         if (!items || items.length === 0) {
             throw new BadRequestException('请提供要创建的数据');
         }
