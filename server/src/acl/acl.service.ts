@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { DingTalkService, DingTalkUserInfo } from '../dingtalk/dingtalk.service';
+import { OperationLogService } from '../operation-log/operation-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
-import { OperationLogService } from '../operation-log/operation-log.service';
 
 @Injectable()
 export class AclService {
@@ -290,22 +290,22 @@ export class AclService {
     const sets: string[] = [];
     const vals: any[] = [];
     const changes: Record<string, { old?: any; new?: any }> = {};
-    if (p.code !== undefined) { 
-      sets.push('code=?'); 
+    if (p.code !== undefined) {
+      sets.push('code=?');
       vals.push(p.code);
       if (original && String(original.code) !== String(p.code)) {
         changes.code = { old: original.code, new: p.code };
       }
     }
-    if (p.name !== undefined) { 
-      sets.push('name=?'); 
+    if (p.name !== undefined) {
+      sets.push('name=?');
       vals.push(p.name);
       if (original && String(original.name) !== String(p.name)) {
         changes.name = { old: original.name, new: p.name };
       }
     }
-    if (p.path !== undefined) { 
-      sets.push('path=?'); 
+    if (p.path !== undefined) {
+      sets.push('path=?');
       vals.push(p.path);
       if (original && String(original.path) !== String(p.path)) {
         changes.path = { old: original.path, new: p.path };
@@ -314,7 +314,7 @@ export class AclService {
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
     await this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_permissions SET ${sets.join(',')} WHERE id=?`, ...vals);
-    
+
     // 记录操作日志
     if (userId && Object.keys(changes).length > 0) {
       try {
@@ -342,7 +342,7 @@ export class AclService {
     const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
 
     await this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_permissions WHERE id=?`, id);
-    
+
     // 记录操作日志
     if (userId && original) {
       try {
@@ -413,15 +413,15 @@ export class AclService {
 
     const sets: string[] = []; const vals: any[] = [];
     const changes: Record<string, { old?: any; new?: any }> = {};
-    if (r.name !== undefined) { 
-      sets.push('name=?'); 
+    if (r.name !== undefined) {
+      sets.push('name=?');
       vals.push(r.name);
       if (original && String(original.name) !== String(r.name)) {
         changes.name = { old: original.name, new: r.name };
       }
     }
-    if (r.remark !== undefined) { 
-      sets.push('remark=?'); 
+    if (r.remark !== undefined) {
+      sets.push('remark=?');
       vals.push(r.remark);
       if (original && String(original.remark || '') !== String(r.remark || '')) {
         changes.remark = { old: original.remark, new: r.remark };
@@ -430,7 +430,7 @@ export class AclService {
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
     await this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_roles SET ${sets.join(',')} WHERE id=?`, ...vals);
-    
+
     // 记录操作日志
     if (userId && Object.keys(changes).length > 0) {
       try {
@@ -458,7 +458,7 @@ export class AclService {
     const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
 
     await this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_roles WHERE id=?`, id);
-    
+
     // 记录操作日志
     if (userId && original) {
       try {
@@ -479,11 +479,11 @@ export class AclService {
 
   async setRolePermissions(roleId: number, permissionIds: number[], userId?: number) {
     // 获取原始权限列表
-    const [originalPermissionRows]: any = await this.prisma.$queryRawUnsafe(
+    const originalPermissionRows: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT permission_id FROM sm_xitongkaifa.sys_role_permissions WHERE role_id=?`,
       roleId
     );
-    const originalPermissionIds = (originalPermissionRows || []).map((r: any) => Number(r.permission_id));
+    const originalPermissionIds = originalPermissionRows.map((r: any) => Number(r.permission_id));
 
     await this.prisma.$transaction([
       this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_role_permissions WHERE role_id=?`, roleId),
@@ -492,7 +492,7 @@ export class AclService {
         ...permissionIds.flatMap(pid => [roleId, pid])
       )
     ]);
-    
+
     // 记录操作日志
     if (userId) {
       try {
@@ -678,7 +678,7 @@ export class AclService {
           `UPDATE sm_xitongkaifa.sys_users SET ${otherSets.join(',')} WHERE id=?`,
           ...otherVals
         );
-        
+
         // 记录操作日志
         if (operatorUserId) {
           try {
@@ -713,7 +713,7 @@ export class AclService {
             Logger.error('[AclService] 记录操作日志失败:', error);
           }
         }
-        
+
         return Promise.resolve(1);
       }
 
@@ -736,20 +736,20 @@ export class AclService {
         sets.push('session_token=NULL');
       }
     }
-    if (u.password !== undefined) { 
-      sets.push('password=?'); 
+    if (u.password !== undefined) {
+      sets.push('password=?');
       vals.push(u.password);
       changes.password = { old: '***', new: '***' }; // 密码不记录具体值
     }
-    if (u.code !== undefined) { 
-      sets.push('code=?'); 
+    if (u.code !== undefined) {
+      sets.push('code=?');
       vals.push(u.code);
       if (String(original.code || '') !== String(u.code || '')) {
         changes.code = { old: original.code, new: u.code };
       }
     }
-    if (u.department_id !== undefined) { 
-      sets.push('department_id=?'); 
+    if (u.department_id !== undefined) {
+      sets.push('department_id=?');
       vals.push(u.department_id);
       if (String(original.department_id || '') !== String(u.department_id || '')) {
         changes.department_id = { old: original.department_id, new: u.department_id };
@@ -758,7 +758,7 @@ export class AclService {
     if (!sets.length) return Promise.resolve(0);
     vals.push(id);
     await this.prisma.$executeRawUnsafe(`UPDATE sm_xitongkaifa.sys_users SET ${sets.join(',')} WHERE id=?`, ...vals);
-    
+
     // 记录操作日志
     if (operatorUserId && Object.keys(changes).length > 0) {
       try {
@@ -775,7 +775,7 @@ export class AclService {
         Logger.error('[AclService] 记录操作日志失败:', error);
       }
     }
-    
+
     return Promise.resolve(1);
   }
 
@@ -806,7 +806,7 @@ export class AclService {
     const original = originalRows && originalRows.length > 0 ? originalRows[0] : null;
 
     await this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_users WHERE id=?`, id);
-    
+
     // 记录操作日志
     if (operatorUserId && original) {
       try {
@@ -837,7 +837,7 @@ export class AclService {
       this.prisma.$executeRawUnsafe(`INSERT INTO sm_xitongkaifa.sys_user_roles(user_id,role_id) VALUES ${roleIds.map(() => '(?,?)').join(',')}`,
         ...roleIds.flatMap(rid => [userId, rid]))
     ]);
-    
+
     // 记录操作日志
     if (operatorUserId) {
       try {

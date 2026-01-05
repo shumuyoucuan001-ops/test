@@ -714,6 +714,11 @@ export default function HomeLayout({
             label: '账单对账汇总差异',
           },
           {
+            key: 'transaction-record',
+            icon: <AccountBookOutlined />,
+            label: '流水记录',
+          },
+          {
             key: 'non-purchase-bill-record',
             icon: <AccountBookOutlined />,
             label: '非采购单流水记录',

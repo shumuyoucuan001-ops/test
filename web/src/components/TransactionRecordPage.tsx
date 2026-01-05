@@ -12,6 +12,7 @@ import {
 import {
   Button,
   Card,
+  DatePicker,
   Form,
   Input,
   message,
@@ -19,8 +20,10 @@ import {
   Popover,
   Segmented,
   Space,
+  Tag,
   Typography,
 } from 'antd';
+import dayjs, { Dayjs } from 'dayjs';
 import { useCallback, useEffect, useState } from 'react';
 import { transactionRecordApi } from '../lib/api';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
@@ -30,6 +33,7 @@ import ResponsiveTable from './ResponsiveTable';
 
 const { Search } = Input;
 const { Title } = Typography;
+const { RangePicker } = DatePicker;
 
 type ChannelType = '1688先采后付' | '京东金融' | '微信' | '支付宝';
 
@@ -46,10 +50,10 @@ const getChannelFields = (channel: ChannelType): FieldConfig<any>[] => {
   if (channel === '1688先采后付') {
     return [
       ...commonFields,
-      { key: '订单号', label: '订单号', excelHeaderName: '订单号', required: false, index: 5 },
+      { key: '订单号', label: '订单号', excelHeaderName: '订单号', required: true, index: 5 },
       { key: '订单支付时间', label: '订单支付时间', excelHeaderName: '订单支付时间', required: false, index: 6 },
       { key: '订单名称', label: '订单名称', excelHeaderName: '订单名称', required: false, index: 7 },
-      { key: '支付金额(元)', label: '支付金额(元)', excelHeaderName: '支付金额(元)', required: false, index: 8 },
+      { key: '支付金额(元)', label: '支付金额(元)', excelHeaderName: '支付金额(元)', required: true, index: 8 },
       { key: '确认收货金额(元)', label: '确认收货金额(元)', excelHeaderName: '确认收货金额(元)', required: false, index: 9 },
       { key: '确认收货时间', label: '确认收货时间', excelHeaderName: '确认收货时间', required: false, index: 10 },
       { key: '账期类型', label: '账期类型', excelHeaderName: '账期类型', required: false, index: 11 },
@@ -217,13 +221,20 @@ export default function TransactionRecordPage() {
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
 
+  // 5个公共字段的单独搜索
+  const [search支付渠道, setSearch支付渠道] = useState('');
+  const [search支付账号, setSearch支付账号] = useState('');
+  const [search收支金额, setSearch收支金额] = useState('');
+  const [search交易账单号, setSearch交易账单号] = useState('');
+  const [search账单交易时间范围, setSearch账单交易时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [form] = Form.useForm();
 
-  // 列设置相关状态
+  // 列设置相关状态（按渠道独立）
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -235,14 +246,42 @@ export default function TransactionRecordPage() {
   ) => {
     try {
       setLoading(true);
+      // 构建搜索条件
+      let finalSearch = search || '';
+      if (search支付渠道) {
+        finalSearch += (finalSearch ? ' ' : '') + `支付渠道:${search支付渠道}`;
+      }
+      if (search支付账号) {
+        finalSearch += (finalSearch ? ' ' : '') + `支付账号:${search支付账号}`;
+      }
+      if (search交易账单号) {
+        finalSearch += (finalSearch ? ' ' : '') + `交易账单号:${search交易账单号}`;
+      }
+      if (search收支金额) {
+        finalSearch += (finalSearch ? ' ' : '') + `收支金额:${search收支金额}`;
+      }
+
       const result = await transactionRecordApi.getAll({
         channel,
         page,
         limit: pageSize,
-        search,
+        search: finalSearch || undefined,
       });
-      setRecords(result.data);
-      setTotal(result.total);
+
+      // 如果有时间范围筛选，在前端过滤
+      let filteredData = result.data;
+      if (search账单交易时间范围 && search账单交易时间范围[0] && search账单交易时间范围[1]) {
+        const startTime = search账单交易时间范围[0].startOf('day');
+        const endTime = search账单交易时间范围[1].endOf('day');
+        filteredData = result.data.filter((record: any) => {
+          if (!record.账单交易时间) return false;
+          const recordTime = dayjs(record.账单交易时间);
+          return recordTime.isAfter(startTime) && recordTime.isBefore(endTime);
+        });
+      }
+
+      setRecords(filteredData);
+      setTotal(filteredData.length);
     } catch (error: any) {
       message.error(error.message || '加载记录列表失败');
       console.error(error);
@@ -255,11 +294,16 @@ export default function TransactionRecordPage() {
   useEffect(() => {
     setCurrentPage(1);
     setSearchText('');
+    setSearch支付渠道('');
+    setSearch支付账号('');
+    setSearch收支金额('');
+    setSearch交易账单号('');
+    setSearch账单交易时间范围(null);
     loadRecords(1, undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
 
-  // 从 localStorage 加载列显示偏好和顺序
+  // 从 localStorage 加载列显示偏好和顺序（按渠道独立）
   useEffect(() => {
     const storageKey = `transaction_record_${channel}_hidden_columns`;
     const savedHiddenColumns = localStorage.getItem(storageKey);
@@ -270,6 +314,8 @@ export default function TransactionRecordPage() {
       } catch (error) {
         console.error('加载列显示偏好失败:', error);
       }
+    } else {
+      setHiddenColumns(new Set());
     }
 
     const orderKey = `transaction_record_${channel}_column_order`;
@@ -281,16 +327,18 @@ export default function TransactionRecordPage() {
       } catch (error) {
         console.error('加载列顺序失败:', error);
       }
+    } else {
+      setColumnOrder([]);
     }
   }, [channel]);
 
-  // 保存列显示偏好到 localStorage
+  // 保存列显示偏好到 localStorage（按渠道独立）
   const saveHiddenColumns = (hidden: Set<string>) => {
     const storageKey = `transaction_record_${channel}_hidden_columns`;
     localStorage.setItem(storageKey, JSON.stringify(Array.from(hidden)));
   };
 
-  // 保存列顺序到 localStorage
+  // 保存列顺序到 localStorage（按渠道独立）
   const saveColumnOrder = (order: string[]) => {
     const orderKey = `transaction_record_${channel}_column_order`;
     localStorage.setItem(orderKey, JSON.stringify(order));
@@ -323,6 +371,11 @@ export default function TransactionRecordPage() {
   // 重置
   const handleReset = () => {
     setSearchText('');
+    setSearch支付渠道('');
+    setSearch支付账号('');
+    setSearch收支金额('');
+    setSearch交易账单号('');
+    setSearch账单交易时间范围(null);
     setCurrentPage(1);
     loadRecords(1, undefined);
   };
@@ -434,7 +487,7 @@ export default function TransactionRecordPage() {
         extra={
           <Space>
             <Search
-              placeholder="搜索交易账单号、支付账号等"
+              placeholder="综合搜索"
               allowClear
               style={{ width: 250 }}
               value={searchText}
@@ -455,7 +508,7 @@ export default function TransactionRecordPage() {
                   hiddenColumns={hiddenColumns}
                   columnOrder={columnOrder}
                   onToggleVisibility={handleToggleColumnVisibility}
-                  onMoveColumn={() => {}}
+                  onMoveColumn={() => { }}
                   onColumnOrderChange={handleColumnOrderChange}
                 />
               }
@@ -504,17 +557,71 @@ export default function TransactionRecordPage() {
               setChannel(value as ChannelType);
               setCurrentPage(1);
               setSearchText('');
+              setSearch支付渠道('');
+              setSearch支付账号('');
+              setSearch收支金额('');
+              setSearch交易账单号('');
+              setSearch账单交易时间范围(null);
             }}
             size="large"
             block
           />
         </div>
 
+        {/* 5个公共字段的单独搜索框 */}
+        <div style={{ marginBottom: 16, padding: '16px', backgroundColor: '#fafafa', borderRadius: 4 }}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
+            <Space wrap>
+              <Input
+                placeholder="支付渠道"
+                allowClear
+                style={{ width: 150 }}
+                value={search支付渠道}
+                onChange={(e) => setSearch支付渠道(e.target.value)}
+                onPressEnter={handleSearch}
+              />
+              <Input
+                placeholder="支付账号"
+                allowClear
+                style={{ width: 150 }}
+                value={search支付账号}
+                onChange={(e) => setSearch支付账号(e.target.value)}
+                onPressEnter={handleSearch}
+              />
+              <Input
+                placeholder="收支金额"
+                allowClear
+                style={{ width: 150 }}
+                value={search收支金额}
+                onChange={(e) => setSearch收支金额(e.target.value)}
+                onPressEnter={handleSearch}
+              />
+              <Input
+                placeholder="交易账单号"
+                allowClear
+                style={{ width: 200 }}
+                value={search交易账单号}
+                onChange={(e) => setSearch交易账单号(e.target.value)}
+                onPressEnter={handleSearch}
+              />
+              <RangePicker
+                placeholder={['开始时间', '结束时间']}
+                value={search账单交易时间范围}
+                onChange={(dates) => setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null)}
+                showTime
+                format="YYYY-MM-DD HH:mm:ss"
+                style={{ width: 400 }}
+              />
+            </Space>
+          </Space>
+        </div>
+
         <ResponsiveTable<any>
           tableId={`transaction-record-${channel}`}
           columns={columns as any}
           dataSource={records}
-          rowKey="交易账单号"
+          rowKey={(record) => record.交易账单号 || String(Math.random())}
           loading={loading}
           isMobile={false}
           scroll={{ x: 2000, y: 600 }}
@@ -555,7 +662,7 @@ export default function TransactionRecordPage() {
             <Form.Item
               key={field.key as string}
               label={field.label}
-              name={field.key}
+              name={field.key as string}
               rules={field.required ? [{ required: true, message: `请输入${field.label}` }] : []}
             >
               <Input placeholder={`请输入${field.label}`} />
@@ -567,7 +674,13 @@ export default function TransactionRecordPage() {
       {/* 批量新增模态框 */}
       <BatchAddModal<any>
         open={batchModalVisible}
-        title={`批量新增${channel}记录`}
+        title={
+          <Space>
+            <span>批量新增</span>
+            <Tag color="blue" style={{ marginBottom: 4 }}>{channel}</Tag>
+            <span>记录</span>
+          </Space>
+        }
         hint={`您可以从 Excel 中复制数据，然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。`}
         fields={getChannelFields(channel)}
         formatHint={`格式：${getChannelFields(channel).map(f => f.label).join('\t')}`}
@@ -589,4 +702,3 @@ export default function TransactionRecordPage() {
     </div>
   );
 }
-

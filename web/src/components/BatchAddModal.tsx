@@ -34,7 +34,7 @@ export interface BatchAddModalProps<T = any> {
     /** 是否显示模态框 */
     open: boolean;
     /** 模态框标题 */
-    title: string;
+    title: string | React.ReactNode;
     /** 提示信息 */
     hint?: string;
     /** 字段配置 */
