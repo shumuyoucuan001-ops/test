@@ -1220,6 +1220,7 @@ export const transactionRecordApi = {
     page?: number;
     limit?: number;
     search?: string;
+    bindingStatuses?: string;
   }): Promise<{ data: any[]; total: number }> =>
     api.get('/transaction-record', { params }).then(res => res.data),
 

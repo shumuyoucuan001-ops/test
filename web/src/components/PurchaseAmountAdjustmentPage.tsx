@@ -85,12 +85,14 @@ export default function PurchaseAmountAdjustmentPage() {
     creator?: string,
     financeReviewer?: string,
     dataUpdateTime?: string,
+    size?: number,
   ) => {
     try {
       setLoading(true);
+      const currentSize = size ?? pageSize;
       const result = await purchaseAmountAdjustmentApi.getAll({
         page,
-        limit: pageSize,
+        limit: currentSize,
         search,
         purchaseOrderNumber,
         adjustmentAmount,
@@ -799,7 +801,8 @@ export default function PurchaseAmountAdjustmentPage() {
                 setSearchFinanceReviewer('');
                 setSearchDataUpdateTime('');
                 setCurrentPage(1);
-                loadAdjustments(1, undefined);
+                // 重置时传入空的搜索参数，确保立即查询默认数据
+                loadAdjustments(1, undefined, undefined, undefined, undefined, undefined, undefined);
               }}
             >
               重置
@@ -875,7 +878,7 @@ export default function PurchaseAmountAdjustmentPage() {
               setCurrentPage(page);
               if (size && size !== pageSize) {
                 setPageSize(size);
-                // 切换分页大小时，立即加载数据
+                // 切换分页大小时，立即加载数据，传入新的size
                 loadAdjustments(
                   page,
                   searchText || undefined,
@@ -884,6 +887,7 @@ export default function PurchaseAmountAdjustmentPage() {
                   searchCreator || undefined,
                   searchFinanceReviewer || undefined,
                   searchDataUpdateTime || undefined,
+                  size,
                 );
               } else {
                 loadAdjustments(
@@ -900,7 +904,7 @@ export default function PurchaseAmountAdjustmentPage() {
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-              // 切换分页大小时，立即加载数据
+              // 切换分页大小时，立即加载数据，传入新的size
               loadAdjustments(
                 1,
                 searchText || undefined,
@@ -909,6 +913,7 @@ export default function PurchaseAmountAdjustmentPage() {
                 searchCreator || undefined,
                 searchFinanceReviewer || undefined,
                 searchDataUpdateTime || undefined,
+                size,
               );
             },
           }}

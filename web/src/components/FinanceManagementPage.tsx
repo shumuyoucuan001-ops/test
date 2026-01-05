@@ -88,12 +88,14 @@ export default function FinanceManagementPage() {
     qianniuhuaPurchaseNumber?: string,
     importExceptionRemark?: string,
     modifier?: string,
+    size?: number,
   ) => {
     try {
       setLoading(true);
+      const currentSize = size ?? pageSize;
       const result = await financeManagementApi.getAll({
         page,
-        limit: pageSize,
+        limit: currentSize,
         search,
         transactionNumber,
         qianniuhuaPurchaseNumber,
@@ -747,7 +749,8 @@ export default function FinanceManagementPage() {
                 setSearchImportExceptionRemark('');
                 setSearchModifier('');
                 setCurrentPage(1);
-                loadBills(1, undefined);
+                // 重置时传入空的搜索参数，确保立即查询默认数据
+                loadBills(1, undefined, undefined, undefined, undefined, undefined);
               }}
             >
               重置
@@ -815,7 +818,7 @@ export default function FinanceManagementPage() {
               setCurrentPage(page);
               if (size && size !== pageSize) {
                 setPageSize(size);
-                // 切换分页大小时，立即加载数据
+                // 切换分页大小时，立即加载数据，传入新的size
                 loadBills(
                   page,
                   searchText || undefined,
@@ -823,6 +826,7 @@ export default function FinanceManagementPage() {
                   searchQianniuhuaPurchaseNumber || undefined,
                   searchImportExceptionRemark || undefined,
                   searchModifier || undefined,
+                  size,
                 );
               } else {
                 loadBills(
@@ -838,7 +842,7 @@ export default function FinanceManagementPage() {
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-              // 切换分页大小时，立即加载数据
+              // 切换分页大小时，立即加载数据，传入新的size
               loadBills(
                 1,
                 searchText || undefined,
@@ -846,6 +850,7 @@ export default function FinanceManagementPage() {
                 searchQianniuhuaPurchaseNumber || undefined,
                 searchImportExceptionRemark || undefined,
                 searchModifier || undefined,
+                size,
               );
             },
           }}

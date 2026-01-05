@@ -50,6 +50,7 @@ export class TransactionRecordService {
         page: number = 1,
         limit: number = 20,
         search?: string,
+        bindingStatuses?: string[], // 绑定状态筛选：['已绑定采购单', '已生成对账单', '非采购单流水']
     ): Promise<{ data: TransactionRecord[]; total: number }> {
         const connection = await this.getConnection();
         const tableName = this.getTableName(channel);
@@ -129,20 +130,93 @@ export class TransactionRecordService {
             const dataQuery = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ? OFFSET ?`;
             const [rows]: any = await connection.execute(dataQuery, [...queryParams, limit, offset]);
 
-            // 转换日期格式
-            const data = rows.map((row: any) => {
+            // 转换日期格式并查询绑定状态
+            const data = await Promise.all(rows.map(async (row: any) => {
                 if (row.账单交易时间) {
                     row.账单交易时间 = new Date(row.账单交易时间).toISOString();
                 }
-                return row;
-            });
 
-            return { data, total };
+                // 查询绑定状态
+                const bindingStatusInfo = await this.getBindingStatusInfo(connection, row.交易账单号);
+                row.绑定状态 = bindingStatusInfo.statuses;
+                row.绑定状态对应情况 = bindingStatusInfo.details;
+                row.是否有非采购单流水 = bindingStatusInfo.hasNonPurchaseBill;
+
+                return row;
+            }));
+
+            // 如果有绑定状态筛选，进行过滤
+            let filteredData = data;
+            if (bindingStatuses && bindingStatuses.length > 0) {
+                filteredData = data.filter((record: any) => {
+                    if (!record.绑定状态 || record.绑定状态.length === 0) {
+                        return false;
+                    }
+                    // 检查记录是否有任何选中的绑定状态
+                    return bindingStatuses.some(status => record.绑定状态.includes(status));
+                });
+            }
+
+            return { data: filteredData, total: bindingStatuses && bindingStatuses.length > 0 ? filteredData.length : total };
         } catch (error) {
             Logger.error(`[TransactionRecordService] Failed to get records for ${channel}:`, error);
             throw error;
         } finally {
             await connection.end();
+        }
+    }
+
+    // 查询绑定状态信息
+    private async getBindingStatusInfo(connection: any, 交易账单号: string): Promise<{
+        statuses: string[];
+        details: string[];
+        hasNonPurchaseBill: boolean;
+    }> {
+        const statuses: string[] = [];
+        const details: string[] = [];
+
+        try {
+            // 1. 查询是否在'手动绑定对账单号'表中
+            const manualBindingQuery = `SELECT COUNT(*) as count FROM \`手动绑定对账单号\` WHERE \`交易单号\` = ?`;
+            const [manualBindingResult]: any = await connection.execute(manualBindingQuery, [交易账单号]);
+            if (manualBindingResult[0]?.count > 0) {
+                statuses.push('已绑定采购单');
+            }
+
+            // 2. 查询是否在'交易单号绑定采购单记录'表中，并获取记录状态
+            const bindingRecordQuery = `SELECT \`记录状态\` FROM \`交易单号绑定采购单记录\` WHERE \`交易单号\` = ?`;
+            const [bindingRecordResult]: any = await connection.execute(bindingRecordQuery, [交易账单号]);
+            if (bindingRecordResult.length > 0) {
+                statuses.push('已生成对账单');
+                // 收集所有记录状态
+                bindingRecordResult.forEach((row: any) => {
+                    if (row.记录状态) {
+                        details.push(row.记录状态);
+                    }
+                });
+            }
+
+            // 3. 查询是否在'非采购单流水记录'表中，并获取财务审核状态
+            const nonPurchaseQuery = `SELECT \`财务审核状态\` FROM \`非采购单流水记录\` WHERE \`账单流水\` = ?`;
+            const [nonPurchaseResult]: any = await connection.execute(nonPurchaseQuery, [交易账单号]);
+            if (nonPurchaseResult.length > 0) {
+                statuses.push('非采购单流水');
+                // 收集所有财务审核状态
+                nonPurchaseResult.forEach((row: any) => {
+                    if (row.财务审核状态) {
+                        details.push(row.财务审核状态);
+                    }
+                });
+            }
+
+            return {
+                statuses,
+                details,
+                hasNonPurchaseBill: nonPurchaseResult.length > 0,
+            };
+        } catch (error) {
+            Logger.error(`[TransactionRecordService] Failed to get binding status for ${交易账单号}:`, error);
+            return { statuses: [], details: [], hasNonPurchaseBill: false };
         }
     }
 

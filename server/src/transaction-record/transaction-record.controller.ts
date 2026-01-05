@@ -12,6 +12,7 @@ export class TransactionRecordController {
         @Query('page') page: string = '1',
         @Query('limit') limit: string = '20',
         @Query('search') search?: string,
+        @Query('bindingStatuses') bindingStatuses?: string, // 逗号分隔的绑定状态列表
     ) {
         const pageNum = parseInt(page, 10) || 1;
         const limitNum = parseInt(limit, 10) || 20;
@@ -20,11 +21,18 @@ export class TransactionRecordController {
             throw new Error('无效的渠道类型');
         }
 
+        // 解析绑定状态列表
+        let bindingStatusArray: string[] | undefined;
+        if (bindingStatuses) {
+            bindingStatusArray = bindingStatuses.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
         return await this.transactionRecordService.getAll(
             channel as ChannelType,
             pageNum,
             limitNum,
             search,
+            bindingStatusArray,
         );
     }
 

@@ -124,12 +124,14 @@ export default function NonPurchaseBillRecordPage() {
     所属仓店?: string,
     财务审核状态?: string,
     记录修改人?: string,
+    size?: number,
   ) => {
     try {
       setLoading(true);
+      const currentSize = size ?? pageSize;
       const result = await nonPurchaseBillRecordApi.getAll({
         page,
-        limit: pageSize,
+        limit: currentSize,
         search,
         账单流水,
         账单类型,
@@ -818,7 +820,8 @@ export default function NonPurchaseBillRecordPage() {
                 setSearch财务审核状态('');
                 setSearch记录修改人('');
                 setCurrentPage(1);
-                loadRecords(1, undefined);
+                // 重置时传入空的搜索参数，确保立即查询默认数据
+                loadRecords(1, undefined, undefined, undefined, undefined, undefined, undefined);
               }}
             >
               重置
@@ -894,7 +897,7 @@ export default function NonPurchaseBillRecordPage() {
               setCurrentPage(page);
               if (size && size !== pageSize) {
                 setPageSize(size);
-                // 切换分页大小时，立即加载数据
+                // 切换分页大小时，立即加载数据，传入新的size
                 loadRecords(
                   page,
                   searchText || undefined,
@@ -903,6 +906,7 @@ export default function NonPurchaseBillRecordPage() {
                   search所属仓店 || undefined,
                   search财务审核状态 || undefined,
                   search记录修改人 || undefined,
+                  size,
                 );
               } else {
                 loadRecords(
@@ -919,7 +923,7 @@ export default function NonPurchaseBillRecordPage() {
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-              // 切换分页大小时，立即加载数据
+              // 切换分页大小时，立即加载数据，传入新的size
               loadRecords(
                 1,
                 searchText || undefined,
@@ -928,6 +932,7 @@ export default function NonPurchaseBillRecordPage() {
                 search所属仓店 || undefined,
                 search财务审核状态 || undefined,
                 search记录修改人 || undefined,
+                size,
               );
             },
           }}

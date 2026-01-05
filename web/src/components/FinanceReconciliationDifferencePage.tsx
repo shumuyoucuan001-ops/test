@@ -159,6 +159,11 @@ export default function FinanceReconciliationDifferencePage() {
   const [financeBillSearch牵牛花采购单号, setFinanceBillSearch牵牛花采购单号] = useState('');
   const [nonPurchaseRecordSearch账单流水, setNonPurchaseRecordSearch账单流水] = useState('');
 
+  // 左右框的搜索状态（用于左右框整体的搜索）
+  const [leftRightSearch交易单号, setLeftRightSearch交易单号] = useState('');
+  const [leftRightSearch采购单号, setLeftRightSearch采购单号] = useState('');
+  const [leftRightSearch采购单状态, setLeftRightSearch采购单状态] = useState('');
+
   // 选中行状态（用于高亮显示）
   const [selectedDetailRow, setSelectedDetailRow] = useState<string | null>(null);
   const [selectedPurchaseAdjustmentRow, setSelectedPurchaseAdjustmentRow] = useState<string | null>(null);
@@ -186,13 +191,15 @@ export default function FinanceReconciliationDifferencePage() {
     更新时间结束?: string,
     采购单号?: string,
     交易单号?: string,
+    size?: number,
   ) => {
     try {
       setLoading(true);
       // 构建请求参数，只包含有值的参数
+      const currentSize = size ?? pageSize;
       const params: any = {
         page,
-        limit: pageSize,
+        limit: currentSize,
       };
       if (search && search.trim()) {
         params.search = search.trim();
@@ -572,6 +579,19 @@ export default function FinanceReconciliationDifferencePage() {
     }
   };
 
+  // 左右框搜索（过滤左右框数据）
+  const handleLeftRightSearch = () => {
+    // 这里不需要调用API，只需要过滤本地数据
+    // 搜索逻辑在渲染时通过过滤数据源实现
+  };
+
+  // 左右框重置
+  const handleLeftRightReset = () => {
+    setLeftRightSearch交易单号('');
+    setLeftRightSearch采购单号('');
+    setLeftRightSearch采购单状态('');
+  };
+
   // 加载默认的交易单号和采购单号信息（所有数据）
   const loadDefaultTransactionAndPurchaseData = async () => {
     if (!selected对账单号) {
@@ -880,6 +900,36 @@ export default function FinanceReconciliationDifferencePage() {
     }, 0);
     return { total采购金额, total实收金额 };
   }, [purchaseOrderInfoData]);
+
+  // 过滤后的交易单数据（基于左右框搜索条件）
+  const filteredTransactionRecordData = useMemo(() => {
+    let filtered = transactionRecordData;
+    if (leftRightSearch交易单号 && leftRightSearch交易单号.trim()) {
+      const searchTerm = leftRightSearch交易单号.trim().toLowerCase();
+      filtered = filtered.filter(record => 
+        record.交易账单号?.toLowerCase().includes(searchTerm)
+      );
+    }
+    return filtered;
+  }, [transactionRecordData, leftRightSearch交易单号]);
+
+  // 过滤后的采购单数据（基于左右框搜索条件）
+  const filteredPurchaseOrderInfoData = useMemo(() => {
+    let filtered = purchaseOrderInfoData;
+    if (leftRightSearch采购单号 && leftRightSearch采购单号.trim()) {
+      const searchTerm = leftRightSearch采购单号.trim().toLowerCase();
+      filtered = filtered.filter(record => 
+        record.采购单号?.toLowerCase().includes(searchTerm)
+      );
+    }
+    if (leftRightSearch采购单状态 && leftRightSearch采购单状态.trim()) {
+      const searchTerm = leftRightSearch采购单状态.trim().toLowerCase();
+      filtered = filtered.filter(record => 
+        record.状态?.toLowerCase().includes(searchTerm)
+      );
+    }
+    return filtered;
+  }, [purchaseOrderInfoData, leftRightSearch采购单号, leftRightSearch采购单状态]);
 
   // 查询采购单金额调整
   const loadPurchaseAdjustmentData = async (search采购单号?: string) => {
@@ -2353,12 +2403,13 @@ export default function FinanceReconciliationDifferencePage() {
                     更新时间结束,
                     search采购单号?.trim() || undefined,
                     search交易单号?.trim() || undefined,
+                    size && size !== pageSize ? size : undefined,
                   );
                 }}
                 onShowSizeChange={(current, size) => {
                   setCurrentPage(1);
                   setPageSize(size);
-                  // 切换分页大小时，立即加载数据
+                  // 切换分页大小时，立即加载数据，传入新的size
                   const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
                   const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
                   loadRecords(
@@ -2371,6 +2422,7 @@ export default function FinanceReconciliationDifferencePage() {
                     更新时间结束,
                     search采购单号?.trim() || undefined,
                     search交易单号?.trim() || undefined,
+                    size,
                   );
                 }}
               />
@@ -2426,221 +2478,73 @@ export default function FinanceReconciliationDifferencePage() {
           >
             {selected对账单号 ? (
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                {/* 子维度数据列表 */}
-                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  {/* 搜索区域 */}
-                  <div style={{ marginBottom: 8 }}>
-                    <Space wrap>
-                      <Input
-                        placeholder="交易单号"
-                        allowClear
-                        size="small"
-                        style={{ width: 140 }}
-                        value={subDetailSearch交易单号}
-                        onChange={(e) => setSubDetailSearch交易单号(e.target.value)}
-                        onPressEnter={handleDetailSearch}
-                      />
-                      <Input
-                        placeholder="牵牛花采购单号"
-                        allowClear
-                        size="small"
-                        style={{ width: 140 }}
-                        value={subDetailSearch牵牛花采购单号}
-                        onChange={(e) => setSubDetailSearch牵牛花采购单号(e.target.value)}
-                        onPressEnter={handleDetailSearch}
-                      />
-                      <Input
-                        placeholder="采购单状态"
-                        allowClear
-                        size="small"
-                        style={{ width: 140 }}
-                        value={subDetailSearch采购单状态}
-                        onChange={(e) => setSubDetailSearch采购单状态(e.target.value)}
-                        onPressEnter={handleDetailSearch}
-                      />
-                      <Input
-                        placeholder="门店/仓"
-                        allowClear
-                        size="small"
-                        style={{ width: 140 }}
-                        value={subDetailSearch门店仓}
-                        onChange={(e) => setSubDetailSearch门店仓(e.target.value)}
-                        onPressEnter={handleDetailSearch}
-                      />
-                      <Button size="small" type="primary" icon={<SearchOutlined />} onClick={handleDetailSearch}>搜索</Button>
-                      <Button size="small" onClick={handleDetailReset}>重置</Button>
-                      <span style={{ marginLeft: 8, fontWeight: 500, fontSize: 14 }}>对账单详细信息</span>
-                    </Space>
-                  </div>
+                {/* 左右框：交易单号信息和采购单号信息 */}
+                {detailPanelsVisible && (
+                  <>
+                    {/* 左右框上方的搜索区域和合计值 */}
+                    <div style={{ marginBottom: 8, padding: '8px', backgroundColor: '#fafafa', borderRadius: 4, flexShrink: 0 }}>
+                      <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                        <Space wrap>
+                          <Input
+                            placeholder="交易单号"
+                            allowClear
+                            size="small"
+                            style={{ width: 140 }}
+                            value={leftRightSearch交易单号}
+                            onChange={(e) => setLeftRightSearch交易单号(e.target.value)}
+                            onPressEnter={handleLeftRightSearch}
+                          />
+                          <Input
+                            placeholder="采购单号"
+                            allowClear
+                            size="small"
+                            style={{ width: 140 }}
+                            value={leftRightSearch采购单号}
+                            onChange={(e) => setLeftRightSearch采购单号(e.target.value)}
+                            onPressEnter={handleLeftRightSearch}
+                          />
+                          <Input
+                            placeholder="采购单状态"
+                            allowClear
+                            size="small"
+                            style={{ width: 140 }}
+                            value={leftRightSearch采购单状态}
+                            onChange={(e) => setLeftRightSearch采购单状态(e.target.value)}
+                            onPressEnter={handleLeftRightSearch}
+                          />
+                          <Button size="small" type="primary" icon={<SearchOutlined />} onClick={handleLeftRightSearch}>搜索</Button>
+                          <Button
+                            size="small"
+                            type="primary"
+                            style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
+                            onClick={() => {
+                              setFinanceBillTransactionNumberValidation({ loading: false, result: null, error: null });
+                              setFinanceBillPurchaseOrderNumberValidation({ loading: false, result: null, error: null });
+                              setFinanceBillModalVisible(true);
+                            }}
+                          >
+                            账单手动绑定采购单
+                          </Button>
+                          <Button size="small" onClick={handleLeftRightReset}>重置</Button>
+                        </Space>
+                        <Space>
+                          <span style={{ fontSize: 12, fontWeight: 500 }}>采购单金额合计: <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total采购单金额)}</span></span>
+                          <span style={{ fontSize: 12, fontWeight: 500 }}>采购单调整金额合计: <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total采购单调整金额)}</span></span>
+                          <span style={{ fontSize: 12, fontWeight: 500 }}>调整后采购单金额合计: <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total调整后采购单金额)}</span></span>
+                        </Space>
+                      </Space>
+                    </div>
 
-                  {/* 子维度数据表格 */}
-                  <div style={{
-                    flex: detailPanelsVisible ? `0 0 ${100 - detailPanelsHeight}%` : 1,
-                    overflow: 'auto',
-                    minHeight: 0
-                  }}>
-                    <ResponsiveTable<FinanceReconciliationDifference>
-                      tableId="finance-reconciliation-difference-sub"
-                      columns={[
-                        {
-                          title: '交易单号',
-                          dataIndex: '交易单号',
-                          key: '交易单号',
-                          width: Math.round(180 * 0.7),
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '牵牛花采购单号',
-                          dataIndex: '牵牛花采购单号',
-                          key: '牵牛花采购单号',
-                          width: Math.round(180 * 0.7),
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '采购单金额',
-                          dataIndex: '采购单金额',
-                          key: '采购单金额',
-                          width: Math.round(120 * 0.7),
-                          align: 'right' as const,
-                          render: (text: number) => formatAmount(text),
-                        },
-                        {
-                          title: '采购单调整金额',
-                          dataIndex: '采购单调整金额',
-                          key: '采购单调整金额',
-                          width: Math.round(140 * 0.7),
-                          align: 'right' as const,
-                          render: (text: number) => formatAmount(text),
-                        },
-                        {
-                          title: '调整后采购单金额',
-                          dataIndex: '调整后采购单金额',
-                          key: '调整后采购单金额',
-                          width: Math.round(160 * 0.7),
-                          align: 'right' as const,
-                          render: (text: number) => formatAmount(text),
-                        },
-                        {
-                          title: '采购单状态',
-                          dataIndex: '采购单状态',
-                          key: '采购单状态',
-                          width: Math.round(120 * 0.7),
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '门店/仓',
-                          dataIndex: '门店仓',
-                          key: '门店仓',
-                          width: Math.round(120 * 0.7),
-                          render: (text: string) => text || '-',
-                        },
-                        {
-                          title: '下单账号',
-                          dataIndex: '下单账号',
-                          key: '下单账号',
-                          width: Math.round(120 * 0.7),
-                          render: (text: string) => text || '-',
-                        },
-                      ]}
-                      dataSource={subRecords}
-                      rowKey={(record) => `${record.交易单号}_${record.牵牛花采购单号}`}
-                      loading={subLoading}
-                      isMobile={false}
-                      scroll={{ x: Math.round(1200 * 0.7) }}
-                      pagination={false}
-                      size="small"
-                      style={{ fontSize: `${12 * 0.7}px` }}
-                      summary={() => (
-                        <Table.Summary fixed>
-                          <Table.Summary.Row>
-                            <Table.Summary.Cell index={0} colSpan={2} />
-                            <Table.Summary.Cell index={2} align="right">
-                              <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total采购单金额)}</span>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={3} align="right">
-                              <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total采购单调整金额)}</span>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={4} align="right">
-                              <span style={{ fontWeight: 'bold' }}>{formatAmount(subRecordsSummary.total调整后采购单金额)}</span>
-                            </Table.Summary.Cell>
-                            <Table.Summary.Cell index={5} colSpan={3} />
-                          </Table.Summary.Row>
-                        </Table.Summary>
-                      )}
-                      onRow={(record) => {
-                        const rowKey = `${record.交易单号}_${record.牵牛花采购单号}`;
-                        const isSelected = selectedSubRecord && `${selectedSubRecord.交易单号}_${selectedSubRecord.牵牛花采购单号}` === rowKey;
-                        return {
-                          onClick: () => handleSubRecordClick(record),
-                          style: {
-                            cursor: 'pointer',
-                            backgroundColor: isSelected ? '#1890ff' : undefined,
-                            color: isSelected ? '#fff' : undefined,
-                          },
-                        };
-                      }}
-                    />
-                  </div>
-
-                  {/* 分隔线：调整左右框高度 */}
-                  {detailPanelsVisible && (
-                    <div
-                      style={{
-                        height: '4px',
-                        backgroundColor: '#1890ff',
-                        cursor: 'ns-resize',
-                        flexShrink: 0,
-                        marginTop: 8,
-                        marginBottom: 8,
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const startY = e.clientY;
-                        const container = subTableContainerRef.current;
-                        if (!container) return;
-                        const containerHeight = container.clientHeight;
-
-                        const handleMouseMove = (moveEvent: MouseEvent) => {
-                          const container = subTableContainerRef.current;
-                          if (!container) return;
-                          const containerRect = container.getBoundingClientRect();
-                          const containerTop = containerRect.top;
-                          const containerHeight = container.clientHeight;
-
-                          // 计算鼠标相对于容器顶部的位置（即与上下栏分割线的距离）
-                          const mouseY = moveEvent.clientY;
-                          const relativeY = mouseY - containerTop;
-
-                          // 计算分割线距离容器顶部的百分比
-                          // 鼠标下移时，relativeY增加，分割线应该下移
-                          // 分割线的位置 = 子维度表格的高度百分比
-                          // 左右框的高度 = 100% - 分割线位置
-                          // detailPanelsHeight表示左右框的高度百分比
-                          const splitLinePosition = (relativeY / containerHeight) * 100;
-
-                          // 限制：分割线最小位置为5%（不能超过容器顶部），最大位置为95%（留一些空间给左右框）
-                          const minPosition = 5;
-                          const maxPosition = 95;
-                          const clampedPosition = Math.max(minPosition, Math.min(maxPosition, splitLinePosition));
-
-                          // 左右框的高度 = 100% - 分割线位置
-                          // 当分割线下移时，左右框应该变小
-                          setDetailPanelsHeight(100 - clampedPosition);
-                        };
-
-                        const handleMouseUp = () => {
-                          document.removeEventListener('mousemove', handleMouseMove);
-                          document.removeEventListener('mouseup', handleMouseUp);
-                        };
-
-                        document.addEventListener('mousemove', handleMouseMove);
-                        document.addEventListener('mouseup', handleMouseUp);
-                      }}
-                    />
-                  )}
-
-                  {/* 左右框：交易单号信息和采购单号信息 */}
-                  {detailPanelsVisible && (
+                    {/* 左右框容器 */}
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      gap: 0,
+                      overflow: 'hidden',
+                      minHeight: 200,
+                      maxHeight: '100%',
+                      boxSizing: 'border-box',
+                    }}>
                     <div style={{
                       flex: `0 0 ${detailPanelsHeight}%`,
                       display: 'flex',
@@ -2666,26 +2570,12 @@ export default function FinanceReconciliationDifferencePage() {
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <span>交易单详细信息</span>
-                          <Space size="small">
-                            <Button
-                              size="small"
-                              type="primary"
-                              style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
-                              onClick={() => {
-                                setFinanceBillTransactionNumberValidation({ loading: false, result: null, error: null });
-                                setFinanceBillPurchaseOrderNumberValidation({ loading: false, result: null, error: null });
-                                setFinanceBillModalVisible(true);
-                              }}
-                            >
-                              账单手动绑定采购单
-                            </Button>
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<CloseOutlined />}
-                              onClick={handleCloseDetailPanels}
-                            />
-                          </Space>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CloseOutlined />}
+                            onClick={handleCloseDetailPanels}
+                          />
                         </div>
                         <div style={{ flex: 1, overflow: 'hidden', marginBottom: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                           <div style={{ flex: 1, overflow: 'auto', minHeight: 0, paddingBottom: '50px' }}>
@@ -2755,7 +2645,7 @@ export default function FinanceReconciliationDifferencePage() {
                                   },
                                 },
                               ]}
-                              dataSource={transactionRecordData}
+                              dataSource={filteredTransactionRecordData}
                               rowKey={(record) => `${record.交易账单号 || ''}_${record.支付账号 || ''}_${record.账单交易时间 || ''}`}
                               loading={transactionRecordLoading}
                               isMobile={false}
@@ -2816,24 +2706,12 @@ export default function FinanceReconciliationDifferencePage() {
                       }}>
                         <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                           <span>采购单详细信息</span>
-                          <Space size="small">
-                            <Button
-                              size="small"
-                              type="primary"
-                              style={{ fontSize: '11px', padding: '0 8px', height: '24px' }}
-                              onClick={() => {
-                                setPurchaseAdjustmentModalVisible(true);
-                              }}
-                            >
-                              采购单金额调整
-                            </Button>
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<CloseOutlined />}
-                              onClick={handleCloseDetailPanels}
-                            />
-                          </Space>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CloseOutlined />}
+                            onClick={handleCloseDetailPanels}
+                          />
                         </div>
                         <div style={{ flex: 1, overflow: 'hidden', marginBottom: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                           <div style={{ flex: 1, overflow: 'auto', minHeight: 0, paddingBottom: '50px' }}>
@@ -2938,12 +2816,38 @@ export default function FinanceReconciliationDifferencePage() {
                                     );
                                   },
                                 },
+                                {
+                                  title: '操作',
+                                  key: '操作',
+                                  width: Math.round(120 * 0.7),
+                                  fixed: 'right' as const,
+                                  render: (_: any, record: PurchaseOrderInfo) => {
+                                    return (
+                                      <Button
+                                        size="small"
+                                        type="link"
+                                        style={{ fontSize: '11px', padding: '0 4px' }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (record.采购单号) {
+                                            purchaseAdjustmentForm.setFieldsValue({
+                                              purchaseOrderNumber: record.采购单号,
+                                            });
+                                            setPurchaseAdjustmentModalVisible(true);
+                                          }
+                                        }}
+                                      >
+                                        采购单金额调整
+                                      </Button>
+                                    );
+                                  },
+                                },
                               ]}
-                              dataSource={purchaseOrderInfoData}
+                              dataSource={filteredPurchaseOrderInfoData}
                               rowKey={(record) => `${record.采购单号 || ''}_${record.创建时间 || ''}`}
                               loading={purchaseOrderInfoLoading}
                               isMobile={false}
-                              scroll={{ x: Math.round(1400 * 0.7) }}
+                              scroll={{ x: Math.round(1500 * 0.7) }}
                               pagination={false}
                               size="small"
                               style={{ fontSize: `${12 * 0.7}px` }}
@@ -2957,7 +2861,7 @@ export default function FinanceReconciliationDifferencePage() {
                                     <Table.Summary.Cell index={4} align="right">
                                       <span style={{ fontWeight: 'bold' }}>{formatAmount(purchaseOrderInfoSummary.total实收金额)}</span>
                                     </Table.Summary.Cell>
-                                    <Table.Summary.Cell index={5} colSpan={6} />
+                                    <Table.Summary.Cell index={5} colSpan={7} />
                                   </Table.Summary.Row>
                                 </Table.Summary>
                               )}

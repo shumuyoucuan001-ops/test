@@ -12,20 +12,24 @@ import {
 import {
   Button,
   Card,
+  Checkbox,
   DatePicker,
   Form,
   Input,
+  InputNumber,
   message,
   Modal,
   Popover,
   Segmented,
   Space,
   Tag,
-  Typography
+  Typography,
+  Upload
 } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
 import { useCallback, useEffect, useState } from 'react';
-import { transactionRecordApi } from '../lib/api';
+import { nonPurchaseBillRecordApi, transactionRecordApi } from '../lib/api';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
 import ExcelExportModal from './ExcelExportModal';
@@ -34,6 +38,7 @@ import ResponsiveTable from './ResponsiveTable';
 const { Search } = Input;
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
+const { TextArea } = Input;
 
 type ChannelType = '1688先采后付' | '京东金融' | '微信' | '支付宝';
 
@@ -111,7 +116,7 @@ const getChannelFields = (channel: ChannelType): FieldConfig<any>[] => {
 };
 
 // 获取各渠道的表格列定义
-const getChannelColumns = (channel: ChannelType) => {
+const getChannelColumns = (channel: ChannelType, onAddNonPurchase?: (record: any) => void) => {
   const commonColumns = [
     {
       title: '支付渠道',
@@ -146,6 +151,65 @@ const getChannelColumns = (channel: ChannelType) => {
       key: '账单交易时间',
       width: 180,
       render: (text: string) => formatDateTime(text),
+    },
+    {
+      title: '绑定状态',
+      dataIndex: '绑定状态',
+      key: '绑定状态',
+      width: 200,
+      render: (statuses: string[]) => {
+        if (!statuses || statuses.length === 0) {
+          return '-';
+        }
+        return (
+          <div>
+            {statuses.map((status, index) => (
+              <Tag key={index} color="blue" style={{ marginBottom: 4 }}>
+                {status}
+              </Tag>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
+      title: '绑定状态对应情况',
+      dataIndex: '绑定状态对应情况',
+      key: '绑定状态对应情况',
+      width: 200,
+      render: (details: string[]) => {
+        if (!details || details.length === 0) {
+          return '-';
+        }
+        return (
+          <div>
+            {details.map((detail, index) => (
+              <Tag key={index} color="blue" style={{ marginBottom: 4 }}>
+                {detail}
+              </Tag>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 150,
+      fixed: 'right' as const,
+      render: (_: any, record: any) => {
+        const hasNonPurchase = record.是否有非采购单流水;
+        return (
+          <Button
+            type="primary"
+            size="small"
+            disabled={hasNonPurchase}
+            onClick={() => onAddNonPurchase?.(record)}
+          >
+            添加非采购单流水
+          </Button>
+        );
+      },
     },
   ];
 
@@ -228,10 +292,17 @@ export default function TransactionRecordPage() {
   const [search交易账单号, setSearch交易账单号] = useState('');
   const [search账单交易时间范围, setSearch账单交易时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
+  // 绑定状态筛选
+  const [selectedBindingStatuses, setSelectedBindingStatuses] = useState<string[]>([]);
+
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [nonPurchaseModalVisible, setNonPurchaseModalVisible] = useState(false);
+  const [nonPurchaseForm] = Form.useForm();
+  const [nonPurchaseFormData, setNonPurchaseFormData] = useState<{ 账单流水: string; 记账金额: number } | null>(null);
+  const [imageFileList, setImageFileList] = useState<UploadFile[]>([]);
   const [form] = Form.useForm();
 
   // 列设置相关状态（按渠道独立）
@@ -243,9 +314,25 @@ export default function TransactionRecordPage() {
   const loadRecords = async (
     page: number = currentPage,
     search?: string,
+    size?: number,
+    overrideSearchParams?: {
+      支付渠道?: string;
+      支付账号?: string;
+      交易账单号?: string;
+      收支金额?: string;
+      账单交易时间范围?: [Dayjs | null, Dayjs | null] | null;
+    },
   ) => {
     try {
       setLoading(true);
+
+      // 使用传入的参数或当前状态
+      const currentSize = size ?? pageSize;
+      const currentSearch支付渠道 = overrideSearchParams?.支付渠道 !== undefined ? overrideSearchParams.支付渠道 : search支付渠道;
+      const currentSearch支付账号 = overrideSearchParams?.支付账号 !== undefined ? overrideSearchParams.支付账号 : search支付账号;
+      const currentSearch交易账单号 = overrideSearchParams?.交易账单号 !== undefined ? overrideSearchParams.交易账单号 : search交易账单号;
+      const currentSearch收支金额 = overrideSearchParams?.收支金额 !== undefined ? overrideSearchParams.收支金额 : search收支金额;
+      const currentSearch账单交易时间范围 = overrideSearchParams?.账单交易时间范围 !== undefined ? overrideSearchParams.账单交易时间范围 : search账单交易时间范围;
 
       // 构建搜索条件 - 使用多个单独的搜索参数
       const searchParams: string[] = [];
@@ -253,17 +340,17 @@ export default function TransactionRecordPage() {
       if (search && search.trim()) {
         searchParams.push(search.trim());
       }
-      if (search支付渠道 && search支付渠道.trim()) {
-        searchParams.push(`支付渠道:${search支付渠道.trim()}`);
+      if (currentSearch支付渠道 && currentSearch支付渠道.trim()) {
+        searchParams.push(`支付渠道:${currentSearch支付渠道.trim()}`);
       }
-      if (search支付账号 && search支付账号.trim()) {
-        searchParams.push(`支付账号:${search支付账号.trim()}`);
+      if (currentSearch支付账号 && currentSearch支付账号.trim()) {
+        searchParams.push(`支付账号:${currentSearch支付账号.trim()}`);
       }
-      if (search交易账单号 && search交易账单号.trim()) {
-        searchParams.push(`交易账单号:${search交易账单号.trim()}`);
+      if (currentSearch交易账单号 && currentSearch交易账单号.trim()) {
+        searchParams.push(`交易账单号:${currentSearch交易账单号.trim()}`);
       }
-      if (search收支金额 && search收支金额.trim()) {
-        const amountValue = search收支金额.trim();
+      if (currentSearch收支金额 && currentSearch收支金额.trim()) {
+        const amountValue = currentSearch收支金额.trim();
         // 支持搜索正数和负数，如果输入的是正数，也搜索负数
         // 使用特殊格式：收支金额:18.50 表示搜索 18.50 或 -18.50
         searchParams.push(`收支金额:${amountValue}`);
@@ -274,16 +361,17 @@ export default function TransactionRecordPage() {
       const result = await transactionRecordApi.getAll({
         channel,
         page,
-        limit: pageSize,
+        limit: currentSize,
         search: finalSearch,
+        bindingStatuses: selectedBindingStatuses.length > 0 ? selectedBindingStatuses.join(',') : undefined,
       });
 
       // 如果有时间范围筛选，在前端过滤
       let filteredData = result.data;
       let filteredTotal = result.total;
-      if (search账单交易时间范围 && search账单交易时间范围[0] && search账单交易时间范围[1]) {
-        const startTime = search账单交易时间范围[0].startOf('day');
-        const endTime = search账单交易时间范围[1].endOf('day');
+      if (currentSearch账单交易时间范围 && currentSearch账单交易时间范围[0] && currentSearch账单交易时间范围[1]) {
+        const startTime = currentSearch账单交易时间范围[0].startOf('day');
+        const endTime = currentSearch账单交易时间范围[1].endOf('day');
         filteredData = result.data.filter((record: any) => {
           if (!record.账单交易时间) return false;
           const recordTime = dayjs(record.账单交易时间);
@@ -313,6 +401,7 @@ export default function TransactionRecordPage() {
     setSearch收支金额('');
     setSearch交易账单号('');
     setSearch账单交易时间范围(null);
+    setSelectedBindingStatuses([]);
 
     // 切换渠道时，清除该渠道的列宽设置，使用默认列宽确保对齐
     const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
@@ -321,6 +410,12 @@ export default function TransactionRecordPage() {
     loadRecords(1, undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
+
+  // 当绑定状态筛选变化时，重新加载数据
+  useEffect(() => {
+    loadRecords(currentPage, searchText || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBindingStatuses]);
 
   // 从 localStorage 加载列显示偏好和顺序（按渠道独立）
   useEffect(() => {
@@ -416,8 +511,113 @@ export default function TransactionRecordPage() {
     setSearch收支金额('');
     setSearch交易账单号('');
     setSearch账单交易时间范围(null);
+    setSelectedBindingStatuses([]);
     setCurrentPage(1);
-    loadRecords(1, undefined);
+    // 重置时传入空的搜索参数，确保立即查询默认数据
+    loadRecords(1, undefined, undefined, {
+      支付渠道: '',
+      支付账号: '',
+      交易账单号: '',
+      收支金额: '',
+      账单交易时间范围: null,
+    });
+  };
+
+  // 文件转换为base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 图片上传前验证
+  const beforeUpload = (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      message.error('只能上传图片文件！');
+      return false;
+    }
+    const isLt10M = file.size / 1024 / 1024 < 10;
+    if (!isLt10M) {
+      message.error('图片大小不能超过10MB！');
+      return false;
+    }
+    return false; // 阻止自动上传，手动处理
+  };
+
+  // 图片变化处理
+  const handleImageChange = (info: any) => {
+    setImageFileList(info.fileList);
+  };
+
+  // 打开添加非采购单流水弹框
+  const handleOpenNonPurchaseModal = (record: any) => {
+    setNonPurchaseFormData({
+      账单流水: record.交易账单号,
+      记账金额: record.收支金额 || 0,
+    });
+    nonPurchaseForm.setFieldsValue({
+      账单流水: record.交易账单号,
+      记账金额: record.收支金额 || 0,
+      账单类型: '',
+      所属仓店: '',
+      账单流水备注: '',
+      财务记账凭证号: '',
+      财务审核人: '',
+    });
+    setImageFileList([]);
+    setNonPurchaseModalVisible(true);
+  };
+
+  // 保存非采购单流水
+  const handleSaveNonPurchase = async () => {
+    try {
+      const values = await nonPurchaseForm.validateFields();
+
+      // 处理图片
+      let imageBase64: string | undefined;
+      if (imageFileList.length > 0 && imageFileList[0].originFileObj) {
+        imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
+      } else {
+        imageBase64 = undefined;
+      }
+
+      const recordData = {
+        账单流水: values.账单流水,
+        记账金额: values.记账金额 || undefined,
+        账单类型: values.账单类型 || undefined,
+        所属仓店: values.所属仓店 || undefined,
+        账单流水备注: values.账单流水备注 || undefined,
+        图片: imageBase64,
+        财务记账凭证号: values.财务记账凭证号 || undefined,
+        财务审核状态: '0',
+        财务审核人: values.财务审核人 || undefined,
+      };
+
+      await nonPurchaseBillRecordApi.create(recordData);
+      message.success('创建成功');
+      setNonPurchaseModalVisible(false);
+      setImageFileList([]);
+      loadRecords(currentPage, searchText || undefined);
+    } catch (error: any) {
+      if (error?.errorFields) {
+        return;
+      }
+      let errorMessage = '未知错误';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      message.error('创建失败: ' + errorMessage);
+    }
   };
 
   // 打开新增模态框
@@ -497,7 +697,7 @@ export default function TransactionRecordPage() {
   }, [channel, searchText]);
 
   // 表格列定义
-  const allColumns = getChannelColumns(channel);
+  const allColumns = getChannelColumns(channel, handleOpenNonPurchaseModal);
 
   // 根据列设置过滤和排序列
   const getFilteredColumns = () => {
@@ -545,6 +745,17 @@ export default function TransactionRecordPage() {
         }
         extra={
           <Space size="small">
+            {/* 绑定状态筛选 */}
+            <Checkbox.Group
+              options={[
+                { label: '已绑定采购单', value: '已绑定采购单' },
+                { label: '已生成对账单', value: '已生成对账单' },
+                { label: '非采购单流水', value: '非采购单流水' },
+              ]}
+              value={selectedBindingStatuses}
+              onChange={(values) => setSelectedBindingStatuses(values as string[])}
+              style={{ marginRight: 8 }}
+            />
             {/* 5个公共字段的单独搜索框 */}
             <Input
               placeholder="支付渠道"
@@ -689,8 +900,8 @@ export default function TransactionRecordPage() {
               setCurrentPage(page);
               if (size && size !== pageSize) {
                 setPageSize(size);
-                // 切换分页大小时，立即加载数据
-                loadRecords(page, searchText || undefined);
+                // 切换分页大小时，立即加载数据，传入新的size
+                loadRecords(page, searchText || undefined, size);
               } else {
                 loadRecords(page, searchText || undefined);
               }
@@ -698,8 +909,8 @@ export default function TransactionRecordPage() {
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-              // 切换分页大小时，立即加载数据
-              loadRecords(1, searchText || undefined);
+              // 切换分页大小时，立即加载数据，传入新的size
+              loadRecords(1, searchText || undefined, size);
             },
           }}
         />
@@ -763,6 +974,134 @@ export default function TransactionRecordPage() {
         onCancel={() => setExportModalVisible(false)}
         fileName={`${channel}流水记录`}
       />
+
+      {/* 添加非采购单流水弹框 */}
+      <Modal
+        title="添加非采购单流水"
+        open={nonPurchaseModalVisible}
+        onOk={handleSaveNonPurchase}
+        onCancel={() => {
+          setNonPurchaseModalVisible(false);
+          nonPurchaseForm.resetFields();
+          setImageFileList([]);
+          setNonPurchaseFormData(null);
+        }}
+        width={800}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form
+          form={nonPurchaseForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="账单流水"
+            name="账单流水"
+            rules={[
+              { required: true, message: '请输入账单流水' },
+              { whitespace: true, message: '账单流水不能为空' }
+            ]}
+          >
+            <Input placeholder="请输入账单流水" />
+          </Form.Item>
+
+          <Form.Item
+            label="记账金额"
+            name="记账金额"
+          >
+            <InputNumber
+              placeholder="请输入记账金额"
+              style={{ width: '100%' }}
+              precision={2}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="账单类型"
+            name="账单类型"
+          >
+            <Input placeholder="请输入账单类型" />
+          </Form.Item>
+
+          <Form.Item
+            label="所属仓店"
+            name="所属仓店"
+          >
+            <Input placeholder="请输入所属仓店" />
+          </Form.Item>
+
+          <Form.Item
+            label="账单流水备注"
+            name="账单流水备注"
+          >
+            <TextArea
+              rows={4}
+              placeholder="请输入账单流水备注"
+              maxLength={245}
+              showCount
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="图片"
+            help="支持上传图片，大小不超过10MB"
+            name="image"
+            style={{ display: 'none' }}
+          >
+            <Input type="hidden" />
+          </Form.Item>
+          <Form.Item
+            label=" "
+            colon={false}
+          >
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload
+                listType="picture-card"
+                fileList={imageFileList}
+                beforeUpload={beforeUpload}
+                onChange={handleImageChange}
+                onRemove={() => {
+                  setImageFileList([]);
+                  return true;
+                }}
+                maxCount={1}
+              >
+                {imageFileList.length < 1 && (
+                  <div>
+                    <PlusOutlined />
+                    <div style={{ marginTop: 8 }}>上传图片</div>
+                  </div>
+                )}
+              </Upload>
+              {imageFileList.length > 0 && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setImageFileList([]);
+                  }}
+                >
+                  清空图片
+                </Button>
+              )}
+            </Space>
+          </Form.Item>
+
+          <Form.Item
+            label="财务记账凭证号"
+            name="财务记账凭证号"
+          >
+            <Input placeholder="请输入财务记账凭证号" />
+          </Form.Item>
+
+          <Form.Item
+            label="财务审核人"
+            name="财务审核人"
+          >
+            <Input placeholder="请输入财务审核人" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
