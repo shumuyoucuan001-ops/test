@@ -21,6 +21,7 @@ import {
   Modal,
   Popconfirm,
   Popover,
+  Select,
   Space,
   Tag,
   Typography,
@@ -29,7 +30,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
-import { NonPurchaseBillRecord, aclApi, nonPurchaseBillRecordApi } from '../lib/api';
+import { NonPurchaseBillRecord, aclApi, maxStoreSkuInventoryApi, nonPurchaseBillRecordApi } from '../lib/api';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
@@ -50,6 +51,16 @@ export default function NonPurchaseBillRecordPage() {
   const [search所属仓店, setSearch所属仓店] = useState('');
   const [search财务审核状态, setSearch财务审核状态] = useState('');
   const [search记录修改人, setSearch记录修改人] = useState('');
+  const [search财务记账凭证号, setSearch财务记账凭证号] = useState('');
+
+  // 门店名称列表
+  const [storeNames, setStoreNames] = useState<string[]>([]);
+
+  // 账单类型选项
+  const billTypeOptions = ['个人流水', '仓店流水', '总部流水', '其他流水', '拼多多运费'];
+
+  // 正在编辑的字段（用于行内编辑）
+  const [editingField, setEditingField] = useState<{ record: NonPurchaseBillRecord; field: '账单类型' | '所属仓店' } | null>(null);
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -124,15 +135,23 @@ export default function NonPurchaseBillRecordPage() {
     所属仓店?: string,
     财务审核状态?: string,
     记录修改人?: string,
+    财务记账凭证号?: string,
     size?: number,
   ) => {
     try {
       setLoading(true);
       const currentSize = size ?? pageSize;
+      // 如果有财务记账凭证号搜索，添加到search参数中
+      let finalSearch = search;
+      if (财务记账凭证号 && 财务记账凭证号.trim()) {
+        finalSearch = finalSearch
+          ? `${finalSearch} 财务记账凭证号:${财务记账凭证号.trim()}`
+          : `财务记账凭证号:${财务记账凭证号.trim()}`;
+      }
       const result = await nonPurchaseBillRecordApi.getAll({
         page,
         limit: currentSize,
-        search,
+        search: finalSearch,
         账单流水,
         账单类型,
         所属仓店,
@@ -152,6 +171,12 @@ export default function NonPurchaseBillRecordPage() {
   // 初始化加载
   useEffect(() => {
     loadRecords();
+    // 加载门店名称列表
+    maxStoreSkuInventoryApi.getStoreNames().then(names => {
+      setStoreNames(names || []);
+    }).catch(error => {
+      console.error('加载门店名称列表失败:', error);
+    });
   }, []);
 
   // 从 localStorage 加载列显示偏好和顺序
@@ -216,6 +241,7 @@ export default function NonPurchaseBillRecordPage() {
       search所属仓店 || undefined,
       search财务审核状态 || undefined,
       search记录修改人 || undefined,
+      search财务记账凭证号 || undefined,
     );
   };
 
@@ -229,6 +255,7 @@ export default function NonPurchaseBillRecordPage() {
       search所属仓店 || undefined,
       search财务审核状态 || undefined,
       search记录修改人 || undefined,
+      search财务记账凭证号 || undefined,
     );
   };
 
@@ -422,6 +449,50 @@ export default function NonPurchaseBillRecordPage() {
     }
   };
 
+  // 行内编辑字段（账单类型或所属仓店）
+  const handleInlineEdit = (record: NonPurchaseBillRecord, field: '账单类型' | '所属仓店') => {
+    setEditingField({ record, field });
+  };
+
+  // 取消行内编辑
+  const handleCancelInlineEdit = () => {
+    setEditingField(null);
+  };
+
+  // 确认行内编辑
+  const handleConfirmInlineEdit = async (newValue: string) => {
+    if (!editingField) return;
+
+    const { record, field } = editingField;
+    const oldValue = record[field] || '';
+
+    // 先关闭编辑状态
+    setEditingField(null);
+
+    if (oldValue === newValue) {
+      return;
+    }
+
+    Modal.confirm({
+      title: '确认修改',
+      content: `确定要将${field === '账单类型' ? '账单类型' : '所属仓店'}从"${oldValue || '(空)'}"修改为"${newValue || '(空)'}"吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await nonPurchaseBillRecordApi.update(record.账单流水, {
+            [field]: newValue || undefined,
+          });
+          message.success('修改成功');
+          refreshRecords();
+        } catch (error: any) {
+          message.error(error.message || '修改失败');
+          console.error(error);
+        }
+      },
+    });
+  };
+
   // 批量删除
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) {
@@ -560,15 +631,65 @@ export default function NonPurchaseBillRecordPage() {
       title: '账单类型',
       dataIndex: '账单类型',
       key: '账单类型',
-      width: 120,
-      render: (text: string) => text || '-',
+      width: 150,
+      render: (text: string, record: NonPurchaseBillRecord) => {
+        if (editingField && editingField.record.账单流水 === record.账单流水 && editingField.field === '账单类型') {
+          return (
+            <Select
+              style={{ width: '100%' }}
+              value={text || undefined}
+              onChange={(value) => handleConfirmInlineEdit(value)}
+              onBlur={handleCancelInlineEdit}
+              autoFocus
+              open
+              options={billTypeOptions.map(opt => ({ label: opt, value: opt }))}
+            />
+          );
+        }
+        return (
+          <span
+            style={{ cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => handleInlineEdit(record, '账单类型')}
+            title="点击编辑"
+          >
+            {text || '-'}
+          </span>
+        );
+      },
     },
     {
       title: '所属仓店',
       dataIndex: '所属仓店',
       key: '所属仓店',
-      width: 120,
-      render: (text: string) => text || '-',
+      width: 200,
+      render: (text: string, record: NonPurchaseBillRecord) => {
+        if (editingField && editingField.record.账单流水 === record.账单流水 && editingField.field === '所属仓店') {
+          return (
+            <Select
+              style={{ width: '100%' }}
+              value={text || undefined}
+              onChange={(value) => handleConfirmInlineEdit(value)}
+              onBlur={handleCancelInlineEdit}
+              autoFocus
+              open
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={storeNames.map(name => ({ label: name, value: name }))}
+            />
+          );
+        }
+        return (
+          <span
+            style={{ cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => handleInlineEdit(record, '所属仓店')}
+            title="点击编辑"
+          >
+            {text || '-'}
+          </span>
+        );
+      },
     },
     {
       title: '账单流水备注',
@@ -819,9 +940,10 @@ export default function NonPurchaseBillRecordPage() {
                 setSearch所属仓店('');
                 setSearch财务审核状态('');
                 setSearch记录修改人('');
+                setSearch财务记账凭证号('');
                 setCurrentPage(1);
                 // 重置时传入空的搜索参数，确保立即查询默认数据
-                loadRecords(1, undefined, undefined, undefined, undefined, undefined, undefined);
+                loadRecords(1, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
               }}
             >
               重置
@@ -874,6 +996,14 @@ export default function NonPurchaseBillRecordPage() {
                 onChange={(e) => setSearch记录修改人(e.target.value)}
                 onPressEnter={handleSearchAll}
               />
+              <Input
+                placeholder="财务记账凭证号"
+                allowClear
+                style={{ width: 180 }}
+                value={search财务记账凭证号}
+                onChange={(e) => setSearch财务记账凭证号(e.target.value)}
+                onPressEnter={handleSearchAll}
+              />
             </Space>
           </Space>
         </div>
@@ -906,6 +1036,7 @@ export default function NonPurchaseBillRecordPage() {
                   search所属仓店 || undefined,
                   search财务审核状态 || undefined,
                   search记录修改人 || undefined,
+                  search财务记账凭证号 || undefined,
                   size,
                 );
               } else {
@@ -917,6 +1048,7 @@ export default function NonPurchaseBillRecordPage() {
                   search所属仓店 || undefined,
                   search财务审核状态 || undefined,
                   search记录修改人 || undefined,
+                  search财务记账凭证号 || undefined,
                 );
               }
             },
@@ -932,6 +1064,7 @@ export default function NonPurchaseBillRecordPage() {
                 search所属仓店 || undefined,
                 search财务审核状态 || undefined,
                 search记录修改人 || undefined,
+                search财务记账凭证号 || undefined,
                 size,
               );
             },
@@ -984,14 +1117,26 @@ export default function NonPurchaseBillRecordPage() {
             label="账单类型"
             name="账单类型"
           >
-            <Input placeholder="请输入账单类型" />
+            <Select
+              placeholder="请选择账单类型"
+              allowClear
+              options={billTypeOptions.map(opt => ({ label: opt, value: opt }))}
+            />
           </Form.Item>
 
           <Form.Item
             label="所属仓店"
             name="所属仓店"
           >
-            <Input placeholder="请输入所属仓店" />
+            <Select
+              placeholder="请选择所属仓店"
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={storeNames.map(name => ({ label: name, value: name }))}
+            />
           </Form.Item>
 
           <Form.Item

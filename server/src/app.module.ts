@@ -27,6 +27,7 @@ import { Refund1688FollowUpModule } from './refund-1688-follow-up/refund-1688-fo
 import { StoreRejectionModule } from './store-rejection/store-rejection.module';
 import { SupplierConversionRelationModule } from './supplier-conversion-relation/supplier-conversion-relation.module';
 import { SupplierManagementModule } from './supplier-management/supplier-management.module';
+import { SupplierQuotationModule } from './supplier-quotation/supplier-quotation.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
 import { TransactionRecordModule } from './transaction-record/transaction-record.module';
@@ -63,6 +64,7 @@ import { VersionModule } from './version/version.module';
     NonPurchaseBillRecordModule,
     PurchaseAmountAdjustmentModule,
     SupplierConversionRelationModule,
+    SupplierQuotationModule,
     TransactionRecordModule,
   ],
   controllers: [AppController, HealthController],

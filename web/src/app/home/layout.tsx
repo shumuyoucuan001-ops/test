@@ -218,6 +218,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <AccountBookOutlined />,
     url: '/home/finance-management',
   },
+  'finance-management-bill': {
+    title: '账单手动绑定采购单',
+    icon: <AccountBookOutlined />,
+    url: '/home/finance-management',
+  },
   'finance-reconciliation-difference': {
     title: '账单对账汇总差异',
     icon: <AccountBookOutlined />,
@@ -237,6 +242,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     title: '采购单金额调整',
     icon: <AccountBookOutlined />,
     url: '/home/purchase-amount-adjustment',
+  },
+  'supplier-quotation': {
+    title: '供应商报价',
+    icon: <AccountBookOutlined />,
+    url: '/home/supplier-quotation',
   },
 };
 
@@ -722,7 +732,7 @@ export default function HomeLayout({
         label: '财务管理',
         children: [
           {
-            key: 'finance-management',
+            key: 'finance-management-bill',
             icon: <AccountBookOutlined />,
             label: '账单手动绑定采购单',
           },
@@ -745,6 +755,18 @@ export default function HomeLayout({
             key: 'purchase-amount-adjustment',
             icon: <AccountBookOutlined />,
             label: '采购单金额调整',
+          },
+        ],
+      },
+      {
+        key: 'supplier-management-finance',
+        icon: <TeamOutlined />,
+        label: '供应商管理',
+        children: [
+          {
+            key: 'supplier-quotation',
+            icon: <AccountBookOutlined />,
+            label: '供应商报价',
           },
         ],
       },

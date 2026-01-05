@@ -1307,4 +1307,75 @@ export const purchaseAmountAdjustmentApi = {
     api.delete('/purchase-amount-adjustment/batch', { data: { purchaseOrderNumbers } }).then(res => res.data),
 };
 
+// 供应商报价接口类型
+export interface SupplierQuotation {
+  序号?: number;
+  供应商编码?: string;
+  商品名称?: string;
+  商品规格?: string;
+  最小销售单位?: string;
+  商品型号?: string;
+  供应商商品编码?: string;
+  最小销售规格UPC商品条码?: string;
+  中包或整件销售规格条码?: string;
+  供货价格?: number;
+  单品或采购单位起订量?: number;
+  采购单位?: string;
+  采购单位换算数量?: number;
+  采购规格?: string;
+  整包中包供货价格?: number;
+  商品供货链接?: string;
+  供应商商品备注?: string;
+}
+
+export interface InventorySummary {
+  SKU?: string;
+  商品名称?: string;
+  规格?: string;
+  覆盖门店数?: number;
+  总部零售价?: number;
+  最近采购价?: number;
+  UPC?: string;
+  对比结果?: string;
+}
+
+export interface SupplierSkuBinding {
+  供应商编码?: string;
+  供应商商品编码?: string;
+  SKU?: string;
+}
+
+// 供应商报价API
+export const supplierQuotationApi = {
+  // 获取供应商报价列表
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{ data: SupplierQuotation[]; total: number }> =>
+    api.get('/supplier-quotation', { params }).then(res => res.data),
+
+  // 获取库存汇总数据
+  getInventorySummary: (params: {
+    type: '全部' | '仓店' | '城市';
+    upc?: string;
+  }): Promise<InventorySummary[]> =>
+    api.get('/supplier-quotation/inventory-summary', { params }).then(res => res.data),
+
+  // 获取SKU绑定信息
+  getSkuBindings: (params: {
+    supplierCode: string;
+    supplierProductCode: string;
+  }): Promise<SupplierSkuBinding[]> =>
+    api.get('/supplier-quotation/sku-bindings', { params }).then(res => res.data),
+
+  // 更新SKU绑定信息
+  updateSkuBinding: (data: {
+    supplierCode: string;
+    supplierProductCode: string;
+    sku: string;
+  }): Promise<boolean> =>
+    api.post('/supplier-quotation/sku-bindings', data).then(res => res.data),
+};
+
 export default api;
