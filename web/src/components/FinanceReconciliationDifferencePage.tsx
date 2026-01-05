@@ -906,7 +906,7 @@ export default function FinanceReconciliationDifferencePage() {
     let filtered = transactionRecordData;
     if (leftRightSearch交易单号 && leftRightSearch交易单号.trim()) {
       const searchTerm = leftRightSearch交易单号.trim().toLowerCase();
-      filtered = filtered.filter(record => 
+      filtered = filtered.filter(record =>
         record.交易账单号?.toLowerCase().includes(searchTerm)
       );
     }
@@ -918,13 +918,13 @@ export default function FinanceReconciliationDifferencePage() {
     let filtered = purchaseOrderInfoData;
     if (leftRightSearch采购单号 && leftRightSearch采购单号.trim()) {
       const searchTerm = leftRightSearch采购单号.trim().toLowerCase();
-      filtered = filtered.filter(record => 
+      filtered = filtered.filter(record =>
         record.采购单号?.toLowerCase().includes(searchTerm)
       );
     }
     if (leftRightSearch采购单状态 && leftRightSearch采购单状态.trim()) {
       const searchTerm = leftRightSearch采购单状态.trim().toLowerCase();
-      filtered = filtered.filter(record => 
+      filtered = filtered.filter(record =>
         record.状态?.toLowerCase().includes(searchTerm)
       );
     }
@@ -2545,15 +2545,6 @@ export default function FinanceReconciliationDifferencePage() {
                       maxHeight: '100%',
                       boxSizing: 'border-box',
                     }}>
-                    <div style={{
-                      flex: `0 0 ${detailPanelsHeight}%`,
-                      display: 'flex',
-                      gap: 0,
-                      overflow: 'hidden',
-                      minHeight: 200,
-                      maxHeight: '100%',
-                      boxSizing: 'border-box',
-                    }}>
                       {/* 左框：交易单号信息 */}
                       <div style={{
                         flex: `0 0 ${leftPanelWidth}%`,
@@ -2870,8 +2861,8 @@ export default function FinanceReconciliationDifferencePage() {
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             ) : (
               <div style={{
