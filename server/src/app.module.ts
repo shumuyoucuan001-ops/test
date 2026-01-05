@@ -13,11 +13,11 @@ import { LabelPrintModule } from './label-print/label-print.module';
 import { MaxPurchaseQuantityModule } from './max-purchase-quantity/max-purchase-quantity.module';
 import { MaxStoreSkuInventoryModule } from './max-store-sku-inventory/max-store-sku-inventory.module';
 import { NonPurchaseBillRecordModule } from './non-purchase-bill-record/non-purchase-bill-record.module';
+import { OperationLogModule } from './operation-log/operation-log.module';
 import { OpsActivityDispatchModule } from './ops-activity-dispatch/ops-activity-dispatch.module';
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { OpsRegularActivityDispatchModule } from './ops-regular-activity-dispatch/ops-regular-activity-dispatch.module';
 import { OpsShelfExclusionModule } from './ops-shelf-exclusion/ops-shelf-exclusion.module';
-import { OperationLogModule } from './operation-log/operation-log.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
 import { PurchaseAmountAdjustmentModule } from './purchase-amount-adjustment/purchase-amount-adjustment.module';
@@ -29,6 +29,7 @@ import { SupplierConversionRelationModule } from './supplier-conversion-relation
 import { SupplierManagementModule } from './supplier-management/supplier-management.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
+import { TransactionRecordModule } from './transaction-record/transaction-record.module';
 import { VersionModule } from './version/version.module';
 // 暂时关闭后端接口权限拦截
 
@@ -62,6 +63,7 @@ import { VersionModule } from './version/version.module';
     NonPurchaseBillRecordModule,
     PurchaseAmountAdjustmentModule,
     SupplierConversionRelationModule,
+    TransactionRecordModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

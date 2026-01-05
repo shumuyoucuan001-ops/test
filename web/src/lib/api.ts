@@ -1213,6 +1213,28 @@ export const transactionRecordApi = {
   // 根据交易账单号查询
   getByTransactionBillNumber: (交易账单号: string): Promise<{ data: TransactionRecord[] }> =>
     api.get('/transaction-record/by-bill-number', { params: { 交易账单号 } }).then(res => res.data),
+
+  // 流水记录相关API
+  getAll: (params: {
+    channel: '1688先采后付' | '京东金融' | '微信' | '支付宝';
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{ data: any[]; total: number }> =>
+    api.get('/transaction-record', { params }).then(res => res.data),
+
+  batchCreate: (channel: '1688先采后付' | '京东金融' | '微信' | '支付宝', records: any[]): Promise<{
+    success: number;
+    failed: number;
+    errors: string[];
+  }> =>
+    api.post('/transaction-record/batch', { channel, records }).then(res => res.data),
+
+  getAllForExport: (params: {
+    channel: '1688先采后付' | '京东金融' | '微信' | '支付宝';
+    search?: string;
+  }): Promise<any[]> =>
+    api.get('/transaction-record/all-for-export', { params }).then(res => res.data),
 };
 
 // 采购单信息API

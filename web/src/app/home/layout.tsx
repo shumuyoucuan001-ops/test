@@ -222,6 +222,11 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <AccountBookOutlined />,
     url: '/home/finance-reconciliation-difference',
   },
+  'transaction-record': {
+    title: '流水记录',
+    icon: <AccountBookOutlined />,
+    url: '/home/transaction-record',
+  },
   'non-purchase-bill-record': {
     title: '非采购单流水记录',
     icon: <AccountBookOutlined />,
