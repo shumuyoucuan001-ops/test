@@ -758,6 +758,7 @@ export default function TransactionRecordPage() {
               <Select.Option value="已绑定采购单">已绑定采购单</Select.Option>
               <Select.Option value="已生成对账单">已生成对账单</Select.Option>
               <Select.Option value="非采购单流水">非采购单流水</Select.Option>
+              <Select.Option value="无绑定状态">无绑定状态</Select.Option>
             </Select>
             {/* 5个公共字段的单独搜索框 */}
             <Input

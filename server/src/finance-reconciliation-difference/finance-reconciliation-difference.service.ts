@@ -313,6 +313,9 @@ export class FinanceReconciliationDifferenceService {
             const total = totalResult[0].count;
 
             // 获取数据（按对账单号去重，只显示对账单号维度的字段）
+            // 对账单号格式：DZ-20251112-00002422
+            // 日期部分是第一个-和第二个-之间的部分（YYYYMMDD格式）
+            // 使用更可靠的方法：先找到第一个-的位置，然后提取后面的8位数字
             const dataQuery = `
         SELECT 
           对账单号,
@@ -322,11 +325,22 @@ export class FinanceReconciliationDifferenceService {
           MAX(同采购对应账单合计金额) as 同采购对应账单合计金额,
           MAX(对账单差额) as 对账单差额,
           MAX(记录状态) as 记录状态,
-          MAX(更新时间) as 更新时间
+          MAX(更新时间) as 更新时间,
+          -- 提取日期部分用于排序：从第一个-之后提取8位数字
+          SUBSTRING(
+            对账单号, 
+            LOCATE('-', 对账单号) + 1, 
+            8
+          ) as 日期字符串
         FROM \`交易单号绑定采购单记录\`
         WHERE ${whereClause} AND (对账单号 IS NOT NULL AND 对账单号 <> '')
         GROUP BY 对账单号
-        ORDER BY 更新时间 DESC
+        ORDER BY 
+          -- 提取日期部分并转换为数字进行降序排序（最新的在前）
+          -- 方法：从第一个-之后提取8位数字，直接转换为整数
+          CAST(SUBSTRING(对账单号, LOCATE('-', 对账单号) + 1, 8) AS UNSIGNED) DESC,
+          -- 如果日期相同，按完整对账单号降序排序
+          对账单号 DESC
         LIMIT ? OFFSET ?
       `;
 

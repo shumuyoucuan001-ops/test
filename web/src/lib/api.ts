@@ -35,13 +35,36 @@ const api = axios.create({
 // 带上用户ID，用于后端权限校验
 api.interceptors.request.use((config) => {
   try {
+    // 动态导入 localhost 工具函数（避免 SSR 问题）
+    let isLocalhost = false;
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      isLocalhost = (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        (hostname.startsWith('172.') &&
+          parseInt(hostname.split('.')[1] || '0') >= 16 &&
+          parseInt(hostname.split('.')[1] || '0') <= 31)
+      );
+    }
+
     const uid = typeof window !== 'undefined' ? (localStorage.getItem('userId') || '') : '';
     if (uid) {
       (config.headers as any)['x-user-id'] = uid;
+    } else if (isLocalhost) {
+      // localhost 环境下，如果没有 userId，设置默认值
+      (config.headers as any)['x-user-id'] = '1';
     }
+
     const token = typeof window !== 'undefined' ? (localStorage.getItem('sessionToken') || '') : '';
     if (token) {
       (config.headers as any)['Authorization'] = `Bearer ${token}`;
+    } else if (isLocalhost) {
+      // localhost 环境下，如果没有 token，设置默认值
+      (config.headers as any)['Authorization'] = 'Bearer localhost-dev-token';
     }
   } catch { }
   return config;

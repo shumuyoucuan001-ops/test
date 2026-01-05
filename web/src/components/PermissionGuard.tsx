@@ -4,6 +4,7 @@ import { Button, Result, Spin } from 'antd';
 import { useRouter } from 'next/navigation';
 import React, { useEffect } from 'react';
 import { usePermissions } from '../hooks/usePermissions';
+import { isLocalhost, setupLocalhostUser } from '../utils/localhost';
 
 interface PermissionGuardProps {
   requiredPath: string;
@@ -15,6 +16,11 @@ export default function PermissionGuard({ requiredPath, children }: PermissionGu
   const router = useRouter();
 
   useEffect(() => {
+    // localhost 环境自动设置用户信息
+    if (isLocalhost()) {
+      setupLocalhostUser();
+    }
+
     // 检查登录状态
     const userId = localStorage.getItem('userId');
     if (!userId) {

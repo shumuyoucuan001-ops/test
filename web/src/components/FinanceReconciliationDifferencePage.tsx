@@ -43,6 +43,15 @@ const { TextArea } = Input;
 
 export default function FinanceReconciliationDifferencePage() {
   const [records, setRecords] = useState<FinanceReconciliationDifference[]>([]);
+
+  // 调试：监控records的变化，确认数据顺序
+  useEffect(() => {
+    if (records.length > 0) {
+      console.log('[排序调试] 前端records数据顺序（前5条）:',
+        records.slice(0, 5).map(r => r.对账单号)
+      );
+    }
+  }, [records]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -226,7 +235,42 @@ export default function FinanceReconciliationDifferencePage() {
         params.交易单号 = 交易单号.trim();
       }
       const result = await financeReconciliationDifferenceApi.getByReconciliationNumber(params);
-      setRecords(result.data);
+      // 排序已在后端完成，但为了确保前端显示顺序正确，在前端也进行一次排序作为双重保险
+      if (result.data && Array.isArray(result.data)) {
+        // 提取日期部分进行排序（与后端逻辑一致）
+        const extractDate = (对账单号: string): number => {
+          if (!对账单号) return 0;
+          const firstDashIndex = 对账单号.indexOf('-');
+          if (firstDashIndex === -1) return 0;
+          const dateStr = 对账单号.substring(firstDashIndex + 1, firstDashIndex + 9);
+          const dateNum = parseInt(dateStr, 10);
+          return isNaN(dateNum) ? 0 : dateNum;
+        };
+
+        // 按日期降序排序（最新的在前），如果日期相同则按完整对账单号降序排序
+        const sortedData = [...result.data].sort((a, b) => {
+          const dateA = extractDate(a.对账单号 || '');
+          const dateB = extractDate(b.对账单号 || '');
+          if (dateA !== dateB) {
+            return dateB - dateA; // 降序
+          }
+          // 日期相同，按完整对账单号降序排序
+          return (b.对账单号 || '').localeCompare(a.对账单号 || '');
+        });
+
+        // 调试：打印前几条数据的对账单号，确认顺序
+        if (sortedData.length > 0) {
+          console.log('[排序调试] 后端返回的数据顺序（前5条）:',
+            result.data.slice(0, 5).map(r => r.对账单号)
+          );
+          console.log('[排序调试] 前端排序后的数据顺序（前5条）:',
+            sortedData.slice(0, 5).map(r => r.对账单号)
+          );
+        }
+        setRecords(sortedData);
+      } else {
+        setRecords([]);
+      }
       setTotal(result.total);
     } catch (error: any) {
       message.error(error.message || '加载记录列表失败');

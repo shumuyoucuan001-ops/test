@@ -1,7 +1,9 @@
 "use client";
 
 import { aclApi, dingTalkApi } from "@/lib/api";
+import { isLocalhost, setupLocalhostUser } from "@/utils/localhost";
 import { Button, Card, Divider, Form, Input, message, Space } from "antd";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 // Logo 组件 - 用代码生成的logo（支持颜色自定义）
@@ -110,9 +112,19 @@ export default function LoginPage() {
     }
   };
 
+  const router = useRouter();
+
   // 检查是否已有有效的登录token，如果有则自动跳转（避免返回时重复登录）
   useEffect(() => {
     const checkExistingToken = async () => {
+      // localhost 环境下自动设置用户信息并跳转
+      if (isLocalhost()) {
+        setupLocalhostUser();
+        console.log('[LoginPage] localhost 环境，自动跳转到首页');
+        router.push('/home');
+        return;
+      }
+
       const userId = localStorage.getItem('userId');
       const token = localStorage.getItem('sessionToken');
 
@@ -143,7 +155,7 @@ export default function LoginPage() {
     // 延迟执行，避免与钉钉回调处理冲突
     const timer = setTimeout(checkExistingToken, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [router]);
 
   // 检查URL参数中是否有钉钉回调的code
   useEffect(() => {

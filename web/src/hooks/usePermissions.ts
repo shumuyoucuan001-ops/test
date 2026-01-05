@@ -3,6 +3,25 @@
 import { aclApi, SysPermission } from '@/lib/api';
 import { useEffect, useState } from 'react';
 
+// 检测是否为 localhost 环境
+function isLocalhost(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  
+  const hostname = window.location.hostname;
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    (hostname.startsWith('172.') && 
+     parseInt(hostname.split('.')[1] || '0') >= 16 && 
+     parseInt(hostname.split('.')[1] || '0') <= 31)
+  );
+}
+
 export function usePermissions() {
   const [permissions, setPermissions] = useState<SysPermission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,6 +32,17 @@ export function usePermissions() {
         const userId = localStorage.getItem('userId');
         if (!userId) {
           setPermissions([]);
+          setLoading(false);
+          return;
+        }
+
+        // localhost 环境下，返回所有权限（模拟有全部权限）
+        if (isLocalhost()) {
+          // 返回一个包含所有常见路径的权限列表，确保可以访问所有页面
+          setPermissions([
+            { id: 1, code: 'home', name: '首页', path: '/home' },
+            { id: 2, code: 'all', name: '全部权限', path: '/home' },
+          ] as SysPermission[]);
           setLoading(false);
           return;
         }

@@ -32,6 +32,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { usePermissions } from '../../hooks/usePermissions';
 import { aclApi } from '../../lib/api';
+import { isLocalhost, setupLocalhostUser } from '../../utils/localhost';
 
 const { Header, Sider, Content } = Layout;
 
@@ -321,6 +322,11 @@ export default function HomeLayout({
 
   // 初始化用户信息
   useEffect(() => {
+    // localhost 环境自动设置用户信息
+    if (isLocalhost()) {
+      setupLocalhostUser();
+    }
+
     const dn = localStorage.getItem('displayName') || '';
     setDisplayName(dn);
     setEditInputValue(dn);
@@ -328,20 +334,32 @@ export default function HomeLayout({
     // 获取编辑次数信息
     const userId = localStorage.getItem('userId');
     if (userId) {
-      aclApi.getUserEditCount(Number(userId))
-        .then((info) => {
-          setEditCount(info.editCount);
-          setRemainingEdits(info.remaining);
-        })
-        .catch((err) => {
-          console.error('获取编辑次数失败:', err);
-        });
+      // localhost 环境下跳过 API 调用，避免报错
+      if (isLocalhost()) {
+        setEditCount(0);
+        setRemainingEdits(2);
+      } else {
+        aclApi.getUserEditCount(Number(userId))
+          .then((info) => {
+            setEditCount(info.editCount);
+            setRemainingEdits(info.remaining);
+          })
+          .catch((err) => {
+            console.error('获取编辑次数失败:', err);
+          });
+      }
     }
   }, []);
 
   // 单点登录心跳检查：定期验证 token 是否有效
   // 优化：增加重试机制，避免因网络问题导致的误退出
   useEffect(() => {
+    // localhost 环境下跳过 token 验证
+    if (isLocalhost()) {
+      console.log('[单点登录] localhost 环境，跳过 token 验证');
+      return;
+    }
+
     let consecutiveFailures = 0; // 连续失败次数
     const MAX_FAILURES = 3; // 最大连续失败次数，超过此次数才退出登录
 

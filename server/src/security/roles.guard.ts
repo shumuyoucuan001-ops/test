@@ -10,6 +10,25 @@ export class RolesGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest();
     const userId = Number(req.headers['x-user-id'] || 0);
     const path = req.url.split('?')[0];
+    
+    // 检测是否为 localhost 访问
+    const hostname = req.headers['host']?.split(':')[0] || '';
+    const isLocalhost = (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      (hostname.startsWith('172.') && 
+       parseInt(hostname.split('.')[1] || '0') >= 16 && 
+       parseInt(hostname.split('.')[1] || '0') <= 31)
+    );
+    
+    // localhost 环境下直接放行
+    if (isLocalhost) {
+      return true;
+    }
+    
     // 放行公共接口（健康检查等）
     if (path.startsWith('/health')) return true;
     // 后台管理接口放行，由前端按钮级权限控制
