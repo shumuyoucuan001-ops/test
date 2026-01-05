@@ -30,7 +30,6 @@ import { SupplierManagementModule } from './supplier-management/supplier-managem
 import { SupplierModule } from './supplier/supplier.module';
 import { TemplateModule } from './template/template.module';
 import { VersionModule } from './version/version.module';
-import { SellerWangwangModule } from './seller-wangwang/seller-wangwang.module';
 // 暂时关闭后端接口权限拦截
 
 @Module({
@@ -63,7 +62,6 @@ import { SellerWangwangModule } from './seller-wangwang/seller-wangwang.module';
     NonPurchaseBillRecordModule,
     PurchaseAmountAdjustmentModule,
     SupplierConversionRelationModule,
-    SellerWangwangModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
