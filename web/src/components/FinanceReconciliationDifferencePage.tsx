@@ -454,26 +454,34 @@ export default function FinanceReconciliationDifferencePage() {
         try {
           setTransactionRecordLoading(true);
           const allTransactionResults: any[] = [];
-          for (const 交易单号 of 交易单号列表) {
-            try {
-              const transactionResult = await transactionRecordApi.getByTransactionBillNumber(交易单号);
-              if (transactionResult.data && transactionResult.data.length > 0) {
-                allTransactionResults.push(...transactionResult.data);
+
+          // 如果交易单号列表为空，直接设置空数据并返回
+          if (交易单号列表.length === 0) {
+            setTransactionRecordData([]);
+            setTransactionRecordLoading(false);
+          } else {
+            for (const 交易单号 of 交易单号列表) {
+              try {
+                const transactionResult = await transactionRecordApi.getByTransactionBillNumber(交易单号);
+                if (transactionResult && transactionResult.data && transactionResult.data.length > 0) {
+                  allTransactionResults.push(...transactionResult.data);
+                }
+              } catch (error: any) {
+                console.error(`查询交易单号 ${交易单号} 失败:`, error);
+                // 继续处理其他交易单号，不中断整个流程
               }
-            } catch (error) {
-              console.error(`查询交易单号 ${交易单号} 失败:`, error);
             }
+            // 去重（基于交易账单号）
+            const uniqueTransactionData = Array.from(
+              new Map(allTransactionResults.map(item => [item.交易账单号, item])).values()
+            );
+            setTransactionRecordData(uniqueTransactionData);
+            setTransactionRecordLoading(false);
           }
-          // 去重（基于交易账单号）
-          const uniqueTransactionData = Array.from(
-            new Map(allTransactionResults.map(item => [item.交易账单号, item])).values()
-          );
-          setTransactionRecordData(uniqueTransactionData);
         } catch (error: any) {
           message.error(error.message || '查询交易单号信息失败');
-          console.error(error);
+          console.error('查询交易单号信息异常:', error);
           setTransactionRecordData([]);
-        } finally {
           setTransactionRecordLoading(false);
         }
 
@@ -481,26 +489,34 @@ export default function FinanceReconciliationDifferencePage() {
         try {
           setPurchaseOrderInfoLoading(true);
           const allPurchaseResults: any[] = [];
-          for (const 采购单号 of 采购单号列表) {
-            try {
-              const purchaseResult = await purchaseOrderInfoApi.getByPurchaseOrderNumber(采购单号);
-              if (purchaseResult.data && purchaseResult.data.length > 0) {
-                allPurchaseResults.push(...purchaseResult.data);
+
+          // 如果采购单号列表为空，直接设置空数据并返回
+          if (采购单号列表.length === 0) {
+            setPurchaseOrderInfoData([]);
+            setPurchaseOrderInfoLoading(false);
+          } else {
+            for (const 采购单号 of 采购单号列表) {
+              try {
+                const purchaseResult = await purchaseOrderInfoApi.getByPurchaseOrderNumber(采购单号);
+                if (purchaseResult && purchaseResult.data && purchaseResult.data.length > 0) {
+                  allPurchaseResults.push(...purchaseResult.data);
+                }
+              } catch (error: any) {
+                console.error(`查询采购单号 ${采购单号} 失败:`, error);
+                // 继续处理其他采购单号，不中断整个流程
               }
-            } catch (error) {
-              console.error(`查询采购单号 ${采购单号} 失败:`, error);
             }
+            // 去重（基于采购单号）
+            const uniquePurchaseData = Array.from(
+              new Map(allPurchaseResults.map(item => [item.采购单号, item])).values()
+            );
+            setPurchaseOrderInfoData(uniquePurchaseData);
+            setPurchaseOrderInfoLoading(false);
           }
-          // 去重（基于采购单号）
-          const uniquePurchaseData = Array.from(
-            new Map(allPurchaseResults.map(item => [item.采购单号, item])).values()
-          );
-          setPurchaseOrderInfoData(uniquePurchaseData);
         } catch (error: any) {
           message.error(error.message || '查询采购单号信息失败');
-          console.error(error);
+          console.error('查询采购单号信息异常:', error);
           setPurchaseOrderInfoData([]);
-        } finally {
           setPurchaseOrderInfoLoading(false);
         }
 
@@ -612,26 +628,34 @@ export default function FinanceReconciliationDifferencePage() {
     try {
       setTransactionRecordLoading(true);
       const allTransactionResults: any[] = [];
-      for (const 交易单号 of 交易单号列表) {
-        try {
-          const result = await transactionRecordApi.getByTransactionBillNumber(交易单号);
-          if (result.data && result.data.length > 0) {
-            allTransactionResults.push(...result.data);
+
+      // 如果交易单号列表为空，直接设置空数据并返回
+      if (交易单号列表.length === 0) {
+        setTransactionRecordData([]);
+        setTransactionRecordLoading(false);
+      } else {
+        for (const 交易单号 of 交易单号列表) {
+          try {
+            const result = await transactionRecordApi.getByTransactionBillNumber(交易单号);
+            if (result && result.data && result.data.length > 0) {
+              allTransactionResults.push(...result.data);
+            }
+          } catch (error: any) {
+            console.error(`查询交易单号 ${交易单号} 失败:`, error);
+            // 继续处理其他交易单号，不中断整个流程
           }
-        } catch (error) {
-          console.error(`查询交易单号 ${交易单号} 失败:`, error);
         }
+        // 去重（基于交易账单号）
+        const uniqueTransactionData = Array.from(
+          new Map(allTransactionResults.map(item => [item.交易账单号, item])).values()
+        );
+        setTransactionRecordData(uniqueTransactionData);
+        setTransactionRecordLoading(false);
       }
-      // 去重（基于交易账单号）
-      const uniqueTransactionData = Array.from(
-        new Map(allTransactionResults.map(item => [item.交易账单号, item])).values()
-      );
-      setTransactionRecordData(uniqueTransactionData);
     } catch (error: any) {
       message.error(error.message || '查询交易单号信息失败');
-      console.error(error);
+      console.error('查询交易单号信息异常:', error);
       setTransactionRecordData([]);
-    } finally {
       setTransactionRecordLoading(false);
     }
 
@@ -639,26 +663,34 @@ export default function FinanceReconciliationDifferencePage() {
     try {
       setPurchaseOrderInfoLoading(true);
       const allPurchaseResults: any[] = [];
-      for (const 采购单号 of 采购单号列表) {
-        try {
-          const result = await purchaseOrderInfoApi.getByPurchaseOrderNumber(采购单号);
-          if (result.data && result.data.length > 0) {
-            allPurchaseResults.push(...result.data);
+
+      // 如果采购单号列表为空，直接设置空数据并返回
+      if (采购单号列表.length === 0) {
+        setPurchaseOrderInfoData([]);
+        setPurchaseOrderInfoLoading(false);
+      } else {
+        for (const 采购单号 of 采购单号列表) {
+          try {
+            const result = await purchaseOrderInfoApi.getByPurchaseOrderNumber(采购单号);
+            if (result && result.data && result.data.length > 0) {
+              allPurchaseResults.push(...result.data);
+            }
+          } catch (error: any) {
+            console.error(`查询采购单号 ${采购单号} 失败:`, error);
+            // 继续处理其他采购单号，不中断整个流程
           }
-        } catch (error) {
-          console.error(`查询采购单号 ${采购单号} 失败:`, error);
         }
+        // 去重（基于采购单号）
+        const uniquePurchaseData = Array.from(
+          new Map(allPurchaseResults.map(item => [item.采购单号, item])).values()
+        );
+        setPurchaseOrderInfoData(uniquePurchaseData);
+        setPurchaseOrderInfoLoading(false);
       }
-      // 去重（基于采购单号）
-      const uniquePurchaseData = Array.from(
-        new Map(allPurchaseResults.map(item => [item.采购单号, item])).values()
-      );
-      setPurchaseOrderInfoData(uniquePurchaseData);
     } catch (error: any) {
       message.error(error.message || '查询采购单号信息失败');
-      console.error(error);
+      console.error('查询采购单号信息异常:', error);
       setPurchaseOrderInfoData([]);
-    } finally {
       setPurchaseOrderInfoLoading(false);
     }
 
@@ -2180,7 +2212,8 @@ export default function FinanceReconciliationDifferencePage() {
               placeholder="采购单号搜索对账单号"
               allowClear
               size="small"
-              style={{ width: 130, fontSize: '12px' }}
+              style={{ width: 250, fontSize: '12px' }}
+              maxLength={200}
               value={search采购单号}
               onChange={(e) => setSearch采购单号(e.target.value)}
               onPressEnter={handleSearchAll}
@@ -2189,7 +2222,8 @@ export default function FinanceReconciliationDifferencePage() {
               placeholder="交易单号搜索对账单号"
               allowClear
               size="small"
-              style={{ width: 130, fontSize: '12px' }}
+              style={{ width: 250, fontSize: '12px' }}
+              maxLength={200}
               value={search交易单号}
               onChange={(e) => setSearch交易单号(e.target.value)}
               onPressEnter={handleSearchAll}

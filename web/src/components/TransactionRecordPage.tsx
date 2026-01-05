@@ -12,7 +12,6 @@ import {
 import {
   Button,
   Card,
-  Checkbox,
   DatePicker,
   Form,
   Input,
@@ -21,6 +20,7 @@ import {
   Modal,
   Popover,
   Segmented,
+  Select,
   Space,
   Tag,
   Typography,
@@ -746,16 +746,19 @@ export default function TransactionRecordPage() {
         extra={
           <Space size="small">
             {/* 绑定状态筛选 */}
-            <Checkbox.Group
-              options={[
-                { label: '已绑定采购单', value: '已绑定采购单' },
-                { label: '已生成对账单', value: '已生成对账单' },
-                { label: '非采购单流水', value: '非采购单流水' },
-              ]}
+            <Select
+              mode="multiple"
+              placeholder="绑定状态"
+              allowClear
+              size="small"
+              style={{ width: 160 }}
               value={selectedBindingStatuses}
-              onChange={(values) => setSelectedBindingStatuses(values as string[])}
-              style={{ marginRight: 8 }}
-            />
+              onChange={(values) => setSelectedBindingStatuses(values || [])}
+            >
+              <Select.Option value="已绑定采购单">已绑定采购单</Select.Option>
+              <Select.Option value="已生成对账单">已生成对账单</Select.Option>
+              <Select.Option value="非采购单流水">非采购单流水</Select.Option>
+            </Select>
             {/* 5个公共字段的单独搜索框 */}
             <Input
               placeholder="支付渠道"
@@ -788,7 +791,8 @@ export default function TransactionRecordPage() {
               placeholder="交易账单号"
               allowClear
               size="small"
-              style={{ width: 150 }}
+              style={{ width: 300 }}
+              maxLength={500}
               value={search交易账单号}
               onChange={(e) => setSearch交易账单号(e.target.value)}
               onPressEnter={handleSearch}
