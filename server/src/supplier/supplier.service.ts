@@ -146,6 +146,7 @@ export class SupplierService {
           sm.供应商起订金额 as minOrderAmount,
           sm.供应商起订数量 as minOrderQuantity,
           sm.供应商下单备注 as orderRemarks,
+          sm.卖家旺旺 as sellerWangwang,
           sm.旺旺消息 as wangwangMessage
         FROM \`供应商基础资料\` sb
         LEFT JOIN \`供应商管理\` sm ON sb.供应商编码 = sm.供应商编码
@@ -170,6 +171,7 @@ export class SupplierService {
           minOrderAmount: row.minOrderAmount,
           minOrderQuantity: row.minOrderQuantity,
           orderRemarks: row.orderRemarks,
+          sellerWangwang: row.sellerWangwang,
           wangwangMessage: row.wangwangMessage,
         })),
         total,
@@ -194,6 +196,7 @@ export class SupplierService {
           sm.供应商起订金额 as minOrderAmount,
           sm.供应商起订数量 as minOrderQuantity,
           sm.供应商下单备注 as orderRemarks,
+          sm.卖家旺旺 as sellerWangwang,
           sm.旺旺消息 as wangwangMessage
         FROM \`供应商基础资料\` sb
         LEFT JOIN \`供应商管理\` sm ON sb.供应商编码 = sm.供应商编码
@@ -217,10 +220,87 @@ export class SupplierService {
         minOrderAmount: row.minOrderAmount,
         minOrderQuantity: row.minOrderQuantity,
         orderRemarks: row.orderRemarks,
+        sellerWangwang: row.sellerWangwang,
         wangwangMessage: row.wangwangMessage,
       };
     } finally {
       await connection.end();
+    }
+  }
+
+  // 确保供应商管理表有卖家旺旺字段
+  private async ensureSellerWangwangColumn(connection: any): Promise<void> {
+    try {
+      const checkColumnQuery = `
+        SELECT COUNT(*) as count 
+        FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = 'sm_chaigou' 
+        AND TABLE_NAME = '供应商管理' 
+        AND COLUMN_NAME = '卖家旺旺'
+      `;
+      const [result]: any = await connection.execute(checkColumnQuery);
+
+      if (result[0].count === 0) {
+        // 查找旺旺消息字段之前的字段
+        const findBeforeWangwangMessageQuery = `
+          SELECT COLUMN_NAME 
+          FROM information_schema.COLUMNS 
+          WHERE TABLE_SCHEMA = 'sm_chaigou' 
+          AND TABLE_NAME = '供应商管理' 
+          AND ORDINAL_POSITION = (
+            SELECT ORDINAL_POSITION - 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = 'sm_chaigou' 
+            AND TABLE_NAME = '供应商管理' 
+            AND COLUMN_NAME = '旺旺消息'
+          )
+        `;
+        const [beforeFieldResult]: any = await connection.execute(findBeforeWangwangMessageQuery);
+
+        if (beforeFieldResult.length > 0) {
+          // 如果找到了旺旺消息之前的字段，在它之后添加卖家旺旺
+          const beforeFieldName = beforeFieldResult[0].COLUMN_NAME;
+          const addColumnQuery = `
+            ALTER TABLE \`供应商管理\` 
+            ADD COLUMN \`卖家旺旺\` VARCHAR(255) NULL COMMENT '卖家旺旺' 
+            AFTER \`${beforeFieldName}\`
+          `;
+          await connection.execute(addColumnQuery);
+          Logger.log('[SupplierService] 已添加卖家旺旺字段到供应商管理表（在旺旺消息之前）');
+        } else {
+          // 如果找不到之前的字段，检查旺旺消息字段是否存在
+          const checkWangwangMessageQuery = `
+            SELECT COUNT(*) as count 
+            FROM information_schema.COLUMNS 
+            WHERE TABLE_SCHEMA = 'sm_chaigou' 
+            AND TABLE_NAME = '供应商管理' 
+            AND COLUMN_NAME = '旺旺消息'
+          `;
+          const [wangwangResult]: any = await connection.execute(checkWangwangMessageQuery);
+
+          if (wangwangResult[0].count > 0) {
+            // 如果旺旺消息字段存在，在供应商下单备注之后添加（假设供应商下单备注在旺旺消息之前）
+            const addColumnQuery = `
+              ALTER TABLE \`供应商管理\` 
+              ADD COLUMN \`卖家旺旺\` VARCHAR(255) NULL COMMENT '卖家旺旺' 
+              AFTER \`供应商下单备注\`
+            `;
+            await connection.execute(addColumnQuery);
+            Logger.log('[SupplierService] 已添加卖家旺旺字段到供应商管理表（在供应商下单备注之后）');
+          } else {
+            // 如果旺旺消息字段不存在，直接添加
+            const addColumnQuery = `
+              ALTER TABLE \`供应商管理\` 
+              ADD COLUMN \`卖家旺旺\` VARCHAR(255) NULL COMMENT '卖家旺旺'
+            `;
+            await connection.execute(addColumnQuery);
+            Logger.log('[SupplierService] 已添加卖家旺旺字段到供应商管理表');
+          }
+        }
+      }
+    } catch (error) {
+      Logger.error('[SupplierService] 检查/添加卖家旺旺字段失败:', error);
+      // 不抛出错误，允许继续执行
     }
   }
 
@@ -263,6 +343,8 @@ export class SupplierService {
     const connection = await this.getConnection();
 
     try {
+      // 确保卖家旺旺字段存在
+      await this.ensureSellerWangwangColumn(connection);
       // 确保旺旺消息字段存在
       await this.ensureWangwangMessageColumn(connection);
       // 检查供应商编码是否存在于基础资料表
@@ -295,6 +377,7 @@ export class SupplierService {
           minOrderAmount: '供应商起订金额',
           minOrderQuantity: '供应商起订数量',
           orderRemarks: '供应商下单备注',
+          sellerWangwang: '卖家旺旺',
           wangwangMessage: '旺旺消息',
         };
 
@@ -313,6 +396,7 @@ export class SupplierService {
             供应商起订金额 = ?,
             供应商起订数量 = ?,
             供应商下单备注 = ?,
+            卖家旺旺 = ?,
             旺旺消息 = ?
           WHERE 供应商编码 = ?
         `;
@@ -322,6 +406,7 @@ export class SupplierService {
             data.minOrderAmount || null,
             data.minOrderQuantity || null,
             data.orderRemarks || null,
+            data.sellerWangwang || null,
             data.wangwangMessage || null,
             data.supplierCode
           ]
@@ -330,8 +415,8 @@ export class SupplierService {
         // 插入
         const insertQuery = `
           INSERT INTO \`供应商管理\` 
-          (供应商编码, 供应商起订金额, 供应商起订数量, 供应商下单备注, 旺旺消息)
-          VALUES (?, ?, ?, ?, ?)
+          (供应商编码, 供应商起订金额, 供应商起订数量, 供应商下单备注, 卖家旺旺, 旺旺消息)
+          VALUES (?, ?, ?, ?, ?, ?)
         `;
         await connection.execute(
           insertQuery,
@@ -340,6 +425,7 @@ export class SupplierService {
             data.minOrderAmount || null,
             data.minOrderQuantity || null,
             data.orderRemarks || null,
+            data.sellerWangwang || null,
             data.wangwangMessage || null
           ]
         );

@@ -49,6 +49,7 @@ interface SupplierFullInfo extends SupplierBasicInfo {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
+  sellerWangwang?: string;
   wangwangMessage?: string;
 }
 
@@ -57,6 +58,7 @@ interface SupplierManagement {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
+  sellerWangwang?: string;
   wangwangMessage?: string;
 }
 
@@ -298,6 +300,7 @@ export default function SupplierManagementPage() {
       minOrderAmount: supplier.minOrderAmount,
       minOrderQuantity: supplier.minOrderQuantity,
       orderRemarks: supplier.orderRemarks,
+      sellerWangwang: supplier.sellerWangwang,
       wangwangMessage: supplier.wangwangMessage,
     });
     setModalVisible(true);
@@ -452,6 +455,19 @@ export default function SupplierManagementPage() {
       ),
       dataIndex: 'orderRemarks',
       key: 'orderRemarks',
+      width: 200,
+      ellipsis: true,
+      render: (text: string) => text || '-',
+    },
+    {
+      title: (
+        <span>
+          卖家旺旺
+          <ManagementTag />
+        </span>
+      ),
+      dataIndex: 'sellerWangwang',
+      key: 'sellerWangwang',
       width: 200,
       ellipsis: true,
       render: (text: string) => text || '-',
@@ -653,6 +669,7 @@ export default function SupplierManagementPage() {
                     minOrderAmount: undefined,
                     minOrderQuantity: undefined,
                     orderRemarks: '',
+                    sellerWangwang: '',
                     wangwangMessage: '',
                   }}
                 >
@@ -702,6 +719,21 @@ export default function SupplierManagementPage() {
                       placeholder="请输入订货相关的备注信息"
                       maxLength={500}
                       showCount
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={
+                      <span>
+                        卖家旺旺
+                        <ManagementTag />
+                      </span>
+                    }
+                    name="sellerWangwang"
+                  >
+                    <Input
+                      placeholder="请输入卖家旺旺"
+                      maxLength={255}
                     />
                   </Form.Item>
 
@@ -757,6 +789,7 @@ export default function SupplierManagementPage() {
                           minOrderAmount: '最小订货金额',
                           minOrderQuantity: '最小订货数量',
                           orderRemarks: '供应商下单备注',
+                          sellerWangwang: '卖家旺旺',
                           wangwangMessage: '下单后联系供应商话术',
                         };
 
