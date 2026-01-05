@@ -36,7 +36,7 @@ export class TransactionRecordService {
     // 根据渠道获取表名
     private getTableName(channel: ChannelType): string {
         const tableMap: Record<ChannelType, string> = {
-            '1688先采后付': '1688先采后付',
+            '1688先采后付': '1688先采后付交易记录',
             '京东金融': '京东金融交易记录',
             '微信': '微信交易记录',
             '支付宝': '支付宝交易记录',

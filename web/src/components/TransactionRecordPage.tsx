@@ -18,11 +18,10 @@ import {
   message,
   Modal,
   Popover,
-  Row,
   Segmented,
   Space,
   Tag,
-  Typography,
+  Typography
 } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import { useCallback, useEffect, useState } from 'react';
@@ -311,6 +310,11 @@ export default function TransactionRecordPage() {
     setSearch收支金额('');
     setSearch交易账单号('');
     setSearch账单交易时间范围(null);
+
+    // 切换渠道时，清除该渠道的列宽设置，使用默认列宽确保对齐
+    const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
+    localStorage.removeItem(widthStorageKey);
+
     loadRecords(1, undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
@@ -322,7 +326,10 @@ export default function TransactionRecordPage() {
     if (savedHiddenColumns) {
       try {
         const parsed = JSON.parse(savedHiddenColumns);
-        setHiddenColumns(new Set(parsed));
+        // 验证隐藏的列是否在当前渠道的列中存在
+        const allColumnKeys = getChannelColumns(channel).map(col => col.key as string).filter(Boolean);
+        const validHidden = parsed.filter((key: string) => allColumnKeys.includes(key));
+        setHiddenColumns(new Set(validHidden));
       } catch (error) {
         console.error('加载列显示偏好失败:', error);
         setHiddenColumns(new Set());
@@ -336,7 +343,19 @@ export default function TransactionRecordPage() {
     if (savedColumnOrder) {
       try {
         const parsed = JSON.parse(savedColumnOrder);
-        setColumnOrder(parsed);
+        // 验证列顺序是否包含所有列
+        const allColumnKeys = getChannelColumns(channel).map(col => col.key as string).filter(Boolean);
+        const validOrder = parsed.filter((key: string) => allColumnKeys.includes(key));
+        // 如果保存的顺序不完整，补充缺失的列
+        const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
+        const newOrder = [...validOrder, ...missingKeys];
+        setColumnOrder(newOrder);
+
+        // 如果列顺序发生了变化（有新增的列），清除列宽设置以确保对齐
+        if (missingKeys.length > 0) {
+          const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
+          localStorage.removeItem(widthStorageKey);
+        }
       } catch (error) {
         console.error('加载列顺序失败:', error);
         setColumnOrder([]);
@@ -374,6 +393,10 @@ export default function TransactionRecordPage() {
   const handleColumnOrderChange = (newOrder: string[]) => {
     setColumnOrder(newOrder);
     saveColumnOrder(newOrder);
+
+    // 列顺序改变时，清除列宽设置以确保表头和内容对齐
+    const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
+    localStorage.removeItem(widthStorageKey);
   };
 
   // 执行搜索
@@ -475,17 +498,36 @@ export default function TransactionRecordPage() {
 
   // 根据列设置过滤和排序列
   const getFilteredColumns = () => {
-    const currentOrder = columnOrder.length > 0
-      ? columnOrder
-      : allColumns.map(col => col.key as string).filter(Boolean);
+    // 获取所有列的key
+    const allColumnKeys = allColumns.map(col => col.key as string).filter(Boolean);
 
-    // 按照保存的顺序排列
+    // 如果columnOrder为空，使用所有列的顺序
+    let currentOrder: string[];
+    if (columnOrder.length > 0) {
+      // 合并保存的顺序和所有列，确保所有列都包含在内
+      const savedKeys = new Set(columnOrder);
+      const missingKeys = allColumnKeys.filter(key => !savedKeys.has(key));
+      currentOrder = [...columnOrder, ...missingKeys];
+    } else {
+      currentOrder = allColumnKeys;
+    }
+
+    // 按照保存的顺序排列，但只包含实际存在的列
     const orderedColumns = currentOrder
       .map(key => allColumns.find(col => col.key === key))
       .filter(Boolean) as typeof allColumns;
 
     // 过滤隐藏的列
-    return orderedColumns.filter(col => !hiddenColumns.has(col.key as string));
+    const filtered = orderedColumns.filter(col => !hiddenColumns.has(col.key as string));
+
+    // 确保每列都有明确的width属性，避免列宽不一致
+    return filtered.map(col => {
+      // 如果列没有width，使用默认值
+      if (!col.width) {
+        return { ...col, width: 150 };
+      }
+      return col;
+    });
   };
 
   const columns = getFilteredColumns();
@@ -500,82 +542,72 @@ export default function TransactionRecordPage() {
         }
         extra={
           <Space size="small">
+            {/* 5个公共字段的单独搜索框 */}
+            <Input
+              placeholder="支付渠道"
+              allowClear
+              size="small"
+              style={{ width: 120 }}
+              value={search支付渠道}
+              onChange={(e) => setSearch支付渠道(e.target.value)}
+              onPressEnter={handleSearch}
+            />
+            <Input
+              placeholder="支付账号"
+              allowClear
+              size="small"
+              style={{ width: 120 }}
+              value={search支付账号}
+              onChange={(e) => setSearch支付账号(e.target.value)}
+              onPressEnter={handleSearch}
+            />
+            <Input
+              placeholder="收支金额"
+              allowClear
+              size="small"
+              style={{ width: 120 }}
+              value={search收支金额}
+              onChange={(e) => setSearch收支金额(e.target.value)}
+              onPressEnter={handleSearch}
+            />
+            <Input
+              placeholder="交易账单号"
+              allowClear
+              size="small"
+              style={{ width: 150 }}
+              value={search交易账单号}
+              onChange={(e) => setSearch交易账单号(e.target.value)}
+              onPressEnter={handleSearch}
+            />
+            <RangePicker
+              placeholder={['开始时间', '结束时间']}
+              value={search账单交易时间范围}
+              onChange={(dates) => setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null)}
+              showTime
+              format="YYYY-MM-DD HH:mm:ss"
+              size="small"
+              style={{ width: 350 }}
+            />
+            <Button
+              size="small"
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={handleSearch}
+            >
+              搜索
+            </Button>
             <Popover
               content={
-                <div style={{ width: 600 }}>
-                  <ColumnSettings
-                    columns={allColumns}
-                    hiddenColumns={hiddenColumns}
-                    columnOrder={columnOrder}
-                    onToggleVisibility={handleToggleColumnVisibility}
-                    onMoveColumn={() => { }}
-                    onColumnOrderChange={handleColumnOrderChange}
-                  />
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
-                    <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      <Row gutter={8}>
-                        <Input
-                          placeholder="支付渠道"
-                          allowClear
-                          size="small"
-                          style={{ width: 140 }}
-                          value={search支付渠道}
-                          onChange={(e) => setSearch支付渠道(e.target.value)}
-                          onPressEnter={handleSearch}
-                        />
-                        <Input
-                          placeholder="支付账号"
-                          allowClear
-                          size="small"
-                          style={{ width: 140 }}
-                          value={search支付账号}
-                          onChange={(e) => setSearch支付账号(e.target.value)}
-                          onPressEnter={handleSearch}
-                        />
-                        <Input
-                          placeholder="收支金额"
-                          allowClear
-                          size="small"
-                          style={{ width: 140 }}
-                          value={search收支金额}
-                          onChange={(e) => setSearch收支金额(e.target.value)}
-                          onPressEnter={handleSearch}
-                        />
-                      </Row>
-                      <Row gutter={8}>
-                        <Input
-                          placeholder="交易账单号"
-                          allowClear
-                          size="small"
-                          style={{ width: 140 }}
-                          value={search交易账单号}
-                          onChange={(e) => setSearch交易账单号(e.target.value)}
-                          onPressEnter={handleSearch}
-                        />
-                        <RangePicker
-                          placeholder={['开始时间', '结束时间']}
-                          value={search账单交易时间范围}
-                          onChange={(dates) => setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null)}
-                          showTime
-                          format="YYYY-MM-DD HH:mm:ss"
-                          size="small"
-                          style={{ width: 300 }}
-                        />
-                      </Row>
-                      <Space>
-                        <Button size="small" type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
-                          搜索
-                        </Button>
-                        <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
-                          重置
-                        </Button>
-                      </Space>
-                    </Space>
-                  </div>
-                </div>
+                <ColumnSettings
+                  columns={allColumns}
+                  hiddenColumns={hiddenColumns}
+                  columnOrder={columnOrder}
+                  onToggleVisibility={handleToggleColumnVisibility}
+                  onMoveColumn={() => { }}
+                  onColumnOrderChange={handleColumnOrderChange}
+                />
               }
-              title="列设置与搜索"
+              title="列设置"
               trigger="click"
               open={columnSettingsOpen}
               onOpenChange={setColumnSettingsOpen}
@@ -597,6 +629,13 @@ export default function TransactionRecordPage() {
               onClick={handleBatchAdd}
             >
               批量新增
+            </Button>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={handleReset}
+            >
+              重置
             </Button>
             <Button
               size="small"
