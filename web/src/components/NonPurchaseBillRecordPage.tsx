@@ -61,6 +61,8 @@ export default function NonPurchaseBillRecordPage() {
 
   // 正在编辑的字段（用于行内编辑）
   const [editingField, setEditingField] = useState<{ record: NonPurchaseBillRecord; field: '账单类型' | '所属仓店' } | null>(null);
+  // 是否正在显示确认对话框（用于防止onBlur冲突）
+  const [isShowingConfirm, setIsShowingConfirm] = useState(false);
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -456,6 +458,10 @@ export default function NonPurchaseBillRecordPage() {
 
   // 取消行内编辑
   const handleCancelInlineEdit = () => {
+    // 如果正在显示确认对话框，不关闭编辑状态
+    if (isShowingConfirm) {
+      return;
+    }
     setEditingField(null);
   };
 
@@ -466,29 +472,45 @@ export default function NonPurchaseBillRecordPage() {
     const { record, field } = editingField;
     const oldValue = record[field] || '';
 
-    // 先关闭编辑状态
-    setEditingField(null);
-
     if (oldValue === newValue) {
+      // 值没有变化，直接关闭编辑状态
+      setEditingField(null);
       return;
     }
 
+    // 保存当前编辑状态，用于在确认对话框中使用
+    const currentEditingField = editingField;
+    const currentField = field;
+    const currentRecord = record;
+
+    // 设置标志，防止onBlur关闭编辑状态
+    setIsShowingConfirm(true);
+
+    // 先关闭编辑状态，避免与确认对话框冲突
+    setEditingField(null);
+
     Modal.confirm({
       title: '确认修改',
-      content: `确定要将${field === '账单类型' ? '账单类型' : '所属仓店'}从"${oldValue || '(空)'}"修改为"${newValue || '(空)'}"吗？`,
+      content: `确定要将${currentField === '账单类型' ? '账单类型' : '所属仓店'}从"${oldValue || '(空)'}"修改为"${newValue || '(空)'}"吗？`,
       okText: '确定',
       cancelText: '取消',
       onOk: async () => {
         try {
-          await nonPurchaseBillRecordApi.update(record.账单流水, {
-            [field]: newValue || undefined,
+          await nonPurchaseBillRecordApi.update(currentRecord.账单流水, {
+            [currentField]: newValue || undefined,
           });
           message.success('修改成功');
           refreshRecords();
         } catch (error: any) {
           message.error(error.message || '修改失败');
           console.error(error);
+        } finally {
+          setIsShowingConfirm(false);
         }
+      },
+      onCancel: () => {
+        // 取消时重置标志
+        setIsShowingConfirm(false);
       },
     });
   };
@@ -638,8 +660,15 @@ export default function NonPurchaseBillRecordPage() {
             <Select
               style={{ width: '100%' }}
               value={text || undefined}
-              onChange={(value) => handleConfirmInlineEdit(value)}
-              onBlur={handleCancelInlineEdit}
+              onChange={(value) => {
+                handleConfirmInlineEdit(value);
+              }}
+              onBlur={(e) => {
+                // 延迟处理onBlur，给onChange时间先执行
+                setTimeout(() => {
+                  handleCancelInlineEdit();
+                }, 100);
+              }}
               autoFocus
               open
               options={billTypeOptions.map(opt => ({ label: opt, value: opt }))}
@@ -668,8 +697,15 @@ export default function NonPurchaseBillRecordPage() {
             <Select
               style={{ width: '100%' }}
               value={text || undefined}
-              onChange={(value) => handleConfirmInlineEdit(value)}
-              onBlur={handleCancelInlineEdit}
+              onChange={(value) => {
+                handleConfirmInlineEdit(value);
+              }}
+              onBlur={(e) => {
+                // 延迟处理onBlur，给onChange时间先执行
+                setTimeout(() => {
+                  handleCancelInlineEdit();
+                }, 100);
+              }}
               autoFocus
               open
               showSearch

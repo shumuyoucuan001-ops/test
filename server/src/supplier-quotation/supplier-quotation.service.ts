@@ -13,12 +13,6 @@ export interface SupplierQuotation {
   最小销售规格UPC商品条码?: string;
   中包或整件销售规格条码?: string;
   供货价格?: number;
-  单品或采购单位起订量?: number;
-  采购单位?: string;
-  采购单位换算数量?: number;
-  采购规格?: string;
-  整包中包供货价格?: number;
-  商品供货链接?: string;
   供应商商品备注?: string;
 }
 
@@ -29,6 +23,8 @@ export interface InventorySummary {
   覆盖门店数?: number;
   总部零售价?: number;
   最近采购价?: number;
+  最低采购价?: number;
+  成本单价?: number;
   UPC?: string;
 }
 
@@ -108,12 +104,6 @@ export class SupplierQuotationService {
           最小销售规格UPC商品条码,
           中包或整件销售规格条码,
           供货价格,
-          单品或采购单位起订量,
-          采购单位,
-          采购单位换算数量,
-          采购规格,
-          整包中包供货价格,
-          商品供货链接,
           供应商商品备注
         FROM \`供应商报价\`
         WHERE ${whereClause}
@@ -169,15 +159,38 @@ export class SupplierQuotationService {
         queryParams.push(`%${upc}%`);
       }
 
-      const query = `
-        SELECT 
+      // 根据类型选择查询字段
+      let selectFields = '';
+      if (type === '全部') {
+        // 全部：查询最低采购价和成本单价
+        selectFields = `
           SKU,
           商品名称,
           规格,
           覆盖门店数,
           总部零售价,
           最近采购价,
+          最低采购价,
+          成本单价,
           UPC
+        `;
+      } else {
+        // 仓店/城市：只查询成本单价（没有最低采购价字段）
+        selectFields = `
+          SKU,
+          商品名称,
+          规格,
+          覆盖门店数,
+          总部零售价,
+          最近采购价,
+          成本单价,
+          UPC
+        `;
+      }
+
+      const query = `
+        SELECT 
+          ${selectFields}
         FROM \`${tableName}\`
         WHERE ${whereClause}
         ORDER BY SKU ASC

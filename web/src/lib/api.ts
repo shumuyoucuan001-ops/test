@@ -1319,12 +1319,6 @@ export interface SupplierQuotation {
   最小销售规格UPC商品条码?: string;
   中包或整件销售规格条码?: string;
   供货价格?: number;
-  单品或采购单位起订量?: number;
-  采购单位?: string;
-  采购单位换算数量?: number;
-  采购规格?: string;
-  整包中包供货价格?: number;
-  商品供货链接?: string;
   供应商商品备注?: string;
 }
 
@@ -1335,6 +1329,8 @@ export interface InventorySummary {
   覆盖门店数?: number;
   总部零售价?: number;
   最近采购价?: number;
+  最低采购价?: number;
+  成本单价?: number;
   UPC?: string;
   对比结果?: string;
 }
