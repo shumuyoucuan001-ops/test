@@ -59,14 +59,58 @@ export class TransactionRecordService {
             let whereClause = '1=1';
             const queryParams: any[] = [];
 
-            // 搜索条件（搜索所有文本字段）
+            // 搜索条件（支持多种搜索格式）
             if (search) {
-                whereClause += ` AND (
-          交易账单号 LIKE ? OR 
-          支付账号 LIKE ? OR
-          支付渠道 LIKE ?
-        )`;
-                queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+                const searchTrimmed = search.trim();
+                // 支持格式：字段名:值（多个条件用空格分隔）或 直接搜索
+                const searchParts = searchTrimmed.split(/\s+/);
+                const fieldConditions: string[] = [];
+                const fieldParams: any[] = [];
+                let hasGeneralSearch = false;
+                let generalSearchTerm = '';
+
+                for (const part of searchParts) {
+                    if (part.includes(':')) {
+                        const [fieldName, fieldValue] = part.split(':').map(s => s.trim());
+                        if (fieldName && fieldValue) {
+                            if (fieldName === '支付渠道') {
+                                fieldConditions.push('支付渠道 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '支付账号') {
+                                fieldConditions.push('支付账号 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '交易账单号') {
+                                fieldConditions.push('交易账单号 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '收支金额') {
+                                const amount = parseFloat(fieldValue);
+                                if (!isNaN(amount)) {
+                                    fieldConditions.push('收支金额 = ?');
+                                    fieldParams.push(amount);
+                                }
+                            }
+                        }
+                    } else if (part) {
+                        hasGeneralSearch = true;
+                        generalSearchTerm = part;
+                    }
+                }
+
+                // 添加字段条件
+                if (fieldConditions.length > 0) {
+                    whereClause += ' AND (' + fieldConditions.join(' AND ') + ')';
+                    queryParams.push(...fieldParams);
+                }
+
+                // 添加通用搜索条件
+                if (hasGeneralSearch) {
+                    whereClause += ` AND (
+            交易账单号 LIKE ? OR 
+            支付账号 LIKE ? OR
+            支付渠道 LIKE ?
+          )`;
+                    queryParams.push(`%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`);
+                }
             }
 
             // 查询总数

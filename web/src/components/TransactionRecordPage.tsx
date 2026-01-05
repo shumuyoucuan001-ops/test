@@ -18,6 +18,7 @@ import {
   message,
   Modal,
   Popover,
+  Row,
   Segmented,
   Space,
   Tag,
@@ -246,30 +247,38 @@ export default function TransactionRecordPage() {
   ) => {
     try {
       setLoading(true);
-      // 构建搜索条件
-      let finalSearch = search || '';
-      if (search支付渠道) {
-        finalSearch += (finalSearch ? ' ' : '') + `支付渠道:${search支付渠道}`;
+
+      // 构建搜索条件 - 使用多个单独的搜索参数
+      const searchParams: string[] = [];
+
+      if (search && search.trim()) {
+        searchParams.push(search.trim());
       }
-      if (search支付账号) {
-        finalSearch += (finalSearch ? ' ' : '') + `支付账号:${search支付账号}`;
+      if (search支付渠道 && search支付渠道.trim()) {
+        searchParams.push(`支付渠道:${search支付渠道.trim()}`);
       }
-      if (search交易账单号) {
-        finalSearch += (finalSearch ? ' ' : '') + `交易账单号:${search交易账单号}`;
+      if (search支付账号 && search支付账号.trim()) {
+        searchParams.push(`支付账号:${search支付账号.trim()}`);
       }
-      if (search收支金额) {
-        finalSearch += (finalSearch ? ' ' : '') + `收支金额:${search收支金额}`;
+      if (search交易账单号 && search交易账单号.trim()) {
+        searchParams.push(`交易账单号:${search交易账单号.trim()}`);
       }
+      if (search收支金额 && search收支金额.trim()) {
+        searchParams.push(`收支金额:${search收支金额.trim()}`);
+      }
+
+      const finalSearch = searchParams.length > 0 ? searchParams.join(' ') : undefined;
 
       const result = await transactionRecordApi.getAll({
         channel,
         page,
         limit: pageSize,
-        search: finalSearch || undefined,
+        search: finalSearch,
       });
 
       // 如果有时间范围筛选，在前端过滤
       let filteredData = result.data;
+      let filteredTotal = result.total;
       if (search账单交易时间范围 && search账单交易时间范围[0] && search账单交易时间范围[1]) {
         const startTime = search账单交易时间范围[0].startOf('day');
         const endTime = search账单交易时间范围[1].endOf('day');
@@ -278,10 +287,13 @@ export default function TransactionRecordPage() {
           const recordTime = dayjs(record.账单交易时间);
           return recordTime.isAfter(startTime) && recordTime.isBefore(endTime);
         });
+        // 如果前端过滤了数据，总数应该使用过滤后的数量
+        // 但为了准确，应该重新查询总数，这里先用过滤后的数据长度
+        filteredTotal = filteredData.length;
       }
 
       setRecords(filteredData);
-      setTotal(filteredData.length);
+      setTotal(filteredTotal);
     } catch (error: any) {
       message.error(error.message || '加载记录列表失败');
       console.error(error);
@@ -313,6 +325,7 @@ export default function TransactionRecordPage() {
         setHiddenColumns(new Set(parsed));
       } catch (error) {
         console.error('加载列显示偏好失败:', error);
+        setHiddenColumns(new Set());
       }
     } else {
       setHiddenColumns(new Set());
@@ -326,6 +339,7 @@ export default function TransactionRecordPage() {
         setColumnOrder(parsed);
       } catch (error) {
         console.error('加载列顺序失败:', error);
+        setColumnOrder([]);
       }
     } else {
       setColumnOrder([]);
@@ -394,7 +408,7 @@ export default function TransactionRecordPage() {
       await transactionRecordApi.batchCreate(channel, [values]);
       message.success('创建成功');
       setModalVisible(false);
-      loadRecords();
+      loadRecords(currentPage, searchText || undefined);
     } catch (error: any) {
       if (error?.errorFields) {
         return;
@@ -433,11 +447,11 @@ export default function TransactionRecordPage() {
         message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
       message.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
-      loadRecords();
+      loadRecords(currentPage, searchText || undefined);
     } catch (e: any) {
       message.error('批量创建失败: ' + (e?.message || '未知错误'));
     }
-  }, [channel]);
+  }, [channel, currentPage, searchText]);
 
   // 获取导出字段配置
   const getExportFields = () => {
@@ -485,42 +499,92 @@ export default function TransactionRecordPage() {
           </Space>
         }
         extra={
-          <Space>
-            <Search
-              placeholder="综合搜索"
-              allowClear
-              style={{ width: 250 }}
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              onPressEnter={handleSearch}
-            />
-            <Button
-              type="primary"
-              icon={<SearchOutlined />}
-              onClick={handleSearch}
-            >
-              搜索
-            </Button>
+          <Space size="small">
             <Popover
               content={
-                <ColumnSettings
-                  columns={allColumns}
-                  hiddenColumns={hiddenColumns}
-                  columnOrder={columnOrder}
-                  onToggleVisibility={handleToggleColumnVisibility}
-                  onMoveColumn={() => { }}
-                  onColumnOrderChange={handleColumnOrderChange}
-                />
+                <div style={{ width: 600 }}>
+                  <ColumnSettings
+                    columns={allColumns}
+                    hiddenColumns={hiddenColumns}
+                    columnOrder={columnOrder}
+                    onToggleVisibility={handleToggleColumnVisibility}
+                    onMoveColumn={() => { }}
+                    onColumnOrderChange={handleColumnOrderChange}
+                  />
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
+                    <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Row gutter={8}>
+                        <Input
+                          placeholder="支付渠道"
+                          allowClear
+                          size="small"
+                          style={{ width: 140 }}
+                          value={search支付渠道}
+                          onChange={(e) => setSearch支付渠道(e.target.value)}
+                          onPressEnter={handleSearch}
+                        />
+                        <Input
+                          placeholder="支付账号"
+                          allowClear
+                          size="small"
+                          style={{ width: 140 }}
+                          value={search支付账号}
+                          onChange={(e) => setSearch支付账号(e.target.value)}
+                          onPressEnter={handleSearch}
+                        />
+                        <Input
+                          placeholder="收支金额"
+                          allowClear
+                          size="small"
+                          style={{ width: 140 }}
+                          value={search收支金额}
+                          onChange={(e) => setSearch收支金额(e.target.value)}
+                          onPressEnter={handleSearch}
+                        />
+                      </Row>
+                      <Row gutter={8}>
+                        <Input
+                          placeholder="交易账单号"
+                          allowClear
+                          size="small"
+                          style={{ width: 140 }}
+                          value={search交易账单号}
+                          onChange={(e) => setSearch交易账单号(e.target.value)}
+                          onPressEnter={handleSearch}
+                        />
+                        <RangePicker
+                          placeholder={['开始时间', '结束时间']}
+                          value={search账单交易时间范围}
+                          onChange={(dates) => setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null)}
+                          showTime
+                          format="YYYY-MM-DD HH:mm:ss"
+                          size="small"
+                          style={{ width: 300 }}
+                        />
+                      </Row>
+                      <Space>
+                        <Button size="small" type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+                          搜索
+                        </Button>
+                        <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
+                          重置
+                        </Button>
+                      </Space>
+                    </Space>
+                  </div>
+                </div>
               }
-              title="列设置"
+              title="列设置与搜索"
               trigger="click"
               open={columnSettingsOpen}
               onOpenChange={setColumnSettingsOpen}
               placement="bottomRight"
             >
-              <Button icon={<SettingOutlined />}>列设置</Button>
+              <Button size="small" icon={<SettingOutlined />}>列设置</Button>
             </Popover>
             <Button
+              size="small"
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleAdd}
@@ -528,18 +592,14 @@ export default function TransactionRecordPage() {
               新增
             </Button>
             <Button
+              size="small"
               icon={<UploadOutlined />}
               onClick={handleBatchAdd}
             >
               批量新增
             </Button>
             <Button
-              icon={<ReloadOutlined />}
-              onClick={handleReset}
-            >
-              重置
-            </Button>
-            <Button
+              size="small"
               icon={<DownloadOutlined />}
               onClick={() => setExportModalVisible(true)}
             >
@@ -566,55 +626,6 @@ export default function TransactionRecordPage() {
             size="large"
             block
           />
-        </div>
-
-        {/* 5个公共字段的单独搜索框 */}
-        <div style={{ marginBottom: 16, padding: '16px', backgroundColor: '#fafafa', borderRadius: 4 }}>
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>单独搜索</div>
-            <Space wrap>
-              <Input
-                placeholder="支付渠道"
-                allowClear
-                style={{ width: 150 }}
-                value={search支付渠道}
-                onChange={(e) => setSearch支付渠道(e.target.value)}
-                onPressEnter={handleSearch}
-              />
-              <Input
-                placeholder="支付账号"
-                allowClear
-                style={{ width: 150 }}
-                value={search支付账号}
-                onChange={(e) => setSearch支付账号(e.target.value)}
-                onPressEnter={handleSearch}
-              />
-              <Input
-                placeholder="收支金额"
-                allowClear
-                style={{ width: 150 }}
-                value={search收支金额}
-                onChange={(e) => setSearch收支金额(e.target.value)}
-                onPressEnter={handleSearch}
-              />
-              <Input
-                placeholder="交易账单号"
-                allowClear
-                style={{ width: 200 }}
-                value={search交易账单号}
-                onChange={(e) => setSearch交易账单号(e.target.value)}
-                onPressEnter={handleSearch}
-              />
-              <RangePicker
-                placeholder={['开始时间', '结束时间']}
-                value={search账单交易时间范围}
-                onChange={(dates) => setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null)}
-                showTime
-                format="YYYY-MM-DD HH:mm:ss"
-                style={{ width: 400 }}
-              />
-            </Space>
-          </Space>
         </div>
 
         <ResponsiveTable<any>
