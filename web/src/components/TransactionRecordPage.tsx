@@ -263,7 +263,10 @@ export default function TransactionRecordPage() {
         searchParams.push(`交易账单号:${search交易账单号.trim()}`);
       }
       if (search收支金额 && search收支金额.trim()) {
-        searchParams.push(`收支金额:${search收支金额.trim()}`);
+        const amountValue = search收支金额.trim();
+        // 支持搜索正数和负数，如果输入的是正数，也搜索负数
+        // 使用特殊格式：收支金额:18.50 表示搜索 18.50 或 -18.50
+        searchParams.push(`收支金额:${amountValue}`);
       }
 
       const finalSearch = searchParams.length > 0 ? searchParams.join(' ') : undefined;
@@ -632,17 +635,17 @@ export default function TransactionRecordPage() {
             </Button>
             <Button
               size="small"
-              icon={<ReloadOutlined />}
-              onClick={handleReset}
-            >
-              重置
-            </Button>
-            <Button
-              size="small"
               icon={<DownloadOutlined />}
               onClick={() => setExportModalVisible(true)}
             >
               导出数据
+            </Button>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={handleReset}
+            >
+              重置
             </Button>
           </Space>
         }
@@ -684,8 +687,19 @@ export default function TransactionRecordPage() {
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size || 20);
-              loadRecords(page, searchText || undefined);
+              if (size && size !== pageSize) {
+                setPageSize(size);
+                // 切换分页大小时，立即加载数据
+                loadRecords(page, searchText || undefined);
+              } else {
+                loadRecords(page, searchText || undefined);
+              }
+            },
+            onShowSizeChange: (current, size) => {
+              setCurrentPage(1);
+              setPageSize(size);
+              // 切换分页大小时，立即加载数据
+              loadRecords(1, searchText || undefined);
             },
           }}
         />

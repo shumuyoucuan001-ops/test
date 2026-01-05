@@ -892,9 +892,36 @@ export default function NonPurchaseBillRecordPage() {
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size || 20);
+              if (size && size !== pageSize) {
+                setPageSize(size);
+                // 切换分页大小时，立即加载数据
+                loadRecords(
+                  page,
+                  searchText || undefined,
+                  search账单流水 || undefined,
+                  search账单类型 || undefined,
+                  search所属仓店 || undefined,
+                  search财务审核状态 || undefined,
+                  search记录修改人 || undefined,
+                );
+              } else {
+                loadRecords(
+                  page,
+                  searchText || undefined,
+                  search账单流水 || undefined,
+                  search账单类型 || undefined,
+                  search所属仓店 || undefined,
+                  search财务审核状态 || undefined,
+                  search记录修改人 || undefined,
+                );
+              }
+            },
+            onShowSizeChange: (current, size) => {
+              setCurrentPage(1);
+              setPageSize(size);
+              // 切换分页大小时，立即加载数据
               loadRecords(
-                page,
+                1,
                 searchText || undefined,
                 search账单流水 || undefined,
                 search账单类型 || undefined,

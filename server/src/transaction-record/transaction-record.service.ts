@@ -85,8 +85,15 @@ export class TransactionRecordService {
                             } else if (fieldName === '收支金额') {
                                 const amount = parseFloat(fieldValue);
                                 if (!isNaN(amount)) {
-                                    fieldConditions.push('收支金额 = ?');
-                                    fieldParams.push(amount);
+                                    // 如果输入的是正数，同时搜索正数和负数
+                                    if (amount >= 0) {
+                                        fieldConditions.push('(收支金额 = ? OR 收支金额 = ?)');
+                                        fieldParams.push(amount, -amount);
+                                    } else {
+                                        // 如果输入的是负数，只搜索负数
+                                        fieldConditions.push('收支金额 = ?');
+                                        fieldParams.push(amount);
+                                    }
                                 }
                             }
                         }

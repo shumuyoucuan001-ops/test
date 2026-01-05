@@ -2338,11 +2338,31 @@ export default function FinanceReconciliationDifferencePage() {
                 showTotal={(total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`}
                 onChange={(page, size) => {
                   setCurrentPage(page);
-                  setPageSize(size || 20);
+                  if (size && size !== pageSize) {
+                    setPageSize(size);
+                  }
                   const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
                   const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
                   loadRecords(
                     page,
+                    searchText?.trim() || undefined,
+                    search对账单号?.trim() || undefined,
+                    search记录状态.length > 0 ? search记录状态 : undefined,
+                    search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
+                    更新时间开始,
+                    更新时间结束,
+                    search采购单号?.trim() || undefined,
+                    search交易单号?.trim() || undefined,
+                  );
+                }}
+                onShowSizeChange={(current, size) => {
+                  setCurrentPage(1);
+                  setPageSize(size);
+                  // 切换分页大小时，立即加载数据
+                  const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
+                  const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
+                  loadRecords(
+                    1,
                     searchText?.trim() || undefined,
                     search对账单号?.trim() || undefined,
                     search记录状态.length > 0 ? search记录状态 : undefined,

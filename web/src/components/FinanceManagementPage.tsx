@@ -813,9 +813,34 @@ export default function FinanceManagementPage() {
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size || 20);
+              if (size && size !== pageSize) {
+                setPageSize(size);
+                // 切换分页大小时，立即加载数据
+                loadBills(
+                  page,
+                  searchText || undefined,
+                  searchTransactionNumber || undefined,
+                  searchQianniuhuaPurchaseNumber || undefined,
+                  searchImportExceptionRemark || undefined,
+                  searchModifier || undefined,
+                );
+              } else {
+                loadBills(
+                  page,
+                  searchText || undefined,
+                  searchTransactionNumber || undefined,
+                  searchQianniuhuaPurchaseNumber || undefined,
+                  searchImportExceptionRemark || undefined,
+                  searchModifier || undefined,
+                );
+              }
+            },
+            onShowSizeChange: (current, size) => {
+              setCurrentPage(1);
+              setPageSize(size);
+              // 切换分页大小时，立即加载数据
               loadBills(
-                page,
+                1,
                 searchText || undefined,
                 searchTransactionNumber || undefined,
                 searchQianniuhuaPurchaseNumber || undefined,

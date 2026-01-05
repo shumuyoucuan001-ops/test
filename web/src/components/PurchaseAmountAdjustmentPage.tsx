@@ -873,9 +873,36 @@ export default function PurchaseAmountAdjustmentPage() {
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size || 20);
+              if (size && size !== pageSize) {
+                setPageSize(size);
+                // 切换分页大小时，立即加载数据
+                loadAdjustments(
+                  page,
+                  searchText || undefined,
+                  searchPurchaseOrderNumber || undefined,
+                  searchAdjustmentAmount || undefined,
+                  searchCreator || undefined,
+                  searchFinanceReviewer || undefined,
+                  searchDataUpdateTime || undefined,
+                );
+              } else {
+                loadAdjustments(
+                  page,
+                  searchText || undefined,
+                  searchPurchaseOrderNumber || undefined,
+                  searchAdjustmentAmount || undefined,
+                  searchCreator || undefined,
+                  searchFinanceReviewer || undefined,
+                  searchDataUpdateTime || undefined,
+                );
+              }
+            },
+            onShowSizeChange: (current, size) => {
+              setCurrentPage(1);
+              setPageSize(size);
+              // 切换分页大小时，立即加载数据
               loadAdjustments(
-                page,
+                1,
                 searchText || undefined,
                 searchPurchaseOrderNumber || undefined,
                 searchAdjustmentAmount || undefined,
