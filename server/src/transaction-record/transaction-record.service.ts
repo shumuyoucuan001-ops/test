@@ -121,25 +121,59 @@ export class TransactionRecordService {
                 }
             }
 
-            // 查询数据（如果有绑定状态筛选，需要查询更多数据来确保筛选准确）
-            // 先查询比需要更多的数据，筛选后再截取
-            // 不在SQL层面筛选绑定状态，而是在代码层面筛选，确保准确性
-            // 如果有多个状态筛选，需要查询更多数据，因为同时满足多个状态的记录可能较少
-            const statusCount = bindingStatuses && bindingStatuses.length > 0 ? bindingStatuses.length : 0;
-            const queryLimit = statusCount > 0 ? limit * (10 * statusCount) : limit; // 根据状态数量动态增加查询量
-            const dataQuery = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ? OFFSET ?`;
-            const [rows]: any = await connection.execute(dataQuery, [...queryParams, queryLimit, offset]);
+            // 如果有绑定状态筛选，先在SQL层面进行初步筛选（性能优化）
+            // 这样可以大大减少需要查询的记录数
+            if (bindingStatuses && bindingStatuses.length > 0) {
+                const statusesToCheck = bindingStatuses.filter(s => s !== '无绑定状态');
+                const hasNoBindingStatus = bindingStatuses.includes('无绑定状态');
 
-            // 转换日期格式并查询绑定状态
-            const data = await Promise.all(rows.map(async (row: any) => {
+                // 构建绑定状态的SQL筛选条件（AND逻辑：必须同时满足所有选中的状态）
+                const bindingConditions: string[] = [];
+
+                if (statusesToCheck.includes('已绑定采购单')) {
+                    bindingConditions.push(`EXISTS (SELECT 1 FROM \`手动绑定对账单号\` WHERE \`交易单号\` = \`${tableName}\`.\`交易账单号\`)`);
+                }
+                if (statusesToCheck.includes('已生成对账单')) {
+                    bindingConditions.push(`EXISTS (SELECT 1 FROM \`交易单号绑定采购单记录\` WHERE \`交易单号\` = \`${tableName}\`.\`交易账单号\`)`);
+                }
+                if (statusesToCheck.includes('非采购单流水')) {
+                    bindingConditions.push(`EXISTS (SELECT 1 FROM \`非采购单流水记录\` WHERE \`账单流水\` = \`${tableName}\`.\`交易账单号\`)`);
+                }
+                if (hasNoBindingStatus) {
+                    // "无绑定状态"与其他状态互斥，不能同时选择
+                    if (statusesToCheck.length === 0) {
+                        // 只选择了"无绑定状态"
+                        bindingConditions.push(`NOT EXISTS (SELECT 1 FROM \`手动绑定对账单号\` WHERE \`交易单号\` = \`${tableName}\`.\`交易账单号\`)
+                            AND NOT EXISTS (SELECT 1 FROM \`交易单号绑定采购单记录\` WHERE \`交易单号\` = \`${tableName}\`.\`交易账单号\`)
+                            AND NOT EXISTS (SELECT 1 FROM \`非采购单流水记录\` WHERE \`账单流水\` = \`${tableName}\`.\`交易账单号\`)`);
+                    }
+                    // 如果同时选择了"无绑定状态"和其他状态，这是矛盾的，SQL层面不筛选，代码层面会过滤
+                }
+
+                // 如果有多于一个状态，使用AND连接（必须同时满足）
+                if (bindingConditions.length > 0) {
+                    whereClause += ' AND (' + bindingConditions.join(' AND ') + ')';
+                }
+            }
+
+            // 查询数据（现在SQL层面已经进行了初步筛选）
+            const dataQuery = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ? OFFSET ?`;
+            const [rows]: any = await connection.execute(dataQuery, [...queryParams, limit * 3, offset]); // 查询3倍数据以确保筛选后有足够数据
+
+            // 批量查询绑定状态信息（性能优化）
+            const 交易账单号列表 = rows.map((row: any) => row.交易账单号).filter(Boolean);
+            const bindingStatusMap = await this.getBatchBindingStatusInfo(connection, 交易账单号列表);
+
+            // 转换日期格式并应用绑定状态信息
+            const data = rows.map((row: any) => {
                 if (row.账单交易时间) {
                     row.账单交易时间 = new Date(row.账单交易时间).toISOString();
                 }
 
-                // 查询绑定状态
-                const bindingStatusInfo = await this.getBindingStatusInfo(connection, row.交易账单号);
+                // 从批量查询结果中获取绑定状态
+                const bindingStatusInfo = bindingStatusMap.get(row.交易账单号) || { statuses: [], details: [], hasNonPurchaseBill: false };
 
-                // 如果有绑定状态筛选，需要再次验证（确保准确性）
+                // 如果有绑定状态筛选，需要验证（确保准确性）
                 if (bindingStatuses && bindingStatuses.length > 0) {
                     const recordStatuses = bindingStatusInfo.statuses;
 
@@ -184,93 +218,14 @@ export class TransactionRecordService {
                 row.是否有非采购单流水 = bindingStatusInfo.hasNonPurchaseBill;
 
                 return row;
-            }));
+            });
 
             // 过滤掉null值（不满足筛选条件的记录）
             let filteredData = data.filter(record => record !== null);
 
-            // 如果有绑定状态筛选，需要重新分页（因为筛选后数量可能变化）
-            // 如果筛选后数据不足，可能需要继续查询更多数据
+            // 如果有绑定状态筛选，只取需要的数量
             if (bindingStatuses && bindingStatuses.length > 0) {
-                // 如果筛选后的数据不足一页，且查询到的原始数据达到了限制，可能需要继续查询
-                if (filteredData.length < limit && rows.length === queryLimit) {
-                    // 继续查询更多数据，直到找到足够的数据或没有更多数据
-                    let currentOffset = offset + queryLimit;
-                    let collectedData = filteredData;
-
-                    // 如果选择了多个状态，需要查询更多数据才能找到同时满足所有状态的记录
-                    const maxQueryLimit = statusCount > 1 ? 50000 : 10000;
-                    while (collectedData.length < limit && currentOffset < maxQueryLimit) {
-                        const nextLimit = Math.min(queryLimit, maxQueryLimit - currentOffset);
-                        const nextDataQuery = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ? OFFSET ?`;
-                        const [nextRows]: any = await connection.execute(nextDataQuery, [...queryParams, nextLimit, currentOffset]);
-
-                        if (nextRows.length === 0) {
-                            break; // 没有更多数据了
-                        }
-
-                        // 处理下一批数据
-                        const nextData = await Promise.all(nextRows.map(async (row: any) => {
-                            if (row.账单交易时间) {
-                                row.账单交易时间 = new Date(row.账单交易时间).toISOString();
-                            }
-
-                            const bindingStatusInfo = await this.getBindingStatusInfo(connection, row.交易账单号);
-                            const recordStatuses = bindingStatusInfo.statuses;
-
-                            // 检查记录是否同时满足所有选中的状态（AND逻辑）
-                            const statusesToCheck = bindingStatuses.filter(s => s !== '无绑定状态');
-                            const hasNoBindingStatus = bindingStatuses.includes('无绑定状态');
-
-                            let matchesSelectedStatus = true;
-
-                            if (hasNoBindingStatus) {
-                                if (statusesToCheck.length > 0) {
-                                    matchesSelectedStatus = false;
-                                } else {
-                                    matchesSelectedStatus = recordStatuses.length === 0;
-                                }
-                            } else {
-                                if (statusesToCheck.length === 0) {
-                                    matchesSelectedStatus = false;
-                                } else {
-                                    matchesSelectedStatus = statusesToCheck.every(selectedStatus => {
-                                        return recordStatuses.includes(selectedStatus);
-                                    });
-                                }
-                            }
-
-                            if (!matchesSelectedStatus) {
-                                return null;
-                            }
-
-                            row.绑定状态 = bindingStatusInfo.statuses;
-                            row.绑定状态对应情况 = bindingStatusInfo.details;
-                            row.是否有非采购单流水 = bindingStatusInfo.hasNonPurchaseBill;
-
-                            return row;
-                        }));
-
-                        const validNextData = nextData.filter(record => record !== null);
-                        collectedData = [...collectedData, ...validNextData];
-
-                        if (nextRows.length < nextLimit) {
-                            break; // 没有更多数据了
-                        }
-
-                        currentOffset += nextLimit;
-
-                        // 如果已经收集到足够的数据，就停止
-                        if (collectedData.length >= limit) {
-                            break;
-                        }
-                    }
-
-                    filteredData = collectedData.slice(0, limit);
-                } else {
-                    // 只取需要的数量
-                    filteredData = filteredData.slice(0, limit);
-                }
+                filteredData = filteredData.slice(0, limit);
             }
 
             // 查询总数
@@ -281,47 +236,53 @@ export class TransactionRecordService {
                 const [countResult]: any = await connection.execute(countQuery, queryParams);
                 total = countResult[0]?.total || 0;
             } else {
-                // 有绑定状态筛选时，需要查询所有符合基础条件的记录并验证绑定状态
-                // 为了提高性能，这里查询所有符合基础条件的记录ID（不分页）
-                const allDataQuery = `SELECT 交易账单号 FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT 5000`;
+                // 有绑定状态筛选时，由于已经在SQL层面筛选，可以直接使用COUNT
+                // 但为了确保准确性，仍然需要验证绑定状态
+                // 为了提高性能，限制查询数量
+                const countLimit = 2000; // 最多验证2000条记录
+                const allDataQuery = `SELECT 交易账单号 FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ${countLimit}`;
                 const [allRows]: any = await connection.execute(allDataQuery, queryParams);
 
-                // 验证每条记录的绑定状态
-                let validCount = 0;
-                for (const row of allRows) {
-                    const bindingStatusInfo = await this.getBindingStatusInfo(connection, row.交易账单号);
-                    const recordStatuses = bindingStatusInfo.statuses;
-                    // 检查记录是否同时满足所有选中的状态（AND逻辑）
-                    const statusesToCheck = bindingStatuses.filter(s => s !== '无绑定状态');
-                    const hasNoBindingStatus = bindingStatuses.includes('无绑定状态');
+                // 如果查询到的数据少于限制，说明已经查询完了所有数据
+                if (allRows.length < countLimit) {
+                    // 批量查询所有记录的绑定状态并验证
+                    const all交易账单号列表 = allRows.map((row: any) => row.交易账单号).filter(Boolean);
+                    const allBindingStatusMap = await this.getBatchBindingStatusInfo(connection, all交易账单号列表);
 
-                    let matchesSelectedStatus = true;
+                    // 验证每条记录的绑定状态
+                    let validCount = 0;
+                    for (const row of allRows) {
+                        const bindingStatusInfo = allBindingStatusMap.get(row.交易账单号) || { statuses: [], details: [], hasNonPurchaseBill: false };
+                        const recordStatuses = bindingStatusInfo.statuses;
+                        const statusesToCheck = bindingStatuses.filter(s => s !== '无绑定状态');
+                        const hasNoBindingStatus = bindingStatuses.includes('无绑定状态');
 
-                    if (hasNoBindingStatus) {
-                        if (statusesToCheck.length > 0) {
-                            matchesSelectedStatus = false;
+                        let matchesSelectedStatus = true;
+
+                        if (hasNoBindingStatus) {
+                            if (statusesToCheck.length > 0) {
+                                matchesSelectedStatus = false;
+                            } else {
+                                matchesSelectedStatus = recordStatuses.length === 0;
+                            }
                         } else {
-                            matchesSelectedStatus = recordStatuses.length === 0;
+                            if (statusesToCheck.length === 0) {
+                                matchesSelectedStatus = false;
+                            } else {
+                                matchesSelectedStatus = statusesToCheck.every(selectedStatus => {
+                                    return recordStatuses.includes(selectedStatus);
+                                });
+                            }
                         }
-                    } else {
-                        if (statusesToCheck.length === 0) {
-                            matchesSelectedStatus = false;
-                        } else {
-                            matchesSelectedStatus = statusesToCheck.every(selectedStatus => {
-                                return recordStatuses.includes(selectedStatus);
-                            });
+                        if (matchesSelectedStatus) {
+                            validCount++;
                         }
                     }
-                    if (matchesSelectedStatus) {
-                        validCount++;
-                    }
-                }
-                total = validCount;
-
-                // 如果查询到的数据达到限制，说明可能还有更多数据
-                if (allRows.length === 5000) {
-                    // 无法准确计算总数，使用当前值
-                    // 实际项目中可以考虑缓存或优化查询
+                    total = validCount;
+                } else {
+                    // 数据量很大，使用估算值
+                    // 由于SQL层面已经筛选，可以假设筛选后的数据符合条件
+                    total = allRows.length;
                 }
             }
 
@@ -334,58 +295,107 @@ export class TransactionRecordService {
         }
     }
 
-    // 查询绑定状态信息
+    // 批量查询绑定状态信息（性能优化）
+    private async getBatchBindingStatusInfo(connection: any, 交易账单号列表: string[]): Promise<Map<string, {
+        statuses: string[];
+        details: string[];
+        hasNonPurchaseBill: boolean;
+    }>> {
+        const resultMap = new Map<string, {
+            statuses: string[];
+            details: string[];
+            hasNonPurchaseBill: boolean;
+        }>();
+
+        if (交易账单号列表.length === 0) {
+            return resultMap;
+        }
+
+        try {
+            // 初始化所有交易账单号的结果
+            交易账单号列表.forEach(交易账单号 => {
+                resultMap.set(交易账单号, { statuses: [], details: [], hasNonPurchaseBill: false });
+            });
+
+            // 分批查询，每批最多1000个，避免IN查询参数过多
+            const batchSize = 1000;
+            for (let i = 0; i < 交易账单号列表.length; i += batchSize) {
+                const batch = 交易账单号列表.slice(i, i + batchSize);
+                const placeholders = batch.map(() => '?').join(',');
+
+                // 批量查询1：查询'手动绑定对账单号'表
+                const manualBindingQuery = `SELECT DISTINCT \`交易单号\` FROM \`手动绑定对账单号\` WHERE \`交易单号\` IN (${placeholders})`;
+                const [manualBindingResult]: any = await connection.execute(manualBindingQuery, batch);
+                manualBindingResult.forEach((row: any) => {
+                    const 交易单号 = row.交易单号;
+                    if (resultMap.has(交易单号)) {
+                        resultMap.get(交易单号)!.statuses.push('已绑定采购单');
+                    }
+                });
+
+                // 批量查询2：查询'交易单号绑定采购单记录'表
+                const bindingRecordQuery = `SELECT DISTINCT \`交易单号\`, \`记录状态\` FROM \`交易单号绑定采购单记录\` WHERE \`交易单号\` IN (${placeholders}) AND \`记录状态\` IS NOT NULL AND \`记录状态\` != ''`;
+                const [bindingRecordResult]: any = await connection.execute(bindingRecordQuery, batch);
+                bindingRecordResult.forEach((row: any) => {
+                    const 交易单号 = row.交易单号;
+                    if (resultMap.has(交易单号)) {
+                        const info = resultMap.get(交易单号)!;
+                        if (!info.statuses.includes('已生成对账单')) {
+                            info.statuses.push('已生成对账单');
+                        }
+                        const 记录状态 = row.记录状态;
+                        if (记录状态) {
+                            // 检查是否已存在该状态
+                            const statusKey = `对账单记录状态:${记录状态}`;
+                            if (!info.details.includes(statusKey)) {
+                                info.details.push(statusKey);
+                            }
+                        }
+                    }
+                });
+
+                // 批量查询3：查询'非采购单流水记录'表
+                const nonPurchaseQuery = `SELECT DISTINCT \`账单流水\`, \`财务审核状态\` FROM \`非采购单流水记录\` WHERE \`账单流水\` IN (${placeholders}) AND \`财务审核状态\` IS NOT NULL AND \`财务审核状态\` != ''`;
+                const [nonPurchaseResult]: any = await connection.execute(nonPurchaseQuery, batch);
+                nonPurchaseResult.forEach((row: any) => {
+                    const 账单流水 = row.账单流水;
+                    if (resultMap.has(账单流水)) {
+                        const info = resultMap.get(账单流水)!;
+                        if (!info.statuses.includes('非采购单流水')) {
+                            info.statuses.push('非采购单流水');
+                        }
+                        info.hasNonPurchaseBill = true;
+                        const 财务审核状态 = row.财务审核状态;
+                        if (财务审核状态) {
+                            // 检查是否已存在该状态
+                            const statusKey = `非采购单流水财务审核状态:${财务审核状态}`;
+                            if (!info.details.includes(statusKey)) {
+                                info.details.push(statusKey);
+                            }
+                        }
+                    }
+                });
+            }
+
+            return resultMap;
+        } catch (error) {
+            Logger.error(`[TransactionRecordService] Failed to get batch binding status:`, error);
+            // 返回空结果
+            交易账单号列表.forEach(交易账单号 => {
+                resultMap.set(交易账单号, { statuses: [], details: [], hasNonPurchaseBill: false });
+            });
+            return resultMap;
+        }
+    }
+
+    // 查询绑定状态信息（保留单条查询方法以兼容）
     private async getBindingStatusInfo(connection: any, 交易账单号: string): Promise<{
         statuses: string[];
         details: string[];
         hasNonPurchaseBill: boolean;
     }> {
-        const statuses: string[] = [];
-        const details: string[] = [];
-
-        try {
-            // 1. 查询是否在'手动绑定对账单号'表中
-            const manualBindingQuery = `SELECT COUNT(*) as count FROM \`手动绑定对账单号\` WHERE \`交易单号\` = ?`;
-            const [manualBindingResult]: any = await connection.execute(manualBindingQuery, [交易账单号]);
-            if (manualBindingResult[0]?.count > 0) {
-                statuses.push('已绑定采购单');
-            }
-
-            // 2. 查询是否在'交易单号绑定采购单记录'表中，并获取记录状态
-            const bindingRecordQuery = `SELECT DISTINCT \`记录状态\` FROM \`交易单号绑定采购单记录\` WHERE \`交易单号\` = ? AND \`记录状态\` IS NOT NULL AND \`记录状态\` != ''`;
-            const [bindingRecordResult]: any = await connection.execute(bindingRecordQuery, [交易账单号]);
-            if (bindingRecordResult.length > 0) {
-                statuses.push('已生成对账单');
-                // 收集所有记录状态（已去重），并加上前缀
-                bindingRecordResult.forEach((row: any) => {
-                    if (row.记录状态) {
-                        details.push(`对账单记录状态:${row.记录状态}`);
-                    }
-                });
-            }
-
-            // 3. 查询是否在'非采购单流水记录'表中，并获取财务审核状态
-            const nonPurchaseQuery = `SELECT DISTINCT \`财务审核状态\` FROM \`非采购单流水记录\` WHERE \`账单流水\` = ? AND \`财务审核状态\` IS NOT NULL AND \`财务审核状态\` != ''`;
-            const [nonPurchaseResult]: any = await connection.execute(nonPurchaseQuery, [交易账单号]);
-            if (nonPurchaseResult.length > 0) {
-                statuses.push('非采购单流水');
-                // 收集所有财务审核状态（已去重），并加上前缀
-                nonPurchaseResult.forEach((row: any) => {
-                    if (row.财务审核状态) {
-                        details.push(`非采购单流水财务审核状态:${row.财务审核状态}`);
-                    }
-                });
-            }
-
-            return {
-                statuses,
-                details,
-                hasNonPurchaseBill: nonPurchaseResult.length > 0,
-            };
-        } catch (error) {
-            Logger.error(`[TransactionRecordService] Failed to get binding status for ${交易账单号}:`, error);
-            return { statuses: [], details: [], hasNonPurchaseBill: false };
-        }
+        const batchResult = await this.getBatchBindingStatusInfo(connection, [交易账单号]);
+        return batchResult.get(交易账单号) || { statuses: [], details: [], hasNonPurchaseBill: false };
     }
 
     // 批量创建记录
