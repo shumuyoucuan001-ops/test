@@ -5,6 +5,7 @@ import { Logger } from '../utils/logger.util';
 export interface SupplierQuotation {
   序号?: number;
   供应商编码?: string;
+  供应商名称?: string;
   商品名称?: string;
   商品规格?: string;
   最小销售单位?: string;
@@ -26,6 +27,7 @@ export interface InventorySummary {
   最低采购价?: number;
   成本单价?: number;
   UPC?: string;
+  SKU商品标签?: string;
 }
 
 export interface SupplierSkuBinding {
@@ -62,11 +64,34 @@ export class SupplierQuotationService {
     });
   }
 
+  // 获取所有供应商编码列表（去重）
+  async getAllSupplierCodes(): Promise<string[]> {
+    const connection = await this.getConnection();
+
+    try {
+      const query = `
+        SELECT DISTINCT \`供应商编码\`
+        FROM \`供应商报价\`
+        WHERE \`供应商编码\` IS NOT NULL AND \`供应商编码\` != ''
+        ORDER BY \`供应商编码\` ASC
+      `;
+
+      const [data]: any = await connection.execute(query);
+      return (data || []).map((row: any) => row['供应商编码']).filter(Boolean);
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 查询供应商编码列表失败:', error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
   // 获取供应商报价列表
   async getSupplierQuotations(
     page: number = 1,
     limit: number = 20,
     search?: string,
+    supplierCodes?: string[],
   ): Promise<{ data: SupplierQuotation[]; total: number }> {
     const connection = await this.getConnection();
 
@@ -77,37 +102,47 @@ export class SupplierQuotationService {
       let whereClause = '1=1';
       const queryParams: any[] = [];
 
+      // 如果指定了供应商编码列表，使用IN查询
+      if (supplierCodes && supplierCodes.length > 0) {
+        const placeholders = supplierCodes.map(() => '?').join(',');
+        whereClause += ` AND q.\`供应商编码\` IN (${placeholders})`;
+        queryParams.push(...supplierCodes);
+      }
+
       if (search) {
-        whereClause += ' AND (供应商编码 LIKE ? OR 商品名称 LIKE ? OR 商品规格 LIKE ? OR 供应商商品编码 LIKE ?)';
+        whereClause += ' AND (q.供应商编码 LIKE ? OR q.商品名称 LIKE ? OR q.商品规格 LIKE ? OR q.供应商商品编码 LIKE ?)';
         queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
       }
 
       // 获取总数
       const totalQuery = `
         SELECT COUNT(*) as count 
-        FROM \`供应商报价\`
+        FROM \`供应商报价\` q
+        ${supplierCodes && supplierCodes.length > 0 ? 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`' : ''}
         WHERE ${whereClause}
       `;
       const [totalResult]: any = await connection.execute(totalQuery, queryParams);
       const total = totalResult[0].count;
 
-      // 获取数据
+      // 获取数据，JOIN供应商属性信息表获取供应商名称
       const dataQuery = `
         SELECT 
-          序号,
-          供应商编码,
-          商品名称,
-          商品规格,
-          最小销售单位,
-          商品型号,
-          供应商商品编码,
-          最小销售规格UPC商品条码,
-          中包或整件销售规格条码,
-          供货价格,
-          供应商商品备注
-        FROM \`供应商报价\`
+          q.序号,
+          q.供应商编码,
+          COALESCE(s.\`供应商名称\`, '') as \`供应商名称\`,
+          q.商品名称,
+          q.商品规格,
+          q.最小销售单位,
+          q.商品型号,
+          q.供应商商品编码,
+          q.最小销售规格UPC商品条码,
+          q.中包或整件销售规格条码,
+          q.供货价格,
+          q.供应商商品备注
+        FROM \`供应商报价\` q
+        LEFT JOIN \`供应商属性信息\` s ON q.\`供应商编码\` = s.\`供应商编码\`
         WHERE ${whereClause}
-        ORDER BY 序号 ASC
+        ORDER BY q.\`供应商编码\` ASC, q.序号 ASC
         LIMIT ? OFFSET ?
       `;
 
@@ -128,10 +163,43 @@ export class SupplierQuotationService {
     }
   }
 
+  // 获取仓库优先级列表（门店/仓名称）
+  async getWarehousePriorities(): Promise<string[]> {
+    // 需要连接到 sm_chaigou 数据库
+    if (!process.env.DB_PASSWORD) {
+      throw new Error('DB_PASSWORD environment variable is required');
+    }
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
+      user: process.env.DB_USER || 'xitongquanju',
+      password: process.env.DB_PASSWORD,
+      database: 'sm_chaigou',
+      port: parseInt(process.env.DB_PORT || '3306'),
+    });
+
+    try {
+      const query = `
+        SELECT DISTINCT \`门店/仓名称\`
+        FROM \`仓库优先级\`
+        WHERE \`门店/仓名称\` IS NOT NULL AND \`门店/仓名称\` != ''
+        ORDER BY \`门店/仓名称\` ASC
+      `;
+
+      const [data]: any = await connection.execute(query);
+      return (data || []).map((row: any) => row['门店/仓名称']).filter(Boolean);
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 查询仓库优先级失败:', error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
   // 获取库存汇总数据（根据类型：全部、仓店、城市）
   async getInventorySummary(
     type: '全部' | '仓店' | '城市',
     upc?: string,
+    storeNames?: string[],
   ): Promise<InventorySummary[]> {
     const connection = await this.getKucunConnection();
 
@@ -159,6 +227,13 @@ export class SupplierQuotationService {
         queryParams.push(`%${upc}%`);
       }
 
+      // 仓店类型时，支持按门店/仓库名称筛选
+      if (type === '仓店' && storeNames && storeNames.length > 0) {
+        const placeholders = storeNames.map(() => '?').join(',');
+        whereClause += ` AND \`门店/仓库名称\` IN (${placeholders})`;
+        queryParams.push(...storeNames);
+      }
+
       // 根据类型选择查询字段
       let selectFields = '';
       if (type === '全部') {
@@ -172,7 +247,8 @@ export class SupplierQuotationService {
           最近采购价,
           最低采购价,
           成本单价,
-          UPC
+          UPC,
+          SKU商品标签
         `;
       } else {
         // 仓店/城市：只查询成本单价（没有最低采购价字段）
@@ -184,7 +260,8 @@ export class SupplierQuotationService {
           总部零售价,
           最近采购价,
           成本单价,
-          UPC
+          UPC,
+          SKU商品标签
         `;
       }
 

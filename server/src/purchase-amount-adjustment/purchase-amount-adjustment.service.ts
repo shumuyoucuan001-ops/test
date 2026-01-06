@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
-import { Logger } from '../utils/logger.util';
 import { OperationLogService } from '../operation-log/operation-log.service';
+import { Logger } from '../utils/logger.util';
 
 export interface PurchaseAmountAdjustment {
     purchaseOrderNumber: string; // 采购单号(牵牛花)（主键）
@@ -18,7 +18,7 @@ export interface PurchaseAmountAdjustment {
 
 @Injectable()
 export class PurchaseAmountAdjustmentService {
-    constructor(private operationLogService: OperationLogService) {}
+    constructor(private operationLogService: OperationLogService) { }
 
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
@@ -74,6 +74,7 @@ export class PurchaseAmountAdjustmentService {
         creator?: string,
         financeReviewer?: string,
         dataUpdateTime?: string,
+        financeReviewStatus?: string,
     ): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> {
         const connection = await this.getConnection();
 
@@ -111,6 +112,10 @@ export class PurchaseAmountAdjustmentService {
                 // 支持日期时间搜索，使用 LIKE 匹配日期时间字符串
                 whereClause += ' AND DATE_FORMAT(`数据更新时间`, \'%Y-%m-%d %H:%i:%s\') LIKE ?';
                 queryParams.push(`%${dataUpdateTime}%`);
+            }
+            if (financeReviewStatus) {
+                whereClause += ' AND `财务审核状态` = ?';
+                queryParams.push(financeReviewStatus);
             }
 
             // 获取总数

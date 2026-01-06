@@ -1279,6 +1279,7 @@ export const purchaseAmountAdjustmentApi = {
     creator?: string;
     financeReviewer?: string;
     dataUpdateTime?: string;
+    financeReviewStatus?: string;
   }): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> =>
     api.get('/purchase-amount-adjustment', { params }).then(res => res.data),
 
@@ -1311,6 +1312,7 @@ export const purchaseAmountAdjustmentApi = {
 export interface SupplierQuotation {
   序号?: number;
   供应商编码?: string;
+  供应商名称?: string;
   商品名称?: string;
   商品规格?: string;
   最小销售单位?: string;
@@ -1332,6 +1334,7 @@ export interface InventorySummary {
   最低采购价?: number;
   成本单价?: number;
   UPC?: string;
+  SKU商品标签?: string;
   对比结果?: string;
 }
 
@@ -1343,18 +1346,28 @@ export interface SupplierSkuBinding {
 
 // 供应商报价API
 export const supplierQuotationApi = {
+  // 获取所有供应商编码列表
+  getAllSupplierCodes: (): Promise<string[]> =>
+    api.get('/supplier-quotation/supplier-codes').then(res => res.data),
+
   // 获取供应商报价列表
   getAll: (params?: {
     page?: number;
     limit?: number;
     search?: string;
+    supplierCodes?: string[];
   }): Promise<{ data: SupplierQuotation[]; total: number }> =>
     api.get('/supplier-quotation', { params }).then(res => res.data),
+
+  // 获取仓库优先级列表（门店/仓名称）
+  getWarehousePriorities: (): Promise<string[]> =>
+    api.get('/supplier-quotation/warehouse-priorities').then(res => res.data),
 
   // 获取库存汇总数据
   getInventorySummary: (params: {
     type: '全部' | '仓店' | '城市';
     upc?: string;
+    storeNames?: string[];
   }): Promise<InventorySummary[]> =>
     api.get('/supplier-quotation/inventory-summary', { params }).then(res => res.data),
 

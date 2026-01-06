@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
-import { Logger } from '../utils/logger.util';
 import { OperationLogService } from '../operation-log/operation-log.service';
+import { Logger } from '../utils/logger.util';
 
 export interface NonPurchaseBillRecord {
     账单流水: string; // 主键
@@ -20,7 +20,7 @@ export interface NonPurchaseBillRecord {
 
 @Injectable()
 export class NonPurchaseBillRecordService {
-    constructor(private operationLogService: OperationLogService) {}
+    constructor(private operationLogService: OperationLogService) { }
 
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
@@ -106,8 +106,8 @@ export class NonPurchaseBillRecordService {
                 queryParams.push(`%${所属仓店}%`);
             }
             if (财务审核状态) {
-                whereClause += ' AND 财务审核状态 LIKE ?';
-                queryParams.push(`%${财务审核状态}%`);
+                whereClause += ' AND 财务审核状态 = ?';
+                queryParams.push(财务审核状态);
             }
             if (记录修改人) {
                 whereClause += ' AND 记录修改人 LIKE ?';

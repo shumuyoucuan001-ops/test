@@ -17,10 +17,11 @@ export class PurchaseAmountAdjustmentController {
     @Query('creator') creator?: string,
     @Query('financeReviewer') financeReviewer?: string,
     @Query('dataUpdateTime') dataUpdateTime?: string,
+    @Query('financeReviewStatus') financeReviewStatus?: string,
   ): Promise<{ data: PurchaseAmountAdjustment[]; total: number }> {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    return this.service.getAllAdjustments(pageNum, limitNum, search, purchaseOrderNumber, adjustmentAmount, creator, financeReviewer, dataUpdateTime);
+    return this.service.getAllAdjustments(pageNum, limitNum, search, purchaseOrderNumber, adjustmentAmount, creator, financeReviewer, dataUpdateTime, financeReviewStatus);
   }
 
   // 获取单个调整记录

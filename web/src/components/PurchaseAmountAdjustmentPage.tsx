@@ -53,6 +53,7 @@ export default function PurchaseAmountAdjustmentPage() {
   const [searchCreator, setSearchCreator] = useState('');
   const [searchFinanceReviewer, setSearchFinanceReviewer] = useState('');
   const [searchDataUpdateTime, setSearchDataUpdateTime] = useState('');
+  const [searchFinanceReviewStatus, setSearchFinanceReviewStatus] = useState<string>('');
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -85,6 +86,7 @@ export default function PurchaseAmountAdjustmentPage() {
     creator?: string,
     financeReviewer?: string,
     dataUpdateTime?: string,
+    financeReviewStatus?: string,
     size?: number,
   ) => {
     try {
@@ -99,6 +101,7 @@ export default function PurchaseAmountAdjustmentPage() {
         creator,
         financeReviewer,
         dataUpdateTime,
+        financeReviewStatus,
       });
       setAdjustments(result.data);
       setTotal(result.total);
@@ -219,6 +222,7 @@ export default function PurchaseAmountAdjustmentPage() {
       searchCreator || undefined,
       searchFinanceReviewer || undefined,
       searchDataUpdateTime || undefined,
+      searchFinanceReviewStatus || undefined,
     );
   };
 
@@ -232,6 +236,7 @@ export default function PurchaseAmountAdjustmentPage() {
       searchCreator || undefined,
       searchFinanceReviewer || undefined,
       searchDataUpdateTime || undefined,
+      searchFinanceReviewStatus || undefined,
     );
   };
 
@@ -800,9 +805,10 @@ export default function PurchaseAmountAdjustmentPage() {
                 setSearchCreator('');
                 setSearchFinanceReviewer('');
                 setSearchDataUpdateTime('');
+                setSearchFinanceReviewStatus('');
                 setCurrentPage(1);
                 // 重置时传入空的搜索参数，确保立即查询默认数据
-                loadAdjustments(1, undefined, undefined, undefined, undefined, undefined, undefined);
+                loadAdjustments(1, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
               }}
             >
               重置
@@ -855,6 +861,31 @@ export default function PurchaseAmountAdjustmentPage() {
                 onChange={(e) => setSearchDataUpdateTime(e.target.value)}
                 onPressEnter={handleSearchAll}
               />
+              <Select
+                placeholder="财务审核状态"
+                allowClear
+                style={{ width: 180 }}
+                value={searchFinanceReviewStatus || undefined}
+                onChange={(value) => {
+                  setSearchFinanceReviewStatus(value || '');
+                  // 选择后自动触发查询
+                  setCurrentPage(1);
+                  loadAdjustments(
+                    1,
+                    searchText || undefined,
+                    searchPurchaseOrderNumber || undefined,
+                    searchAdjustmentAmount || undefined,
+                    searchCreator || undefined,
+                    searchFinanceReviewer || undefined,
+                    searchDataUpdateTime || undefined,
+                    value || undefined,
+                  );
+                }}
+                options={[
+                  { label: '审核通过', value: '审核通过' },
+                  { label: '0', value: '0' },
+                ]}
+              />
             </Space>
           </Space>
         </div>
@@ -887,6 +918,7 @@ export default function PurchaseAmountAdjustmentPage() {
                   searchCreator || undefined,
                   searchFinanceReviewer || undefined,
                   searchDataUpdateTime || undefined,
+                  searchFinanceReviewStatus || undefined,
                   size,
                 );
               } else {
@@ -898,6 +930,7 @@ export default function PurchaseAmountAdjustmentPage() {
                   searchCreator || undefined,
                   searchFinanceReviewer || undefined,
                   searchDataUpdateTime || undefined,
+                  searchFinanceReviewStatus || undefined,
                 );
               }
             },
@@ -913,6 +946,7 @@ export default function PurchaseAmountAdjustmentPage() {
                 searchCreator || undefined,
                 searchFinanceReviewer || undefined,
                 searchDataUpdateTime || undefined,
+                searchFinanceReviewStatus || undefined,
                 size,
               );
             },

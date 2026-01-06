@@ -15,7 +15,6 @@ export interface SupplierManagement {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
-  sellerWangwang?: string;
   wangwangMessage?: string;
 }
 
@@ -23,13 +22,12 @@ export interface SupplierFullInfo extends SupplierBasicInfo {
   minOrderAmount?: number;
   minOrderQuantity?: number;
   orderRemarks?: string;
-  sellerWangwang?: string;
   wangwangMessage?: string;
 }
 
 @Controller('suppliers')
 export class SupplierController {
-  constructor(private readonly supplierService: SupplierService) { }
+  constructor(private readonly supplierService: SupplierService) {}
 
   // 获取所有供应商信息（基础信息+管理信息）
   @Get()
