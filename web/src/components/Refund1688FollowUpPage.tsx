@@ -410,7 +410,7 @@ export default function Refund1688FollowUpPage() {
             key: 'selection',
             width: 60,
             fixed: 'left',
-            render: (_, record) => (
+            render: (_: any, record: Refund1688FollowUp) => (
                 <Checkbox
                     checked={selectedRowKeys.includes(record.订单编号)}
                     onChange={(e) => handleSelect(record, e.target.checked)}
@@ -441,7 +441,7 @@ export default function Refund1688FollowUpPage() {
             title: '订单详情',
             key: '订单详情页',
             width: 120,
-            render: (_, record) => (
+            render: (_: any, record: Refund1688FollowUp) => (
                 <Button
                     type="link"
                     icon={<LinkOutlined />}
@@ -458,7 +458,7 @@ export default function Refund1688FollowUpPage() {
             key: '请求获取订单状态',
             width: 180,
             ...({ mobileRequired: true } as any), // 移动端必须显示
-            render: (text, record) => {
+            render: (text: any, record: Refund1688FollowUp) => {
                 if (!record) return '-';
                 return (
                     <Space>
@@ -481,7 +481,7 @@ export default function Refund1688FollowUpPage() {
             key: '请求获取退款状态',
             width: 180,
             ...({ mobileRequired: true } as any), // 移动端必须显示
-            render: (text, record) => {
+            render: (text: any, record: Refund1688FollowUp) => {
                 if (!record) return '-';
                 return (
                     <Space>
@@ -503,7 +503,7 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '进度追踪',
             key: '进度追踪',
             width: 180,
-            render: (text) => {
+            render: (text: any) => {
                 // 如果进度追踪为null或空，显示默认值
                 const displayText = text || '等待商家同意退换';
                 const colors: Record<string, string> = {
@@ -538,7 +538,7 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '跟进情况图片',
             key: '跟进情况图片',
             width: 150,
-            render: (text, record) => {
+            render: (text: any, record: Refund1688FollowUp) => {
                 if (!record) return '-';
                 const orderNo = record.订单编号;
                 const hasImage = record.有跟进情况图片 === 1;
@@ -604,14 +604,14 @@ export default function Refund1688FollowUpPage() {
             dataIndex: '跟进时间',
             key: '跟进时间',
             width: 180,
-            render: (text) => formatDateTime(text),
+            render: (text: any) => formatDateTime(text),
         },
         {
             title: '操作',
             key: 'action',
             width: 150,
             fixed: 'right',
-            render: (_, record) => {
+            render: (_: any, record: Refund1688FollowUp) => {
                 if (!record) return '-';
                 return (
                     canEdit ? (
