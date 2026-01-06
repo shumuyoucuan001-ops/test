@@ -18,6 +18,7 @@ import { OpsActivityDispatchModule } from './ops-activity-dispatch/ops-activity-
 import { OpsExclusionModule } from './ops-exclusion/ops-exclusion.module';
 import { OpsRegularActivityDispatchModule } from './ops-regular-activity-dispatch/ops-regular-activity-dispatch.module';
 import { OpsShelfExclusionModule } from './ops-shelf-exclusion/ops-shelf-exclusion.module';
+import { OssModule } from './oss/oss.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './product/product.module';
 import { PurchaseAmountAdjustmentModule } from './purchase-amount-adjustment/purchase-amount-adjustment.module';
@@ -66,6 +67,7 @@ import { VersionModule } from './version/version.module';
     SupplierConversionRelationModule,
     SupplierQuotationModule,
     TransactionRecordModule,
+    OssModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

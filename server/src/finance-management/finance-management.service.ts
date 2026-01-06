@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
-import { Logger } from '../utils/logger.util';
 import { OperationLogService } from '../operation-log/operation-log.service';
+import { ImageCategory, OssService } from '../oss/oss.service';
+import { Logger } from '../utils/logger.util';
 
 export interface FinanceBill {
     transactionNumber: string; // 交易单号（主键之一）
@@ -15,7 +16,10 @@ export interface FinanceBill {
 
 @Injectable()
 export class FinanceManagementService {
-    constructor(private operationLogService: OperationLogService) {}
+    constructor(
+        private operationLogService: OperationLogService,
+        private ossService: OssService,
+    ) { }
 
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
@@ -208,7 +212,7 @@ export class FinanceManagementService {
                 transactionNumber: row.transactionNumber,
                 qianniuhuaPurchaseNumber: row.qianniuhuaPurchaseNumber,
                 importExceptionRemark: row.importExceptionRemark,
-                image: row.image ? row.image.toString('base64') : null,
+                image: row.image || null, // 直接返回OSS URL
                 modifier: row.modifier,
                 modifyTime: row.modifyTime,
             };
@@ -230,20 +234,41 @@ export class FinanceManagementService {
                 modifier = await this.getDisplayNameByUserId(userId);
             }
 
-            // 处理图片：如果是base64字符串，转换为Buffer
-            let imageBuffer: Buffer | null = null;
+            // 处理图片：如果是base64字符串，上传到OSS获取URL
+            let imageUrl: string | null = null;
             if (data.image) {
                 if (typeof data.image === 'string') {
-                    // base64字符串
-                    imageBuffer = Buffer.from(data.image, 'base64');
+                    // 如果是base64格式，上传到OSS
+                    if (data.image.startsWith('data:image') || (data.image.length > 100 && !data.image.startsWith('http'))) {
+                        try {
+                            imageUrl = await this.ossService.uploadBase64Image(
+                                data.image,
+                                ImageCategory.FINANCE_MANAGEMENT,
+                            );
+                        } catch (error: any) {
+                            Logger.error(`[FinanceManagementService] 图片上传失败: ${error.message}`);
+                            throw new Error(`图片上传失败: ${error.message}`);
+                        }
+                    } else if (data.image.startsWith('http')) {
+                        // 已经是OSS URL
+                        imageUrl = data.image;
+                    }
                 } else if (Buffer.isBuffer(data.image)) {
-                    imageBuffer = data.image;
+                    // Buffer格式，上传到OSS
+                    try {
+                        // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
+                        if (data.image.length > 10 * 1024 * 1024) {
+                            throw new Error('图片大小不能超过10MB');
+                        }
+                        imageUrl = await this.ossService.uploadBufferImage(
+                            data.image,
+                            ImageCategory.FINANCE_MANAGEMENT,
+                        );
+                    } catch (error: any) {
+                        Logger.error(`[FinanceManagementService] 图片上传失败: ${error.message}`);
+                        throw new Error(`图片上传失败: ${error.message}`);
+                    }
                 }
-            }
-
-            // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
-            if (imageBuffer && imageBuffer.length > 10 * 1024 * 1024) {
-                throw new Error('图片大小不能超过10MB');
             }
 
             // 检查是否已存在（根据交易单号和牵牛花采购单号）
@@ -272,7 +297,7 @@ export class FinanceManagementService {
                 data.transactionNumber,
                 data.qianniuhuaPurchaseNumber || null,
                 data.importExceptionRemark || null,
-                imageBuffer,
+                imageUrl,
                 modifier || null,
             ]);
 
@@ -328,19 +353,39 @@ export class FinanceManagementService {
 
             for (const bill of bills) {
                 try {
-                    // 处理图片
-                    let imageBuffer: Buffer | null = null;
+                    // 处理图片：如果是base64字符串，上传到OSS获取URL
+                    let imageUrl: string | null = null;
                     if (bill.image) {
                         if (typeof bill.image === 'string') {
-                            imageBuffer = Buffer.from(bill.image, 'base64');
+                            // 如果是base64格式，上传到OSS
+                            if (bill.image.startsWith('data:image') || (bill.image.length > 100 && !bill.image.startsWith('http'))) {
+                                try {
+                                    imageUrl = await this.ossService.uploadBase64Image(
+                                        bill.image,
+                                        ImageCategory.FINANCE_MANAGEMENT,
+                                    );
+                                } catch (error: any) {
+                                    throw new Error(`交易单号 ${bill.transactionNumber}: 图片上传失败 - ${error.message}`);
+                                }
+                            } else if (bill.image.startsWith('http')) {
+                                // 已经是OSS URL
+                                imageUrl = bill.image;
+                            }
                         } else if (Buffer.isBuffer(bill.image)) {
-                            imageBuffer = bill.image;
+                            // Buffer格式，上传到OSS
+                            try {
+                                // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
+                                if (bill.image.length > 10 * 1024 * 1024) {
+                                    throw new Error(`交易单号 ${bill.transactionNumber}: 图片大小不能超过10MB`);
+                                }
+                                imageUrl = await this.ossService.uploadBufferImage(
+                                    bill.image,
+                                    ImageCategory.FINANCE_MANAGEMENT,
+                                );
+                            } catch (error: any) {
+                                throw new Error(`交易单号 ${bill.transactionNumber}: 图片上传失败 - ${error.message}`);
+                            }
                         }
-                    }
-
-                    // 验证图片大小
-                    if (imageBuffer && imageBuffer.length > 10 * 1024 * 1024) {
-                        throw new Error(`交易单号 ${bill.transactionNumber}: 图片大小不能超过10MB`);
                     }
 
                     // 检查是否已存在（根据交易单号和牵牛花采购单号）
@@ -369,7 +414,7 @@ export class FinanceManagementService {
                         bill.transactionNumber,
                         bill.qianniuhuaPurchaseNumber || null,
                         bill.importExceptionRemark || null,
-                        imageBuffer,
+                        imageUrl,
                         modifier || null,
                     ]);
 
@@ -421,6 +466,12 @@ export class FinanceManagementService {
                 modifier = await this.getDisplayNameByUserId(userId);
             }
 
+            // 先获取原记录（用于删除旧图片）
+            const oldBill = await this.getBill(transactionNumber, qianniuhuaPurchaseNumber);
+            if (!oldBill) {
+                throw new BadRequestException('要更新的记录不存在');
+            }
+
             // 构建更新字段
             const updateFields: string[] = [];
             const updateValues: any[] = [];
@@ -434,23 +485,66 @@ export class FinanceManagementService {
                 updateValues.push(data.importExceptionRemark || null);
             }
             if (data.image !== undefined) {
-                // 处理图片
-                let imageBuffer: Buffer | null = null;
+                // 处理图片：如果是base64字符串，上传到OSS获取URL
+                let imageUrl: string | null = null;
                 if (data.image) {
                     if (typeof data.image === 'string') {
-                        imageBuffer = Buffer.from(data.image, 'base64');
+                        // 如果是base64格式，上传到OSS
+                        if (data.image.startsWith('data:image') || (data.image.length > 100 && !data.image.startsWith('http'))) {
+                            try {
+                                // 删除OSS中的旧图片
+                                if (oldBill.image && typeof oldBill.image === 'string' && oldBill.image.startsWith('http')) {
+                                    await this.ossService.deleteImage(oldBill.image);
+                                }
+                                imageUrl = await this.ossService.uploadBase64Image(
+                                    data.image,
+                                    ImageCategory.FINANCE_MANAGEMENT,
+                                );
+                            } catch (error: any) {
+                                Logger.error(`[FinanceManagementService] 图片上传失败: ${error.message}`);
+                                throw new Error(`图片上传失败: ${error.message}`);
+                            }
+                        } else if (data.image.startsWith('http')) {
+                            // 已经是OSS URL
+                            imageUrl = data.image;
+                        } else if (data.image === '') {
+                            // 空字符串表示要清空
+                            imageUrl = null;
+                            // 删除OSS中的旧图片
+                            if (oldBill.image && typeof oldBill.image === 'string' && oldBill.image.startsWith('http')) {
+                                await this.ossService.deleteImage(oldBill.image);
+                            }
+                        }
                     } else if (Buffer.isBuffer(data.image)) {
-                        imageBuffer = data.image;
+                        // Buffer格式，上传到OSS
+                        try {
+                            // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
+                            if (data.image.length > 10 * 1024 * 1024) {
+                                throw new Error('图片大小不能超过10MB');
+                            }
+                            // 删除OSS中的旧图片
+                            if (oldBill.image && typeof oldBill.image === 'string' && oldBill.image.startsWith('http')) {
+                                await this.ossService.deleteImage(oldBill.image);
+                            }
+                            imageUrl = await this.ossService.uploadBufferImage(
+                                data.image,
+                                ImageCategory.FINANCE_MANAGEMENT,
+                            );
+                        } catch (error: any) {
+                            Logger.error(`[FinanceManagementService] 图片上传失败: ${error.message}`);
+                            throw new Error(`图片上传失败: ${error.message}`);
+                        }
+                    }
+                } else {
+                    // data.image为null或undefined，表示要清空
+                    // 删除OSS中的旧图片
+                    if (oldBill.image && typeof oldBill.image === 'string' && oldBill.image.startsWith('http')) {
+                        await this.ossService.deleteImage(oldBill.image);
                     }
                 }
 
-                // 验证图片大小
-                if (imageBuffer && imageBuffer.length > 10 * 1024 * 1024) {
-                    throw new Error('图片大小不能超过10MB');
-                }
-
                 updateFields.push('图片 = ?');
-                updateValues.push(imageBuffer);
+                updateValues.push(imageUrl);
             }
 
             // 如果有修改，更新修改人和修改时间
@@ -479,9 +573,6 @@ export class FinanceManagementService {
         WHERE ${whereClause}
       `;
 
-            // 先获取原记录
-            const oldBill = await this.getBill(transactionNumber, qianniuhuaPurchaseNumber);
-            
             await connection.execute(updateQuery, updateValues);
 
             const bill = await this.getBill(transactionNumber, data.qianniuhuaPurchaseNumber || qianniuhuaPurchaseNumber);

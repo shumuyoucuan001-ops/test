@@ -323,11 +323,15 @@ export default function NonPurchaseBillRecordPage() {
       try {
         const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
         if (fullRecord && fullRecord.图片) {
+          // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
+          const imageUrl = fullRecord.图片.startsWith('http')
+            ? fullRecord.图片
+            : `data:image/jpeg;base64,${fullRecord.图片}`;
           setImageFileList([{
             uid: '-1',
             name: 'image.jpg',
             status: 'done',
-            url: `data:image/jpeg;base64,${fullRecord.图片}`,
+            url: imageUrl,
           }]);
           // 在表单中设置图片字段（用于判断是否清空）
           form.setFieldValue('image', fullRecord.图片);
@@ -353,7 +357,11 @@ export default function NonPurchaseBillRecordPage() {
       try {
         const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
         if (fullRecord && fullRecord.图片) {
-          setPreviewImage(`data:image/jpeg;base64,${fullRecord.图片}`);
+          // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
+          const imageUrl = fullRecord.图片.startsWith('http')
+            ? fullRecord.图片
+            : `data:image/jpeg;base64,${fullRecord.图片}`;
+          setPreviewImage(imageUrl);
           setPreviewVisible(true);
         } else {
           message.info('该记录没有图片');
@@ -375,10 +383,14 @@ export default function NonPurchaseBillRecordPage() {
         // 新上传的图片
         imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
       } else if (imageFileList.length > 0 && imageFileList[0].url) {
-        // 编辑时，如果图片没有变化，使用原有的base64
+        // 编辑时，如果图片没有变化，使用原有的值
         const url = imageFileList[0].url;
         if (url.startsWith('data:image')) {
+          // base64格式，提取base64部分
           imageBase64 = url.split(',')[1];
+        } else if (url.startsWith('http')) {
+          // OSS URL，直接使用URL
+          imageBase64 = url;
         }
       } else {
         // 图片被清空或没有图片

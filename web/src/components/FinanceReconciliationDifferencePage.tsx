@@ -2080,10 +2080,14 @@ export default function FinanceReconciliationDifferencePage() {
         // 新上传的图片
         imageBase64 = await fileToBase64(nonPurchaseRecordImageFileList[0].originFileObj);
       } else if (nonPurchaseRecordImageFileList.length > 0 && nonPurchaseRecordImageFileList[0].url) {
-        // 编辑时，如果图片没有变化，使用原有的base64
+        // 编辑时，如果图片没有变化，使用原有的值
         const url = nonPurchaseRecordImageFileList[0].url;
         if (url.startsWith('data:image')) {
+          // base64格式，提取base64部分
           imageBase64 = url.split(',')[1];
+        } else if (url.startsWith('http')) {
+          // OSS URL，直接使用URL
+          imageBase64 = url;
         }
       } else {
         // 图片被清空或没有图片
@@ -3427,7 +3431,9 @@ export default function FinanceReconciliationDifferencePage() {
                   return (
                     <Image
                       width={50}
-                      src={`data:image/jpeg;base64,${record.image}`}
+                      src={record.image?.startsWith('http')
+                        ? record.image
+                        : `data:image/jpeg;base64,${record.image}`}
                       preview={{
                         mask: <EyeOutlined />,
                       }}
@@ -3509,7 +3515,9 @@ export default function FinanceReconciliationDifferencePage() {
                   return (
                     <Image
                       width={50}
-                      src={`data:image/jpeg;base64,${record.image}`}
+                      src={record.image?.startsWith('http')
+                        ? record.image
+                        : `data:image/jpeg;base64,${record.image}`}
                       preview={{
                         mask: <EyeOutlined />,
                       }}

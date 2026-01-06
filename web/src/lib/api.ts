@@ -934,7 +934,7 @@ export interface Refund1688FollowUp {
   差异单出库单详情?: string;
   跟进相关附件?: string;
   牵牛花物流单号?: string;
-  跟进情况图片?: string; // 列表查询时不返回，需要通过单独接口查询（原发货截图）
+  跟进情况图片?: string; // 图片（OSS URL），列表查询时不返回，需要通过单独接口查询
   有跟进情况图片?: number; // 列表查询时返回，0表示无图片，1表示有图片
   跟进人?: string;
   跟进时间?: string; // 最后编辑时间
@@ -994,7 +994,7 @@ export interface FinanceBill {
   transactionNumber: string; // 交易单号（主键之一）
   qianniuhuaPurchaseNumber?: string; // 牵牛花采购单号（主键之一）
   importExceptionRemark?: string; // 导入异常备注
-  image?: string; // 图片（base64）
+  image?: string; // 图片（OSS URL）
   modifier?: string; // 修改人
   modifyTime?: string; // 修改时间
   hasImage?: number; // 是否有图片（0: 无, 1: 有）
@@ -1162,7 +1162,7 @@ export interface NonPurchaseBillRecord {
   账单类型?: string;
   所属仓店?: string;
   账单流水备注?: string;
-  图片?: string; // base64编码的图片数据
+  图片?: string; // 图片（OSS URL）
   财务记账凭证号?: string;
   财务审核状态?: string;
   记录修改人?: string;
@@ -1222,7 +1222,7 @@ export interface PurchaseAmountAdjustment {
   purchaseOrderNumber: string; // 采购单号(牵牛花)（主键）
   adjustmentAmount?: number; // 调整金额
   adjustmentReason?: string; // 异常调整原因备注
-  image?: string; // 图片（base64）
+  image?: string; // 图片（OSS URL）
   financeReviewRemark?: string; // 财务审核意见备注
   financeReviewStatus?: string; // 财务审核状态
   creator?: string; // 创建人

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { OperationLogService } from '../operation-log/operation-log.service';
+import { ImageCategory, OssService } from '../oss/oss.service';
 import { Logger } from '../utils/logger.util';
 
 export interface PurchaseAmountAdjustment {
@@ -18,7 +19,10 @@ export interface PurchaseAmountAdjustment {
 
 @Injectable()
 export class PurchaseAmountAdjustmentService {
-    constructor(private operationLogService: OperationLogService) { }
+    constructor(
+        private operationLogService: OperationLogService,
+        private ossService: OssService,
+    ) { }
 
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
@@ -200,7 +204,7 @@ export class PurchaseAmountAdjustmentService {
                 purchaseOrderNumber: row.purchaseOrderNumber,
                 adjustmentAmount: row.adjustmentAmount ? parseFloat(row.adjustmentAmount) : undefined,
                 adjustmentReason: row.adjustmentReason,
-                image: row.image ? row.image.toString('base64') : null,
+                image: row.image || null, // 直接返回OSS URL
                 financeReviewRemark: row.financeReviewRemark,
                 financeReviewStatus: row.financeReviewStatus,
                 creator: row.creator,
@@ -223,20 +227,41 @@ export class PurchaseAmountAdjustmentService {
                 creator = await this.getDisplayNameByUserId(userId);
             }
 
-            // 处理图片：如果是base64字符串，转换为Buffer
-            let imageBuffer: Buffer | null = null;
+            // 处理图片：如果是base64字符串，上传到OSS获取URL
+            let imageUrl: string | null = null;
             if (data.image) {
                 if (typeof data.image === 'string') {
-                    // base64字符串
-                    imageBuffer = Buffer.from(data.image, 'base64');
+                    // 如果是base64格式，上传到OSS
+                    if (data.image.startsWith('data:image') || (data.image.length > 100 && !data.image.startsWith('http'))) {
+                        try {
+                            imageUrl = await this.ossService.uploadBase64Image(
+                                data.image,
+                                ImageCategory.PURCHASE_AMOUNT_ADJUSTMENT,
+                            );
+                        } catch (error: any) {
+                            Logger.error(`[PurchaseAmountAdjustmentService] 图片上传失败: ${error.message}`);
+                            throw new Error(`图片上传失败: ${error.message}`);
+                        }
+                    } else if (data.image.startsWith('http')) {
+                        // 已经是OSS URL
+                        imageUrl = data.image;
+                    }
                 } else if (Buffer.isBuffer(data.image)) {
-                    imageBuffer = data.image;
+                    // Buffer格式，上传到OSS
+                    try {
+                        // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
+                        if (data.image.length > 10 * 1024 * 1024) {
+                            throw new Error('图片大小不能超过10MB');
+                        }
+                        imageUrl = await this.ossService.uploadBufferImage(
+                            data.image,
+                            ImageCategory.PURCHASE_AMOUNT_ADJUSTMENT,
+                        );
+                    } catch (error: any) {
+                        Logger.error(`[PurchaseAmountAdjustmentService] 图片上传失败: ${error.message}`);
+                        throw new Error(`图片上传失败: ${error.message}`);
+                    }
                 }
-            }
-
-            // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
-            if (imageBuffer && imageBuffer.length > 10 * 1024 * 1024) {
-                throw new Error('图片大小不能超过10MB');
             }
 
             // 检查是否已存在（根据采购单号(牵牛花)）
@@ -257,7 +282,7 @@ export class PurchaseAmountAdjustmentService {
                 data.purchaseOrderNumber,
                 data.adjustmentAmount || null,
                 data.adjustmentReason || null,
-                imageBuffer,
+                imageUrl,
                 data.financeReviewRemark || null,
                 data.financeReviewStatus || '0', // 新增时默认为"0"
                 creator || null,
@@ -311,19 +336,39 @@ export class PurchaseAmountAdjustmentService {
 
             for (const adjustment of adjustments) {
                 try {
-                    // 处理图片
-                    let imageBuffer: Buffer | null = null;
+                    // 处理图片：如果是base64字符串，上传到OSS获取URL
+                    let imageUrl: string | null = null;
                     if (adjustment.image) {
                         if (typeof adjustment.image === 'string') {
-                            imageBuffer = Buffer.from(adjustment.image, 'base64');
+                            // 如果是base64格式，上传到OSS
+                            if (adjustment.image.startsWith('data:image') || (adjustment.image.length > 100 && !adjustment.image.startsWith('http'))) {
+                                try {
+                                    imageUrl = await this.ossService.uploadBase64Image(
+                                        adjustment.image,
+                                        ImageCategory.PURCHASE_AMOUNT_ADJUSTMENT,
+                                    );
+                                } catch (error: any) {
+                                    throw new Error(`采购单号 ${adjustment.purchaseOrderNumber}: 图片上传失败 - ${error.message}`);
+                                }
+                            } else if (adjustment.image.startsWith('http')) {
+                                // 已经是OSS URL
+                                imageUrl = adjustment.image;
+                            }
                         } else if (Buffer.isBuffer(adjustment.image)) {
-                            imageBuffer = adjustment.image;
+                            // Buffer格式，上传到OSS
+                            try {
+                                // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
+                                if (adjustment.image.length > 10 * 1024 * 1024) {
+                                    throw new Error(`采购单号 ${adjustment.purchaseOrderNumber}: 图片大小不能超过10MB`);
+                                }
+                                imageUrl = await this.ossService.uploadBufferImage(
+                                    adjustment.image,
+                                    ImageCategory.PURCHASE_AMOUNT_ADJUSTMENT,
+                                );
+                            } catch (error: any) {
+                                throw new Error(`采购单号 ${adjustment.purchaseOrderNumber}: 图片上传失败 - ${error.message}`);
+                            }
                         }
-                    }
-
-                    // 验证图片大小
-                    if (imageBuffer && imageBuffer.length > 10 * 1024 * 1024) {
-                        throw new Error(`采购单号 ${adjustment.purchaseOrderNumber}: 图片大小不能超过10MB`);
                     }
 
                     // 检查是否已存在（根据采购单号(牵牛花)）
@@ -344,7 +389,7 @@ export class PurchaseAmountAdjustmentService {
                         adjustment.purchaseOrderNumber,
                         adjustment.adjustmentAmount || null,
                         adjustment.adjustmentReason || null,
-                        imageBuffer,
+                        imageUrl,
                         adjustment.financeReviewRemark || null,
                         adjustment.financeReviewStatus || '0', // 批量新增时默认为"0"
                         creator || null,
@@ -388,6 +433,12 @@ export class PurchaseAmountAdjustmentService {
         const connection = await this.getConnection();
 
         try {
+            // 先获取原记录（用于删除旧图片）
+            const oldAdjustment = await this.getAdjustment(purchaseOrderNumber);
+            if (!oldAdjustment) {
+                throw new BadRequestException('要更新的记录不存在');
+            }
+
             // 构建更新字段
             const updateFields: string[] = [];
             const updateValues: any[] = [];
@@ -401,23 +452,66 @@ export class PurchaseAmountAdjustmentService {
                 updateValues.push(data.adjustmentReason || null);
             }
             if (data.image !== undefined) {
-                // 处理图片
-                let imageBuffer: Buffer | null = null;
+                // 处理图片：如果是base64字符串，上传到OSS获取URL
+                let imageUrl: string | null = null;
                 if (data.image) {
                     if (typeof data.image === 'string') {
-                        imageBuffer = Buffer.from(data.image, 'base64');
+                        // 如果是base64格式，上传到OSS
+                        if (data.image.startsWith('data:image') || (data.image.length > 100 && !data.image.startsWith('http'))) {
+                            try {
+                                // 删除OSS中的旧图片
+                                if (oldAdjustment.image && typeof oldAdjustment.image === 'string' && oldAdjustment.image.startsWith('http')) {
+                                    await this.ossService.deleteImage(oldAdjustment.image);
+                                }
+                                imageUrl = await this.ossService.uploadBase64Image(
+                                    data.image,
+                                    ImageCategory.PURCHASE_AMOUNT_ADJUSTMENT,
+                                );
+                            } catch (error: any) {
+                                Logger.error(`[PurchaseAmountAdjustmentService] 图片上传失败: ${error.message}`);
+                                throw new Error(`图片上传失败: ${error.message}`);
+                            }
+                        } else if (data.image.startsWith('http')) {
+                            // 已经是OSS URL
+                            imageUrl = data.image;
+                        } else if (data.image === '') {
+                            // 空字符串表示要清空
+                            imageUrl = null;
+                            // 删除OSS中的旧图片
+                            if (oldAdjustment.image && typeof oldAdjustment.image === 'string' && oldAdjustment.image.startsWith('http')) {
+                                await this.ossService.deleteImage(oldAdjustment.image);
+                            }
+                        }
                     } else if (Buffer.isBuffer(data.image)) {
-                        imageBuffer = data.image;
+                        // Buffer格式，上传到OSS
+                        try {
+                            // 验证图片大小（10MB = 10 * 1024 * 1024 bytes）
+                            if (data.image.length > 10 * 1024 * 1024) {
+                                throw new Error('图片大小不能超过10MB');
+                            }
+                            // 删除OSS中的旧图片
+                            if (oldAdjustment.image && typeof oldAdjustment.image === 'string' && oldAdjustment.image.startsWith('http')) {
+                                await this.ossService.deleteImage(oldAdjustment.image);
+                            }
+                            imageUrl = await this.ossService.uploadBufferImage(
+                                data.image,
+                                ImageCategory.PURCHASE_AMOUNT_ADJUSTMENT,
+                            );
+                        } catch (error: any) {
+                            Logger.error(`[PurchaseAmountAdjustmentService] 图片上传失败: ${error.message}`);
+                            throw new Error(`图片上传失败: ${error.message}`);
+                        }
+                    }
+                } else {
+                    // data.image为null或undefined，表示要清空
+                    // 删除OSS中的旧图片
+                    if (oldAdjustment.image && typeof oldAdjustment.image === 'string' && oldAdjustment.image.startsWith('http')) {
+                        await this.ossService.deleteImage(oldAdjustment.image);
                     }
                 }
 
-                // 验证图片大小
-                if (imageBuffer && imageBuffer.length > 10 * 1024 * 1024) {
-                    throw new Error('图片大小不能超过10MB');
-                }
-
                 updateFields.push('`图片` = ?');
-                updateValues.push(imageBuffer);
+                updateValues.push(imageUrl);
             }
             if (data.financeReviewRemark !== undefined) {
                 updateFields.push('`财务审核意见备注` = ?');
@@ -443,12 +537,6 @@ export class PurchaseAmountAdjustmentService {
         SET ${updateFields.join(', ')}
         WHERE \`采购单号(牵牛花)\` = ?
       `;
-
-            // 先获取原记录
-            const oldAdjustment = await this.getAdjustment(purchaseOrderNumber);
-            if (!oldAdjustment) {
-                throw new BadRequestException('要更新的记录不存在');
-            }
 
             await connection.execute(updateQuery, updateValues);
 

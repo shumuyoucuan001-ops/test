@@ -265,11 +265,15 @@ export default function PurchaseAmountAdjustmentPage() {
       try {
         const fullAdjustment = await purchaseAmountAdjustmentApi.get(adjustment.purchaseOrderNumber);
         if (fullAdjustment && fullAdjustment.image) {
+          // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
+          const imageUrl = fullAdjustment.image.startsWith('http')
+            ? fullAdjustment.image
+            : `data:image/png;base64,${fullAdjustment.image}`;
           setImageFileList([{
             uid: '-1',
             name: 'image.png',
             status: 'done',
-            url: `data:image/png;base64,${fullAdjustment.image}`,
+            url: imageUrl,
           }]);
           // 在表单中设置图片字段（用于判断是否清空）
           form.setFieldsValue({ image: fullAdjustment.image });
@@ -336,10 +340,14 @@ export default function PurchaseAmountAdjustmentPage() {
         // 新上传的图片
         imageBase64 = await fileToBase64(imageFileList[0].originFileObj);
       } else if (imageFileList.length > 0 && imageFileList[0].url) {
-        // 编辑时，如果图片没有变化，使用原有的base64
+        // 编辑时，如果图片没有变化，使用原有的值
         const url = imageFileList[0].url;
         if (url.startsWith('data:image')) {
+          // base64格式，提取base64部分
           imageBase64 = url.split(',')[1];
+        } else if (url.startsWith('http')) {
+          // OSS URL，直接使用URL
+          imageBase64 = url;
         }
       } else {
         // 图片被清空或没有图片
@@ -536,7 +544,11 @@ export default function PurchaseAmountAdjustmentPage() {
       try {
         const fullAdjustment = await purchaseAmountAdjustmentApi.get(adjustment.purchaseOrderNumber);
         if (fullAdjustment && fullAdjustment.image) {
-          setPreviewImage(`data:image/png;base64,${fullAdjustment.image}`);
+          // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
+          const imageUrl = fullAdjustment.image.startsWith('http')
+            ? fullAdjustment.image
+            : `data:image/png;base64,${fullAdjustment.image}`;
+          setPreviewImage(imageUrl);
           setPreviewVisible(true);
         } else {
           message.info('该记录没有图片');

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { OperationLogService } from '../operation-log/operation-log.service';
+import { ImageCategory, OssService } from '../oss/oss.service';
 import { Logger } from '../utils/logger.util';
 
 export interface NonPurchaseBillRecord {
@@ -20,7 +21,10 @@ export interface NonPurchaseBillRecord {
 
 @Injectable()
 export class NonPurchaseBillRecordService {
-    constructor(private operationLogService: OperationLogService) { }
+    constructor(
+        private operationLogService: OperationLogService,
+        private ossService: OssService,
+    ) { }
 
     private async getConnection() {
         if (!process.env.DB_PASSWORD) {
@@ -156,7 +160,7 @@ export class NonPurchaseBillRecordService {
                     账单类型: row.账单类型 || undefined,
                     所属仓店: row.所属仓店 || undefined,
                     账单流水备注: row.账单流水备注 || undefined,
-                    图片: row.图片 ? Buffer.from(row.图片).toString('base64') : undefined,
+                    图片: row.图片 || undefined, // 直接返回OSS URL
                     财务记账凭证号: row.财务记账凭证号 || undefined,
                     财务审核状态: row.财务审核状态 || undefined,
                     记录修改人: row.记录修改人 || undefined,
@@ -210,7 +214,7 @@ export class NonPurchaseBillRecordService {
                 账单类型: row.账单类型 || undefined,
                 所属仓店: row.所属仓店 || undefined,
                 账单流水备注: row.账单流水备注 || undefined,
-                图片: row.图片 ? Buffer.from(row.图片).toString('base64') : undefined,
+                图片: row.图片 || undefined, // 直接返回OSS URL
                 财务记账凭证号: row.财务记账凭证号 || undefined,
                 财务审核状态: row.财务审核状态 || undefined,
                 记录修改人: row.记录修改人 || undefined,
@@ -251,10 +255,24 @@ export class NonPurchaseBillRecordService {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
-            // 处理图片：将base64字符串转换为Buffer
-            let imageBuffer: Buffer | null = null;
+            // 处理图片：如果是base64字符串，上传到OSS获取URL
+            let imageUrl: string | null = null;
             if (data.图片) {
-                imageBuffer = Buffer.from(data.图片, 'base64');
+                if (data.图片.startsWith('data:image') || (data.图片.length > 100 && !data.图片.startsWith('http'))) {
+                    // base64格式，上传到OSS
+                    try {
+                        imageUrl = await this.ossService.uploadBase64Image(
+                            data.图片,
+                            ImageCategory.NON_PURCHASE_BILL_RECORD,
+                        );
+                    } catch (error: any) {
+                        Logger.error(`[NonPurchaseBillRecordService] 图片上传失败: ${error.message}`);
+                        throw new Error(`图片上传失败: ${error.message}`);
+                    }
+                } else if (data.图片.startsWith('http')) {
+                    // 已经是OSS URL
+                    imageUrl = data.图片;
+                }
             }
 
             await connection.execute(insertQuery, [
@@ -263,7 +281,7 @@ export class NonPurchaseBillRecordService {
                 data.账单类型 || null,
                 data.所属仓店 || null,
                 data.账单流水备注 || null,
-                imageBuffer,
+                imageUrl,
                 data.财务记账凭证号 || null,
                 data.财务审核状态 || '0', // 新增时默认为"0"
                 记录修改人 || null,
@@ -331,10 +349,23 @@ export class NonPurchaseBillRecordService {
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     `;
 
-                    // 处理图片：将base64字符串转换为Buffer
-                    let imageBuffer: Buffer | null = null;
+                    // 处理图片：如果是base64字符串，上传到OSS获取URL
+                    let imageUrl: string | null = null;
                     if (record.图片) {
-                        imageBuffer = Buffer.from(record.图片, 'base64');
+                        if (record.图片.startsWith('data:image') || (record.图片.length > 100 && !record.图片.startsWith('http'))) {
+                            // base64格式，上传到OSS
+                            try {
+                                imageUrl = await this.ossService.uploadBase64Image(
+                                    record.图片,
+                                    ImageCategory.NON_PURCHASE_BILL_RECORD,
+                                );
+                            } catch (error: any) {
+                                throw new Error(`账单流水 ${record.账单流水}: 图片上传失败 - ${error.message}`);
+                            }
+                        } else if (record.图片.startsWith('http')) {
+                            // 已经是OSS URL
+                            imageUrl = record.图片;
+                        }
                     }
 
                     await connection.execute(insertQuery, [
@@ -343,7 +374,7 @@ export class NonPurchaseBillRecordService {
                         record.账单类型 || null,
                         record.所属仓店 || null,
                         record.账单流水备注 || null,
-                        imageBuffer,
+                        imageUrl,
                         record.财务记账凭证号 || null,
                         record.财务审核状态 || '0', // 批量新增时默认为"0"
                         记录修改人 || null,
@@ -396,6 +427,12 @@ export class NonPurchaseBillRecordService {
                 记录修改人 = await this.getDisplayNameByUserId(userId);
             }
 
+            // 先获取原记录（用于删除旧图片）
+            const oldRecord = await this.getRecord(账单流水);
+            if (!oldRecord) {
+                throw new BadRequestException('要更新的记录不存在');
+            }
+
             // 构建更新字段
             const updateFields: string[] = [];
             const updateValues: any[] = [];
@@ -417,14 +454,37 @@ export class NonPurchaseBillRecordService {
                 updateValues.push(data.账单流水备注 || null);
             }
             if (data.图片 !== undefined) {
-                updateFields.push('图片 = ?');
-                // 处理图片：将base64字符串转换为Buffer
+                // 处理图片：如果是base64字符串，上传到OSS获取URL
+                let imageUrl: string | null = null;
                 if (data.图片 && data.图片 !== '') {
-                    updateValues.push(Buffer.from(data.图片, 'base64'));
+                    if (data.图片.startsWith('data:image') || (data.图片.length > 100 && !data.图片.startsWith('http'))) {
+                        // base64格式，上传到OSS
+                        try {
+                            // 删除OSS中的旧图片
+                            if (oldRecord.图片 && typeof oldRecord.图片 === 'string' && oldRecord.图片.startsWith('http')) {
+                                await this.ossService.deleteImage(oldRecord.图片);
+                            }
+                            imageUrl = await this.ossService.uploadBase64Image(
+                                data.图片,
+                                ImageCategory.NON_PURCHASE_BILL_RECORD,
+                            );
+                        } catch (error: any) {
+                            Logger.error(`[NonPurchaseBillRecordService] 图片上传失败: ${error.message}`);
+                            throw new Error(`图片上传失败: ${error.message}`);
+                        }
+                    } else if (data.图片.startsWith('http')) {
+                        // 已经是OSS URL
+                        imageUrl = data.图片;
+                    }
                 } else {
                     // 空字符串或undefined/null都表示清空图片
-                    updateValues.push(null);
+                    // 删除OSS中的旧图片
+                    if (oldRecord.图片 && typeof oldRecord.图片 === 'string' && oldRecord.图片.startsWith('http')) {
+                        await this.ossService.deleteImage(oldRecord.图片);
+                    }
                 }
+                updateFields.push('图片 = ?');
+                updateValues.push(imageUrl);
             }
             if (data.财务记账凭证号 !== undefined) {
                 updateFields.push('财务记账凭证号 = ?');
@@ -456,12 +516,6 @@ export class NonPurchaseBillRecordService {
                 SET ${updateFields.join(', ')}
                 WHERE 账单流水 = ?
             `;
-
-            // 先获取原记录
-            const oldRecord = await this.getRecord(账单流水);
-            if (!oldRecord) {
-                throw new BadRequestException('要更新的记录不存在');
-            }
 
             await connection.execute(updateQuery, updateValues);
 

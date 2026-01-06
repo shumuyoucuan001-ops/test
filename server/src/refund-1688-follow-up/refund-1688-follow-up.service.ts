@@ -3,6 +3,7 @@ import axios from 'axios';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 import { OperationLogService } from '../operation-log/operation-log.service';
+import { OssService, ImageCategory } from '../oss/oss.service';
 
 export interface Refund1688FollowUp {
   订单编号: string; // 主键
@@ -27,7 +28,10 @@ export interface Refund1688FollowUp {
 
 @Injectable()
 export class Refund1688FollowUpService {
-  constructor(private operationLogService: OperationLogService) {}
+  constructor(
+    private operationLogService: OperationLogService,
+    private ossService: OssService,
+  ) {}
   private async getChaigouConnection() {
     if (!process.env.DB_PASSWORD) {
       throw new Error('DB_PASSWORD environment variable is required');
@@ -308,12 +312,42 @@ export class Refund1688FollowUpService {
         if (key in data) {
           const value = data[key as keyof Refund1688FollowUp];
           const oldValue = originalData ? originalData[dbField] : undefined;
-          // 对于跟进情况图片字段，空字符串表示要清空
-          if (key === '跟进情况图片' && value === '') {
-            updateFields.push(`\`${dbField}\` = ?`);
-            updateValues.push(null); // 使用 null 来清空数据库字段
-            if (String(oldValue) !== '') {
-              changes[key] = { old: oldValue, new: null };
+          // 对于跟进情况图片字段，处理base64上传到OSS
+          if (key === '跟进情况图片') {
+            if (value === '') {
+              // 空字符串表示要清空
+              updateFields.push(`\`${dbField}\` = ?`);
+              updateValues.push(null);
+              if (String(oldValue) !== '') {
+                changes[key] = { old: oldValue, new: null };
+              }
+              // 删除OSS中的旧图片
+              if (oldValue && typeof oldValue === 'string' && oldValue.startsWith('http')) {
+                await this.ossService.deleteImage(oldValue);
+              }
+            } else if (value && typeof value === 'string') {
+              let imageUrl = value;
+              // 如果是base64格式，上传到OSS
+              if (value.startsWith('data:image') || (value.length > 100 && !value.startsWith('http'))) {
+                try {
+                  imageUrl = await this.ossService.uploadBase64Image(
+                    value,
+                    ImageCategory.REFUND_1688_FOLLOW_UP,
+                  );
+                  // 删除OSS中的旧图片
+                  if (oldValue && typeof oldValue === 'string' && oldValue.startsWith('http')) {
+                    await this.ossService.deleteImage(oldValue);
+                  }
+                } catch (error: any) {
+                  Logger.error(`[Refund1688FollowUpService] 图片上传失败: ${error.message}`);
+                  throw new Error(`图片上传失败: ${error.message}`);
+                }
+              }
+              updateFields.push(`\`${dbField}\` = ?`);
+              updateValues.push(imageUrl);
+              if (String(oldValue) !== String(imageUrl)) {
+                changes[key] = { old: oldValue, new: imageUrl };
+              }
             }
           } else if (value !== undefined) {
             updateFields.push(`\`${dbField}\` = ?`);
@@ -640,7 +674,7 @@ export class Refund1688FollowUpService {
     const connection = await this.getChaigouConnection();
     try {
       const [rows] = await connection.execute(
-        `SELECT CAST(\`跟进情况/图片\` AS CHAR) as 跟进情况图片 FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
+        `SELECT \`跟进情况/图片\` as 跟进情况图片 FROM \`sm_chaigou\`.\`1688退款售后\` WHERE \`订单编号\` = ?`,
         [orderNo],
       );
 
@@ -649,6 +683,7 @@ export class Refund1688FollowUpService {
 
       Logger.log(`[Refund1688FollowUpService] 查询跟进情况图片: 订单编号=${orderNo}, 是否有图片=${!!image}`);
 
+      // 直接返回OSS URL（不再需要base64转换）
       return { 跟进情况图片: image };
     } catch (error: any) {
       Logger.error('[Refund1688FollowUpService] 获取跟进情况图片失败:', error?.message || error);
