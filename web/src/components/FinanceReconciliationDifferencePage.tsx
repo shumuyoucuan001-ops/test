@@ -141,6 +141,9 @@ export default function FinanceReconciliationDifferencePage() {
   // 左右框高度（百分比，相对于下部分容器）
   const [detailPanelsHeight, setDetailPanelsHeight] = useState<number>(40);
 
+  // 生成对账单按钮loading状态
+  const [generatingBill, setGeneratingBill] = useState<boolean>(false);
+
   // 左右框宽度（百分比，左侧宽度，右侧自动计算）
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(50);
 
@@ -2339,6 +2342,42 @@ export default function FinanceReconciliationDifferencePage() {
               style={{ fontSize: '12px' }}
             >
               搜索
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlusOutlined />}
+              loading={generatingBill}
+              onClick={async () => {
+                if (generatingBill) return; // 防止重复点击
+
+                setGeneratingBill(true);
+                try {
+                  message.loading({ content: '正在生成对账单，请稍候...', key: 'generateBill', duration: 2 });
+                  const result = await financeReconciliationDifferenceApi.generateBill();
+                  message.success({
+                    content: result.message || '对账单生成成功',
+                    key: 'generateBill',
+                    duration: 4,
+                  });
+                  // 生成成功后刷新数据
+                  setTimeout(() => {
+                    handleSearchAll();
+                  }, 500);
+                } catch (error: any) {
+                  message.error({
+                    content: error?.response?.data?.message || error?.message || '生成对账单失败',
+                    key: 'generateBill',
+                    duration: 5,
+                  });
+                  console.error('生成对账单失败:', error);
+                } finally {
+                  setGeneratingBill(false);
+                }
+              }}
+              style={{ fontSize: '12px' }}
+            >
+              生成对账单
             </Button>
             <Popover
               content={

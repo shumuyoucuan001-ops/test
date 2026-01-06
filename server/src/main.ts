@@ -9,6 +9,13 @@ async function bootstrap() {
   try {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+    // 设置服务器超时时间为10分钟（600秒），用于支持长时间运行的存储过程
+    app.use((req, res, next) => {
+      req.setTimeout(600000); // 10分钟
+      res.setTimeout(600000); // 10分钟
+      next();
+    });
+
     // 确保所有 HTTP 方法（包括 DELETE）都能正确解析 JSON body，并放宽请求体大小限制以支持图片等大字段
     app.use(express.json({ limit: '10mb' }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));

@@ -33,6 +33,7 @@ export class FinanceReconciliationDifferenceService {
             password: process.env.DB_PASSWORD,
             database: 'sm_zhangdan_caiwu',
             port: parseInt(process.env.DB_PORT || '3306'),
+            connectTimeout: 60000, // 连接超时60秒
         });
     }
 
@@ -544,6 +545,73 @@ export class FinanceReconciliationDifferenceService {
             throw error;
         } finally {
             await connection.end();
+        }
+    }
+
+    // 调用存储过程：快速生成对账单
+    async generateReconciliationBill(): Promise<{ success: boolean; message: string }> {
+        const connection = await this.getConnection();
+
+        try {
+            Logger.log('[FinanceReconciliationDifferenceService] 开始调用存储过程: sm_zhangdan_caiwu.快速生成对账单');
+
+            // 设置查询超时时间为5分钟（300秒），确保存储过程有足够时间执行
+            await connection.query('SET SESSION wait_timeout = 300');
+            await connection.query('SET SESSION interactive_timeout = 300');
+
+            // 调用存储过程 - 存储过程可能返回多个结果集，需要正确处理
+            // 使用query方法，它会返回一个数组，第一个元素是结果集数组，第二个元素是字段信息数组
+            // 注意：存储过程执行可能需要较长时间（3分钟左右），这里会等待执行完成
+            Logger.log('[FinanceReconciliationDifferenceService] 正在执行存储过程，请稍候...');
+
+            try {
+                const result: any = await connection.query('CALL `sm_zhangdan_caiwu`.`快速生成对账单`()');
+
+                // 记录返回结果的结构（用于调试，但不序列化整个结果，避免日志过大）
+                Logger.log('[FinanceReconciliationDifferenceService] 存储过程执行成功，返回结果类型:', typeof result);
+                Logger.log('[FinanceReconciliationDifferenceService] 返回结果是否为数组:', Array.isArray(result));
+                if (Array.isArray(result)) {
+                    Logger.log('[FinanceReconciliationDifferenceService] 返回结果长度:', result.length);
+                    if (result.length > 0) {
+                        Logger.log('[FinanceReconciliationDifferenceService] 第一个元素类型:', typeof result[0]);
+                        Logger.log('[FinanceReconciliationDifferenceService] 第一个元素是否为数组:', Array.isArray(result[0]));
+                    }
+                }
+            } catch (queryError: any) {
+                Logger.error('[FinanceReconciliationDifferenceService] 存储过程查询出错:', queryError);
+                throw queryError;
+            }
+
+            // 存储过程执行成功，准备返回结果
+            // 注意：我们不处理存储过程的返回值，只确认执行成功
+            Logger.log('[FinanceReconciliationDifferenceService] 存储过程执行成功，准备返回结果');
+
+            const response = {
+                success: true,
+                message: '对账单生成成功',
+            };
+
+            Logger.log('[FinanceReconciliationDifferenceService] 准备返回响应:', JSON.stringify(response));
+            return response;
+        } catch (error: any) {
+            Logger.error('[FinanceReconciliationDifferenceService] 调用存储过程失败:', error);
+            Logger.error('[FinanceReconciliationDifferenceService] 错误详情:', {
+                message: error.message,
+                code: error.code,
+                errno: error.errno,
+                sqlState: error.sqlState,
+                stack: error.stack,
+            });
+            throw new Error(error.message || '生成对账单失败');
+        } finally {
+            try {
+                Logger.log('[FinanceReconciliationDifferenceService] 正在关闭数据库连接...');
+                await connection.end();
+                Logger.log('[FinanceReconciliationDifferenceService] 数据库连接已关闭');
+            } catch (closeError: any) {
+                Logger.error('[FinanceReconciliationDifferenceService] 关闭数据库连接时出错:', closeError);
+                // 不抛出错误，避免掩盖原始错误
+            }
         }
     }
 }

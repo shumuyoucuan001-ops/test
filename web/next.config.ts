@@ -15,15 +15,12 @@ const nextConfig: NextConfig = {
   },
   // 非容器环境：将 /api/* 在 Next 层反代到本机 5002（本地测试端口）
   // Docker 生产环境：禁用 rewrites，使用 API 路由处理
+  // 注意：为了支持长时间运行的请求（如存储过程），我们统一使用 API 路由而不是 rewrites
+  // 这样可以在 API 路由中设置更长的超时时间
   async rewrites() {
-    // 生产环境（Docker）不使用 rewrites，由 API 路由处理
-    if (process.env.NODE_ENV === 'production') {
-      return [];
-    }
-    // 本地开发环境使用 rewrites
-    return [
-      { source: "/api/:path*", destination: "http://127.0.0.1:5002/:path*" },
-    ];
+    // 统一使用 API 路由处理，不使用 rewrites
+    // 这样可以在 route.ts 中为特定路径设置更长的超时时间
+    return [];
   },
 };
 

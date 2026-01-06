@@ -1153,6 +1153,14 @@ export const financeReconciliationDifferenceApi = {
   ): Promise<{ data: FinanceReconciliationDifference[]; total: number }> => {
     return api.get(`/finance-reconciliation-difference/details/${encodeURIComponent(对账单号)}`, { params }).then(res => res.data);
   },
+
+  // 生成对账单（调用存储过程）
+  generateBill: (): Promise<{ success: boolean; message: string }> => {
+    // 存储过程执行时间较长（约3分钟），设置超时时间为5分钟
+    return api.post('/finance-reconciliation-difference/generate-bill', {}, {
+      timeout: 300000, // 5分钟超时
+    }).then(res => res.data);
+  },
 };
 
 // 非采购单流水记录接口

@@ -82,10 +82,13 @@ async function proxyRequest(
   method: string
 ) {
   const startTime = Date.now();
-  const REQUEST_TIMEOUT = 10000; // 10秒超时
+  const path = pathSegments.join('/');
+
+  // 对于长时间运行的存储过程，设置更长的超时时间（5分钟）
+  // 其他请求保持10秒超时
+  const REQUEST_TIMEOUT = path.includes('generate-bill') ? 300000 : 10000; // 5分钟或10秒
 
   try {
-    const path = pathSegments.join('/');
     const url = `${BACKEND_URL}/${path}`;
 
     // 获取查询参数

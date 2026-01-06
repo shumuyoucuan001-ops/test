@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import type { FinanceReconciliationDifference } from './finance-reconciliation-difference.service';
 import { FinanceReconciliationDifferenceService } from './finance-reconciliation-difference.service';
 
@@ -72,6 +72,18 @@ export class FinanceReconciliationDifferenceController {
             采购单状态,
             门店仓
         );
+    }
+
+    // 生成对账单（调用存储过程）
+    @Post('generate-bill')
+    async generateBill(): Promise<{ success: boolean; message: string }> {
+        try {
+            const result = await this.service.generateReconciliationBill();
+            return result;
+        } catch (error: any) {
+            // 确保错误被正确抛出
+            throw error;
+        }
     }
 }
 
