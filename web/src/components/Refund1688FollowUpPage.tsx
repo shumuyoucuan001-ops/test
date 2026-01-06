@@ -247,7 +247,8 @@ export default function Refund1688FollowUpPage() {
 
         try {
             const result = await refund1688Api.getFollowUpImage(orderNo);
-            if (result?.跟进情况图片) {
+            if (result?.跟进情况图片 && typeof result.跟进情况图片 === 'string' && result.跟进情况图片.trim() !== '') {
+                // 直接使用OSS URL，不需要base64转换
                 setImageCache(prev => ({ ...prev, [orderNo]: result.跟进情况图片! }));
             } else {
                 message.info('该订单暂无跟进情况图片');
@@ -277,7 +278,8 @@ export default function Refund1688FollowUpPage() {
             // 按需加载图片
             try {
                 const result = await refund1688Api.getFollowUpImage(orderNo);
-                if (result?.跟进情况图片) {
+                if (result?.跟进情况图片 && typeof result.跟进情况图片 === 'string' && result.跟进情况图片.trim() !== '') {
+                    // 直接使用OSS URL，不需要base64转换
                     setFollowUpImagePreview(result.跟进情况图片);
                     setImageCache(prev => ({ ...prev, [orderNo]: result.跟进情况图片! }));
                 } else {
@@ -544,7 +546,7 @@ export default function Refund1688FollowUpPage() {
                 const isLoading = loadingImages[orderNo];
 
                 // 如果已缓存，显示图片
-                if (cachedImage) {
+                if (cachedImage && typeof cachedImage === 'string' && cachedImage.trim() !== '') {
                     return (
                         <Image
                             width={50}
@@ -908,13 +910,16 @@ export default function Refund1688FollowUpPage() {
 
                     <Form.Item label="跟进情况/图片" name="跟进情况图片">
                         <Space direction="vertical" style={{ width: '100%' }}>
-                            {followUpImagePreview ? (
+                            {followUpImagePreview && typeof followUpImagePreview === 'string' && followUpImagePreview.trim() !== '' ? (
                                 <Image
                                     width={120}
                                     height={120}
                                     src={followUpImagePreview}
                                     alt="跟进情况图片预览"
                                     style={{ objectFit: 'cover' }}
+                                    preview={{
+                                        mask: '点击查看大图'
+                                    }}
                                 />
                             ) : (
                                 <span style={{ color: '#999' }}>当前暂无图片</span>

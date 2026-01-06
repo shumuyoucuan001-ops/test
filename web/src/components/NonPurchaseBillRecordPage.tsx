@@ -355,18 +355,34 @@ export default function NonPurchaseBillRecordPage() {
   const handleViewImage = async (record: NonPurchaseBillRecord) => {
     if (record.账单流水) {
       try {
+        // 如果列表中已经有图片URL，直接使用（避免重复请求）
+        if (record.图片 && typeof record.图片 === 'string' && record.图片.trim() !== '') {
+          const imageUrl = record.图片.startsWith('http')
+            ? record.图片
+            : `data:image/jpeg;base64,${record.图片}`;
+          console.log('[NonPurchaseBillRecordPage] 使用列表中的图片URL:', imageUrl);
+          setPreviewImage(imageUrl);
+          setPreviewVisible(true);
+          return;
+        }
+
+        // 如果列表中没有图片，尝试从API获取
         const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
-        if (fullRecord && fullRecord.图片 && typeof fullRecord.图片 === 'string') {
+        console.log('[NonPurchaseBillRecordPage] 查看图片 - fullRecord:', fullRecord);
+        if (fullRecord && fullRecord.图片 && typeof fullRecord.图片 === 'string' && fullRecord.图片.trim() !== '') {
           // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
           const imageUrl = fullRecord.图片.startsWith('http')
             ? fullRecord.图片
             : `data:image/jpeg;base64,${fullRecord.图片}`;
+          console.log('[NonPurchaseBillRecordPage] 设置预览图片URL:', imageUrl);
           setPreviewImage(imageUrl);
           setPreviewVisible(true);
         } else {
+          console.log('[NonPurchaseBillRecordPage] 该记录没有图片或图片为空');
           message.info('该记录没有图片');
         }
       } catch (error) {
+        console.error('[NonPurchaseBillRecordPage] 获取图片失败:', error);
         message.error('获取图片失败');
       }
     }
@@ -788,7 +804,7 @@ export default function NonPurchaseBillRecordPage() {
       key: '图片',
       width: 120,
       render: (_: any, record: NonPurchaseBillRecord) => (
-        record.图片 ? (
+        record.图片 && typeof record.图片 === 'string' && record.图片.trim() !== '' ? (
           <Button
             type="link"
             size="small"
@@ -1342,12 +1358,17 @@ export default function NonPurchaseBillRecordPage() {
         width={800}
         centered
       >
-        {previewImage && (
+        {previewImage && typeof previewImage === 'string' && previewImage.trim() !== '' ? (
           <Image
             src={previewImage}
             alt="预览"
             style={{ width: '100%' }}
+            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJY6mQwsHuxsSDqUoZDUlYNJ2OA4MRJgV0Qy1XDw8CwyE6BYsWAw48gxq4UZgUXw8L8YODxKkEmxQ4DA/4UhFjaWA/YNwHZGMUYWh4MbOcO8CAx6ERsEe4AFmEpAwM/4HAtOSQYgcg/YdMRg8B4B4AKd0vQFiMCh4BoH8H0G4F0DqQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
           />
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <span style={{ color: '#999' }}>图片加载失败或图片不存在</span>
+          </div>
         )}
       </Modal>
     </div>

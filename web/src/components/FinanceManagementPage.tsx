@@ -532,16 +532,20 @@ export default function FinanceManagementPage() {
     if (bill.transactionNumber) {
       try {
         const fullBill = await financeManagementApi.get(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
-        if (fullBill && fullBill.image && typeof fullBill.image === 'string') {
+        console.log('[FinanceManagementPage] 查看图片 - fullBill:', fullBill);
+        if (fullBill && fullBill.image && typeof fullBill.image === 'string' && fullBill.image.trim() !== '') {
           const imageUrl = fullBill.image.startsWith('http')
             ? fullBill.image
             : `data:image/png;base64,${fullBill.image}`;
+          console.log('[FinanceManagementPage] 设置预览图片URL:', imageUrl);
           setPreviewImage(imageUrl);
           setPreviewVisible(true);
         } else {
+          console.log('[FinanceManagementPage] 该记录没有图片或图片为空, fullBill.image:', fullBill?.image);
           message.info('该记录没有图片');
         }
       } catch (error) {
+        console.error('[FinanceManagementPage] 获取图片失败:', error);
         message.error('获取图片失败');
       }
     }
@@ -1038,12 +1042,17 @@ export default function FinanceManagementPage() {
         width={800}
         centered
       >
-        {previewImage && (
+        {previewImage && typeof previewImage === 'string' && previewImage.trim() !== '' ? (
           <Image
             src={previewImage}
             alt="预览"
             style={{ width: '100%' }}
+            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJY6mQwsHuxsSDqUoZDUlYNJ2OA4MRJgV0Qy1XDw8CwyE6BYsWAw48gxq4UZgUXw8L8YODxKkEmxQ4DA/4UhFjaWA/YNwHZGMUYWh4MbOcO8CAx6ERsEe4AFmEpAwM/4HAtOSQYgcg/YdMRg8B4B4AKd0vQFiMCh4BoH8H0G4F0DqQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
           />
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <span style={{ color: '#999' }}>图片加载失败或图片不存在</span>
+          </div>
         )}
       </Modal>
     </div>
