@@ -216,12 +216,12 @@ export default function FinanceManagementPage() {
     if (bill.hasImage === 1 && bill.transactionNumber) {
       try {
         const fullBill = await financeManagementApi.get(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
-        if (fullBill && fullBill.image) {
+        if (fullBill && fullBill.image && typeof fullBill.image === 'string') {
           setImageFileList([{
             uid: '-1',
             name: 'image.png',
             status: 'done',
-            url: fullBill.image?.startsWith('http')
+            url: fullBill.image.startsWith('http')
               ? fullBill.image
               : `data:image/png;base64,${fullBill.image}`,
           }]);
@@ -532,8 +532,8 @@ export default function FinanceManagementPage() {
     if (bill.transactionNumber) {
       try {
         const fullBill = await financeManagementApi.get(bill.transactionNumber, bill.qianniuhuaPurchaseNumber);
-        if (fullBill && fullBill.image) {
-          const imageUrl = fullBill.image?.startsWith('http')
+        if (fullBill && fullBill.image && typeof fullBill.image === 'string') {
+          const imageUrl = fullBill.image.startsWith('http')
             ? fullBill.image
             : `data:image/png;base64,${fullBill.image}`;
           setPreviewImage(imageUrl);

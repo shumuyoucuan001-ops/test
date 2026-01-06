@@ -322,7 +322,7 @@ export default function NonPurchaseBillRecordPage() {
     if (record.图片 && record.账单流水) {
       try {
         const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
-        if (fullRecord && fullRecord.图片) {
+        if (fullRecord && fullRecord.图片 && typeof fullRecord.图片 === 'string') {
           // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
           const imageUrl = fullRecord.图片.startsWith('http')
             ? fullRecord.图片
@@ -356,7 +356,7 @@ export default function NonPurchaseBillRecordPage() {
     if (record.账单流水) {
       try {
         const fullRecord = await nonPurchaseBillRecordApi.get(record.账单流水);
-        if (fullRecord && fullRecord.图片) {
+        if (fullRecord && fullRecord.图片 && typeof fullRecord.图片 === 'string') {
           // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
           const imageUrl = fullRecord.图片.startsWith('http')
             ? fullRecord.图片

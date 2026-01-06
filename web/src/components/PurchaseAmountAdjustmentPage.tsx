@@ -264,7 +264,7 @@ export default function PurchaseAmountAdjustmentPage() {
     if (adjustment.hasImage === 1 && adjustment.purchaseOrderNumber) {
       try {
         const fullAdjustment = await purchaseAmountAdjustmentApi.get(adjustment.purchaseOrderNumber);
-        if (fullAdjustment && fullAdjustment.image) {
+        if (fullAdjustment && fullAdjustment.image && typeof fullAdjustment.image === 'string') {
           // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
           const imageUrl = fullAdjustment.image.startsWith('http')
             ? fullAdjustment.image
@@ -543,7 +543,7 @@ export default function PurchaseAmountAdjustmentPage() {
     if (adjustment.purchaseOrderNumber) {
       try {
         const fullAdjustment = await purchaseAmountAdjustmentApi.get(adjustment.purchaseOrderNumber);
-        if (fullAdjustment && fullAdjustment.image) {
+        if (fullAdjustment && fullAdjustment.image && typeof fullAdjustment.image === 'string') {
           // 如果已经是URL，直接使用；否则可能是base64（向后兼容）
           const imageUrl = fullAdjustment.image.startsWith('http')
             ? fullAdjustment.image
