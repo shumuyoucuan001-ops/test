@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as OSS from 'ali-oss';
+import OSS from 'ali-oss';
 import axios from 'axios';
 import * as crypto from 'crypto';
 
@@ -19,7 +19,7 @@ interface StsCredentials {
 
 @Injectable()
 export class OssService {
-    private client: OSS | null = null;
+    private client: OSS.Client | null = null;
     private readonly logger = new Logger(OssService.name);
     private readonly bucket: string;
     private readonly region: string;
@@ -31,12 +31,18 @@ export class OssService {
         this.bucket = process.env.OSS_BUCKET || 'shumuyx';
         this.region = process.env.OSS_REGION || 'cn-chengdu';
         this.endpoint = process.env.OSS_ENDPOINT;
+
+        // 调试日志：检查环境变量
+        const roleName = process.env.OSS_ECS_ROLE_NAME;
+        this.logger.log(`[OssService] Initializing with bucket: ${this.bucket}, region: ${this.region}`);
+        this.logger.log(`[OssService] OSS_ECS_ROLE_NAME: ${roleName || 'NOT SET'}`);
+        this.logger.log(`[OssService] OSS_ACCESS_KEY_ID: ${process.env.OSS_ACCESS_KEY_ID ? 'SET' : 'NOT SET'}`);
     }
 
     /**
      * 获取OSS客户端（支持ECS实例角色和AccessKey两种方式）
      */
-    private async getClient(): Promise<OSS> {
+    private async getClient(): Promise<OSS.Client> {
         // 优先使用ECS实例角色（STS Token）
         const roleName = process.env.OSS_ECS_ROLE_NAME;
         if (roleName) {
@@ -101,6 +107,9 @@ export class OssService {
         try {
             // ECS实例元数据服务地址
             const metadataUrl = `http://100.100.100.200/latest/meta-data/ram/security-credentials/${roleName}`;
+
+            this.logger.log(`[OssService] Attempting to get STS credentials for role: ${roleName}`);
+            this.logger.log(`[OssService] Metadata URL: ${metadataUrl}`);
 
             const response = await axios.get<StsCredentials>(metadataUrl, {
                 timeout: 5000,
