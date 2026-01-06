@@ -29,7 +29,7 @@ export class OssService {
 
     constructor() {
         this.bucket = process.env.OSS_BUCKET || 'shumuyx';
-        this.region = process.env.OSS_REGION || 'cn-chengdu';
+        this.region = process.env.OSS_REGION || 'oss-cn-chengdu';
         this.endpoint = process.env.OSS_ENDPOINT;
 
         // 调试日志：检查环境变量
