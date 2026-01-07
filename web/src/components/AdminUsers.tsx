@@ -1,8 +1,9 @@
 "use client";
 
 import Can from "@/components/Can";
-import { aclApi, SysRole, SysUser } from "@/lib/api";
-import { Button, Card, Checkbox, Divider, Form, Input, message, Modal, Select, Space, Tag } from "antd";
+import { aclApi, SysPermission, SysRole, SysUser } from "@/lib/api";
+import { groupPermissionsByCategory } from "@/utils/permissionCategory";
+import { Button, Card, Checkbox, Collapse, Divider, Form, Input, message, Modal, Select, Space, Tag } from "antd";
 import { useEffect, useState } from "react";
 import ResponsiveTable from "./ResponsiveTable";
 
@@ -13,6 +14,9 @@ export default function UserPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [roles, setRoles] = useState<SysRole[]>([]);
+  const [permissions, setPermissions] = useState<SysPermission[]>([]);
+  const [rolePermissionsMap, setRolePermissionsMap] = useState<Record<number, number[]>>({});
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [open, setOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [editing, setEditing] = useState<SysUser | null>(null);
@@ -50,6 +54,42 @@ export default function UserPage() {
     }
   };
 
+  const loadPermissions = async () => {
+    try {
+      const result = await aclApi.listPermissions({ page: 1, limit: 10000 });
+      setPermissions(result.data);
+    } catch {
+      console.error("加载权限失败");
+    }
+  };
+
+  const loadRolePermissions = async (roleIds: number[]) => {
+    if (roleIds.length === 0) {
+      setRolePermissionsMap({});
+      return;
+    }
+    setLoadingPermissions(true);
+    try {
+      const newMap: Record<number, number[]> = {};
+      await Promise.all(
+        roleIds.map(async (roleId) => {
+          try {
+            const permissionIds = await aclApi.roleGranted(roleId);
+            newMap[roleId] = permissionIds;
+          } catch (error) {
+            console.error(`加载角色 ${roleId} 的权限失败:`, error);
+            newMap[roleId] = [];
+          }
+        })
+      );
+      setRolePermissionsMap(newMap);
+    } catch (error) {
+      console.error("加载角色权限失败:", error);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
   const load = async (page: number = currentPage, searchText: string = q) => {
     await Promise.all([loadUsers(page, searchText), loadRoles()]);
   };
@@ -83,23 +123,28 @@ export default function UserPage() {
     setEditing(r);
     setAssignOpen(true);
 
+    let roleIds: number[] = [];
     // 首先尝试从用户数据中获取角色ID
     if (r.roles && r.roles.length > 0) {
-      const roleIds = r.roles.map(role => role.id);
+      roleIds = r.roles.map(role => role.id);
       console.log('从用户数据获取角色ID:', roleIds);
       setChecked(roleIds);
     } else {
       // 如果用户数据中没有角色信息，则通过API获取
       try {
-        const assignedRoleIds = await aclApi.userAssignedRoleIds(r.id);
-        console.log('通过API获取用户已分配的角色ID:', assignedRoleIds);
-        setChecked(assignedRoleIds);
+        roleIds = await aclApi.userAssignedRoleIds(r.id);
+        console.log('通过API获取用户已分配的角色ID:', roleIds);
+        setChecked(roleIds);
       } catch (error) {
         console.error('获取用户角色失败:', error);
         setChecked([]);
         message.error("获取用户角色失败");
       }
     }
+
+    // 加载权限数据和角色权限映射
+    await loadPermissions();
+    await loadRolePermissions(roleIds);
   };
   const saveAssign = async () => {
     try {
@@ -141,6 +186,12 @@ export default function UserPage() {
           </div>
         );
       }
+    },
+    {
+      title: '部门ID',
+      dataIndex: 'department_id',
+      width: 100,
+      render: (departmentId: number | null | undefined) => departmentId ?? '-'
     },
     {
       title: '状态',
@@ -202,10 +253,13 @@ export default function UserPage() {
       <Modal
         open={assignOpen}
         onOk={saveAssign}
-        onCancel={() => setAssignOpen(false)}
+        onCancel={() => {
+          setAssignOpen(false);
+          setRolePermissionsMap({});
+        }}
         title={`分配角色 - ${editing?.username || ''}`}
         destroyOnClose
-        width={600}
+        width={800}
       >
         <div style={{ marginBottom: 16 }}>
           <p style={{ color: '#666', marginBottom: 12 }}>
@@ -228,7 +282,12 @@ export default function UserPage() {
           <Checkbox.Group
             style={{ width: '100%' }}
             value={checked}
-            onChange={(vals) => setChecked(vals as number[])}
+            onChange={async (vals) => {
+              const newChecked = vals as number[];
+              setChecked(newChecked);
+              // 当选中角色变化时，重新加载权限
+              await loadRolePermissions(newChecked);
+            }}
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
               {roles.map(r => (
@@ -269,6 +328,140 @@ export default function UserPage() {
             </div>
           )}
         </div>
+
+        {checked.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <Divider />
+            <div style={{ marginBottom: 12 }}>
+              <strong style={{ fontSize: '14px' }}>权限详情（只读）</strong>
+            </div>
+            {loadingPermissions ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>加载权限中...</div>
+            ) : (
+              <Collapse
+                defaultActiveKey={roles.filter(r => checked.includes(r.id)).map(r => r.id.toString())}
+                items={roles
+                  .filter(r => checked.includes(r.id))
+                  .map(role => {
+                    const permissionIds = rolePermissionsMap[role.id] || [];
+                    const rolePermissions = permissions.filter(p => permissionIds.includes(p.id));
+                    const allPermissionIds = new Set<number>();
+                    checked.forEach(rid => {
+                      (rolePermissionsMap[rid] || []).forEach(pid => allPermissionIds.add(pid));
+                    });
+                    const allPermissions = permissions.filter(p => allPermissionIds.has(p.id));
+
+                    return {
+                      key: role.id.toString(),
+                      label: (
+                        <span>
+                          <strong style={{ fontSize: '13px' }}>{role.name}</strong>
+                          <Tag color="blue" style={{ marginLeft: 8, fontSize: '11px', padding: '0 6px', lineHeight: '18px' }}>
+                            {permissionIds.length} 个权限
+                          </Tag>
+                        </span>
+                      ),
+                      children: (
+                        <div>
+                          {rolePermissions.length > 0 ? (
+                            (() => {
+                              const grouped = groupPermissionsByCategory(rolePermissions);
+                              return Object.keys(grouped).length > 0 ? (
+                                <Collapse
+                                  defaultActiveKey={Object.keys(grouped)}
+                                  items={Object.keys(grouped).map(category => ({
+                                    key: category,
+                                    label: <strong style={{ fontSize: '12px' }}>{category}</strong>,
+                                    children: (
+                                      <div style={{ paddingLeft: 16 }}>
+                                        {grouped[category].map(permission => (
+                                          <div key={permission.id} style={{ padding: '1px 0', fontSize: '12px' }}>
+                                            - {permission.name}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ),
+                                  }))}
+                                  style={{ fontSize: '12px' }}
+                                />
+                              ) : (
+                                <div style={{ color: '#999', textAlign: 'center', padding: '10px', fontSize: '12px' }}>
+                                  该角色暂无权限
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <div style={{ color: '#999', textAlign: 'center', padding: '10px', fontSize: '12px' }}>
+                              该角色暂无权限
+                            </div>
+                          )}
+                        </div>
+                      ),
+                    };
+                  })}
+                style={{ marginBottom: 0, fontSize: '12px' }}
+              />
+            )}
+            {checked.length > 1 && (
+              <div style={{ marginTop: 16 }}>
+                <Divider style={{ margin: '12px 0' }} />
+                <div style={{ marginBottom: 12 }}>
+                  <strong style={{ fontSize: '14px' }}>合并权限（所有选中角色的权限汇总）</strong>
+                  <Tag color="green" style={{ marginLeft: 8 }}>
+                    {(() => {
+                      const allPermissionIds = new Set<number>();
+                      checked.forEach(rid => {
+                        (rolePermissionsMap[rid] || []).forEach(pid => allPermissionIds.add(pid));
+                      });
+                      return allPermissionIds.size;
+                    })()} 个权限
+                  </Tag>
+                </div>
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {(() => {
+                    const allPermissionIds = new Set<number>();
+                    checked.forEach(rid => {
+                      (rolePermissionsMap[rid] || []).forEach(pid => allPermissionIds.add(pid));
+                    });
+                    const allPermissions = permissions.filter(p => allPermissionIds.has(p.id));
+                    return allPermissions.length > 0 ? (
+                      (() => {
+                        const grouped = groupPermissionsByCategory(allPermissions);
+                        return Object.keys(grouped).length > 0 ? (
+                          <Collapse
+                            defaultActiveKey={Object.keys(grouped)}
+                            items={Object.keys(grouped).map(category => ({
+                              key: category,
+                              label: <strong style={{ fontSize: '12px' }}>{category}</strong>,
+                              children: (
+                                <div style={{ paddingLeft: 16 }}>
+                                  {grouped[category].map(permission => (
+                                    <div key={permission.id} style={{ padding: '1px 0', fontSize: '12px' }}>
+                                      - {permission.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              ),
+                            }))}
+                            style={{ fontSize: '12px' }}
+                          />
+                        ) : (
+                          <div style={{ color: '#999', textAlign: 'center', padding: '10px', fontSize: '12px' }}>
+                            暂无权限
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div style={{ color: '#999', textAlign: 'center', padding: '10px', fontSize: '12px' }}>
+                        暂无权限
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

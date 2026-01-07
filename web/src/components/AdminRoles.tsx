@@ -2,7 +2,8 @@
 
 import Can from "@/components/Can";
 import { aclApi, SysPermission, SysRole } from "@/lib/api";
-import { Button, Card, Checkbox, Form, Input, message, Modal, Space } from "antd";
+import { groupPermissionsByCategory } from "@/utils/permissionCategory";
+import { Button, Card, Checkbox, Collapse, Form, Input, message, Modal, Space } from "antd";
 import { useEffect, useState } from "react";
 import ResponsiveTable from "./ResponsiveTable";
 
@@ -135,9 +136,37 @@ export default function RolePage() {
         </Form>
       </Modal>
 
-      <Modal open={grantOpen} onOk={saveGrant} onCancel={() => setGrantOpen(false)} title={`角色授权 - ${editing?.name || ''}`} destroyOnClose>
+      <Modal
+        open={grantOpen}
+        onOk={saveGrant}
+        onCancel={() => setGrantOpen(false)}
+        title={`角色授权 - ${editing?.name || ''}`}
+        destroyOnClose
+        width={600}
+      >
         <Checkbox.Group style={{ width: '100%' }} value={checked} onChange={(vals) => setChecked(vals as number[])}>
-          {perms.map(p => (<div key={p.id}><Checkbox value={p.id}>{p.name} ({p.code})</Checkbox></div>))}
+          {(() => {
+            const grouped = groupPermissionsByCategory(perms);
+            return (
+              <Collapse
+                defaultActiveKey={Object.keys(grouped)}
+                items={Object.keys(grouped).map(category => ({
+                  key: category,
+                  label: <strong style={{ fontSize: '12px' }}>{category}</strong>,
+                  children: (
+                    <div style={{ paddingLeft: 16 }}>
+                      {grouped[category].map(p => (
+                        <div key={p.id} style={{ padding: '1px 0' }}>
+                          <Checkbox value={p.id} style={{ fontSize: '12px' }}>{p.name}</Checkbox>
+                        </div>
+                      ))}
+                    </div>
+                  ),
+                }))}
+                style={{ fontSize: '12px' }}
+              />
+            );
+          })()}
         </Checkbox.Group>
       </Modal>
     </div>

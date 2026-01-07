@@ -31,6 +31,7 @@ import {
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
 import { aclApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '../lib/api';
+import { isLocalhost } from '../utils/localhost';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
@@ -117,6 +118,12 @@ export default function PurchaseAmountAdjustmentPage() {
   useEffect(() => {
     const loadUserRoles = async () => {
       try {
+        // 本地开发环境：直接设置所有审核权限的角色ID
+        if (isLocalhost()) {
+          setUserRoleIds([1, 4, 7]);
+          return;
+        }
+
         const userId = localStorage.getItem('userId');
         if (userId) {
           const roleIds = await aclApi.userAssignedRoleIds(Number(userId));
@@ -124,7 +131,12 @@ export default function PurchaseAmountAdjustmentPage() {
         }
       } catch (error) {
         console.error('加载用户角色失败:', error);
-        setUserRoleIds([]);
+        // 本地开发环境即使出错也设置权限
+        if (isLocalhost()) {
+          setUserRoleIds([1, 4, 7]);
+        } else {
+          setUserRoleIds([]);
+        }
       }
     };
     loadUserRoles();
@@ -144,9 +156,21 @@ export default function PurchaseAmountAdjustmentPage() {
 
     try {
       const newStatus = adjustment.financeReviewStatus === '审核通过' ? '0' : '审核通过';
-      await purchaseAmountAdjustmentApi.update(adjustment.purchaseOrderNumber, {
+      const updateData: any = {
         financeReviewStatus: newStatus,
-      });
+      };
+
+      // 如果审核通过，更新财务审核人为当前用户的display_name
+      if (newStatus === '审核通过') {
+        const displayName = typeof window !== 'undefined'
+          ? (localStorage.getItem('displayName') || localStorage.getItem('display_name') || '')
+          : '';
+        if (displayName) {
+          updateData.financeReviewer = displayName;
+        }
+      }
+
+      await purchaseAmountAdjustmentApi.update(adjustment.purchaseOrderNumber, updateData);
       message.success(newStatus === '审核通过' ? '审核通过成功' : '取消审核成功');
       refreshAdjustments();
     } catch (error: any) {
@@ -257,7 +281,7 @@ export default function PurchaseAmountAdjustmentPage() {
       adjustmentReason: adjustment.adjustmentReason,
       financeReviewRemark: adjustment.financeReviewRemark,
       // 财务审核状态不允许编辑，不设置到表单中
-      financeReviewer: adjustment.financeReviewer,
+      // 财务审核人字段已移除，不允许编辑
     });
 
     // 如果有图片标识，异步加载图片
@@ -373,7 +397,7 @@ export default function PurchaseAmountAdjustmentPage() {
         financeReviewRemark: values.financeReviewRemark || undefined,
         // 财务审核状态在新增时默认为"0"，编辑时不允许修改
         financeReviewStatus: editingAdjustment ? undefined : '0',
-        financeReviewer: values.financeReviewer || undefined,
+        // 财务审核人字段已移除，新增和编辑时都不设置，默认为空值
       };
 
       if (editingAdjustment && editingAdjustment.purchaseOrderNumber) {
@@ -477,13 +501,7 @@ export default function PurchaseAmountAdjustmentPage() {
       required: false,
       index: 3,
     },
-    {
-      key: 'financeReviewer' as keyof PurchaseAmountAdjustment,
-      label: '财务审核人',
-      excelHeaderName: '财务审核人',
-      required: false,
-      index: 4,
-    },
+    // 财务审核人字段已移除，批量新增时不包含此字段
   ];
 
   // 创建数据项
@@ -501,7 +519,7 @@ export default function PurchaseAmountAdjustmentPage() {
       image: undefined, // 图片列忽略，设为空值
       financeReviewRemark: parts[3] && parts[3].trim() !== '' ? parts[3].trim() : undefined,
       financeReviewStatus: undefined, // 财务审核状态不允许编辑，批量新增时默认为"0"（后端处理）
-      financeReviewer: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
+      // 财务审核人字段已移除，批量新增时不设置，默认为空值
     };
   }, []);
 
@@ -1087,13 +1105,7 @@ export default function PurchaseAmountAdjustmentPage() {
           </Form.Item>
 
           {/* 财务审核状态不允许编辑，新增时默认为"0" */}
-
-          <Form.Item
-            label="财务审核人"
-            name="financeReviewer"
-          >
-            <Input placeholder="请输入财务审核人" maxLength={20} />
-          </Form.Item>
+          {/* 财务审核人字段已移除，只在审核通过时自动设置为当前用户的display_name */}
         </Form>
       </Modal>
 
@@ -1101,9 +1113,9 @@ export default function PurchaseAmountAdjustmentPage() {
       <BatchAddModal<PurchaseAmountAdjustment>
         open={batchModalVisible}
         title="批量新增调整记录"
-        hint="您可以从 Excel 中复制数据（包含采购单号(牵牛花)、调整金额、异常调整原因备注、财务审核意见备注、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。注意：图片列和财务审核状态列会被忽略，财务审核状态默认为'0'。"
+        hint="您可以从 Excel 中复制数据（包含采购单号(牵牛花)、调整金额、异常调整原因备注、财务审核意见备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。注意：图片列、财务审核状态列和财务审核人列会被忽略，财务审核状态默认为'0'，财务审核人默认为空值。"
         fields={batchAddFields}
-        formatHint="格式：采购单号(牵牛花)	调整金额	异常调整原因备注	财务审核意见备注	财务审核人"
+        formatHint="格式：采购单号(牵牛花)	调整金额	异常调整原因备注	财务审核意见备注"
         example="PO001	100.00	备注	审核意见	张三"
         onCancel={() => setBatchModalVisible(false)}
         onSave={handleBatchSave}

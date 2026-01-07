@@ -826,11 +826,11 @@ export class AclService {
   }
   async setUserRoles(userId: number, roleIds: number[], operatorUserId?: number) {
     // 获取原始角色列表
-    const [originalRoleRows]: any = await this.prisma.$queryRawUnsafe(
+    const originalRoleRows: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT role_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`,
       userId
-    );
-    const originalRoleIds = (originalRoleRows || []).map((r: any) => Number(r.role_id));
+    ) || [];
+    const originalRoleIds = originalRoleRows.map((r: any) => Number(r.role_id));
 
     await this.prisma.$transaction([
       this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`, userId),

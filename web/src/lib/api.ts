@@ -862,6 +862,7 @@ export interface SysUser {
   username: string;
   display_name?: string;
   status: number;
+  department_id?: number | null;
   roles?: SysRole[]; // 用户关联的角色列表
 }
 

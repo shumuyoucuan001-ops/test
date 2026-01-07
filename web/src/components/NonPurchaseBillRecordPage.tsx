@@ -31,6 +31,7 @@ import {
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useState } from 'react';
 import { NonPurchaseBillRecord, aclApi, maxStoreSkuInventoryApi, nonPurchaseBillRecordApi } from '../lib/api';
+import { isLocalhost } from '../utils/localhost';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
@@ -88,6 +89,12 @@ export default function NonPurchaseBillRecordPage() {
   useEffect(() => {
     const loadUserRoles = async () => {
       try {
+        // 本地开发环境：直接设置所有审核权限的角色ID
+        if (isLocalhost()) {
+          setUserRoleIds([1, 4, 7]);
+          return;
+        }
+
         const userId = localStorage.getItem('userId');
         if (userId) {
           const roleIds = await aclApi.userAssignedRoleIds(Number(userId));
@@ -95,7 +102,12 @@ export default function NonPurchaseBillRecordPage() {
         }
       } catch (error) {
         console.error('加载用户角色失败:', error);
-        setUserRoleIds([]);
+        // 本地开发环境即使出错也设置权限
+        if (isLocalhost()) {
+          setUserRoleIds([1, 4, 7]);
+        } else {
+          setUserRoleIds([]);
+        }
       }
     };
     loadUserRoles();
@@ -115,9 +127,21 @@ export default function NonPurchaseBillRecordPage() {
 
     try {
       const newStatus = record.财务审核状态 === '审核通过' ? '0' : '审核通过';
-      await nonPurchaseBillRecordApi.update(record.账单流水, {
+      const updateData: any = {
         财务审核状态: newStatus,
-      });
+      };
+
+      // 如果审核通过，更新财务审核人为当前用户的display_name
+      if (newStatus === '审核通过') {
+        const displayName = typeof window !== 'undefined'
+          ? (localStorage.getItem('displayName') || localStorage.getItem('display_name') || '')
+          : '';
+        if (displayName) {
+          updateData.财务审核人 = displayName;
+        }
+      }
+
+      await nonPurchaseBillRecordApi.update(record.账单流水, updateData);
       message.success(newStatus === '审核通过' ? '审核通过成功' : '取消审核成功');
       refreshRecords();
     } catch (error: any) {
@@ -313,7 +337,7 @@ export default function NonPurchaseBillRecordPage() {
       账单流水备注: record.账单流水备注,
       财务记账凭证号: record.财务记账凭证号,
       // 财务审核状态不允许编辑，不设置到表单中
-      财务审核人: record.财务审核人,
+      // 财务审核人字段已移除，不允许编辑
     });
 
     // 如果有图片，异步加载图片
@@ -432,7 +456,7 @@ export default function NonPurchaseBillRecordPage() {
         财务记账凭证号: values.财务记账凭证号 || undefined,
         // 财务审核状态在新增时默认为"0"，编辑时不允许修改
         财务审核状态: editingRecord ? undefined : '0',
-        财务审核人: values.财务审核人 || undefined,
+        // 财务审核人字段已移除，新增和编辑时都不设置，默认为空值
       };
 
       if (editingRecord && editingRecord.账单流水) {
@@ -618,13 +642,7 @@ export default function NonPurchaseBillRecordPage() {
       required: false,
       index: 5,
     },
-    {
-      key: '财务审核人' as keyof NonPurchaseBillRecord,
-      label: '财务审核人',
-      excelHeaderName: '财务审核人',
-      required: false,
-      index: 6,
-    },
+    // 财务审核人字段已移除，批量新增时不包含此字段
   ];
 
   // 创建数据项
@@ -637,7 +655,7 @@ export default function NonPurchaseBillRecordPage() {
       账单流水备注: parts[4] && parts[4].trim() !== '' ? parts[4].trim() : undefined,
       财务记账凭证号: parts[5] && parts[5].trim() !== '' ? parts[5].trim() : undefined,
       财务审核状态: undefined, // 财务审核状态不允许编辑，批量新增时默认为"0"（后端处理）
-      财务审核人: parts[6] && parts[6].trim() !== '' ? parts[6].trim() : undefined,
+      // 财务审核人字段已移除，批量新增时不设置，默认为空值
     };
   }, []);
 
@@ -1321,13 +1339,7 @@ export default function NonPurchaseBillRecordPage() {
           </Form.Item>
 
           {/* 财务审核状态不允许编辑，新增时默认为"0" */}
-
-          <Form.Item
-            label="财务审核人"
-            name="财务审核人"
-          >
-            <Input placeholder="请输入财务审核人" />
-          </Form.Item>
+          {/* 财务审核人字段已移除，只在审核通过时自动设置为当前用户的display_name */}
         </Form>
       </Modal>
 
@@ -1335,9 +1347,9 @@ export default function NonPurchaseBillRecordPage() {
       <BatchAddModal<NonPurchaseBillRecord>
         open={batchModalVisible}
         title="批量新增记录"
-        hint="您可以从 Excel 中复制数据（包含账单流水、记账金额、账单类型、所属仓店、账单流水备注、财务记账凭证号、财务审核人列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。注意：财务审核状态列会被忽略，财务审核状态默认为'0'。"
+        hint="您可以从 Excel 中复制数据（包含账单流水、记账金额、账单类型、所属仓店、账单流水备注、财务记账凭证号列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。注意：财务审核状态列和财务审核人列会被忽略，财务审核状态默认为'0'，财务审核人默认为空值。"
         fields={batchAddFields}
-        formatHint="格式：账单流水	记账金额	账单类型	所属仓店	账单流水备注	财务记账凭证号	财务审核人"
+        formatHint="格式：账单流水	记账金额	账单类型	所属仓店	账单流水备注	财务记账凭证号"
         example="BL001	1000.00	类型A	仓店1	备注	凭证001	审核人"
         onCancel={() => setBatchModalVisible(false)}
         onSave={handleBatchSave}

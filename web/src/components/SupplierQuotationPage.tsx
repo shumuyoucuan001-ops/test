@@ -5,18 +5,16 @@ import { DownloadOutlined, ReloadOutlined, SaveOutlined, SearchOutlined, Setting
 import {
   Button,
   Card,
-  Col,
   Form,
   Input,
   message,
   Modal,
   Popover,
-  Row,
   Segmented,
   Select,
   Space,
   Table,
-  Tag,
+  Tag
 } from 'antd';
 import type { ColumnType } from 'antd/es/table';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -80,14 +78,19 @@ export default function SupplierQuotationPage() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportFilter, setExportFilter] = useState<string[]>([]);
 
+  // 合并表格相关状态
+  const [selectedMergedRowKey, setSelectedMergedRowKey] = useState<string | null>(null); // 选中的合并表格行key
+  const mergedTableContainerRef = useRef<HTMLDivElement>(null);
+  const [mergedTableHeight, setMergedTableHeight] = useState<number>(400);
+
   // 左栏默认显示的字段（按顺序）
   const defaultVisibleColumns = ['序号', '供应商名称', '供应商编码', '商品名称', '商品规格', '供货价格'];
 
-  // 右栏默认显示的字段（全部类型）：SKU, 最低采购价, SKU商品标签, 对比结果
-  const defaultRightVisibleColumns = ['SKU', '最低采购价', 'SKU商品标签', '对比结果'];
+  // 右栏默认显示的字段（全部类型）：SKU, 最低采购价, 对比结果（SKU商品标签默认隐藏）
+  const defaultRightVisibleColumns = ['SKU', '最低采购价', '对比结果'];
 
-  // 右栏默认显示的字段（仓店/城市类型）：SKU, 最近采购价, SKU商品标签, 对比结果
-  const defaultRightVisibleColumnsStoreCity = ['SKU', '最近采购价', 'SKU商品标签', '对比结果'];
+  // 右栏默认显示的字段（仓店/城市类型）：SKU, 最近采购价, 对比结果（SKU商品标签默认隐藏）
+  const defaultRightVisibleColumnsStoreCity = ['SKU', '最近采购价', '对比结果'];
 
   // 初始化左栏列设置
   useEffect(() => {
@@ -1089,80 +1092,25 @@ export default function SupplierQuotationPage() {
   // 数据加载完成后重新计算表格高度
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (leftTableContainerRef.current) {
-        const containerHeight = leftTableContainerRef.current.clientHeight;
-        const calculatedHeight = containerHeight - 57 - 32 - 64;
-        setLeftTableHeight(Math.max(300, calculatedHeight));
-      }
-      if (rightTableContainerRef.current) {
-        const containerHeight = rightTableContainerRef.current.clientHeight;
-        const calculatedHeight = containerHeight - 57 - 32 - 64;
-        setRightTableHeight(Math.max(300, calculatedHeight));
+      if (mergedTableContainerRef.current) {
+        const containerHeight = mergedTableContainerRef.current.clientHeight;
+        const calculatedHeight = containerHeight - 64; // 减去分页高度
+        setMergedTableHeight(Math.max(300, calculatedHeight));
       }
     }, 200);
     return () => clearTimeout(timer);
   }, [leftData, rightData, leftLoading, rightLoading]);
 
-  // 改进的同步滚动：使用 requestAnimationFrame 确保更平滑和准确
-  useEffect(() => {
-    const leftTable = leftTableContainerRef.current?.querySelector('.ant-table-body');
-    const rightTable = rightTableContainerRef.current?.querySelector('.ant-table-body');
-
-    if (!leftTable || !rightTable) return;
-
-    let rafId: number | null = null;
-
-    const handleLeftScroll = () => {
-      if (!isScrolling.current) {
-        isScrolling.current = true;
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(() => {
-          (rightTable as HTMLElement).scrollTop = (leftTable as HTMLElement).scrollTop;
-          setTimeout(() => {
-            isScrolling.current = false;
-          }, 16);
-        });
-      }
-    };
-
-    const handleRightScroll = () => {
-      if (!isScrolling.current) {
-        isScrolling.current = true;
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(() => {
-          (leftTable as HTMLElement).scrollTop = (rightTable as HTMLElement).scrollTop;
-          setTimeout(() => {
-            isScrolling.current = false;
-          }, 16);
-        });
-      }
-    };
-
-    leftTable.addEventListener('scroll', handleLeftScroll, { passive: true });
-    rightTable.addEventListener('scroll', handleRightScroll, { passive: true });
-
-    return () => {
-      leftTable.removeEventListener('scroll', handleLeftScroll);
-      rightTable.removeEventListener('scroll', handleRightScroll);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [leftData, rightData]);
 
   // 计算表格高度
   useEffect(() => {
     const updateTableHeights = () => {
       // 使用setTimeout确保DOM已渲染
       setTimeout(() => {
-        if (leftTableContainerRef.current) {
-          const containerHeight = leftTableContainerRef.current.clientHeight;
-          // 减去Card header (约57px) 和 padding (32px) 和 pagination (约64px)
-          const calculatedHeight = containerHeight - 57 - 32 - 64;
-          setLeftTableHeight(Math.max(300, calculatedHeight));
-        }
-        if (rightTableContainerRef.current) {
-          const containerHeight = rightTableContainerRef.current.clientHeight;
-          const calculatedHeight = containerHeight - 57 - 32 - 64;
-          setRightTableHeight(Math.max(300, calculatedHeight));
+        if (mergedTableContainerRef.current) {
+          const containerHeight = mergedTableContainerRef.current.clientHeight;
+          const calculatedHeight = containerHeight - 64; // 减去分页高度
+          setMergedTableHeight(Math.max(300, calculatedHeight));
         }
       }, 100);
     };
@@ -1170,26 +1118,19 @@ export default function SupplierQuotationPage() {
     updateTableHeights();
 
     // 使用ResizeObserver监听容器大小变化
-    const leftObserver = leftTableContainerRef.current
-      ? new ResizeObserver(updateTableHeights)
-      : null;
-    const rightObserver = rightTableContainerRef.current
+    const mergedObserver = mergedTableContainerRef.current
       ? new ResizeObserver(updateTableHeights)
       : null;
 
-    if (leftObserver && leftTableContainerRef.current) {
-      leftObserver.observe(leftTableContainerRef.current);
-    }
-    if (rightObserver && rightTableContainerRef.current) {
-      rightObserver.observe(rightTableContainerRef.current);
+    if (mergedObserver && mergedTableContainerRef.current) {
+      mergedObserver.observe(mergedTableContainerRef.current);
     }
 
     window.addEventListener('resize', updateTableHeights);
 
     return () => {
       window.removeEventListener('resize', updateTableHeights);
-      if (leftObserver) leftObserver.disconnect();
-      if (rightObserver) rightObserver.disconnect();
+      if (mergedObserver) mergedObserver.disconnect();
     };
   }, []);
 
@@ -1339,34 +1280,149 @@ export default function SupplierQuotationPage() {
     return allFiltered;
   }, [filteredAlignedData, comparisonResultFilter.length, leftCurrentPage, leftPageSize]);
 
+  // 合并后的数据：将供应商报价和库存汇总数据合并，并标识数据来源
+  const mergedData = useMemo(() => {
+    const result: Array<{
+      key: string;
+      dataType: 'quotation' | 'inventory';
+      quotation?: SupplierQuotation;
+      inventory?: InventorySummary;
+      hasMatch: boolean;
+    }> = [];
+
+    // 使用对齐后的数据，每条供应商报价对应一行，如果有匹配的库存汇总则一起显示
+    const currentLeftData = comparisonResultFilter.length > 0 ? filteredLeftData : paginatedLeftData;
+    const currentAlignedData = comparisonResultFilter.length > 0 ? filteredAlignedData : alignedData;
+
+    // 添加供应商报价数据（包含匹配的库存汇总）
+    currentLeftData.forEach((quotation, index) => {
+      const alignedItem = currentAlignedData.find(item =>
+        item.quotation.序号 === quotation.序号 ||
+        (item.quotation.供应商编码 === quotation.供应商编码 &&
+          item.quotation.供应商商品编码 === quotation.供应商商品编码)
+      );
+      const hasMatch = alignedItem && alignedItem.inventory && Object.keys(alignedItem.inventory).length > 0;
+
+      result.push({
+        key: `quotation-${quotation.序号 || quotation.供应商编码 || quotation.供应商商品编码 || index}`,
+        dataType: 'quotation',
+        quotation,
+        inventory: alignedItem?.inventory || undefined,
+        hasMatch: !!hasMatch,
+      });
+    });
+
+    // 添加库存汇总数据（只添加没有匹配到供应商报价的数据）
+    const matchedInventorySkus = new Set(
+      currentAlignedData
+        .filter(item => item.inventory && Object.keys(item.inventory).length > 0)
+        .map(item => item.inventory!.SKU)
+    );
+
+    rightData.forEach((inventory, index) => {
+      // 只添加没有匹配到供应商报价的库存汇总数据
+      if (!matchedInventorySkus.has(inventory.SKU)) {
+        result.push({
+          key: `inventory-${inventory.SKU || index}`,
+          dataType: 'inventory',
+          inventory,
+          hasMatch: false,
+        });
+      }
+    });
+
+    return result;
+  }, [filteredLeftData, filteredAlignedData, paginatedLeftData, alignedData, rightData, comparisonResultFilter.length]);
+
+  // 获取合并后的表格列定义
+  const getMergedColumns = (): ColumnType<any>[] => {
+    // 获取过滤后的左栏列（应用列设置）
+    const filteredLeftColumns = getFilteredLeftColumns();
+    // 获取过滤后的右栏列（应用列设置）
+    const filteredRightColumns = getFilteredRightColumns();
+
+    // 合并列，供应商报价列在前，库存汇总列在后
+    const merged: ColumnType<any>[] = [];
+
+    // 添加数据来源标识列（隐藏，仅用于标识）
+    merged.push({
+      title: '数据来源',
+      dataIndex: 'dataType',
+      key: 'dataType',
+      width: 0,
+      render: () => null,
+    });
+
+    // 添加供应商报价列（只添加未隐藏的列）
+    filteredLeftColumns.forEach(col => {
+      merged.push({
+        ...col,
+        render: (text: any, record: any) => {
+          if (record.dataType === 'quotation' && record.quotation) {
+            const value = (record.quotation as any)[col.dataIndex as string];
+            const renderedValue = col.render ? col.render(value, record.quotation, 0) : (value ?? '-');
+            // 供应商报价数据使用蓝色文字
+            return <span style={{ color: '#1890ff' }}>{renderedValue}</span>;
+          }
+          return '-';
+        },
+      });
+    });
+
+    // 添加库存汇总列（只添加未隐藏的列）
+    filteredRightColumns.forEach(col => {
+      merged.push({
+        ...col,
+        render: (text: any, record: any) => {
+          if (record.dataType === 'inventory' && record.inventory) {
+            const value = (record.inventory as any)[col.dataIndex as string];
+            const renderedValue = col.render ? col.render(value, record.inventory, 0) : (value ?? '-');
+            // 库存汇总数据使用绿色文字
+            return <span style={{ color: '#52c41a' }}>{renderedValue}</span>;
+          } else if (record.dataType === 'quotation' && record.inventory) {
+            const value = (record.inventory as any)[col.dataIndex as string];
+            const renderedValue = col.render ? col.render(value, record.inventory, 0) : (value ?? '-');
+            // 供应商报价行中的库存汇总数据也使用绿色文字
+            return <span style={{ color: '#52c41a' }}>{renderedValue}</span>;
+          }
+          return '-';
+        },
+      });
+    });
+
+    return merged;
+  };
+
+  // 获取过滤后的合并列
+  const getFilteredMergedColumns = (): ColumnType<any>[] => {
+    const allColumns = getMergedColumns();
+    // 过滤掉数据来源列（隐藏列）
+    return allColumns.filter(col => col.key !== 'dataType');
+  };
+
   return (
     <>
       <style dangerouslySetInnerHTML={{
         __html: `
-          /* 确保高亮样式优先级高于 hover 样式 */
-          .ant-table-tbody > tr.supplier-quotation-selected-with-match:hover > td,
-          .ant-table-tbody > tr.supplier-quotation-selected-with-match > td {
-            background-color: #bae7ff !important;
+          /* 点击后的高亮样式 */
+          .ant-table-tbody > tr.merged-row-selected > td {
+            background-color: #e6f7ff !important;
           }
-          .ant-table-tbody > tr.supplier-quotation-selected-no-match:hover > td,
-          .ant-table-tbody > tr.supplier-quotation-selected-no-match > td {
-            background-color: #fff7e6 !important;
-          }
-          .ant-table-tbody > tr.supplier-quotation-selected-with-match:hover,
-          .ant-table-tbody > tr.supplier-quotation-selected-no-match:hover {
-            background-color: transparent !important;
+          .ant-table-tbody > tr.merged-row-selected:hover > td {
+            background-color: #e6f7ff !important;
           }
         `
       }} />
       <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* 上栏：左右两栏 */}
-        <Row gutter={16} style={{ flex: 1, minHeight: 0, marginBottom: 16, overflow: 'hidden' }}>
-          {/* 左栏 */}
-          <Col span={12} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
-            <Card
-              title="供应商报价"
-              extra={
-                <Space>
+        {/* 合并的表格容器 */}
+        <Card
+          title="供应商报价与库存汇总"
+          extra={
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              {/* 供应商报价搜索区域 */}
+              <div style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 8, marginBottom: 8 }}>
+                <div style={{ marginBottom: 8, fontWeight: 500, color: '#1890ff' }}>供应商报价</div>
+                <Space wrap>
                   <Select
                     mode="tags"
                     value={selectedSupplierCodes}
@@ -1381,17 +1437,15 @@ export default function SupplierQuotationPage() {
                       }))}
                     onSearch={(value) => setSupplierCodeSearchValue(value)}
                     onChange={(values) => {
-                      // 只允许从下拉框选择的值（过滤掉手动输入的不存在的值）
                       const validValues = values.filter(v => allSupplierCodes.includes(v));
                       setSelectedSupplierCodes(validValues);
-                      // 如果用户输入了不存在的值，清空搜索值并提示
                       if (values.length > validValues.length) {
                         setSupplierCodeSearchValue('');
                         message.warning('只能选择下拉框中的供应商编码');
                       }
                     }}
                     onSelect={(value) => {
-                      setSupplierCodeSearchValue(''); // 选择后清空搜索值
+                      setSupplierCodeSearchValue('');
                     }}
                     placeholder="选择供应商编码（可输入筛选）"
                     style={{ width: 300 }}
@@ -1399,7 +1453,7 @@ export default function SupplierQuotationPage() {
                     showSearch
                     maxTagCount="responsive"
                     dropdownStyle={{ maxHeight: 300, overflow: 'auto' }}
-                    filterOption={false} // 禁用默认过滤，使用自定义过滤
+                    filterOption={false}
                     notFoundContent={supplierCodeSearchValue ? '未找到匹配的供应商编码' : '请输入供应商编码进行筛选'}
                   />
                   <Button
@@ -1456,94 +1510,11 @@ export default function SupplierQuotationPage() {
                     重置
                   </Button>
                 </Space>
-              }
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}
-              styles={{ body: { flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column' } }}
-            >
-              <div ref={leftTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <Table
-                  columns={getFilteredLeftColumns()}
-                  dataSource={comparisonResultFilter.length > 0 ? filteredLeftData : paginatedLeftData}
-                  rowKey={(record, index) => `${record.序号 || record.供应商编码 || record.供应商商品编码 || index}`}
-                  loading={leftLoading}
-                  scroll={{ x: 'max-content', y: leftTableHeight }}
-                  pagination={{
-                    current: leftCurrentPage,
-                    pageSize: leftPageSize,
-                    total: leftTotal,
-                    showSizeChanger: true,
-                    showTotal: (total) => `共 ${total} 条`,
-                    onChange: (page, size) => {
-                      setLeftCurrentPage(page);
-                      if (size) setLeftPageSize(size);
-                    },
-                    onShowSizeChange: (current, size) => {
-                      setLeftPageSize(size);
-                      setLeftCurrentPage(1);
-                    },
-                  }}
-                  onRow={(record, index) => {
-                    const rowIndex = index ?? -1;
-                    // 判断当前行是否被选中：使用严格的匹配条件
-                    let isSelected = false;
-                    if (selectedLeftRecord) {
-                      // 如果都有序号，优先使用序号匹配
-                      if (selectedLeftRecord.序号 && record.序号) {
-                        isSelected = selectedLeftRecord.序号 === record.序号;
-                      } else {
-                        // 否则使用供应商编码和供应商商品编码的组合匹配（必须所有字段都存在且匹配）
-                        isSelected = !!(
-                          selectedLeftRecord.供应商编码 &&
-                          record.供应商编码 &&
-                          selectedLeftRecord.供应商商品编码 &&
-                          record.供应商商品编码 &&
-                          selectedLeftRecord.供应商编码 === record.供应商编码 &&
-                          selectedLeftRecord.供应商商品编码 === record.供应商商品编码
-                        );
-                      }
-                    }
-
-                    // 使用筛选后的数据或原始数据来判断匹配
-                    const currentAlignedData = comparisonResultFilter.length > 0 ? filteredAlignedData : alignedData;
-                    const currentLeftData = comparisonResultFilter.length > 0 ? filteredLeftData : paginatedLeftData;
-
-                    // 找到当前记录在对齐数据中的索引
-                    const dataIndex = currentAlignedData.findIndex(item =>
-                      item.quotation.序号 === record.序号 ||
-                      (item.quotation.供应商编码 === record.供应商编码 &&
-                        item.quotation.供应商商品编码 === record.供应商商品编码)
-                    );
-
-                    const hasMatch = dataIndex >= 0 && currentAlignedData[dataIndex]?.inventory !== null &&
-                      Object.keys(currentAlignedData[dataIndex]?.inventory || {}).length > 0;
-
-                    return {
-                      onClick: (e) => handleLeftRowClick(record, e),
-                      className: isSelected
-                        ? (hasMatch ? 'supplier-quotation-selected-with-match' : 'supplier-quotation-selected-no-match')
-                        : undefined,
-                      style: {
-                        cursor: 'pointer',
-                        backgroundColor: isSelected
-                          ? (hasMatch ? '#bae7ff' : '#fff7e6') // 有匹配用蓝色，无匹配用黄色
-                          : undefined,
-                        borderLeft: isSelected ? '4px solid #1890ff' : undefined,
-                        fontWeight: isSelected ? 'bold' : 'normal',
-                      },
-                    };
-                  }}
-                  style={{ flex: 1, overflow: 'hidden' }}
-                />
               </div>
-            </Card>
-          </Col>
-
-          {/* 右栏 */}
-          <Col span={12} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
-            <Card
-              title="库存汇总"
-              extra={
-                <Space>
+              {/* 库存汇总搜索区域 */}
+              <div>
+                <div style={{ marginBottom: 8, fontWeight: 500, color: '#52c41a' }}>库存汇总</div>
+                <Space wrap>
                   <Select
                     mode="multiple"
                     placeholder="筛选对比结果"
@@ -1568,7 +1539,6 @@ export default function SupplierQuotationPage() {
                       value={storeNameFilter}
                       onChange={(values) => {
                         setStoreNameFilter(values);
-                        // 延迟加载，避免频繁请求
                         setTimeout(() => {
                           loadRightData();
                         }, 300);
@@ -1623,76 +1593,54 @@ export default function SupplierQuotationPage() {
                     重置
                   </Button>
                 </Space>
-              }
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden' }}
-              styles={{ body: { flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column' } }}
-            >
-              <div ref={rightTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <Table
-                  columns={getFilteredRightColumns()}
-                  dataSource={comparisonResultFilter.length > 0 ? filteredRightData : alignedRightData}
-                  rowKey={(record, index) => `${record.SKU || record.商品名称 || index || Math.random()}`}
-                  loading={rightLoading}
-                  scroll={{ x: 'max-content', y: rightTableHeight }}
-                  pagination={false}
-                  onRow={(record, index) => {
-                    const rowIndex = index ?? -1;
-                    // 使用筛选后的数据
-                    const currentAlignedData = comparisonResultFilter.length > 0 ? filteredAlignedData : alignedData;
-                    const currentLeftData = comparisonResultFilter.length > 0 ? filteredLeftData : paginatedLeftData;
-
-                    // 由于右栏数据与左栏数据是对齐的，直接使用相同的索引
-                    // 找到对应的左栏数据
-                    const leftRecord = rowIndex >= 0 && rowIndex < currentLeftData.length
-                      ? currentLeftData[rowIndex]
-                      : null;
-
-                    // 检查当前行是否被选中（通过对应的左栏数据判断，使用严格的匹配条件）
-                    let isSelected = false;
-                    if (selectedLeftRecord && leftRecord) {
-                      // 如果都有序号，优先使用序号匹配
-                      if (selectedLeftRecord.序号 && leftRecord.序号) {
-                        isSelected = selectedLeftRecord.序号 === leftRecord.序号;
-                      } else {
-                        // 否则使用供应商编码和供应商商品编码的组合匹配（必须所有字段都存在且匹配）
-                        isSelected = !!(
-                          selectedLeftRecord.供应商编码 &&
-                          leftRecord.供应商编码 &&
-                          selectedLeftRecord.供应商商品编码 &&
-                          leftRecord.供应商商品编码 &&
-                          selectedLeftRecord.供应商编码 === leftRecord.供应商编码 &&
-                          selectedLeftRecord.供应商商品编码 === leftRecord.供应商商品编码
-                        );
-                      }
-                    }
-
-                    // 找到对应的对齐数据项
-                    const alignedItem = rowIndex >= 0 && rowIndex < currentAlignedData.length
-                      ? currentAlignedData[rowIndex]
-                      : null;
-
-                    const hasMatch = alignedItem && alignedItem.inventory !== null &&
-                      Object.keys(alignedItem.inventory || {}).length > 0;
-
-                    return {
-                      className: isSelected
-                        ? (hasMatch ? 'supplier-quotation-selected-with-match' : 'supplier-quotation-selected-no-match')
-                        : undefined,
-                      style: {
-                        backgroundColor: isSelected
-                          ? (hasMatch ? '#bae7ff' : '#fff7e6') // 有匹配用蓝色，无匹配用黄色
-                          : undefined,
-                        borderLeft: isSelected ? '4px solid #1890ff' : undefined,
-                        fontWeight: isSelected ? 'bold' : 'normal',
-                      },
-                    };
-                  }}
-                  style={{ flex: 1, overflow: 'hidden' }}
-                />
               </div>
-            </Card>
-          </Col>
-        </Row>
+            </Space>
+          }
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden', marginBottom: 16 }}
+          styles={{ body: { flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column' } }}
+        >
+          <div ref={mergedTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Table
+              columns={getFilteredMergedColumns()}
+              dataSource={mergedData}
+              rowKey={(record) => record.key}
+              loading={leftLoading || rightLoading}
+              scroll={{ x: 'max-content', y: mergedTableHeight }}
+              pagination={{
+                current: leftCurrentPage,
+                pageSize: leftPageSize,
+                total: leftTotal,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条`,
+                onChange: (page, size) => {
+                  setLeftCurrentPage(page);
+                  if (size) setLeftPageSize(size);
+                },
+                onShowSizeChange: (current, size) => {
+                  setLeftPageSize(size);
+                  setLeftCurrentPage(1);
+                },
+              }}
+              onRow={(record) => {
+                const isSelected = selectedMergedRowKey === record.key;
+
+                return {
+                  onClick: () => {
+                    setSelectedMergedRowKey(record.key);
+                    if (record.quotation) {
+                      handleLeftRowClick(record.quotation);
+                    }
+                  },
+                  className: isSelected ? 'merged-row-selected' : undefined,
+                  style: {
+                    cursor: 'pointer',
+                  },
+                };
+              }}
+              style={{ flex: 1, overflow: 'hidden' }}
+            />
+          </div>
+        </Card>
 
         {/* 下栏 */}
         <Card
