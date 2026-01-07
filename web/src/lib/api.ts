@@ -711,6 +711,7 @@ export interface MaxPurchaseQuantityItem {
   '仓店名称': string;
   'SKU': string;
   '单次最高采购量(基本单位)': number;
+  '备注'?: string | null;
   '修改人': string;
   '商品名称'?: string | null;
   '商品UPC'?: string | null;
@@ -752,6 +753,7 @@ export const maxPurchaseQuantityApi = {
     storeName: string;
     sku: string;
     maxQuantity: number;
+    remark?: string;
   }): Promise<MaxPurchaseQuantityItem> =>
     api.post('/max-purchase-quantity', data).then(res => res.data),
 
@@ -764,6 +766,7 @@ export const maxPurchaseQuantityApi = {
       storeName?: string;
       sku?: string;
       maxQuantity?: number;
+      remark?: string;
     }
   ): Promise<MaxPurchaseQuantityItem> =>
     api.put('/max-purchase-quantity', { original, data }).then(res => res.data),

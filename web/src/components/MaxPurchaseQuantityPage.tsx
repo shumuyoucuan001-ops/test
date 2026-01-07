@@ -5,13 +5,16 @@ import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined, 
 import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
+import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof MaxPurchaseQuantityItem, string> = {
     "仓店名称": "仓店名称",
     "SKU": "SKU",
     "单次最高采购量(基本单位)": "单次最高采购量(基本单位)",
+    "备注": "备注",
     "修改人": "修改人",
     "商品名称": "商品名称",
     "商品UPC": "商品UPC",
@@ -42,6 +45,8 @@ export default function MaxPurchaseQuantityPage() {
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+    const [batchModalVisible, setBatchModalVisible] = useState(false);
+    const [exportModalVisible, setExportModalVisible] = useState(false);
 
     // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
@@ -165,6 +170,13 @@ export default function MaxPurchaseQuantityPage() {
                 dataIndex: '单次最高采购量(基本单位)',
                 key: '单次最高采购量(基本单位)',
                 width: 200,
+            },
+            {
+                title: '备注',
+                dataIndex: '备注',
+                key: '备注',
+                width: 220,
+                ellipsis: true,
             },
             {
                 title: '修改人',
@@ -291,6 +303,7 @@ export default function MaxPurchaseQuantityPage() {
             storeName: record['仓店名称'],
             sku: record['SKU'],
             maxQuantity: record['单次最高采购量(基本单位)'],
+            remark: record['备注'],
             '商品名称': record['商品名称'],
             '商品UPC': record['商品UPC'],
             '规格': record['规格'],
@@ -336,6 +349,7 @@ export default function MaxPurchaseQuantityPage() {
                     storeName: values.storeName,
                     sku: values.sku,
                     maxQuantity: values.maxQuantity,
+                    remark: values.remark,
                 }
             );
             if (showSuccessMessage) {
@@ -347,6 +361,7 @@ export default function MaxPurchaseQuantityPage() {
                 storeName: values.storeName,
                 sku: values.sku,
                 maxQuantity: values.maxQuantity,
+                remark: values.remark,
             });
             if (showSuccessMessage) {
                 message.success('创建成功');
@@ -500,6 +515,10 @@ export default function MaxPurchaseQuantityPage() {
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
                             新增
                         </Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setBatchModalVisible(true)}>
+                            批量新增
+                        </Button>
+                        <Button onClick={() => setExportModalVisible(true)}>导出数据</Button>
                         <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
                         <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
                         <Popover
@@ -635,7 +654,7 @@ export default function MaxPurchaseQuantityPage() {
                             { required: true, message: 'SKU不能为空' },
                         ]}
                     >
-                        <Input 
+                        <Input
                             placeholder="请输入SKU"
                             disabled={!!editingRecord}
                             onChange={async (e) => {
@@ -691,8 +710,113 @@ export default function MaxPurchaseQuantityPage() {
                             precision={0}
                         />
                     </Form.Item>
+                    <Form.Item
+                        label="备注"
+                        name="remark"
+                    >
+                        <Input.TextArea placeholder="请输入备注" rows={3} />
+                    </Form.Item>
+                    <Form.Item
+                        label="备注"
+                        name="remark"
+                    >
+                        <Input.TextArea placeholder="请输入备注" rows={3} />
+                    </Form.Item>
                 </Form>
             </Modal>
+
+            {/* 批量新增模态框 */}
+            <BatchAddModal<MaxPurchaseQuantityItem>
+                open={batchModalVisible}
+                title="批量新增记录"
+                hint="您可以从 Excel 中复制数据（包含仓店名称、SKU、单次最高采购量(基本单位)、备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。"
+                fields={useMemo<FieldConfig<MaxPurchaseQuantityItem>[]>(() => ([
+                    { key: '仓店名称', label: '仓店名称', excelHeaderName: '仓店名称', required: true, index: 0 },
+                    { key: 'SKU', label: 'SKU', excelHeaderName: 'SKU', required: true, index: 1 },
+                    { key: '单次最高采购量(基本单位)', label: '单次最高采购量(基本单位)', excelHeaderName: '单次最高采购量(基本单位)', required: true, index: 2 },
+                    { key: '备注', label: '备注', excelHeaderName: '备注', required: false, index: 3 },
+                ]), [])}
+                formatHint="格式：仓店名称	SKU	单次最高采购量(基本单位)	备注"
+                example="仓店A	SKU000000000000001	100	说明"
+                onCancel={() => setBatchModalVisible(false)}
+                onSave={useCallback(async (validItems: MaxPurchaseQuantityItem[]) => {
+                    try {
+                        let success = 0;
+                        let failed = 0;
+                        const errors: string[] = [];
+                        for (const item of validItems) {
+                            try {
+                                await maxPurchaseQuantityApi.create({
+                                    storeName: item['仓店名称'],
+                                    sku: item['SKU'],
+                                    maxQuantity: Number(item['单次最高采购量(基本单位)'] || 0),
+                                    remark: item['备注'] || undefined,
+                                });
+                                success++;
+                            } catch (err: any) {
+                                failed++;
+                                errors.push(err?.response?.data?.message || err?.message || '未知错误');
+                            }
+                        }
+                        if (success > 0) {
+                            message.success(`批量新增成功 ${success} 条${failed > 0 ? `，失败 ${failed} 条` : ''}`);
+                        }
+                        if (failed > 0) {
+                            message.warning(`有 ${failed} 条数据失败：${errors.slice(0, 3).join('；')}${errors.length > 3 ? '……' : ''}`);
+                        }
+                        load(filters, currentPage, pageSize);
+                    } catch (e) {
+                        message.error('批量新增失败');
+                    }
+                }, [filters, currentPage, pageSize, load])}
+                createItem={useCallback((parts: string[]) => {
+                    return {
+                        '仓店名称': parts[0] || '',
+                        'SKU': parts[1] || '',
+                        '单次最高采购量(基本单位)': parts[2] ? Number(parts[2]) : 0,
+                        '备注': parts[3] || null,
+                    } as Partial<MaxPurchaseQuantityItem>;
+                }, [])}
+            />
+
+            {/* 导出数据模态框 */}
+            <ExcelExportModal<MaxPurchaseQuantityItem>
+                open={exportModalVisible}
+                title="导出单次最高采购量数据"
+                fields={useMemo<ExcelExportField[]>(() => ([
+                    { key: '仓店名称', label: '仓店名称' },
+                    { key: 'SKU', label: 'SKU' },
+                    { key: '商品名称', label: '商品名称' },
+                    { key: '商品UPC', label: '商品UPC' },
+                    { key: '规格', label: '规格' },
+                    { key: '采购单价 (基础单位)', label: '采购单价 (基础单位)' },
+                    { key: '采购单价 (采购单位)', label: '采购单价 (采购单位)' },
+                    { key: '单次最高采购量(基本单位)', label: '单次最高采购量(基本单位)' },
+                    { key: '备注', label: '备注' },
+                    { key: '修改人', label: '修改人' },
+                ]), [])}
+                selectedData={[]}
+                fetchAllData={useCallback(async () => {
+                    const all: MaxPurchaseQuantityItem[] = [];
+                    let page = 1;
+                    const limit = 100000;
+                    let total = 0;
+                    // 使用当前筛选条件导出
+                    // eslint-disable-next-line no-constant-condition
+                    while (true) {
+                        const res = await maxPurchaseQuantityApi.list(filters, page, limit);
+                        if (!res?.data) break;
+                        all.push(...res.data);
+                        total = res.total || 0;
+                        // 如果已经获取了所有数据，或者返回的数据少于 limit，则停止
+                        if (all.length >= total || res.data.length < limit) break;
+                        page += 1;
+                    }
+                    return all;
+                }, [filters])}
+                onCancel={() => setExportModalVisible(false)}
+                fileName="单次最高采购量"
+            />
         </div>
     );
 }

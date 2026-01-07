@@ -37,7 +37,8 @@ export class Refund1688FollowUpController {
     const result = await this.service.findAll(
       pageNum,
       limitNum,
-      Object.keys(filters).length > 0 ? filters : undefined
+      Object.keys(filters).length > 0 ? filters : undefined,
+      userId ? parseInt(userId, 10) : undefined,
     );
 
     // 检查用户是否有编辑权限（即使检查失败也不影响数据返回）

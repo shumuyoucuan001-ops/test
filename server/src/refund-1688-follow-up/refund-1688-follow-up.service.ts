@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import * as mysql from 'mysql2/promise';
-import { Logger } from '../utils/logger.util';
 import { OperationLogService } from '../operation-log/operation-log.service';
-import { OssService, ImageCategory } from '../oss/oss.service';
+import { ImageCategory, OssService } from '../oss/oss.service';
+import { Logger } from '../utils/logger.util';
 
 export interface Refund1688FollowUp {
   订单编号: string; // 主键
@@ -31,7 +31,89 @@ export class Refund1688FollowUpService {
   constructor(
     private operationLogService: OperationLogService,
     private ossService: OssService,
-  ) {}
+  ) { }
+
+  /**
+   * 用户角色与部门信息查询（用于数据可见性控制）
+   */
+  private async getUserRoles(userId: number): Promise<string[]> {
+    const connection = await this.getChaigouConnection();
+    try {
+      const [rows]: any = await connection.execute(
+        `SELECT r.\`name\` 
+         FROM \`sm_xitongkaifa\`.\`sys_roles\` r
+         JOIN \`sm_xitongkaifa\`.\`sys_user_roles\` ur ON ur.\`role_id\` = r.\`id\`
+         WHERE ur.\`user_id\` = ?`,
+        [userId],
+      );
+      return (rows || []).map((r: any) => String(r.name || '').trim()).filter(Boolean);
+    } catch (e) {
+      Logger.error('[Refund1688FollowUpService] 获取用户角色失败:', e);
+      return [];
+    } finally {
+      await connection.end();
+    }
+  }
+
+  private async getUserDepartmentId(userId: number): Promise<string | null> {
+    const connection = await this.getChaigouConnection();
+    try {
+      const [rows]: any = await connection.execute(
+        `SELECT \`department_id\` 
+         FROM \`sm_xitongkaifa\`.\`sys_users\` 
+         WHERE \`id\` = ? 
+         LIMIT 1`,
+        [userId],
+      );
+      if (rows && rows.length > 0 && rows[0].department_id !== null && rows[0].department_id !== undefined) {
+        return String(rows[0].department_id);
+      }
+      return null;
+    } catch (e) {
+      Logger.error('[Refund1688FollowUpService] 获取用户department_id失败:', e);
+      return null;
+    } finally {
+      await connection.end();
+    }
+  }
+
+  private async shouldFilterByRole(userId?: number): Promise<{ shouldFilter: boolean; departmentId: string | null }> {
+    if (!userId) {
+      return { shouldFilter: false, departmentId: null };
+    }
+    const roles = await this.getUserRoles(userId);
+    const hasRestrictedRole = roles.some(role => role === '仓店-店长' || role === '仓店-拣货员');
+    if (!hasRestrictedRole) {
+      return { shouldFilter: false, departmentId: null };
+    }
+    const departmentId = await this.getUserDepartmentId(userId);
+    return { shouldFilter: true, departmentId };
+  }
+
+  /**
+   * 从“收货人姓名”字段中提取括号内门店名称
+   * 例：术木（花果园） => 花果园
+   */
+  private extractStoreFromReceiverName(receiverName?: string): string | null {
+    if (!receiverName) return null;
+    const s = receiverName.trim();
+    if (!s) return null;
+    // 优先使用全角括号
+    let left = s.indexOf('（');
+    let right = left >= 0 ? s.indexOf('）', left + 1) : -1;
+    if (left >= 0 && right > left) {
+      const mid = s.substring(left + 1, right).trim();
+      return mid || null;
+    }
+    // 退化为半角括号
+    left = s.indexOf('(');
+    right = left >= 0 ? s.indexOf(')', left + 1) : -1;
+    if (left >= 0 && right > left) {
+      const mid = s.substring(left + 1, right).trim();
+      return mid || null;
+    }
+    return null;
+  }
   private async getChaigouConnection() {
     if (!process.env.DB_PASSWORD) {
       throw new Error('DB_PASSWORD environment variable is required');
@@ -58,11 +140,12 @@ export class Refund1688FollowUpService {
       牵牛花物流单号?: string;
       进度追踪?: string;
       keyword?: string; // 关键词搜索
-    }
+    },
+    userId?: number,
   ): Promise<{ data: Refund1688FollowUp[]; total: number }> {
     const connection = await this.getChaigouConnection();
     try {
-      Logger.log('[Refund1688FollowUpService] 开始查询，分页参数:', { page, limit, filters });
+      Logger.log('[Refund1688FollowUpService] 开始查询，分页参数:', { page, limit, filters, userId });
 
       const offset = (page - 1) * limit;
 
@@ -164,8 +247,73 @@ export class Refund1688FollowUpService {
         LIMIT ${limit} OFFSET ${offset}`;
 
       Logger.log('[Refund1688FollowUpService] 执行数据查询...');
-      const [rows] = await connection.execute(dataSql, params);
-      const data = rows as Refund1688FollowUp[];
+      let [rows] = await connection.execute(dataSql, params);
+      let data = rows as Refund1688FollowUp[];
+
+      // 基于角色的可见性过滤（仅“仓店-店长/仓店-拣货员”按部门过滤）
+      const { shouldFilter, departmentId } = await this.shouldFilterByRole(userId);
+      if (shouldFilter && departmentId !== null) {
+        // 查询所有匹配条件的数据（不分页），再在内存中过滤并分页
+        const allRowsSql = dataSql.replace(/LIMIT \d+ OFFSET \d+$/, '');
+        const [allRows] = await connection.execute(allRowsSql, params);
+        const allData = allRows as Refund1688FollowUp[];
+
+        const filtered = allData.filter(r => {
+          const extracted = this.extractStoreFromReceiverName(r.收货人姓名);
+          if (!extracted) return false;
+          // 特殊歧义处理：金沙湾/沙湾
+          const isJinshawanMismatch =
+            (departmentId.includes('金沙湾') && extracted === '沙湾') ||
+            (extracted === '金沙湾' && departmentId.includes('沙湾') && !departmentId.includes('金沙湾'));
+          if (isJinshawanMismatch) return false;
+          return departmentId.includes(extracted) || extracted.includes(departmentId);
+        });
+
+        // 覆盖总数与当前页数据
+        const newTotal = filtered.length;
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        data = filtered.slice(start, end);
+
+        // 使用覆盖后的 total 返回
+        // 后续逻辑基于 data 继续
+        Logger.log(`[Refund1688FollowUpService] 角色过滤后总数: ${newTotal}, 当前页行数: ${data.length}`);
+
+        // 将 total 覆盖到闭包变量，方式：通过返回值处替换（见下方 return）
+        // 为了在不大改结构的情况下传递 total，用局部变量承载
+        // 注意：下方 return 会用覆盖后的 total
+        const processed = await this.autoUpdateOrderAndRefundStatus(data);
+
+        // 设置默认进度并尝试更新数据库（仅对可见数据）
+        const recordsToUpdate: string[] = [];
+        const processedData = processed.map(record => {
+          if (!record.进度追踪 || record.进度追踪.trim() === '') {
+            recordsToUpdate.push(record.订单编号);
+            return {
+              ...record,
+              进度追踪: '等待商家同意退换'
+            };
+          }
+          return record;
+        });
+        if (recordsToUpdate.length > 0) {
+          try {
+            const placeholders = recordsToUpdate.map(() => '?').join(',');
+            await connection.execute(
+              `UPDATE \`sm_chaigou\`.\`1688退款售后\` 
+               SET \`进度追踪\` = '等待商家同意退换' 
+               WHERE \`订单编号\` IN (${placeholders}) 
+               AND (\`进度追踪\` IS NULL OR \`进度追踪\` = '')`,
+              recordsToUpdate
+            );
+            Logger.log(`[Refund1688FollowUpService] 已更新 ${recordsToUpdate.length} 条记录的进度追踪默认值（角色过滤后）`);
+          } catch (error) {
+            Logger.error('[Refund1688FollowUpService] 更新进度追踪默认值失败（角色过滤后）:', error);
+          }
+        }
+
+        return { data: processedData, total: newTotal };
+      }
 
       Logger.log(`[Refund1688FollowUpService] 查询到 ${data.length} 条记录（第 ${page} 页）`);
 

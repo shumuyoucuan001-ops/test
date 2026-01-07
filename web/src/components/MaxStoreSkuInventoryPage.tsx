@@ -5,7 +5,9 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutli
 import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
+import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof MaxStoreSkuInventoryItem, string> = {
@@ -44,6 +46,8 @@ export default function MaxStoreSkuInventoryPage() {
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+    const [batchModalVisible, setBatchModalVisible] = useState(false);
+    const [exportModalVisible, setExportModalVisible] = useState(false);
 
     // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
@@ -440,6 +444,10 @@ export default function MaxStoreSkuInventoryPage() {
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
                             新增
                         </Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setBatchModalVisible(true)}>
+                            批量新增
+                        </Button>
+                        <Button onClick={() => setExportModalVisible(true)}>导出数据</Button>
                         <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
                         <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
                         <Popover
@@ -654,6 +662,99 @@ export default function MaxStoreSkuInventoryPage() {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            {/* 批量新增模态框 */}
+            <BatchAddModal<MaxStoreSkuInventoryItem>
+                open={batchModalVisible}
+                title="批量新增记录"
+                hint="您可以从 Excel 中复制数据（包含仓店名称、SKU编码、最高库存量（基础单位）、备注（说明设置原因）列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。"
+                fields={useMemo<FieldConfig<MaxStoreSkuInventoryItem>[]>(() => ([
+                    { key: '仓店名称', label: '仓店名称', excelHeaderName: '仓店名称', required: true, index: 0 },
+                    { key: 'SKU编码', label: 'SKU编码', excelHeaderName: 'SKU编码', required: true, index: 1 },
+                    { key: '最高库存量（基础单位）', label: '最高库存量（基础单位）', excelHeaderName: '最高库存量（基础单位）', required: true, index: 2 },
+                    { key: '备注（说明设置原因）', label: '备注（说明设置原因）', excelHeaderName: '备注（说明设置原因）', required: true, index: 3 },
+                ]), [])}
+                formatHint="格式：仓店名称	SKU编码	最高库存量（基础单位）	备注（说明设置原因）"
+                example="仓店A	SKU000000000000001	200	说明原因"
+                onCancel={() => setBatchModalVisible(false)}
+                onSave={useCallback(async (validItems: MaxStoreSkuInventoryItem[]) => {
+                    try {
+                        let success = 0;
+                        let failed = 0;
+                        const errors: string[] = [];
+                        for (const item of validItems) {
+                            try {
+                                await maxStoreSkuInventoryApi.create({
+                                    storeName: item['仓店名称'],
+                                    sku: item['SKU编码'],
+                                    maxInventory: Number(item['最高库存量（基础单位）'] || 0),
+                                    remark: item['备注（说明设置原因）'] || '',
+                                });
+                                success++;
+                            } catch (err: any) {
+                                failed++;
+                                errors.push(err?.response?.data?.message || err?.message || '未知错误');
+                            }
+                        }
+                        if (success > 0) {
+                            message.success(`批量新增成功 ${success} 条${failed > 0 ? `，失败 ${failed} 条` : ''}`);
+                        }
+                        if (failed > 0) {
+                            message.warning(`有 ${failed} 条数据失败：${errors.slice(0, 3).join('；')}${errors.length > 3 ? '……' : ''}`);
+                        }
+                        load(filters, currentPage, pageSize);
+                    } catch (e) {
+                        message.error('批量新增失败');
+                    }
+                }, [filters, currentPage, pageSize])}
+                createItem={useCallback((parts: string[]) => {
+                    return {
+                        '仓店名称': parts[0] || '',
+                        'SKU编码': parts[1] || '',
+                        '最高库存量（基础单位）': parts[2] ? Number(parts[2]) : 0,
+                        '备注（说明设置原因）': parts[3] || '',
+                    } as Partial<MaxStoreSkuInventoryItem>;
+                }, [])}
+            />
+
+            {/* 导出数据模态框 */}
+            <ExcelExportModal<MaxStoreSkuInventoryItem>
+                open={exportModalVisible}
+                title="导出仓店SKU最高库存数据"
+                fields={useMemo<ExcelExportField[]>(() => ([
+                    { key: '仓店名称', label: '仓店名称' },
+                    { key: 'SKU编码', label: 'SKU编码' },
+                    { key: '商品名称', label: '商品名称' },
+                    { key: '商品UPC', label: '商品UPC' },
+                    { key: '规格', label: '规格' },
+                    { key: '采购单价 (基础单位)', label: '采购单价 (基础单位)' },
+                    { key: '采购单价 (采购单位)', label: '采购单价 (采购单位)' },
+                    { key: '最高库存量（基础单位）', label: '最高库存量（基础单位）' },
+                    { key: '备注（说明设置原因）', label: '备注（说明设置原因）' },
+                    { key: '修改人', label: '修改人' },
+                ]), [])}
+                selectedData={[]}
+                fetchAllData={useCallback(async () => {
+                    const all: MaxStoreSkuInventoryItem[] = [];
+                    let page = 1;
+                    const limit = 100000;
+                    let total = 0;
+                    // 使用当前筛选条件导出
+                    // eslint-disable-next-line no-constant-condition
+                    while (true) {
+                        const res = await maxStoreSkuInventoryApi.list(filters, page, limit);
+                        if (!res?.data) break;
+                        all.push(...res.data);
+                        total = res.total || 0;
+                        // 如果已经获取了所有数据，或者返回的数据少于 limit，则停止
+                        if (all.length >= total || res.data.length < limit) break;
+                        page += 1;
+                    }
+                    return all;
+                }, [filters])}
+                onCancel={() => setExportModalVisible(false)}
+                fileName="仓店SKU最高库存"
+            />
         </div>
     );
 }

@@ -36,7 +36,7 @@ export class MaxStoreSkuInventoryController {
         @Headers('x-user-id') userId?: string,
     ): Promise<{ data: MaxStoreSkuInventoryItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
-        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 100000));
         const userIdNum = userId ? Number(userId) : undefined;
         const filters: any = {};
         if (storeName) filters.storeName = storeName;
