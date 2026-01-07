@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
     // 测试访问后端API
     const response = await fetch('http://localhost:3000/acl/users');
     const data = await response.json();
-    
+
     return NextResponse.json({
       success: true,
       backendStatus: response.status,
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return NextResponse.json({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 }

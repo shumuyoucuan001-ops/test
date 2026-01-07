@@ -1,6 +1,6 @@
 "use client";
 
-import { DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { Button, Input, message, Modal, Table, Tag, Upload } from 'antd';
 import { useCallback, useState } from 'react';
 import * as XLSX from 'xlsx';
@@ -533,6 +533,47 @@ export default function BatchAddModal<T = any>({
         return `格式：${fieldNames}${example ? `\n示例：${example}` : ''}`;
     };
 
+    // 导出Excel模板
+    const handleExportTemplate = useCallback(() => {
+        try {
+            // 构建表头行
+            const headers: string[] = fields.map(field => {
+                // 优先使用 excelHeaderName，如果是数组则取第一个，否则使用 label
+                if (field.excelHeaderName) {
+                    if (Array.isArray(field.excelHeaderName)) {
+                        return field.excelHeaderName[0];
+                    }
+                    return field.excelHeaderName;
+                }
+                return field.label;
+            });
+
+            // 创建工作表数据（只有表头，没有数据行）
+            const worksheetData = [headers];
+
+            // 创建工作簿
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+            // 设置列宽（可选，让Excel更美观）
+            const colWidths = headers.map(() => ({ wch: 20 }));
+            worksheet['!cols'] = colWidths;
+
+            // 将工作表添加到工作簿
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+
+            // 生成文件名（使用模态框标题，去掉特殊字符）
+            const fileName = `${String(title).replace(/[^\w\s-]/g, '') || '批量新增'}_模板.xlsx`;
+
+            // 导出文件
+            XLSX.writeFile(workbook, fileName);
+            message.success('模板导出成功');
+        } catch (error) {
+            console.error('导出模板失败:', error);
+            message.error('导出模板失败，请重试');
+        }
+    }, [fields, title]);
+
     return (
         <Modal
             open={open}
@@ -570,18 +611,26 @@ export default function BatchAddModal<T = any>({
                         }}
                     />
                 </div>
-                <Upload
-                    accept=".xlsx,.xls"
-                    beforeUpload={(file) => {
-                        handleExcelUpload(file);
-                        return false; // 阻止自动上传
-                    }}
-                    showUploadList={false}
-                >
-                    <Button icon={<UploadOutlined />} loading={uploading}>
-                        导入Excel文件(可选)
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <Upload
+                        accept=".xlsx,.xls"
+                        beforeUpload={(file) => {
+                            handleExcelUpload(file);
+                            return false; // 阻止自动上传
+                        }}
+                        showUploadList={false}
+                    >
+                        <Button icon={<UploadOutlined />} loading={uploading}>
+                            导入Excel文件(可选)
+                        </Button>
+                    </Upload>
+                    <Button
+                        icon={<DownloadOutlined />}
+                        onClick={handleExportTemplate}
+                    >
+                        [批量新增]模板导出
                     </Button>
-                </Upload>
+                </div>
             </div>
 
             {/* 有效数据预览表格 */}

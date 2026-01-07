@@ -61,8 +61,6 @@ export default function NonPurchaseBillRecordPage() {
 
   // 正在编辑的字段（用于行内编辑）
   const [editingField, setEditingField] = useState<{ record: NonPurchaseBillRecord; field: '账单类型' | '所属仓店' } | null>(null);
-  // 是否正在显示确认对话框（用于防止onBlur冲突）
-  const [isShowingConfirm, setIsShowingConfirm] = useState(false);
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -486,86 +484,69 @@ export default function NonPurchaseBillRecordPage() {
 
   // 取消行内编辑
   const handleCancelInlineEdit = () => {
-    // 如果正在显示确认对话框，不关闭编辑状态
-    if (isShowingConfirm) {
-      return;
-    }
     setEditingField(null);
   };
 
-  // 确认行内编辑
+  // 直接保存行内编辑（方案1：无需确认）
   const handleConfirmInlineEdit = async (newValue: string) => {
-    if (!editingField) return;
+    if (!editingField) {
+      console.log('[NonPurchaseBillRecordPage] handleConfirmInlineEdit: editingField 为空');
+      return;
+    }
 
     const { record, field } = editingField;
     const oldValue = record[field] || '';
 
+    console.log('[NonPurchaseBillRecordPage] handleConfirmInlineEdit 被调用:', {
+      field,
+      oldValue,
+      newValue,
+      账单流水: record.账单流水
+    });
+
     if (oldValue === newValue) {
       // 值没有变化，直接关闭编辑状态
+      console.log('[NonPurchaseBillRecordPage] 值没有变化，关闭编辑状态');
       setEditingField(null);
-      setIsShowingConfirm(false);
       return;
     }
 
-    // 保存当前编辑状态，用于在确认对话框中使用
-    const currentEditingField = editingField;
+    // 保存当前编辑状态信息
     const currentField = field;
     const currentRecord = record;
+    const currentOldValue = oldValue;
+    const currentNewValue = newValue;
 
-    // 设置标志，防止onBlur关闭编辑状态
-    setIsShowingConfirm(true);
-
-    // 先关闭编辑状态，避免与确认对话框冲突
+    // 立即关闭编辑状态，下拉框消失
     setEditingField(null);
 
     try {
-      Modal.confirm({
-        title: '确认修改',
-        content: `确定要将${currentField === '账单类型' ? '账单类型' : '所属仓店'}从"${oldValue || '(空)'}"修改为"${newValue || '(空)'}"吗？`,
-        okText: '确定',
-        cancelText: '取消',
-        onOk: async () => {
-          try {
-            const updateData: any = {};
-            // 如果 newValue 是空字符串或 null，传递 undefined
-            updateData[currentField] = (newValue && newValue.trim() !== '') ? newValue : undefined;
+      const updateData: any = {};
+      // 如果 newValue 是空字符串或 null，传递 undefined
+      updateData[currentField] = (currentNewValue && currentNewValue.trim() !== '') ? currentNewValue : undefined;
 
-            console.log('准备保存数据:', {
-              账单流水: currentRecord.账单流水,
-              字段: currentField,
-              新值: updateData[currentField],
-              旧值: oldValue
-            });
-
-            await nonPurchaseBillRecordApi.update(currentRecord.账单流水, updateData);
-            message.success('修改成功');
-            refreshRecords();
-          } catch (error: any) {
-            const errorMessage = error?.response?.data?.message || error?.message || '修改失败';
-            message.error(errorMessage);
-            console.error('保存失败:', {
-              error,
-              response: error?.response,
-              data: error?.response?.data,
-              账单流水: currentRecord.账单流水,
-              字段: currentField,
-              新值: newValue
-            });
-            // 如果保存失败，重新打开编辑状态
-            setEditingField(currentEditingField);
-          } finally {
-            setIsShowingConfirm(false);
-          }
-        },
-        onCancel: () => {
-          // 取消时重置标志
-          setIsShowingConfirm(false);
-        },
+      console.log('[NonPurchaseBillRecordPage] 准备保存数据:', {
+        账单流水: currentRecord.账单流水,
+        字段: currentField,
+        新值: updateData[currentField],
+        旧值: currentOldValue
       });
-    } catch (error) {
-      // 如果显示确认对话框失败，重置状态
-      setIsShowingConfirm(false);
-      console.error('显示确认对话框失败:', error);
+
+      await nonPurchaseBillRecordApi.update(currentRecord.账单流水, updateData);
+      console.log('[NonPurchaseBillRecordPage] 保存成功');
+      message.success('修改成功');
+      refreshRecords();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || '修改失败';
+      message.error(errorMessage);
+      console.error('[NonPurchaseBillRecordPage] 保存失败:', {
+        error,
+        response: error?.response,
+        data: error?.response?.data,
+        账单流水: currentRecord.账单流水,
+        字段: currentField,
+        新值: currentNewValue
+      });
     }
   };
 
@@ -715,18 +696,26 @@ export default function NonPurchaseBillRecordPage() {
               style={{ width: '100%' }}
               value={text || undefined}
               onChange={(value) => {
-                // 使用 setTimeout 确保在 onChange 完成后再处理，避免与 onBlur 冲突
-                setTimeout(() => {
+                // 立即处理 onChange，直接保存
+                if (value !== undefined && value !== null) {
+                  console.log('[NonPurchaseBillRecordPage] 账单类型 onChange 触发:', { value, record: record.账单流水 });
+                  // 直接保存，无需确认
                   handleConfirmInlineEdit(value);
-                }, 0);
+                }
               }}
               onBlur={(e) => {
                 // 延迟处理onBlur，给onChange时间先执行
                 setTimeout(() => {
-                  if (!isShowingConfirm) {
-                    handleCancelInlineEdit();
-                  }
+                  handleCancelInlineEdit();
                 }, 200);
+              }}
+              onDropdownVisibleChange={(open) => {
+                // 如果下拉框被关闭，则取消编辑
+                if (!open) {
+                  setTimeout(() => {
+                    handleCancelInlineEdit();
+                  }, 100);
+                }
               }}
               autoFocus
               open
@@ -757,18 +746,26 @@ export default function NonPurchaseBillRecordPage() {
               style={{ width: '100%' }}
               value={text || undefined}
               onChange={(value) => {
-                // 使用 setTimeout 确保在 onChange 完成后再处理，避免与 onBlur 冲突
-                setTimeout(() => {
+                // 立即处理 onChange，直接保存
+                if (value !== undefined && value !== null) {
+                  console.log('[NonPurchaseBillRecordPage] 所属仓店 onChange 触发:', { value, record: record.账单流水 });
+                  // 直接保存，无需确认
                   handleConfirmInlineEdit(value);
-                }, 0);
+                }
               }}
               onBlur={(e) => {
                 // 延迟处理onBlur，给onChange时间先执行
                 setTimeout(() => {
-                  if (!isShowingConfirm) {
-                    handleCancelInlineEdit();
-                  }
+                  handleCancelInlineEdit();
                 }, 200);
+              }}
+              onDropdownVisibleChange={(open) => {
+                // 如果下拉框被关闭，则取消编辑
+                if (!open) {
+                  setTimeout(() => {
+                    handleCancelInlineEdit();
+                  }, 100);
+                }
               }}
               autoFocus
               open

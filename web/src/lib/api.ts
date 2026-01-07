@@ -1330,6 +1330,7 @@ export interface SupplierQuotation {
   中包或整件销售规格条码?: string;
   供货价格?: number;
   供应商商品备注?: string;
+  数据更新时间?: string | Date;
 }
 
 export interface InventorySummary {
@@ -1350,6 +1351,7 @@ export interface SupplierSkuBinding {
   供应商编码?: string;
   供应商商品编码?: string;
   SKU?: string;
+  数据更新时间?: string | Date;
 }
 
 // 供应商报价API

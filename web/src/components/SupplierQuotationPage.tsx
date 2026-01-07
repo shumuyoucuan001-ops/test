@@ -376,6 +376,29 @@ export default function SupplierQuotationPage() {
         width: 200,
         ellipsis: true,
       },
+      {
+        title: '数据更新时间',
+        dataIndex: '数据更新时间',
+        key: '数据更新时间',
+        width: 180,
+        render: (text: string | Date) => {
+          if (!text) return '-';
+          try {
+            const date = typeof text === 'string' ? new Date(text) : text;
+            const formatted = date.toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            });
+            return formatted || String(text);
+          } catch {
+            return String(text);
+          }
+        },
+      },
     ];
   };
 
@@ -1731,6 +1754,29 @@ export default function SupplierQuotationPage() {
                           }}
                         />
                       );
+                    },
+                  },
+                  {
+                    title: '数据更新时间',
+                    dataIndex: '数据更新时间',
+                    key: '数据更新时间',
+                    width: 180,
+                    render: (text: string | Date) => {
+                      if (!text) return '-';
+                      try {
+                        const date = typeof text === 'string' ? new Date(text) : text;
+                        const formatted = date.toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        });
+                        return formatted || String(text);
+                      } catch {
+                        return String(text);
+                      }
                     },
                   },
                 ]}

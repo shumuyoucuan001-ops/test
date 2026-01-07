@@ -15,6 +15,7 @@ export interface SupplierQuotation {
   中包或整件销售规格条码?: string;
   供货价格?: number;
   供应商商品备注?: string;
+  数据更新时间?: string | Date;
 }
 
 export interface InventorySummary {
@@ -34,6 +35,7 @@ export interface SupplierSkuBinding {
   供应商编码?: string;
   供应商商品编码?: string;
   SKU?: string;
+  数据更新时间?: string | Date;
 }
 
 @Injectable()
@@ -138,7 +140,8 @@ export class SupplierQuotationService {
           q.最小销售规格UPC商品条码,
           q.中包或整件销售规格条码,
           q.供货价格,
-          q.供应商商品备注
+          q.供应商商品备注,
+          q.数据更新时间
         FROM \`供应商报价\` q
         LEFT JOIN \`供应商属性信息\` s ON q.\`供应商编码\` = s.\`供应商编码\`
         WHERE ${whereClause}
@@ -296,7 +299,8 @@ export class SupplierQuotationService {
         SELECT 
           供应商编码,
           供应商商品编码,
-          SKU
+          SKU,
+          数据更新时间
         FROM \`供应商编码手动绑定sku\`
         WHERE 供应商编码 = ? AND 供应商商品编码 = ?
       `;
