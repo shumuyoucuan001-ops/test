@@ -22,13 +22,14 @@ export interface InventorySummary {
   SKU?: string;
   商品名称?: string;
   规格?: string;
-  覆盖门店数?: number;
   总部零售价?: number;
   最近采购价?: number;
   最低采购价?: number;
   成本单价?: number;
   UPC?: string;
   SKU商品标签?: string;
+  '门店/仓库名称'?: string; // 仓店维度专用
+  城市?: string; // 城市维度专用
 }
 
 export interface SupplierSkuBinding {
@@ -198,6 +199,38 @@ export class SupplierQuotationService {
     }
   }
 
+  // 获取城市列表（从仓库优先级表的所属城市字段去重）
+  async getCities(): Promise<string[]> {
+    // 需要连接到 sm_chaigou 数据库
+    if (!process.env.DB_PASSWORD) {
+      throw new Error('DB_PASSWORD environment variable is required');
+    }
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'guishumu999666.rwlb.rds.aliyuncs.com',
+      user: process.env.DB_USER || 'xitongquanju',
+      password: process.env.DB_PASSWORD,
+      database: 'sm_chaigou',
+      port: parseInt(process.env.DB_PORT || '3306'),
+    });
+
+    try {
+      const query = `
+        SELECT DISTINCT \`所属城市\`
+        FROM \`仓库优先级\`
+        WHERE \`所属城市\` IS NOT NULL AND \`所属城市\` != ''
+        ORDER BY \`所属城市\` ASC
+      `;
+
+      const [data]: any = await connection.execute(query);
+      return (data || []).map((row: any) => row['所属城市']).filter(Boolean);
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 查询城市列表失败:', error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
   // 获取库存汇总数据（根据类型：全部、仓店、城市）
   async getInventorySummary(
     type: '全部' | '仓店' | '城市',
@@ -230,11 +263,24 @@ export class SupplierQuotationService {
         queryParams.push(`%${upc}%`);
       }
 
-      // 仓店类型时，支持按门店/仓库名称筛选
+      // 仓店类型时，支持按门店/仓库名称筛选（单选）
       if (type === '仓店' && storeNames && storeNames.length > 0) {
-        const placeholders = storeNames.map(() => '?').join(',');
-        whereClause += ` AND \`门店/仓库名称\` IN (${placeholders})`;
-        queryParams.push(...storeNames);
+        // 单选，只取第一个，并去除首尾空格
+        const storeName = (storeNames[0] || '').trim();
+        if (storeName) {
+          whereClause += ` AND \`门店/仓库名称\` = ?`;
+          queryParams.push(storeName);
+        }
+      }
+
+      // 城市类型时，支持按城市筛选（单选）
+      if (type === '城市' && storeNames && storeNames.length > 0) {
+        // 复用storeNames参数，实际是城市名称（单选），并去除首尾空格
+        const cityName = (storeNames[0] || '').trim();
+        if (cityName) {
+          whereClause += ` AND 城市 = ?`;
+          queryParams.push(cityName);
+        }
       }
 
       // 根据类型选择查询字段
@@ -245,7 +291,6 @@ export class SupplierQuotationService {
           SKU,
           商品名称,
           规格,
-          覆盖门店数,
           总部零售价,
           最近采购价,
           最低采购价,
@@ -253,18 +298,31 @@ export class SupplierQuotationService {
           UPC,
           SKU商品标签
         `;
-      } else {
-        // 仓店/城市：只查询成本单价（没有最低采购价字段）
+      } else if (type === '仓店') {
+        // 仓店：查询门店/仓库名称字段
         selectFields = `
           SKU,
           商品名称,
           规格,
-          覆盖门店数,
           总部零售价,
           最近采购价,
           成本单价,
           UPC,
-          SKU商品标签
+          SKU商品标签,
+          \`门店/仓库名称\`
+        `;
+      } else {
+        // 城市：查询城市字段
+        selectFields = `
+          SKU,
+          商品名称,
+          规格,
+          总部零售价,
+          最近采购价,
+          成本单价,
+          UPC,
+          SKU商品标签,
+          城市
         `;
       }
 
@@ -276,12 +334,23 @@ export class SupplierQuotationService {
         ORDER BY SKU ASC
       `;
 
+      Logger.log(`[SupplierQuotationService] 执行查询: type=${type}, tableName=${tableName}`);
+      Logger.log(`[SupplierQuotationService] 查询SQL: ${query}`);
+      Logger.log(`[SupplierQuotationService] 查询参数:`, JSON.stringify(queryParams));
+
       const [data]: any = await connection.execute(query, queryParams);
 
+      Logger.log(`[SupplierQuotationService] 查询结果数量: ${(data || []).length}`);
       return data || [];
-    } catch (error) {
+    } catch (error: any) {
       Logger.error('[SupplierQuotationService] 查询库存汇总失败:', error);
-      throw error;
+      Logger.error('[SupplierQuotationService] 错误详情:', {
+        message: error?.message,
+        code: error?.code,
+        sqlMessage: error?.sqlMessage,
+        sqlState: error?.sqlState,
+      });
+      throw new Error(`查询库存汇总失败: ${error?.message || '未知错误'}`);
     } finally {
       await connection.end();
     }

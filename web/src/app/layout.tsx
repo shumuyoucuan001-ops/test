@@ -26,10 +26,10 @@ export const metadata: Metadata = {
   description: "术木优选业务管理系统",
   icons: {
     icon: [
-      { url: '/icon.png', type: 'image/png' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
     ],
-    shortcut: '/icon.png',
-    apple: '/icon.png',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
   },
 };
 

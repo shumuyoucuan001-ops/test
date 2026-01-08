@@ -1,0 +1,54 @@
+<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- 中央垂直条 -->
+  <rect
+    x="10.875"
+    y="6"
+    width="2.25"
+    height="12"
+    fill="#18478A"
+  />
+
+  <!-- 左侧波浪线 - 上 -->
+  <path
+    d="M 6.75 9.375 Q 8.625 7.875, 10.875 9.375"
+    stroke="#18478A"
+    stroke-width="2.25"
+    fill="none"
+    stroke-linecap="round"
+  />
+  <!-- 左侧波浪线 - 下 -->
+  <path
+    d="M 6.75 13.875 Q 8.625 12.375, 10.875 13.875"
+    stroke="#18478A"
+    stroke-width="2.25"
+    fill="none"
+    stroke-linecap="round"
+  />
+
+  <!-- 右侧波浪线 - 上 -->
+  <path
+    d="M 13.125 9.75 Q 15.375 11.25, 17.25 9.75"
+    stroke="#18478A"
+    stroke-width="2.25"
+    fill="none"
+    stroke-linecap="round"
+  />
+  <!-- 右侧波浪线 - 下 -->
+  <path
+    d="M 13.125 14.25 Q 15.375 15.75, 17.25 14.25"
+    stroke="#18478A"
+    stroke-width="2.25"
+    fill="none"
+    stroke-linecap="round"
+  />
+
+  <!-- 右上角橙色弧形装饰 -->
+  <path
+    d="M 13.95 6.75 Q 15.6 8.25, 17.25 6.75"
+    stroke="#ff6b35"
+    stroke-width="1.725"
+    fill="none"
+    stroke-linecap="round"
+  />
+</svg>
+

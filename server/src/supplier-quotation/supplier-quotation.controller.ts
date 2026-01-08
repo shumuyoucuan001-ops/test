@@ -61,6 +61,19 @@ export class SupplierQuotationController {
         }
     }
 
+    // 获取城市列表
+    @Get('cities')
+    async getCities() {
+        try {
+            return await this.service.getCities();
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询城市列表失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
     // 获取库存汇总数据
     @Get('inventory-summary')
     async getInventorySummary(

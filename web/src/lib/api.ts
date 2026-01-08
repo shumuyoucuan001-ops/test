@@ -1370,12 +1370,25 @@ export const supplierQuotationApi = {
     limit?: number;
     search?: string;
     supplierCodes?: string[];
-  }): Promise<{ data: SupplierQuotation[]; total: number }> =>
-    api.get('/supplier-quotation', { params }).then(res => res.data),
+  }): Promise<{ data: SupplierQuotation[]; total: number }> => {
+    // 处理supplierCodes数组参数，转换为逗号分隔的字符串
+    const processedParams: any = { ...params };
+    if (params?.supplierCodes && Array.isArray(params.supplierCodes) && params.supplierCodes.length > 0) {
+      processedParams.supplierCodes = params.supplierCodes.join(',');
+    } else if (params?.supplierCodes && params.supplierCodes.length === 0) {
+      // 如果数组为空，删除这个参数
+      delete processedParams.supplierCodes;
+    }
+    return api.get('/supplier-quotation', { params: processedParams }).then(res => res.data);
+  },
 
   // 获取仓库优先级列表（门店/仓名称）
   getWarehousePriorities: (): Promise<string[]> =>
     api.get('/supplier-quotation/warehouse-priorities').then(res => res.data),
+
+  // 获取城市列表
+  getCities: (): Promise<string[]> =>
+    api.get('/supplier-quotation/cities').then(res => res.data),
 
   // 获取库存汇总数据
   getInventorySummary: (params: {
