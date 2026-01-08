@@ -139,5 +139,130 @@ export class SupplierQuotationController {
             );
         }
     }
+
+    // 根据UPC条码批量获取SKU编码
+    @Post('sku-codes-by-upc')
+    async getSkuCodesByUpcCodes(
+        @Body() body: {
+            upcCodes: string[];
+        },
+    ) {
+        try {
+            return await this.service.getSkuCodesByUpcCodes(body.upcCodes || []);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '根据UPC获取SKU编码失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 批量查询供应商名称
+    @Post('supplier-names')
+    async getSupplierNames(
+        @Body() body: {
+            type: '全部' | '仓店' | '城市';
+            items: any[];
+            fields: string[];
+        },
+    ) {
+        try {
+            return await this.service.getSupplierNamesForInventory(
+                body.type,
+                body.items || [],
+                body.fields || [],
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询供应商名称失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 查询报价比例
+    @Get('price-ratios')
+    async getPriceRatios(
+        @Query('supplierCode') supplierCode: string,
+        @Query('upcCode') upcCode: string,
+    ) {
+        try {
+            return await this.service.getPriceRatios(supplierCode, upcCode);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询报价比例失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 保存报价比例
+    @Post('price-ratios')
+    async updatePriceRatios(
+        @Body() body: {
+            supplierCode: string;
+            upcCode: string;
+            supplierRatio: number;
+            qianniuhuaRatio: number;
+        },
+    ) {
+        try {
+            return await this.service.updatePriceRatios(
+                body.supplierCode,
+                body.upcCode,
+                body.supplierRatio,
+                body.qianniuhuaRatio,
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '保存报价比例失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 清空报价比例
+    @Post('price-ratios/clear')
+    async clearPriceRatios(
+        @Body() body: {
+            supplierCode: string;
+            upcCode: string;
+        },
+    ) {
+        try {
+            return await this.service.clearPriceRatios(
+                body.supplierCode,
+                body.upcCode,
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '清空报价比例失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 批量查询SKU绑定标记
+    @Post('sku-binding-flags')
+    async getSkuBindingFlags(
+        @Body() body: {
+            items: any[];
+            quotationData: any[];
+            upcToSkuMap?: Record<string, string[]>;
+        },
+    ) {
+        try {
+            return await this.service.getSkuBindingFlags(
+                body.items || [],
+                body.quotationData || [],
+                body.upcToSkuMap,
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询SKU绑定标记失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 }
 

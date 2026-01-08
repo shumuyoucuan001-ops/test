@@ -1333,6 +1333,7 @@ export interface SupplierQuotation {
   最小销售规格UPC商品条码?: string;
   中包或整件销售规格条码?: string;
   供货价格?: number;
+  计算后供货价格?: number;
   供应商商品备注?: string;
   数据更新时间?: string | Date;
 }
@@ -1349,6 +1350,10 @@ export interface InventorySummary {
   UPC?: string;
   SKU商品标签?: string;
   对比结果?: string;
+  对比字段类型?: string; // 用于记录对比结果使用的字段类型（最低采购价/最近采购价/成本单价）
+  差价?: number; // 差价 = 对比价格 - 供货价格
+  '门店/仓库名称'?: string; // 仓店维度专用
+  城市?: string; // 城市维度专用
 }
 
 export interface SupplierSkuBinding {
@@ -1395,8 +1400,20 @@ export const supplierQuotationApi = {
     type: '全部' | '仓店' | '城市';
     upc?: string;
     storeNames?: string[];
-  }): Promise<InventorySummary[]> =>
-    api.get('/supplier-quotation/inventory-summary', { params }).then(res => res.data),
+  }): Promise<InventorySummary[]> => {
+    // 处理数组参数：将数组转换为逗号分隔的字符串，以便 NestJS 正确解析
+    const queryParams: any = {
+      type: params.type,
+    };
+    if (params.upc) {
+      queryParams.upc = params.upc;
+    }
+    if (params.storeNames && params.storeNames.length > 0) {
+      // 将数组转换为逗号分隔的字符串
+      queryParams.storeNames = params.storeNames.join(',');
+    }
+    return api.get('/supplier-quotation/inventory-summary', { params: queryParams }).then(res => res.data);
+  },
 
   // 获取SKU绑定信息
   getSkuBindings: (params: {
@@ -1412,6 +1429,51 @@ export const supplierQuotationApi = {
     sku: string;
   }): Promise<boolean> =>
     api.post('/supplier-quotation/sku-bindings', data).then(res => res.data),
+
+  // 根据UPC条码批量获取SKU编码
+  getSkuCodesByUpcCodes: (data: {
+    upcCodes: string[];
+  }): Promise<Record<string, string[]>> =>
+    api.post('/supplier-quotation/sku-codes-by-upc', data).then(res => res.data),
+
+  // 批量查询供应商名称
+  getSupplierNames: (data: {
+    type: '全部' | '仓店' | '城市';
+    items: InventorySummary[];
+    fields: string[];
+  }): Promise<Record<string, string>> =>
+    api.post('/supplier-quotation/supplier-names', data).then(res => res.data),
+
+  // 查询报价比例
+  getPriceRatios: (params: {
+    supplierCode: string;
+    upcCode: string;
+  }): Promise<{ 报价比例_供应商商品?: number; 报价比例_牵牛花商品?: number } | null> =>
+    api.get('/supplier-quotation/price-ratios', { params }).then(res => res.data),
+
+  // 保存报价比例
+  updatePriceRatios: (data: {
+    supplierCode: string;
+    upcCode: string;
+    supplierRatio: number;
+    qianniuhuaRatio: number;
+  }): Promise<boolean> =>
+    api.post('/supplier-quotation/price-ratios', data).then(res => res.data),
+
+  // 清空报价比例
+  clearPriceRatios: (data: {
+    supplierCode: string;
+    upcCode: string;
+  }): Promise<boolean> =>
+    api.post('/supplier-quotation/price-ratios/clear', data).then(res => res.data),
+
+  // 批量查询SKU绑定标记
+  getSkuBindingFlags: (data: {
+    items: InventorySummary[];
+    quotationData: SupplierQuotation[];
+    upcToSkuMap?: Record<string, string[]>;
+  }): Promise<Record<string, boolean>> =>
+    api.post('/supplier-quotation/sku-binding-flags', data).then(res => res.data),
 };
 
 export default api;

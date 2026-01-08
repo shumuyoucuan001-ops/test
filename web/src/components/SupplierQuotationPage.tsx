@@ -9,6 +9,7 @@ import {
   Input,
   message,
   Modal,
+  Pagination,
   Popover,
   Segmented,
   Select,
@@ -30,7 +31,7 @@ export default function SupplierQuotationPage() {
   const [leftLoading, setLeftLoading] = useState(false);
   const [leftTotal, setLeftTotal] = useState(0);
   const [leftCurrentPage, setLeftCurrentPage] = useState(1);
-  const [leftPageSize, setLeftPageSize] = useState(20);
+  const [leftPageSize, setLeftPageSize] = useState(10);
   const [leftSearchText, setLeftSearchText] = useState(''); // 保留用于兼容，后续可移除
   // 拆分为多个独立的搜索框
   const [supplierNameSearch, setSupplierNameSearch] = useState(''); // 供应商名称搜索
@@ -52,13 +53,19 @@ export default function SupplierQuotationPage() {
   const [selectedLeftRecord, setSelectedLeftRecord] = useState<SupplierQuotation | null>(null);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(-1); // 记录选中的行索引
   const [rightCurrentPage, setRightCurrentPage] = useState(1);
-  const [rightPageSize, setRightPageSize] = useState(20);
+  const [rightPageSize, setRightPageSize] = useState(10);
   const [rightTotal, setRightTotal] = useState(0); // 库存汇总总数
   const [comparisonResultFilter, setComparisonResultFilter] = useState<string[]>([]); // 对比结果筛选
   const [storeNameFilter, setStoreNameFilter] = useState<string>(''); // 门店/仓名称筛选（仅仓店维度，单选）
   const [cityFilter, setCityFilter] = useState<string>(''); // 城市筛选（仅城市维度，单选）
   const [warehousePriorities, setWarehousePriorities] = useState<string[]>([]); // 仓库优先级列表
   const [cities, setCities] = useState<string[]>([]); // 城市列表
+  const [upcToSkuMap, setUpcToSkuMap] = useState<Record<string, string[]>>({}); // UPC条码到SKU编码的映射
+  const [supplierNameFields, setSupplierNameFields] = useState<string[]>([]); // 需要查询的供应商名称字段（默认空数组）
+  const [supplierNameData, setSupplierNameData] = useState<Record<string, string>>({}); // 存储查询到的供应商名称数据
+  const [editingRatioSku, setEditingRatioSku] = useState<string | null>(null); // 当前正在编辑比例的SKU
+  const [ratioData, setRatioData] = useState<Record<string, { supplierRatio?: number; qianniuhuaRatio?: number }>>({}); // 存储报价比例数据
+  const [skuBindingFlags, setSkuBindingFlags] = useState<Record<string, boolean>>({}); // 存储哪些SKU有绑定标记
 
   // 下栏数据
   const [bottomData, setBottomData] = useState<SupplierSkuBinding[]>([]);
@@ -77,6 +84,12 @@ export default function SupplierQuotationPage() {
   const [rightTableHeight, setRightTableHeight] = useState<number>(400);
   const isScrolling = useRef(false);
   const [leftColumnSettingsOpen, setLeftColumnSettingsOpen] = useState(false);
+
+  // 用于跟踪正在进行的 loadRightData 请求，避免竞态条件
+  const loadRightDataRequestIdRef = useRef<number>(0);
+
+  // 用于跟踪是否正在手动加载数据，避免 useEffect 重复触发
+  const isLoadingManuallyRef = useRef<boolean>(false);
 
   // 右栏列设置相关状态
   const [rightHiddenColumns, setRightHiddenColumns] = useState<Set<string>>(new Set());
@@ -98,10 +111,10 @@ export default function SupplierQuotationPage() {
   // 左栏默认显示的字段（按顺序）
   const defaultVisibleColumns = ['序号', '供应商名称', '供应商编码', '商品名称', '商品规格', '供货价格'];
 
-  // 右栏默认显示的字段（全部类型）：SKU, 最低采购价, 对比结果（SKU商品标签默认隐藏）
+  // 右栏默认显示的字段（全部类型）：SKU, 最低采购价, 对比结果（SKU商品标签、城市、门店/仓库名称默认隐藏）
   const defaultRightVisibleColumns = ['SKU', '最低采购价', '对比结果'];
 
-  // 右栏默认显示的字段（仓店/城市类型）：SKU, 最近采购价, 对比结果（SKU商品标签默认隐藏）
+  // 右栏默认显示的字段（仓店/城市类型）：SKU, 最近采购价, 对比结果（SKU商品标签、城市、门店/仓库名称默认隐藏）
   const defaultRightVisibleColumnsStoreCity = ['SKU', '最近采购价', '对比结果'];
 
   // 初始化左栏列设置
@@ -355,6 +368,13 @@ export default function SupplierQuotationPage() {
         render: (text: number) => text ? `¥${Number(text).toFixed(4)}` : '-',
       },
       {
+        title: '计算后供货价格',
+        dataIndex: '计算后供货价格',
+        key: '计算后供货价格',
+        width: 150,
+        render: (text: number) => text ? `¥${Number(text).toFixed(4)}` : '-',
+      },
+      {
         title: '最小销售单位',
         dataIndex: '最小销售单位',
         key: '最小销售单位',
@@ -455,17 +475,239 @@ export default function SupplierQuotationPage() {
     { label: '无匹配数据', value: '无匹配数据', color: 'default' },
   ];
 
-  // 获取右栏列定义（按默认显示顺序：SKU、最低采购价/最近采购价、SKU商品标签、对比结果，然后是其他列）
+  // 获取右栏列定义（按默认显示顺序：城市/门店/仓库名称（根据维度）、SKU、最低采购价/最近采购价、SKU商品标签、对比结果，然后是其他列）
   const getRightColumns = (): ColumnType<InventorySummary>[] => {
-    const columns: ColumnType<InventorySummary>[] = [
-      {
-        title: 'SKU',
-        dataIndex: 'SKU',
-        key: 'SKU',
+    const columns: ColumnType<InventorySummary>[] = [];
+
+    // 根据维度添加城市或门店/仓库名称列（默认隐藏，排在第一列）
+    if (inventoryType === '城市') {
+      columns.push({
+        title: '城市',
+        dataIndex: '城市',
+        key: '城市',
         width: 120,
         fixed: 'left' as const,
+      });
+    } else if (inventoryType === '仓店') {
+      columns.push({
+        title: '门店/仓库名称',
+        dataIndex: '门店/仓库名称',
+        key: '门店/仓库名称',
+        width: 150,
+        fixed: 'left' as const,
+      });
+    }
+
+    // SKU列
+    columns.push({
+      title: 'SKU',
+      dataIndex: 'SKU',
+      key: 'SKU',
+      width: 120,
+      fixed: 'left' as const,
+      render: (text: string, record: InventorySummary) => {
+        const hasBinding = skuBindingFlags[text || ''];
+        const isEditing = editingRatioSku === text;
+        const currentRatio = ratioData[text || ''] || {};
+
+        // 找到匹配的供应商报价（通过UPC条码）
+        let matchedQuotation: SupplierQuotation | null = null;
+        if (text && upcToSkuMap) {
+          // 通过SKU找到对应的UPC条码
+          Object.keys(upcToSkuMap).forEach(upc => {
+            if (upcToSkuMap[upc].includes(text)) {
+              // 找到匹配的供应商报价（优先使用allLeftData，如果没有则使用leftData）
+              const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+              const quotation = dataSource.find(q => q.最小销售规格UPC商品条码 === upc);
+              if (quotation) {
+                matchedQuotation = quotation;
+              }
+            }
+          });
+        }
+
+        const ratioContent = (
+          <div style={{ padding: 8, minWidth: 200 }}>
+            <div style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>
+              设置报价比例（至少一边为1）
+            </div>
+            <Space>
+              <Input
+                type="number"
+                placeholder="供应商"
+                value={currentRatio.supplierRatio}
+                onChange={(e) => {
+                  const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                  setRatioData({
+                    ...ratioData,
+                    [text || '']: {
+                      ...currentRatio,
+                      supplierRatio: value,
+                    },
+                  });
+                }}
+                style={{ width: 80 }}
+                min={0}
+                step={0.01}
+              />
+              <span>:</span>
+              <Input
+                type="number"
+                placeholder="牵牛花"
+                value={currentRatio.qianniuhuaRatio}
+                onChange={(e) => {
+                  const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                  setRatioData({
+                    ...ratioData,
+                    [text || '']: {
+                      ...currentRatio,
+                      qianniuhuaRatio: value,
+                    },
+                  });
+                }}
+                style={{ width: 80 }}
+                min={0}
+                step={0.01}
+              />
+            </Space>
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <Button
+                size="small"
+                danger
+                onClick={async () => {
+                  if (!matchedQuotation || !matchedQuotation.供应商编码 || !matchedQuotation.最小销售规格UPC商品条码) {
+                    message.error('未找到匹配的供应商报价数据');
+                    return;
+                  }
+
+                  try {
+                    await supplierQuotationApi.clearPriceRatios({
+                      supplierCode: matchedQuotation.供应商编码,
+                      upcCode: matchedQuotation.最小销售规格UPC商品条码,
+                    });
+                    message.success('清空成功');
+                    // 清空本地数据
+                    const updatedRatioData = { ...ratioData };
+                    if (text) {
+                      updatedRatioData[text] = {
+                        supplierRatio: undefined,
+                        qianniuhuaRatio: undefined,
+                      };
+                    }
+                    setRatioData(updatedRatioData);
+                    setEditingRatioSku(null);
+                    // 重新加载绑定标记和数据
+                    const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+                    if (rightAllData.length > 0 && dataSource.length > 0) {
+                      await loadSkuBindingFlags(rightAllData, dataSource);
+                      // 重新加载右侧数据以更新对比结果（会重新加载比例数据）
+                      await loadRightData(dataSource, selectedSupplierCodes);
+                    }
+                  } catch (error: any) {
+                    console.error('清空报价比例失败:', error);
+                    message.error(`清空失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+                  }
+                }}
+              >
+                清空
+              </Button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setEditingRatioSku(null);
+                  }}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={async () => {
+                    const supplierRatio = currentRatio.supplierRatio;
+                    const qianniuhuaRatio = currentRatio.qianniuhuaRatio;
+
+                    // 验证：至少有一边为1
+                    if ((supplierRatio !== 1 && qianniuhuaRatio !== 1) ||
+                      (supplierRatio === undefined && qianniuhuaRatio === undefined) ||
+                      (supplierRatio === undefined && qianniuhuaRatio !== 1) ||
+                      (qianniuhuaRatio === undefined && supplierRatio !== 1)) {
+                      message.error('左右框中必须有一边为1');
+                      return;
+                    }
+
+                    if (!matchedQuotation || !matchedQuotation.供应商编码 || !matchedQuotation.最小销售规格UPC商品条码) {
+                      message.error('未找到匹配的供应商报价数据');
+                      return;
+                    }
+
+                    try {
+                      await supplierQuotationApi.updatePriceRatios({
+                        supplierCode: matchedQuotation.供应商编码,
+                        upcCode: matchedQuotation.最小销售规格UPC商品条码,
+                        supplierRatio: supplierRatio || 1,
+                        qianniuhuaRatio: qianniuhuaRatio || 1,
+                      });
+                      message.success('保存成功');
+                      // 更新本地数据
+                      const updatedRatioData = { ...ratioData };
+                      if (text) {
+                        updatedRatioData[text] = {
+                          supplierRatio: supplierRatio || 1,
+                          qianniuhuaRatio: qianniuhuaRatio || 1,
+                        };
+                      }
+                      setRatioData(updatedRatioData);
+                      setEditingRatioSku(null);
+                      // 重新加载绑定标记和数据
+                      const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+                      if (rightAllData.length > 0 && dataSource.length > 0) {
+                        await loadSkuBindingFlags(rightAllData, dataSource);
+                        // 重新加载右侧数据以更新对比结果（会重新加载比例数据）
+                        await loadRightData(dataSource, selectedSupplierCodes);
+                      }
+                    } catch (error: any) {
+                      console.error('保存报价比例失败:', error);
+                      message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+                    }
+                  }}
+                >
+                  保存
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+
+        return (
+          <Popover
+            content={ratioContent}
+            title="报价比例设置"
+            trigger="click"
+            open={isEditing}
+            onOpenChange={(open) => {
+              if (open) {
+                setEditingRatioSku(text || null);
+                // 加载当前比例数据
+                if (text && matchedQuotation && matchedQuotation.供应商编码 && matchedQuotation.最小销售规格UPC商品条码) {
+                  loadPriceRatios(matchedQuotation.供应商编码, matchedQuotation.最小销售规格UPC商品条码, text);
+                }
+              } else {
+                setEditingRatioSku(null);
+              }
+            }}
+            placement="top"
+          >
+            <span style={{ cursor: 'pointer', color: '#1890ff', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {text || '-'}
+              {hasBinding && (
+                <Tag color="blue" style={{ margin: 0 }}>转</Tag>
+              )}
+            </span>
+          </Popover>
+        );
       },
-    ];
+    });
 
     // 根据维度动态显示一列：全部显示最低采购价，仓店/城市显示最近采购价
     if (inventoryType === '全部') {
@@ -496,23 +738,48 @@ export default function SupplierQuotationPage() {
       ellipsis: true,
     });
 
-    // 对比结果列 - 固定在右侧
-    // 使用与筛选框一致的渲染方式
-    columns.push({
-      title: '对比结果',
-      dataIndex: '对比结果',
-      key: '对比结果',
-      width: 120,
-      fixed: 'right' as const,
-      render: (text: string) => {
-        // 查找对应的选项以获取颜色
-        const option = comparisonResultOptions.find(opt => opt.value === text);
-        if (option) {
-          return <Tag color={option.color}>{text}</Tag>;
-        }
-        return text || '-';
-      },
-    });
+    // 供应商名称列（根据维度不同显示不同列）
+    if (inventoryType === '仓店') {
+      // 仓店维度：供应商名称
+      columns.push({
+        title: '供应商名称',
+        dataIndex: '供应商名称',
+        key: '供应商名称',
+        width: 150,
+        ellipsis: true,
+        render: (text: string, record: InventorySummary) => {
+          if (!record.SKU || !record['门店/仓库名称']) return '-';
+          const key = `${record.SKU}_${record['门店/仓库名称']}`;
+          return supplierNameData[key] || '-';
+        },
+      });
+    } else if (inventoryType === '城市' || inventoryType === '全部') {
+      // 城市/全部维度：供应商名称(最低价)和供应商名称(最近时间)
+      columns.push({
+        title: '供应商名称(最低价)',
+        dataIndex: '供应商名称(最低价)',
+        key: '供应商名称(最低价)',
+        width: 180,
+        ellipsis: true,
+        render: (text: string, record: InventorySummary) => {
+          if (!record.SKU) return '-';
+          const key = `${record.SKU}_最低价`;
+          return supplierNameData[key] || '-';
+        },
+      });
+      columns.push({
+        title: '供应商名称(最近时间)',
+        dataIndex: '供应商名称(最近时间)',
+        key: '供应商名称(最近时间)',
+        width: 180,
+        ellipsis: true,
+        render: (text: string, record: InventorySummary) => {
+          if (!record.SKU) return '-';
+          const key = `${record.SKU}_最近时间`;
+          return supplierNameData[key] || '-';
+        },
+      });
+    }
 
     // 其他列（默认隐藏）
     columns.push(
@@ -543,8 +810,44 @@ export default function SupplierQuotationPage() {
         key: '成本单价',
         width: 120,
         render: (text: number) => (text !== undefined && text !== null) ? `¥${Number(text).toFixed(2)}` : '-',
+      },
+      {
+        title: '对比字段类型',
+        dataIndex: '对比字段类型',
+        key: '对比字段类型',
+        width: 120,
+        render: (text: string) => text || '-',
+      },
+      {
+        title: '差价',
+        dataIndex: '差价',
+        key: '差价',
+        width: 120,
+        render: (text: number) => {
+          if (text === undefined || text === null) return '-';
+          const sign = text >= 0 ? '+' : '';
+          return `${sign}¥${Number(text).toFixed(2)}`;
+        },
       }
     );
+
+    // 对比结果列 - 固定在右侧，放在所有列的最后
+    // 使用与筛选框一致的渲染方式
+    columns.push({
+      title: '对比结果',
+      dataIndex: '对比结果',
+      key: '对比结果',
+      width: 120,
+      fixed: 'right' as const,
+      render: (text: string) => {
+        // 查找对应的选项以获取颜色
+        const option = comparisonResultOptions.find(opt => opt.value === text);
+        if (option) {
+          return <Tag color={option.color}>{text}</Tag>;
+        }
+        return text || '-';
+      },
+    });
 
     return columns;
   };
@@ -617,21 +920,65 @@ export default function SupplierQuotationPage() {
   };
 
   // 加载左栏数据
-  const loadLeftData = async (supplierCodesOverride?: string[]) => {
-    // 使用传入的参数或当前状态
-    const codesToUse = supplierCodesOverride || selectedSupplierCodes;
-
-    // 如果没有选择供应商编码，不加载数据
-    if (codesToUse.length === 0) {
-      setLeftData([]);
-      setLeftTotal(0);
-      setRightData([]);
-      setLeftLoading(false);
-      return;
+  const loadLeftData = async (
+    supplierCodesOverride?: string[],
+    storeNameFilterOverride?: string,
+    cityFilterOverride?: string
+  ) => {
+    // 标记为手动加载（如果有传入参数）
+    if (supplierCodesOverride || storeNameFilterOverride !== undefined || cityFilterOverride !== undefined) {
+      isLoadingManuallyRef.current = true;
     }
 
-    setLeftLoading(true);
     try {
+      // 使用传入的参数或当前状态
+      const codesToUse = supplierCodesOverride || selectedSupplierCodes;
+      const storeNameToUse = storeNameFilterOverride !== undefined ? storeNameFilterOverride : storeNameFilter;
+      const cityToUse = cityFilterOverride !== undefined ? cityFilterOverride : cityFilter;
+
+      // 如果没有选择供应商编码，不加载数据
+      if (codesToUse.length === 0) {
+        setLeftData([]);
+        setLeftTotal(0);
+        setRightData([]);
+        setUpcToSkuMap({}); // 清空UPC到SKU的映射
+        setLeftLoading(false);
+        return;
+      }
+
+      // 仓店维度必须选择门店/仓名称，否则不加载数据
+      if (inventoryType === '仓店' && (!storeNameToUse || storeNameToUse.trim() === '')) {
+        setLeftData([]);
+        setLeftTotal(0);
+        setRightData([]);
+        setUpcToSkuMap({});
+        setLeftLoading(false);
+        // 重置标志
+        if (supplierCodesOverride || storeNameFilterOverride !== undefined || cityFilterOverride !== undefined) {
+          setTimeout(() => {
+            isLoadingManuallyRef.current = false;
+          }, 200);
+        }
+        return;
+      }
+
+      // 城市维度必须选择城市，否则不加载数据
+      if (inventoryType === '城市' && (!cityToUse || cityToUse.trim() === '')) {
+        setLeftData([]);
+        setLeftTotal(0);
+        setRightData([]);
+        setUpcToSkuMap({});
+        setLeftLoading(false);
+        // 重置标志
+        if (supplierCodesOverride || storeNameFilterOverride !== undefined || cityFilterOverride !== undefined) {
+          setTimeout(() => {
+            isLoadingManuallyRef.current = false;
+          }, 200);
+        }
+        return;
+      }
+
+      setLeftLoading(true);
       console.log('[SupplierQuotation] 加载数据，参数:', {
         page: leftCurrentPage,
         limit: leftPageSize,
@@ -679,8 +1026,10 @@ export default function SupplierQuotationPage() {
       }
 
       setLeftData(filteredData);
-      // 更新总数（使用过滤后的数据数量）
-      setLeftTotal(filteredData.length);
+      // 更新总数（使用后端返回的总数，而不是当前页的数据数量）
+      // 注意：如果后端返回的数据包含不匹配的供应商编码，我们需要使用 result.total
+      // 因为 total 是基于查询条件的总数，而不是当前页的数量
+      setLeftTotal(result.total || 0);
 
       // 如果有筛选条件，需要加载所有数据用于筛选
       if (comparisonResultFilter.length > 0) {
@@ -688,17 +1037,159 @@ export default function SupplierQuotationPage() {
       }
 
       // 加载完供应商报价数据后，自动加载库存汇总数据
-      if (result.data && result.data.length > 0) {
-        loadRightData();
+      // 使用最新的 filteredData 和 codesToUse，确保状态同步
+      // 传递 storeNameToUse 和 cityToUse，避免依赖异步状态更新
+      if (filteredData && filteredData.length > 0) {
+        // 直接使用 filteredData 和 codesToUse，不依赖状态更新
+        // 确保使用传入的参数，而不是状态
+        await loadRightData(filteredData, codesToUse, storeNameToUse, cityToUse);
       } else {
         // 如果没有数据，清空库存汇总
         setRightData([]);
+        setRightAllData([]);
+        setRightTotal(0);
+        setUpcToSkuMap({});
       }
     } catch (error) {
       message.error('加载供应商报价数据失败');
       console.error(error);
     } finally {
       setLeftLoading(false);
+      // 注意：标志的重置由调用者（onChange/onDeselect）控制，这里不再重置
+    }
+  };
+
+  // 获取调整后的供货价格（根据报价比例）
+  const getAdjustedSupplierPrice = (
+    supplierPrice: number | undefined | null,
+    supplierCode: string | undefined,
+    upcCode: string | undefined,
+  ): number | undefined | null => {
+    if (supplierPrice === undefined || supplierPrice === null || !supplierCode || !upcCode) {
+      return supplierPrice;
+    }
+
+    // 查找对应的报价比例数据
+    // 需要通过供应商编码和UPC找到对应的供应商商品编码，然后查找比例
+    // 这里我们使用ratioData，但需要建立正确的映射
+    // 简化处理：在计算对比结果时动态查询
+    return supplierPrice;
+  };
+
+  // 根据报价比例调整供货价格
+  const adjustSupplierPriceByRatio = (
+    supplierPrice: number | undefined | null,
+    supplierRatio?: number | null,
+    qianniuhuaRatio?: number | null,
+  ): number | undefined | null => {
+    if (supplierPrice === undefined || supplierPrice === null) {
+      return supplierPrice;
+    }
+
+    if (supplierRatio === undefined || qianniuhuaRatio === undefined || supplierRatio === null || qianniuhuaRatio === null) {
+      return supplierPrice;
+    }
+
+    if (supplierRatio === 0) {
+      return supplierPrice;
+    }
+
+    // 公式：供货价格 = '供货价格' / '报价比例_供应商商品' * '报价比例_牵牛花商品'
+    const adjustedPrice = (supplierPrice / supplierRatio) * qianniuhuaRatio;
+    return adjustedPrice;
+  };
+
+  // 加载报价比例数据
+  const loadPriceRatios = async (supplierCode: string, upcCode: string, sku: string) => {
+    try {
+      const result = await supplierQuotationApi.getPriceRatios({
+        supplierCode,
+        upcCode,
+      });
+      // 使用函数式更新确保使用最新状态
+      if (result) {
+        setRatioData(prev => ({
+          ...prev,
+          [sku]: {
+            supplierRatio: result.报价比例_供应商商品,
+            qianniuhuaRatio: result.报价比例_牵牛花商品,
+          },
+        }));
+      } else {
+        setRatioData(prev => ({
+          ...prev,
+          [sku]: {
+            supplierRatio: undefined,
+            qianniuhuaRatio: undefined,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('加载报价比例失败:', error);
+      setRatioData(prev => ({
+        ...prev,
+        [sku]: {
+          supplierRatio: undefined,
+          qianniuhuaRatio: undefined,
+        },
+      }));
+    }
+  };
+
+  // 加载SKU绑定标记
+  const loadSkuBindingFlags = async (items: InventorySummary[], quotationData: SupplierQuotation[]) => {
+    if (!items || items.length === 0 || !quotationData || quotationData.length === 0) {
+      setSkuBindingFlags({});
+      return;
+    }
+
+    try {
+      const result = await supplierQuotationApi.getSkuBindingFlags({
+        items: items,
+        quotationData: quotationData,
+        upcToSkuMap: upcToSkuMap,
+      });
+      setSkuBindingFlags(result || {});
+    } catch (error) {
+      console.error('加载SKU绑定标记失败:', error);
+      setSkuBindingFlags({});
+    }
+  };
+
+  // 加载供应商名称数据
+  const loadSupplierNames = async (items: InventorySummary[], fields: string[]) => {
+    if (!items || items.length === 0 || !fields || fields.length === 0) {
+      setSupplierNameData({});
+      return;
+    }
+
+    try {
+      // 限制传递的数据量，只传递必要的字段，避免请求过大
+      const limitedItems = items.slice(0, 1000).map(item => ({
+        SKU: item.SKU,
+        '门店/仓库名称': item['门店/仓库名称'],
+        城市: item.城市,
+      }));
+
+      console.log(`[SupplierQuotationPage] 开始查询供应商名称，类型: ${inventoryType}, 字段: ${fields.join(',')}, 数据量: ${limitedItems.length}`);
+
+      const result = await supplierQuotationApi.getSupplierNames({
+        type: inventoryType,
+        items: limitedItems as InventorySummary[],
+        fields: fields,
+      });
+
+      console.log(`[SupplierQuotationPage] 查询供应商名称完成，返回 ${Object.keys(result || {}).length} 条记录`);
+      setSupplierNameData(result || {});
+    } catch (error: any) {
+      console.error('加载供应商名称失败:', error);
+      const errorMsg = error?.response?.data?.message || error?.message || '加载供应商名称失败';
+      if (errorMsg.includes('timeout') || errorMsg.includes('504')) {
+        message.error('查询超时，数据量较大，请减少查询范围或稍后重试');
+      } else {
+        message.error(`加载供应商名称失败: ${errorMsg}`);
+      }
+      setSupplierNameData({});
     }
   };
 
@@ -723,45 +1214,92 @@ export default function SupplierQuotationPage() {
   };
 
   // 加载右栏数据
-  const loadRightData = async () => {
-    // 仓店维度必须选择门店/仓名称
-    if (inventoryType === '仓店') {
-      if (!storeNameFilter || storeNameFilter.trim() === '') {
+  const loadRightData = async (
+    leftDataOverride?: SupplierQuotation[],
+    selectedSupplierCodesOverride?: string[],
+    storeNameFilterOverride?: string,
+    cityFilterOverride?: string
+  ) => {
+    // 生成新的请求ID，用于追踪当前请求
+    const currentRequestId = ++loadRightDataRequestIdRef.current;
+
+    // 使用传入的参数或当前状态
+    const codesToUse = selectedSupplierCodesOverride || selectedSupplierCodes;
+    const quotationDataToUse = leftDataOverride || leftData;
+    const storeNameToUse = storeNameFilterOverride !== undefined ? storeNameFilterOverride : storeNameFilter;
+    const cityToUse = cityFilterOverride !== undefined ? cityFilterOverride : cityFilter;
+
+    // 如果没有选择供应商编码，不加载库存汇总数据
+    if (codesToUse.length === 0) {
+      // 只有在这是最新请求时才更新状态
+      if (currentRequestId === loadRightDataRequestIdRef.current) {
         setRightData([]);
         setRightAllData([]);
         setRightTotal(0);
+        setUpcToSkuMap({});
         setRightLoading(false);
+      }
+      return;
+    }
+
+    // 仓店维度必须选择门店/仓名称
+    if (inventoryType === '仓店') {
+      if (!storeNameToUse || storeNameToUse.trim() === '') {
+        // 只有在这是最新请求时才更新状态
+        if (currentRequestId === loadRightDataRequestIdRef.current) {
+          setRightData([]);
+          setRightAllData([]);
+          setRightTotal(0);
+          setUpcToSkuMap({});
+          setRightLoading(false);
+        }
         return;
       }
     }
 
     // 城市维度必须选择城市
     if (inventoryType === '城市') {
-      if (!cityFilter || cityFilter.trim() === '') {
-        setRightData([]);
-        setRightAllData([]);
-        setRightTotal(0);
-        setRightLoading(false);
+      if (!cityToUse || cityToUse.trim() === '') {
+        // 只有在这是最新请求时才更新状态
+        if (currentRequestId === loadRightDataRequestIdRef.current) {
+          setRightData([]);
+          setRightAllData([]);
+          setRightTotal(0);
+          setUpcToSkuMap({});
+          setRightLoading(false);
+        }
         return;
       }
     }
 
     setRightLoading(true);
     try {
+      // 在关键步骤检查是否是最新请求，如果不是则取消后续操作
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
       // 获取库存汇总数据
       // 仓店维度：传递storeNameFilter（单选）
       // 城市维度：传递cityFilter（单选，复用storeNames参数名）
+      // 使用传入的参数，而不是状态，避免异步状态更新导致的问题
       let storeNamesParam: string[] | undefined;
-      if (inventoryType === '仓店' && storeNameFilter) {
-        storeNamesParam = [storeNameFilter];
-      } else if (inventoryType === '城市' && cityFilter) {
-        storeNamesParam = [cityFilter];
+      if (inventoryType === '仓店' && storeNameToUse) {
+        storeNamesParam = [storeNameToUse];
+      } else if (inventoryType === '城市' && cityToUse) {
+        storeNamesParam = [cityToUse];
       }
 
       let result = await supplierQuotationApi.getInventorySummary({
         type: inventoryType,
         storeNames: storeNamesParam,
       });
+
+      // 检查是否仍然是最新请求
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
 
       // 如果有SKU搜索条件，在前端过滤
       if (inventorySkuSearch.trim()) {
@@ -771,15 +1309,166 @@ export default function SupplierQuotationPage() {
         );
       }
 
+      // 检查是否仍然是最新请求
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
+
       // 设置总数（在计算对比结果之前）
       setRightTotal(result.length);
 
-      // 计算对比结果：为每个库存汇总项找到匹配的供应商报价项
+      // 第一步：从供应商报价中提取所有UPC条码，批量获取对应的SKU编码
+      const upcCodes = (quotationDataToUse || [])
+        .map(q => q.最小销售规格UPC商品条码)
+        .filter((upc): upc is string => !!upc && upc.trim() !== '');
+
+      // UPC -> SKU编码数组的映射
+      let upcToSkuMapLocal: Record<string, string[]> = {};
+
+      if (upcCodes.length > 0) {
+        try {
+          upcToSkuMapLocal = await supplierQuotationApi.getSkuCodesByUpcCodes({
+            upcCodes: [...new Set(upcCodes)], // 去重
+          });
+
+          // 检查是否仍然是最新请求
+          if (currentRequestId !== loadRightDataRequestIdRef.current) {
+            setRightLoading(false);
+            return;
+          }
+
+          // 保存到状态中，供 alignedData 使用
+          setUpcToSkuMap(upcToSkuMapLocal);
+        } catch (error) {
+          console.error('获取SKU编码失败:', error);
+
+          // 检查是否仍然是最新请求
+          if (currentRequestId !== loadRightDataRequestIdRef.current) {
+            setRightLoading(false);
+            return;
+          }
+
+          message.warning('获取SKU编码失败，将使用原有匹配方式');
+          setUpcToSkuMap({});
+        }
+      } else {
+        // 检查是否仍然是最新请求
+        if (currentRequestId !== loadRightDataRequestIdRef.current) {
+          setRightLoading(false);
+          return;
+        }
+        setUpcToSkuMap({});
+      }
+
+      // 第二步：批量加载报价比例数据（用于调整供货价格）
+      // 为所有匹配的供应商报价加载比例数据
+      const ratioPromises: Promise<{ sku: string; ratio: { supplierRatio?: number; qianniuhuaRatio?: number } }>[] = [];
+      const skuToQuotationMap: Record<string, { supplierCode: string; upcCode: string }> = {};
+
+      result.forEach(item => {
+        if (item.SKU) {
+          const matchedUpcCodes: string[] = [];
+          Object.entries(upcToSkuMapLocal).forEach(([upc, skuCodes]) => {
+            if (skuCodes.includes(item.SKU!)) {
+              matchedUpcCodes.push(upc);
+            }
+          });
+
+          const matchedQuotations = quotationDataToUse?.filter(quotation => {
+            if (!quotation.最小销售规格UPC商品条码) return false;
+            return matchedUpcCodes.includes(quotation.最小销售规格UPC商品条码);
+          }) || [];
+
+          if (matchedQuotations.length > 0) {
+            const matchedQuotation = matchedQuotations[0];
+            if (matchedQuotation.供应商编码 && matchedQuotation.最小销售规格UPC商品条码) {
+              skuToQuotationMap[item.SKU] = {
+                supplierCode: matchedQuotation.供应商编码,
+                upcCode: matchedQuotation.最小销售规格UPC商品条码,
+              };
+              // 总是重新加载比例数据，确保使用最新的数据
+              ratioPromises.push(
+                supplierQuotationApi.getPriceRatios({
+                  supplierCode: matchedQuotation.供应商编码,
+                  upcCode: matchedQuotation.最小销售规格UPC商品条码,
+                }).then(result => {
+                  // 更新状态
+                  if (result) {
+                    setRatioData(prev => ({
+                      ...prev,
+                      [item.SKU!]: {
+                        supplierRatio: result.报价比例_供应商商品,
+                        qianniuhuaRatio: result.报价比例_牵牛花商品,
+                      },
+                    }));
+                  } else {
+                    setRatioData(prev => ({
+                      ...prev,
+                      [item.SKU!]: {
+                        supplierRatio: undefined,
+                        qianniuhuaRatio: undefined,
+                      },
+                    }));
+                  }
+                  // 返回比例数据供后续使用
+                  return {
+                    sku: item.SKU!,
+                    ratio: result ? {
+                      supplierRatio: result.报价比例_供应商商品,
+                      qianniuhuaRatio: result.报价比例_牵牛花商品,
+                    } : { supplierRatio: undefined, qianniuhuaRatio: undefined },
+                  };
+                }).catch(error => {
+                  console.error('加载报价比例失败:', error);
+                  setRatioData(prev => ({
+                    ...prev,
+                    [item.SKU!]: {
+                      supplierRatio: undefined,
+                      qianniuhuaRatio: undefined,
+                    },
+                  }));
+                  return {
+                    sku: item.SKU!,
+                    ratio: { supplierRatio: undefined, qianniuhuaRatio: undefined },
+                  };
+                })
+              );
+            }
+          }
+        }
+      });
+
+      // 等待所有比例数据加载完成，并构建比例数据映射
+      const loadedRatioData: Record<string, { supplierRatio?: number; qianniuhuaRatio?: number }> = {};
+      if (ratioPromises.length > 0) {
+        const ratioResults = await Promise.all(ratioPromises);
+        ratioResults.forEach(({ sku, ratio }) => {
+          loadedRatioData[sku] = ratio;
+        });
+      }
+
+      // 第三步：计算对比结果：为每个库存汇总项找到匹配的供应商报价项
+      // 现在使用SKU编码进行匹配
       const dataWithComparison = result.map(item => {
-        // 找到所有匹配的供应商报价项（UPC包含最小销售规格UPC商品条码）
-        const matchedQuotations = leftData.filter(quotation => {
-          if (!quotation.最小销售规格UPC商品条码 || !item.UPC) return false;
-          return item.UPC.includes(quotation.最小销售规格UPC商品条码);
+        // 如果没有供应商报价数据，直接返回库存汇总数据（不显示对比结果）
+        if (!quotationDataToUse || quotationDataToUse.length === 0) {
+          return item;
+        }
+
+        // 通过SKU编码匹配供应商报价
+        // 1. 找到所有包含当前库存汇总SKU的UPC条码
+        const matchedUpcCodes: string[] = [];
+        Object.entries(upcToSkuMapLocal).forEach(([upc, skuCodes]) => {
+          if (item.SKU && skuCodes.includes(item.SKU)) {
+            matchedUpcCodes.push(upc);
+          }
+        });
+
+        // 2. 通过匹配的UPC条码找到对应的供应商报价
+        const matchedQuotations = quotationDataToUse.filter(quotation => {
+          if (!quotation.最小销售规格UPC商品条码) return false;
+          return matchedUpcCodes.includes(quotation.最小销售规格UPC商品条码);
         });
 
         // 如果没有匹配的供应商报价，不显示对比结果
@@ -789,34 +1478,45 @@ export default function SupplierQuotationPage() {
 
         // 使用第一个匹配的供应商报价进行对比（如果有多个，取第一个）
         const matchedQuotation = matchedQuotations[0];
-        const supplierPrice = matchedQuotation.供货价格;
+        // 优先使用计算后供货价格，如果为NULL则使用原供货价格
+        let supplierPrice = matchedQuotation.计算后供货价格 !== undefined && matchedQuotation.计算后供货价格 !== null
+          ? matchedQuotation.计算后供货价格
+          : matchedQuotation.供货价格;
 
         // 如果供货价格为空，显示'无供货价信息'
         if (supplierPrice === undefined || supplierPrice === null) {
           return {
             ...item,
             对比结果: '无供货价信息',
+            对比字段类型: undefined,
+            差价: undefined,
           };
         }
 
         // 根据类型选择对比逻辑
         let comparePrice: number | undefined;
+        let compareFieldType: string | undefined;
 
         if (inventoryType === '全部') {
           // 全部：优先比最低采购价，为空则比最近采购价，还为空则比成本单价
           if (item.最低采购价 !== undefined && item.最低采购价 !== null) {
             comparePrice = item.最低采购价;
+            compareFieldType = '最低采购价';
           } else if (item.最近采购价 !== undefined && item.最近采购价 !== null) {
             comparePrice = item.最近采购价;
+            compareFieldType = '最近采购价';
           } else if (item.成本单价 !== undefined && item.成本单价 !== null) {
             comparePrice = item.成本单价;
+            compareFieldType = '成本单价';
           }
         } else {
           // 仓店/城市：优先比最近采购价，为空则比成本单价
           if (item.最近采购价 !== undefined && item.最近采购价 !== null) {
             comparePrice = item.最近采购价;
+            compareFieldType = '最近采购价';
           } else if (item.成本单价 !== undefined && item.成本单价 !== null) {
             comparePrice = item.成本单价;
+            compareFieldType = '成本单价';
           }
         }
 
@@ -825,6 +1525,8 @@ export default function SupplierQuotationPage() {
           return {
             ...item,
             对比结果: '无采购价信息',
+            对比字段类型: undefined,
+            差价: undefined,
           };
         }
 
@@ -833,37 +1535,88 @@ export default function SupplierQuotationPage() {
         return {
           ...item,
           对比结果: diff > 0 ? '价格优势' : diff < 0 ? '价格偏高' : '价格相同',
+          对比字段类型: compareFieldType,
+          差价: diff,
         };
       });
 
+      // 检查是否仍然是最新请求
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
+
+      // 检查是否仍然是最新请求
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
+
       // 保存所有数据（用于匹配）
       setRightAllData(dataWithComparison);
+
+      console.log('[SupplierQuotation] loadRightData 完成，设置 rightAllData:', {
+        requestId: currentRequestId,
+        dataWithComparisonCount: dataWithComparison.length,
+        inventorySkuSearch,
+        cityFilter: cityToUse,
+        storeNameFilter: storeNameToUse,
+        sampleSkus: dataWithComparison.slice(0, 5).map(item => item.SKU),
+      });
 
       // 应用分页
       const start = (rightCurrentPage - 1) * rightPageSize;
       const end = start + rightPageSize;
       const paginatedData = dataWithComparison.slice(start, end);
 
+      // 最后检查是否仍然是最新请求
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
+
       setRightData(paginatedData);
+
+      // 如果选择了供应商名称字段，查询供应商名称数据
+      if (supplierNameFields.length > 0 && dataWithComparison.length > 0) {
+        await loadSupplierNames(dataWithComparison, supplierNameFields);
+      }
+
+      // 查询SKU绑定标记
+      if (dataWithComparison.length > 0 && quotationDataToUse && quotationDataToUse.length > 0) {
+        await loadSkuBindingFlags(dataWithComparison, quotationDataToUse);
+      }
     } catch (error) {
+      // 检查是否仍然是最新请求
+      if (currentRequestId !== loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+        return;
+      }
       message.error('加载库存汇总数据失败');
       console.error(error);
     } finally {
-      setRightLoading(false);
+      // 只有在是最新请求时才更新加载状态
+      if (currentRequestId === loadRightDataRequestIdRef.current) {
+        setRightLoading(false);
+      }
     }
   };
 
-  // 重置所有搜索条件
+  // 重置供应商报价搜索条件（只清空3个搜索框和供应商编码筛选框）
   const handleResetSearch = () => {
     setSupplierNameSearch('');
     setSupplierCodeSearch('');
     setProductNameSearch('');
     setLeftSearchText('');
-    setInventorySkuSearch('');
+    setSelectedSupplierCodes([]);
     setLeftCurrentPage(1);
-    if (selectedSupplierCodes.length > 0) {
-      loadLeftData();
-    }
+    // 清空数据
+    setLeftData([]);
+    setLeftTotal(0);
+    setRightData([]);
+    setRightAllData([]);
+    setRightTotal(0);
+    setUpcToSkuMap({});
   };
 
   // 加载下栏数据
@@ -946,6 +1699,13 @@ export default function SupplierQuotationPage() {
       setCityFilter('');
       // 清空门店筛选（切换维度时重置）
       setStoreNameFilter('');
+      // 清空所有数据，因为必须选择门店/仓名称才能显示数据
+      setLeftData([]);
+      setLeftTotal(0);
+      setRightData([]);
+      setRightAllData([]);
+      setRightTotal(0);
+      setUpcToSkuMap({});
     } else if (value === '城市') {
       // 如果切换到城市维度，加载城市列表
       if (cities.length === 0) {
@@ -955,16 +1715,24 @@ export default function SupplierQuotationPage() {
       setStoreNameFilter('');
       // 清空城市筛选（切换维度时重置）
       setCityFilter('');
+      // 清空所有数据，因为必须选择城市才能显示数据
+      setLeftData([]);
+      setLeftTotal(0);
+      setRightData([]);
+      setRightAllData([]);
+      setRightTotal(0);
+      setUpcToSkuMap({});
     } else {
       // 全部维度，清空所有筛选
       setStoreNameFilter('');
       setCityFilter('');
+      // 重置分页
+      setRightCurrentPage(1);
+      // 注意：不在这里调用 loadRightData()，因为 inventoryType 变化会触发 useEffect
+      // useEffect 会调用 loadLeftData()，而 loadLeftData() 完成后会自动调用 loadRightData()
+      // 这样可以避免重复调用和竞态条件
+      // 只有在已经选择了供应商编码的情况下，才会通过 useEffect 触发数据加载
     }
-    // 重置分页
-    setRightCurrentPage(1);
-    // 直接加载库存汇总数据，基于所有供应商报价数据
-    // 注意：loadRightData 内部会检查必须的筛选条件，如果不符合会直接返回
-    loadRightData();
   };
 
   // 导出数据
@@ -1024,23 +1792,31 @@ export default function SupplierQuotationPage() {
             matchedInventory = {
               ...matchedInventory,
               对比结果: '无供货价信息',
+              对比字段类型: undefined,
+              差价: undefined,
             };
           } else {
             let comparePrice: number | undefined;
+            let compareFieldType: string | undefined;
 
             if (inventoryType === '全部') {
               if (matchedInventory.最低采购价 !== undefined && matchedInventory.最低采购价 !== null) {
                 comparePrice = matchedInventory.最低采购价;
+                compareFieldType = '最低采购价';
               } else if (matchedInventory.最近采购价 !== undefined && matchedInventory.最近采购价 !== null) {
                 comparePrice = matchedInventory.最近采购价;
+                compareFieldType = '最近采购价';
               } else if (matchedInventory.成本单价 !== undefined && matchedInventory.成本单价 !== null) {
                 comparePrice = matchedInventory.成本单价;
+                compareFieldType = '成本单价';
               }
             } else {
               if (matchedInventory.最近采购价 !== undefined && matchedInventory.最近采购价 !== null) {
                 comparePrice = matchedInventory.最近采购价;
+                compareFieldType = '最近采购价';
               } else if (matchedInventory.成本单价 !== undefined && matchedInventory.成本单价 !== null) {
                 comparePrice = matchedInventory.成本单价;
+                compareFieldType = '成本单价';
               }
             }
 
@@ -1048,12 +1824,16 @@ export default function SupplierQuotationPage() {
               matchedInventory = {
                 ...matchedInventory,
                 对比结果: '无采购价信息',
+                对比字段类型: undefined,
+                差价: undefined,
               };
             } else {
               const diff = comparePrice - supplierPrice;
               matchedInventory = {
                 ...matchedInventory,
                 对比结果: diff > 0 ? '价格优势' : diff < 0 ? '价格偏高' : '价格相同',
+                对比字段类型: compareFieldType,
+                差价: diff,
               };
             }
           }
@@ -1232,36 +2012,64 @@ export default function SupplierQuotationPage() {
 
   // 当选择的供应商编码或搜索条件变化时，重新加载数据
   useEffect(() => {
+    // 如果正在手动加载，跳过（避免重复调用）
+    if (isLoadingManuallyRef.current) {
+      return;
+    }
+
+    // 仓店维度必须选择门店/仓名称
+    if (inventoryType === '仓店' && (!storeNameFilter || storeNameFilter.trim() === '')) {
+      setLeftData([]);
+      setLeftTotal(0);
+      setRightData([]);
+      setRightAllData([]);
+      setRightTotal(0);
+      setUpcToSkuMap({});
+      return;
+    }
+
+    // 城市维度必须选择城市
+    if (inventoryType === '城市' && (!cityFilter || cityFilter.trim() === '')) {
+      setLeftData([]);
+      setLeftTotal(0);
+      setRightData([]);
+      setRightAllData([]);
+      setRightTotal(0);
+      setUpcToSkuMap({});
+      return;
+    }
+
     if (selectedSupplierCodes.length > 0) {
       loadLeftData();
     } else {
       setLeftData([]);
       setLeftTotal(0);
       setRightData([]);
+      setRightAllData([]);
+      setRightTotal(0);
+      setUpcToSkuMap({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leftCurrentPage, leftPageSize, leftSearchText, supplierNameSearch, supplierCodeSearch, productNameSearch, selectedSupplierCodes]);
+  }, [leftCurrentPage, leftPageSize, leftSearchText, supplierNameSearch, supplierCodeSearch, productNameSearch, selectedSupplierCodes, inventoryType, storeNameFilter, cityFilter]);
 
   // 当库存汇总SKU搜索条件变化时，重新过滤数据
+  // 注意：这里只重新过滤已有数据，不重新加载，因为 loadRightData 内部已经有 SKU 搜索过滤逻辑
   useEffect(() => {
-    if (rightData.length > 0 || inventorySkuSearch.trim()) {
-      loadRightData();
+    // 如果正在加载中，不处理（避免与 loadRightData 冲突）
+    if (rightLoading) {
+      return;
+    }
+
+    // 如果有数据或搜索条件，重新调用 loadRightData 进行过滤
+    // 使用当前的数据和状态
+    if (selectedSupplierCodes.length > 0 && leftData.length > 0) {
+      loadRightData(leftData, selectedSupplierCodes);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventorySkuSearch]);
 
-  // 当库存类型变化时，重新加载库存汇总数据
-  useEffect(() => {
-    if (leftData && leftData.length > 0) {
-      loadRightData();
-    } else {
-      // 如果没有供应商报价数据，清空库存汇总
-      setRightData([]);
-      setRightAllData([]);
-      setRightTotal(0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryType, storeNameFilter, cityFilter]);
+  // 注意：移除了当库存类型变化时的 useEffect，因为 loadLeftData 完成后会自动调用 loadRightData
+  // 这样可以避免重复调用和竞态条件
 
   // 初始化加载仓库优先级列表和城市列表
   useEffect(() => {
@@ -1287,7 +2095,8 @@ export default function SupplierQuotationPage() {
     const timer = setTimeout(() => {
       if (mergedTableContainerRef.current) {
         const containerHeight = mergedTableContainerRef.current.clientHeight;
-        const calculatedHeight = containerHeight - 64; // 减去分页高度
+        // 减去分页器高度（约64px）和padding（32px）
+        const calculatedHeight = containerHeight - 96;
         setMergedTableHeight(Math.max(300, calculatedHeight));
       }
     }, 200);
@@ -1302,7 +2111,8 @@ export default function SupplierQuotationPage() {
       setTimeout(() => {
         if (mergedTableContainerRef.current) {
           const containerHeight = mergedTableContainerRef.current.clientHeight;
-          const calculatedHeight = containerHeight - 64; // 减去分页高度
+          // 减去分页器高度（约64px）和padding（32px）
+          const calculatedHeight = containerHeight - 96;
           setMergedTableHeight(Math.max(300, calculatedHeight));
         }
       }, 100);
@@ -1344,45 +2154,62 @@ export default function SupplierQuotationPage() {
     // 为每条供应商报价找到匹配的库存汇总
     // 使用rightAllData（所有数据）进行匹配，而不是分页后的rightData
     return dataForAlignment.map((quotation) => {
-      // 找到匹配的库存汇总（UPC包含最小销售规格UPC商品条码）
+      // 找到匹配的库存汇总（通过SKU编码匹配）
       let matchedInventory: InventorySummary | null = null;
 
       if (quotation.最小销售规格UPC商品条码) {
-        matchedInventory = rightAllData.find(item => {
-          if (!item.UPC) return false;
-          return item.UPC.includes(quotation.最小销售规格UPC商品条码!);
-        }) || null;
+        // 1. 通过UPC条码获取对应的SKU编码列表
+        const skuCodes = upcToSkuMap[quotation.最小销售规格UPC商品条码] || [];
+
+        // 2. 通过SKU编码匹配库存汇总
+        if (skuCodes.length > 0) {
+          matchedInventory = rightAllData.find(item => {
+            if (!item.SKU) return false;
+            return skuCodes.includes(item.SKU);
+          }) || null;
+        }
       }
 
       // 如果匹配到了库存汇总，计算对比结果
       if (matchedInventory) {
-        const supplierPrice = quotation.供货价格;
+        // 优先使用计算后供货价格，如果为NULL则使用原供货价格
+        let supplierPrice = quotation.计算后供货价格 !== undefined && quotation.计算后供货价格 !== null
+          ? quotation.计算后供货价格
+          : quotation.供货价格;
 
         // 如果供货价格为空，显示'无供货价信息'
         if (supplierPrice === undefined || supplierPrice === null) {
           matchedInventory = {
             ...matchedInventory,
             对比结果: '无供货价信息',
+            对比字段类型: undefined,
+            差价: undefined,
           };
         } else {
           // 根据类型选择对比逻辑
           let comparePrice: number | undefined;
+          let compareFieldType: string | undefined;
 
           if (inventoryType === '全部') {
             // 全部：优先比最低采购价，为空则比最近采购价，还为空则比成本单价
             if (matchedInventory.最低采购价 !== undefined && matchedInventory.最低采购价 !== null) {
               comparePrice = matchedInventory.最低采购价;
+              compareFieldType = '最低采购价';
             } else if (matchedInventory.最近采购价 !== undefined && matchedInventory.最近采购价 !== null) {
               comparePrice = matchedInventory.最近采购价;
+              compareFieldType = '最近采购价';
             } else if (matchedInventory.成本单价 !== undefined && matchedInventory.成本单价 !== null) {
               comparePrice = matchedInventory.成本单价;
+              compareFieldType = '成本单价';
             }
           } else {
             // 仓店/城市：优先比最近采购价，为空则比成本单价
             if (matchedInventory.最近采购价 !== undefined && matchedInventory.最近采购价 !== null) {
               comparePrice = matchedInventory.最近采购价;
+              compareFieldType = '最近采购价';
             } else if (matchedInventory.成本单价 !== undefined && matchedInventory.成本单价 !== null) {
               comparePrice = matchedInventory.成本单价;
+              compareFieldType = '成本单价';
             }
           }
 
@@ -1391,6 +2218,8 @@ export default function SupplierQuotationPage() {
             matchedInventory = {
               ...matchedInventory,
               对比结果: '无采购价信息',
+              对比字段类型: undefined,
+              差价: undefined,
             };
           } else {
             // 供货价格 < 采购价，显示'价格优势'（供应商报价更便宜）
@@ -1398,6 +2227,8 @@ export default function SupplierQuotationPage() {
             matchedInventory = {
               ...matchedInventory,
               对比结果: diff > 0 ? '价格优势' : diff < 0 ? '价格偏高' : '价格相同',
+              对比字段类型: compareFieldType,
+              差价: diff,
             };
           }
         }
@@ -1408,7 +2239,7 @@ export default function SupplierQuotationPage() {
         inventory: matchedInventory,
       };
     });
-  }, [dataForAlignment, rightData, inventoryType]);
+  }, [dataForAlignment, rightAllData, inventoryType, upcToSkuMap, ratioData]);
 
   // 应用对比结果筛选后的对齐数据
   const filteredAlignedData = useMemo(() => {
@@ -1464,8 +2295,73 @@ export default function SupplierQuotationPage() {
     return allFiltered;
   }, [filteredAlignedData, comparisonResultFilter.length, leftCurrentPage, leftPageSize]);
 
+  // 计算所有匹配的供应商报价数据（用于分页和显示）
+  const matchedQuotations = useMemo(() => {
+    const currentAlignedData = comparisonResultFilter.length > 0 ? filteredAlignedData : alignedData;
+    // 只返回匹配到库存汇总的供应商报价数据
+    return currentAlignedData
+      .filter(item => item.inventory && Object.keys(item.inventory).length > 0)
+      .map(item => item.quotation);
+  }, [filteredAlignedData, alignedData, comparisonResultFilter.length]);
+
+  // 计算所有供应商报价数据总数（用于分页）
+  const matchedQuotationTotal = useMemo(() => {
+    // 如果没有对比结果筛选，使用后端返回的总数（leftTotal）
+    if (comparisonResultFilter.length === 0) {
+      // 如果没有SKU搜索，直接使用 leftTotal（后端返回的总数）
+      if (!inventorySkuSearch.trim()) {
+        return leftTotal;
+      }
+
+      // 如果有SKU搜索，需要计算未匹配的库存汇总数量
+      const searchSku = inventorySkuSearch.trim().toLowerCase();
+      const matchedInventorySkus = new Set(
+        alignedData
+          .filter(item => item.inventory && Object.keys(item.inventory).length > 0)
+          .map(item => item.inventory!.SKU?.toLowerCase())
+          .filter(Boolean)
+      );
+
+      const unmatchedCount = rightAllData.filter(item => {
+        const itemSku = item.SKU?.toLowerCase();
+        return itemSku &&
+          itemSku.includes(searchSku) &&
+          !matchedInventorySkus.has(itemSku);
+      }).length;
+
+      return leftTotal + unmatchedCount;
+    }
+
+    // 如果有对比结果筛选，使用筛选后的数据数量
+    if (inventorySkuSearch.trim()) {
+      const searchSku = inventorySkuSearch.trim().toLowerCase();
+      const allQuotationCount = filteredAlignedData.length;
+
+      // 未匹配的库存汇总数量
+      const matchedInventorySkus = new Set(
+        filteredAlignedData
+          .filter(item => item.inventory && Object.keys(item.inventory).length > 0)
+          .map(item => item.inventory!.SKU?.toLowerCase())
+          .filter(Boolean)
+      );
+
+      const unmatchedCount = rightAllData.filter(item => {
+        const itemSku = item.SKU?.toLowerCase();
+        return itemSku &&
+          itemSku.includes(searchSku) &&
+          !matchedInventorySkus.has(itemSku);
+      }).length;
+
+      return allQuotationCount + unmatchedCount;
+    }
+
+    // 如果有对比结果筛选但没有SKU搜索，返回筛选后的数据数量
+    return filteredAlignedData.length;
+  }, [leftTotal, inventorySkuSearch, rightAllData, alignedData, filteredAlignedData, comparisonResultFilter.length]);
+
   // 合并后的数据：将供应商报价和库存汇总数据合并，并标识数据来源
-  // 注意：这里使用rightData（已分页），而不是所有数据
+  // 注意：显示所有供应商报价数据，包括没有匹配库存汇总的数据
+  // 如果用户搜索了SKU，也显示没有匹配供应商报价的库存汇总数据
   const mergedData = useMemo(() => {
     const result: Array<{
       key: string;
@@ -1475,54 +2371,91 @@ export default function SupplierQuotationPage() {
       hasMatch: boolean;
     }> = [];
 
-    // 使用对齐后的数据，每条供应商报价对应一行，如果有匹配的库存汇总则一起显示
-    const currentLeftData = comparisonResultFilter.length > 0 ? filteredLeftData : paginatedLeftData;
     const currentAlignedData = comparisonResultFilter.length > 0 ? filteredAlignedData : alignedData;
 
-    // 添加供应商报价数据（包含匹配的库存汇总）
-    currentLeftData.forEach((quotation, index) => {
-      const alignedItem = currentAlignedData.find(item =>
-        item.quotation.序号 === quotation.序号 ||
-        (item.quotation.供应商编码 === quotation.供应商编码 &&
-          item.quotation.供应商商品编码 === quotation.供应商商品编码)
+    // 获取所有供应商报价数据（包括匹配和未匹配的）
+    // 使用组合字段确保 key 的唯一性：供应商编码_供应商商品编码_序号_index
+    const allQuotationData = currentAlignedData.map((item, index) => {
+      // 组合多个字段确保 key 唯一性
+      const quotationKey = [
+        item.quotation.供应商编码 || '',
+        item.quotation.供应商商品编码 || '',
+        item.quotation.序号 || '',
+        index
+      ].filter(Boolean).join('_');
+
+      // 判断是否有匹配的库存汇总
+      const hasMatch = item.inventory && Object.keys(item.inventory).length > 0;
+
+      return {
+        key: `quotation-${quotationKey}`,
+        dataType: 'quotation' as const,
+        quotation: item.quotation,
+        inventory: hasMatch ? item.inventory : undefined,
+        hasMatch,
+      };
+    });
+
+    // 如果用户搜索了SKU，还需要显示没有匹配供应商报价的库存汇总数据
+    if (inventorySkuSearch.trim()) {
+      const searchSku = inventorySkuSearch.trim().toLowerCase();
+      const matchedInventorySkus = new Set(
+        allQuotationData
+          .filter(item => item.hasMatch)
+          .map(item => item.inventory?.SKU?.toLowerCase())
+          .filter(Boolean)
       );
-      const hasMatch = alignedItem && alignedItem.inventory && Object.keys(alignedItem.inventory).length > 0;
 
-      result.push({
-        key: `quotation-${quotation.序号 || quotation.供应商编码 || quotation.供应商商品编码 || index}`,
-        dataType: 'quotation',
-        quotation,
-        inventory: alignedItem?.inventory || undefined,
-        hasMatch: !!hasMatch,
-      });
-    });
-
-    // 添加库存汇总数据（只添加没有匹配到供应商报价的数据）
-    // 注意：rightData已经是分页后的数据
-    const matchedInventorySkus = new Set(
-      currentAlignedData
-        .filter(item => item.inventory && Object.keys(item.inventory).length > 0)
-        .map(item => item.inventory!.SKU)
-    );
-
-    // 使用rightAllData（所有数据）来查找未匹配的库存汇总
-    rightAllData.forEach((inventory, index) => {
-      // 只添加没有匹配到供应商报价的库存汇总数据
-      if (!matchedInventorySkus.has(inventory.SKU)) {
-        result.push({
-          key: `inventory-${inventory.SKU || index}`,
-          dataType: 'inventory',
-          inventory,
-          hasMatch: false,
+      // 从 rightAllData 中找到未匹配的库存汇总数据
+      // 注意：rightAllData 已经在 loadRightData 中进行了SKU过滤，所以这里只需要过滤未匹配的数据
+      const unmatchedInventoryData = rightAllData
+        .filter(item => {
+          const itemSku = item.SKU?.toLowerCase();
+          // 只包含未被匹配的数据（rightAllData已经经过了SKU过滤）
+          return itemSku && !matchedInventorySkus.has(itemSku);
+        })
+        .map((item, index) => {
+          // 使用SKU和索引确保key的唯一性（不使用Date.now()避免重新渲染问题）
+          const uniqueKey = `inventory-only-${item.SKU || 'unknown'}-${index}`;
+          return {
+            key: uniqueKey,
+            dataType: 'inventory' as const,
+            quotation: undefined,
+            inventory: {
+              ...item,
+              对比结果: '无匹配数据',
+            },
+            hasMatch: false,
+          };
         });
-      }
-    });
 
-    // 对合并后的数据应用分页（合并后的数据包含供应商报价和库存汇总）
-    const start = (leftCurrentPage - 1) * leftPageSize;
-    const end = start + leftPageSize;
-    return result.slice(start, end);
-  }, [filteredLeftData, filteredAlignedData, paginatedLeftData, alignedData, rightAllData, comparisonResultFilter.length, leftCurrentPage, leftPageSize]);
+      console.log('[SupplierQuotation] mergedData 计算:', {
+        searchSku,
+        allQuotationDataCount: allQuotationData.length,
+        matchedQuotationCount: allQuotationData.filter(item => item.hasMatch).length,
+        unmatchedQuotationCount: allQuotationData.filter(item => !item.hasMatch).length,
+        unmatchedInventoryDataCount: unmatchedInventoryData.length,
+        rightAllDataCount: rightAllData.length,
+        matchedInventorySkusCount: matchedInventorySkus.size,
+        firstUnmatchedSku: unmatchedInventoryData[0]?.inventory?.SKU,
+      });
+
+      // 合并数据：先显示所有供应商报价数据，再显示未匹配的库存汇总数据
+      // 注意：allQuotationData 已经基于当前页的数据（leftData），所以只需要对未匹配的库存汇总数据进行分页
+      // 计算当前页应该显示的未匹配库存汇总数据
+      const currentPageQuotationCount = allQuotationData.length;
+      const remainingSpace = leftPageSize - currentPageQuotationCount;
+      const paginatedUnmatchedInventory = remainingSpace > 0
+        ? unmatchedInventoryData.slice(0, remainingSpace)
+        : [];
+
+      return [...allQuotationData, ...paginatedUnmatchedInventory];
+    }
+
+    // 如果没有SKU搜索，显示所有供应商报价数据（包括未匹配的）
+    // 注意：allQuotationData 已经基于当前页的数据（leftData），所以不需要再次分页
+    return allQuotationData;
+  }, [filteredAlignedData, alignedData, comparisonResultFilter.length, leftCurrentPage, leftPageSize, inventorySkuSearch, rightAllData]);
 
   // 获取合并后的表格列定义
   const getMergedColumns = (): ColumnType<any>[] => {
@@ -1564,22 +2497,17 @@ export default function SupplierQuotationPage() {
       merged.push({
         ...col,
         render: (text: any, record: any) => {
-          if (record.dataType === 'inventory' && record.inventory) {
+          // 处理库存汇总数据（可能没有匹配的供应商报价）
+          if (record.inventory) {
             const value = (record.inventory as any)[col.dataIndex as string];
             const renderedValue = col.render ? col.render(value, record.inventory, 0) : (value ?? '-');
             // 库存汇总数据使用黑色文字
-            // 如果是对比结果列，需要特殊处理以匹配筛选框的显示
+            // 如果是对比结果列或SKU列，需要特殊处理
             if (col.key === '对比结果') {
               return renderedValue; // 对比结果列已经有Tag渲染，不需要再包裹
             }
-            return <span style={{ color: '#000000' }}>{renderedValue}</span>;
-          } else if (record.dataType === 'quotation' && record.inventory) {
-            const value = (record.inventory as any)[col.dataIndex as string];
-            const renderedValue = col.render ? col.render(value, record.inventory, 0) : (value ?? '-');
-            // 供应商报价行中的库存汇总数据也使用黑色文字
-            // 如果是对比结果列，需要特殊处理以匹配筛选框的显示
-            if (col.key === '对比结果') {
-              return renderedValue; // 对比结果列已经有Tag渲染，不需要再包裹
+            if (col.key === 'SKU') {
+              return renderedValue; // SKU列已经有Popover和Tag渲染，不需要再包裹
             }
             return <span style={{ color: '#000000' }}>{renderedValue}</span>;
           }
@@ -1618,9 +2546,9 @@ export default function SupplierQuotationPage() {
           extra={
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               {/* 供应商报价搜索区域 */}
-              <div style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 8, marginBottom: 8 }}>
-                <div style={{ marginBottom: 8, fontWeight: 500, color: '#1890ff' }}>供应商报价</div>
-                <Space wrap>
+              <div style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 4, marginBottom: 4 }}>
+                <div style={{ marginBottom: 4, fontWeight: 500, color: '#1890ff', fontSize: '13px' }}>供应商报价</div>
+                <Space wrap size="small">
                   <Select
                     mode="multiple"
                     value={selectedSupplierCodes}
@@ -1634,44 +2562,78 @@ export default function SupplierQuotationPage() {
                         label: code,
                       }))}
                     onSearch={(value) => setSupplierCodeSearchValue(value)}
-                    onChange={(values) => {
+                    onChange={async (values) => {
                       // 只保留在allSupplierCodes中存在的值
                       const validValues = values.filter(v => allSupplierCodes.includes(v));
-                      setSelectedSupplierCodes(validValues);
                       // 如果过滤后有值被移除，提示用户
                       if (values.length > validValues.length) {
                         setSupplierCodeSearchValue('');
                         message.warning('只能选择下拉框中的供应商编码');
                       }
+
+                      // 先标记为手动加载，避免 useEffect 重复触发
+                      isLoadingManuallyRef.current = true;
+
                       // 选择后立即触发数据加载，直接传递新的值
                       if (validValues.length > 0) {
                         setLeftCurrentPage(1);
                         // 直接传递新的值，不依赖状态更新
-                        loadLeftData(validValues);
+                        await loadLeftData(validValues);
                       } else {
                         // 如果没有选择，清空数据
                         setLeftData([]);
                         setLeftTotal(0);
                         setRightData([]);
+                        setRightAllData([]);
+                        setRightTotal(0);
+                        setUpcToSkuMap({});
+                        isLoadingManuallyRef.current = false;
                       }
+
+                      // 延迟更新状态，确保数据加载完成后再更新
+                      // 这样 useEffect 不会立即触发
+                      setTimeout(() => {
+                        setSelectedSupplierCodes(validValues);
+                        // 在状态更新后再重置标志，给足够的时间让 useEffect 检查
+                        setTimeout(() => {
+                          isLoadingManuallyRef.current = false;
+                        }, 300);
+                      }, 100);
                     }}
-                    onDeselect={(value) => {
+                    onDeselect={async (value) => {
                       // 取消选择时，确保状态同步
                       const newValues = selectedSupplierCodes.filter(v => v !== value);
-                      setSelectedSupplierCodes(newValues);
+
+                      // 先标记为手动加载，避免 useEffect 重复触发
+                      isLoadingManuallyRef.current = true;
+
                       // 如果还有选择的编码，重新加载数据，直接传递新的值
                       if (newValues.length > 0) {
                         setLeftCurrentPage(1);
-                        loadLeftData(newValues);
+                        await loadLeftData(newValues);
                       } else {
                         // 如果没有选择，清空数据
                         setLeftData([]);
                         setLeftTotal(0);
                         setRightData([]);
+                        setRightAllData([]);
+                        setRightTotal(0);
+                        setUpcToSkuMap({});
+                        isLoadingManuallyRef.current = false;
                       }
+
+                      // 延迟更新状态，确保数据加载完成后再更新
+                      setTimeout(() => {
+                        setSelectedSupplierCodes(newValues);
+                        // 在状态更新后再重置标志
+                        setTimeout(() => {
+                          isLoadingManuallyRef.current = false;
+                        }, 300);
+                      }, 100);
                     }}
                     placeholder="选择供应商编码（可输入筛选）"
-                    style={{ width: 300 }}
+                    style={{ width: 200 }}
+                    size="small"
                     allowClear
                     showSearch
                     maxTagCount="responsive"
@@ -1689,7 +2651,8 @@ export default function SupplierQuotationPage() {
                     }}
                     allowClear
                     enterButton={<SearchOutlined />}
-                    style={{ width: 200 }}
+                    style={{ width: 150 }}
+                    size="small"
                   />
                   <Search
                     placeholder="搜索供应商编码"
@@ -1701,7 +2664,8 @@ export default function SupplierQuotationPage() {
                     }}
                     allowClear
                     enterButton={<SearchOutlined />}
-                    style={{ width: 200 }}
+                    style={{ width: 150 }}
+                    size="small"
                   />
                   <Search
                     placeholder="搜索商品名称"
@@ -1713,7 +2677,8 @@ export default function SupplierQuotationPage() {
                     }}
                     allowClear
                     enterButton={<SearchOutlined />}
-                    style={{ width: 200 }}
+                    style={{ width: 150 }}
+                    size="small"
                   />
                   <Button
                     type="primary"
@@ -1727,6 +2692,7 @@ export default function SupplierQuotationPage() {
                       loadLeftData();
                     }}
                     disabled={selectedSupplierCodes.length === 0}
+                    size="small"
                   >
                     搜索
                   </Button>
@@ -1747,12 +2713,13 @@ export default function SupplierQuotationPage() {
                     onOpenChange={setLeftColumnSettingsOpen}
                     placement="bottomRight"
                   >
-                    <Button icon={<SettingOutlined />}>列设置</Button>
+                    <Button icon={<SettingOutlined />} size="small">列设置</Button>
                   </Popover>
                   <Button
                     icon={<ReloadOutlined />}
                     onClick={handleResetSearch}
                     loading={leftLoading}
+                    size="small"
                   >
                     重置
                   </Button>
@@ -1760,8 +2727,8 @@ export default function SupplierQuotationPage() {
               </div>
               {/* 库存汇总搜索区域 */}
               <div>
-                <div style={{ marginBottom: 8, fontWeight: 500, color: '#52c41a' }}>库存汇总</div>
-                <Space wrap>
+                <div style={{ marginBottom: 4, fontWeight: 500, color: '#52c41a', fontSize: '13px' }}>库存汇总</div>
+                <Space wrap size="small">
                   <Search
                     placeholder="搜索SKU"
                     value={inventorySkuSearch}
@@ -1771,16 +2738,18 @@ export default function SupplierQuotationPage() {
                     }}
                     allowClear
                     enterButton={<SearchOutlined />}
-                    style={{ width: 200 }}
+                    style={{ width: 150 }}
+                    size="small"
                   />
                   <Select
                     mode="multiple"
                     placeholder="筛选对比结果"
                     value={comparisonResultFilter}
                     onChange={setComparisonResultFilter}
-                    style={{ minWidth: 200 }}
+                    style={{ minWidth: 150 }}
                     maxTagCount="responsive"
                     allowClear
+                    size="small"
                     options={comparisonResultOptions.map(opt => ({
                       label: (
                         <Space>
@@ -1792,17 +2761,86 @@ export default function SupplierQuotationPage() {
                   />
                   {inventoryType === '仓店' && (
                     <Select
-                      placeholder="请选择门店/仓名称（必选）"
-                      value={storeNameFilter || undefined}
-                      onChange={(value) => {
-                        setStoreNameFilter(value || '');
-                        setRightCurrentPage(1);
-                        setTimeout(() => {
-                          loadRightData();
-                        }, 100);
+                      placeholder="选择供应商名称字段"
+                      value={supplierNameFields.length > 0 ? supplierNameFields[0] : undefined}
+                      onChange={async (value) => {
+                        const newFields = value ? [value] : [];
+                        setSupplierNameFields(newFields);
+                        // 如果选择了字段，查询数据
+                        if (newFields.length > 0 && rightAllData.length > 0) {
+                          await loadSupplierNames(rightAllData, newFields);
+                        } else {
+                          setSupplierNameData({});
+                        }
+                      }}
+                      style={{ minWidth: 150 }}
+                      allowClear
+                      size="small"
+                      options={[
+                        { label: '供应商名称', value: '供应商名称' },
+                      ]}
+                    />
+                  )}
+                  {(inventoryType === '城市' || inventoryType === '全部') && (
+                    <Select
+                      mode="multiple"
+                      placeholder="选择供应商名称字段"
+                      value={supplierNameFields}
+                      onChange={async (values) => {
+                        setSupplierNameFields(values);
+                        // 如果选择了字段，查询数据
+                        if (values.length > 0 && rightAllData.length > 0) {
+                          await loadSupplierNames(rightAllData, values);
+                        } else {
+                          setSupplierNameData({});
+                        }
                       }}
                       style={{ minWidth: 200 }}
+                      maxTagCount="responsive"
                       allowClear
+                      size="small"
+                      options={[
+                        { label: '供应商名称(最低价)', value: '供应商名称(最低价)' },
+                        { label: '供应商名称(最近时间)', value: '供应商名称(最近时间)' },
+                      ]}
+                    />
+                  )}
+                  {inventoryType === '仓店' && (
+                    <Select
+                      placeholder={
+                        <span style={{ color: !storeNameFilter ? '#ff4d4f' : 'inherit' }}>
+                          请选择门店/仓名称（必选）
+                        </span>
+                      }
+                      value={storeNameFilter || undefined}
+                      onChange={async (value) => {
+                        const newStoreName = value || '';
+
+                        // 如果选择了门店/仓名称，重新加载数据
+                        if (newStoreName) {
+                          setRightCurrentPage(1);
+                          // 使用最新的门店/仓名称值，直接传递参数，不依赖状态更新
+                          await loadLeftData(selectedSupplierCodes, newStoreName, cityFilter);
+                        } else {
+                          // 如果清空了选择，清空所有数据
+                          setStoreNameFilter('');
+                          setLeftData([]);
+                          setLeftTotal(0);
+                          setRightData([]);
+                          setRightAllData([]);
+                          setRightTotal(0);
+                          setUpcToSkuMap({});
+                        }
+
+                        // 延迟更新状态，确保数据加载完成后再更新
+                        setTimeout(() => {
+                          setStoreNameFilter(newStoreName);
+                        }, 100);
+                      }}
+                      style={{ minWidth: 150 }}
+                      allowClear
+                      size="small"
+                      status={!storeNameFilter ? 'error' : undefined}
                       options={warehousePriorities.map(name => ({
                         label: name,
                         value: name,
@@ -1812,17 +2850,40 @@ export default function SupplierQuotationPage() {
                   )}
                   {inventoryType === '城市' && (
                     <Select
-                      placeholder="请选择城市（必选）"
+                      placeholder={
+                        <span style={{ color: !cityFilter ? '#ff4d4f' : 'inherit' }}>
+                          请选择城市（必选）
+                        </span>
+                      }
                       value={cityFilter || undefined}
-                      onChange={(value) => {
-                        setCityFilter(value || '');
-                        setRightCurrentPage(1);
+                      onChange={async (value) => {
+                        const newCity = value || '';
+
+                        // 如果选择了城市，重新加载数据
+                        if (newCity) {
+                          setRightCurrentPage(1);
+                          // 使用最新的城市值，直接传递参数，不依赖状态更新
+                          await loadLeftData(selectedSupplierCodes, storeNameFilter, newCity);
+                        } else {
+                          // 如果清空了选择，清空所有数据
+                          setCityFilter('');
+                          setLeftData([]);
+                          setLeftTotal(0);
+                          setRightData([]);
+                          setRightAllData([]);
+                          setRightTotal(0);
+                          setUpcToSkuMap({});
+                        }
+
+                        // 延迟更新状态，确保数据加载完成后再更新
                         setTimeout(() => {
-                          loadRightData();
+                          setCityFilter(newCity);
                         }, 100);
                       }}
-                      style={{ minWidth: 200 }}
+                      style={{ minWidth: 150 }}
                       allowClear
+                      size="small"
+                      status={!cityFilter ? 'error' : undefined}
                       options={cities.map(city => ({
                         label: city,
                         value: city,
@@ -1834,6 +2895,7 @@ export default function SupplierQuotationPage() {
                     options={['全部', '仓店', '城市']}
                     value={inventoryType}
                     onChange={(value) => handleInventoryTypeChange(value as '全部' | '仓店' | '城市')}
+                    size="small"
                   />
                   <Popover
                     content={
@@ -1857,15 +2919,38 @@ export default function SupplierQuotationPage() {
                   <Button
                     icon={<DownloadOutlined />}
                     onClick={handleExportData}
+                    size="small"
                   >
                     导出数据
                   </Button>
                   <Button
                     icon={<ReloadOutlined />}
-                    onClick={() => {
-                      loadRightData();
+                    onClick={async () => {
+                      // 重置库存汇总搜索条件：清空SKU搜索框、对比结果筛选、门店/仓名称、城市筛选框、供应商名称字段筛选
+                      setInventorySkuSearch('');
+                      setComparisonResultFilter([]);
+                      setStoreNameFilter('');
+                      setCityFilter('');
+                      setSupplierNameFields([]);
+                      setSupplierNameData({});
+                      setRightCurrentPage(1);
+
+                      // 根据重置后的状态查询数据
+                      // 如果已经选择了供应商编码，重新加载数据
+                      // 注意：使用清空后的值（空字符串），而不是之前的状态
+                      if (selectedSupplierCodes.length > 0 && leftData.length > 0) {
+                        // 使用清空后的城市和门店过滤条件（空字符串），重新加载数据
+                        await loadRightData(leftData, selectedSupplierCodes, '', '');
+                      } else {
+                        // 如果没有供应商报价数据，清空库存汇总
+                        setRightData([]);
+                        setRightAllData([]);
+                        setRightTotal(0);
+                        setUpcToSkuMap({});
+                      }
                     }}
                     loading={rightLoading}
+                    size="small"
                   >
                     重置
                   </Button>
@@ -1874,58 +2959,64 @@ export default function SupplierQuotationPage() {
             </Space>
           }
           style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden', marginBottom: 16 }}
-          styles={{ body: { flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column' } }}
+          styles={{ body: { flex: 1, overflow: 'hidden', padding: 8, display: 'flex', flexDirection: 'column' } }}
         >
           <div ref={mergedTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Table
-              columns={getFilteredMergedColumns()}
-              dataSource={mergedData}
-              rowKey={(record) => record.key}
-              loading={leftLoading || rightLoading}
-              scroll={{ x: 'max-content', y: mergedTableHeight }}
-              pagination={{
-                current: leftCurrentPage,
-                pageSize: leftPageSize,
-                total: Math.max(leftTotal + rightTotal, mergedData.length), // 合并总数（供应商报价 + 库存汇总），至少为当前显示的数据量
-                showSizeChanger: true,
-                showTotal: (total) => `共 ${total} 条（供应商报价: ${leftTotal}，库存汇总: ${rightTotal}）`,
-                onChange: (page, size) => {
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <Table
+                columns={getFilteredMergedColumns()}
+                dataSource={mergedData}
+                rowKey={(record) => record.key}
+                loading={leftLoading || rightLoading}
+                scroll={{ x: 'max-content', y: mergedTableHeight }}
+                pagination={false}
+                onRow={(record) => {
+                  const isSelected = selectedMergedRowKey === record.key;
+
+                  return {
+                    onClick: () => {
+                      setSelectedMergedRowKey(record.key);
+                      if (record.quotation) {
+                        handleLeftRowClick(record.quotation);
+                      }
+                    },
+                    className: isSelected ? 'merged-row-selected' : undefined,
+                    style: {
+                      cursor: record.quotation ? 'pointer' : 'default',
+                    },
+                  };
+                }}
+                style={{ height: '100%' }}
+              />
+            </div>
+            {/* 分页器放在表格外部，确保始终可见 */}
+            <div style={{ padding: '8px 0', borderTop: '1px solid #f0f0f0' }}>
+              <Pagination
+                size="small"
+                current={leftCurrentPage}
+                pageSize={leftPageSize}
+                total={matchedQuotationTotal}
+                showSizeChanger
+                showTotal={(total: number) => `共 ${total} 条（供应商报价数据）`}
+                onChange={(page: number, size?: number) => {
                   setLeftCurrentPage(page);
                   setRightCurrentPage(page); // 同步分页
                   if (size) {
                     setLeftPageSize(size);
                     setRightPageSize(size);
                   }
-                },
-                onShowSizeChange: (current, size) => {
+                }}
+                onShowSizeChange={(current: number, size: number) => {
                   setLeftPageSize(size);
                   setRightPageSize(size);
                   setLeftCurrentPage(1);
                   setRightCurrentPage(1);
-                },
-                pageSizeOptions: ['10', '20', '50', '100'],
-                defaultPageSize: 20,
-                showQuickJumper: true,
-                hideOnSinglePage: false, // 即使只有一页也显示分页
-              }}
-              onRow={(record) => {
-                const isSelected = selectedMergedRowKey === record.key;
-
-                return {
-                  onClick: () => {
-                    setSelectedMergedRowKey(record.key);
-                    if (record.quotation) {
-                      handleLeftRowClick(record.quotation);
-                    }
-                  },
-                  className: isSelected ? 'merged-row-selected' : undefined,
-                  style: {
-                    cursor: 'pointer',
-                  },
-                };
-              }}
-              style={{ flex: 1, overflow: 'hidden' }}
-            />
+                }}
+                pageSizeOptions={['10', '20', '50', '100']}
+                showQuickJumper
+                showLessItems={false}
+              />
+            </div>
           </div>
         </Card>
 
