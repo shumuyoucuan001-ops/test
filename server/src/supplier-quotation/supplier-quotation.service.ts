@@ -877,21 +877,23 @@ export class SupplierQuotationService {
   }
 
   // 批量查询供应商名称
-  // 返回格式: { "SKU_门店名称": "供应商名称", "SKU": "供应商名称" }
+  // 返回格式: { "SKU_门店名称": "供应商名称", "SKU_最低价": "供应商名称", "SKU_最近时间": "供应商名称" }
   async getSupplierNamesForInventory(
     type: '全部' | '仓店' | '城市',
     items: InventorySummary[],
     fields: string[],
+    city?: string, // 城市维度时传递的城市名称，用于门店筛选
   ): Promise<Record<string, string>> {
     if (!items || items.length === 0 || !fields || fields.length === 0) {
       return {};
     }
 
-    // 限制查询的数据量，避免超时
-    const MAX_ITEMS = 1000;
-    const limitedItems = items.slice(0, MAX_ITEMS);
+    // 使用前端传递的所有数据，不再限制数据量
+    // 注意：前端已经限制了数据量（全部维度1000条，仓店维度200条），后端不再重复限制
+    // 如果前端没有限制，则使用所有传递的数据
+    const limitedItems = items;
 
-    Logger.log(`[SupplierQuotationService] 开始查询供应商名称，类型: ${type}, 字段: ${fields.join(',')}, 数据量: ${limitedItems.length}`);
+    Logger.log(`[SupplierQuotationService] 开始查询供应商名称，类型: ${type}, 字段: ${fields.join(',')}, 城市: ${city || '无'}, 数据量: ${limitedItems.length}`);
 
     const connection = await this.getChaigouConnection();
     const result: Record<string, string> = {};
@@ -899,253 +901,334 @@ export class SupplierQuotationService {
     try {
       // 仓店维度：查询供应商名称
       if (type === '仓店' && fields.includes('供应商名称')) {
-        // 构建查询条件：匹配门店/仓库名称和SKU
-        const conditions: string[] = [];
-        const params: any[] = [];
-
-        limitedItems.forEach(item => {
-          if (item.SKU && item['门店/仓库名称']) {
-            conditions.push('(`门店/仓名称` = ? AND `商品SKU` = ?)');
-            params.push(item['门店/仓库名称'], item.SKU);
-          }
-        });
-
-        if (conditions.length === 0) {
+        // 优化：分批处理，避免OR条件过多导致SQL过长和超时
+        const validItems = limitedItems.filter(item => item.SKU && item['门店/仓库名称']);
+        if (validItems.length === 0) {
           return {};
         }
 
-        // 查询直送方式的供应商
-        const directQuery = `
-          SELECT DISTINCT
-            \`门店/仓名称\`,
-            \`商品SKU\`,
-            \`供应商\`
-          FROM \`仓店补货参考\`
-          WHERE (${conditions.join(' OR ')})
-            AND \`送货方式\` = '直送'
-            AND \`供应商\` IS NOT NULL
-            AND \`供应商\` != ''
-          LIMIT 5000
-        `;
+        // 分批处理，每批最多30个条件，避免SQL过长和超时
+        // 仓店维度使用条件对（门店名称+SKU），查询更复杂，需要减少批次大小以提高性能
+        const BATCH_SIZE = 30;
+        const allDirectData: any[] = [];
 
-        const [directData]: any = await connection.execute(directQuery, params);
+        // 构建映射：用于将查询结果映射回原始item
+        const itemMap = new Map<string, { sku: string; storeName: string }>();
+        validItems.forEach(item => {
+          if (item.SKU && item['门店/仓库名称']) {
+            const mapKey = `${item.SKU}_${item['门店/仓库名称']}`;
+            itemMap.set(mapKey, { sku: item.SKU, storeName: item['门店/仓库名称'] });
+          }
+        });
 
-        // 获取所有唯一的SKU
-        const uniqueSkus = [...new Set(limitedItems.filter(i => i.SKU).map(i => i.SKU!))];
+        for (let i = 0; i < validItems.length; i += BATCH_SIZE) {
+          const batch = validItems.slice(i, i + BATCH_SIZE);
+          const conditions: string[] = [];
+          const params: any[] = [];
+          const batchMap = new Map<string, { sku: string; storeName: string }>();
 
-        if (uniqueSkus.length > 0) {
-          // 查询配送方式的供应商（从补货参考(中心仓)表）
-          const centerQuery = `
-            SELECT DISTINCT
-              \`商品SKU\`,
-              \`供应商\`
-            FROM \`补货参考(中心仓)\`
-            WHERE \`商品SKU\` IN (${uniqueSkus.map(() => '?').join(',')})
-              AND \`供应商\` IS NOT NULL
-              AND \`供应商\` != ''
-            LIMIT 5000
-          `;
-
-          const [centerData]: any = await connection.execute(centerQuery, uniqueSkus);
-
-          // 处理直送数据
-          directData.forEach((row: any) => {
-            const key = `${row['商品SKU']}_${row['门店/仓名称']}`;
-            if (row['供应商'] && !result[key]) {
-              result[key] = row['供应商'];
+          batch.forEach(item => {
+            if (item.SKU && item['门店/仓库名称']) {
+              conditions.push('(`门店/仓名称` = ? AND `商品SKU` = ?)');
+              params.push(item['门店/仓库名称'], item.SKU);
+              // 存储批次内的映射关系
+              const mapKey = `${item.SKU}_${item['门店/仓库名称']}`;
+              batchMap.set(mapKey, { sku: item.SKU, storeName: item['门店/仓库名称'] });
             }
           });
 
-          // 处理配送数据：需要匹配门店/仓库名称
-          limitedItems.forEach(item => {
-            if (item.SKU && item['门店/仓库名称']) {
-              const key = `${item.SKU}_${item['门店/仓库名称']}`;
-              if (!result[key]) {
-                // 查找配送方式的供应商
-                const centerMatch = centerData.find((row: any) => row['商品SKU'] === item.SKU);
-                if (centerMatch && centerMatch['供应商']) {
-                  result[key] = centerMatch['供应商'];
+          if (conditions.length > 0) {
+            // 查询直送方式的供应商
+            Logger.log(`[SupplierQuotationService] 执行仓店维度查询，批次: ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(validItems.length / BATCH_SIZE)}, 条件数量: ${conditions.length}`);
+            const startTime = Date.now();
+            const directQuery = `
+              SELECT DISTINCT
+                \`门店/仓名称\`,
+                \`商品SKU\`,
+                \`供应商\`
+              FROM \`仓店补货参考\`
+              WHERE (${conditions.join(' OR ')})
+                AND \`送货方式\` = '直送'
+                AND \`供应商\` IS NOT NULL
+                AND \`供应商\` != ''
+              ORDER BY \`门店/仓名称\`, \`商品SKU\`
+              LIMIT 3000
+            `;
+
+            const [directData]: any = await connection.execute(directQuery, params);
+            const queryTime = Date.now() - startTime;
+            Logger.log(`[SupplierQuotationService] 仓店维度查询完成，批次: ${Math.floor(i / BATCH_SIZE) + 1}, 耗时: ${queryTime}ms，返回记录数: ${directData.length}`);
+
+            // 优化：使用Map构建查询结果的索引，避免O(n²)查找
+            const directDataMap = new Map<string, string>();
+            directData.forEach((row: any) => {
+              const sku = row['商品SKU'];
+              const storeName = row['门店/仓名称'];
+              if (sku && storeName && row['供应商']) {
+                // 使用数据库返回的字段名作为key
+                const mapKey = `${sku}_${storeName}`;
+                if (!directDataMap.has(mapKey)) {
+                  directDataMap.set(mapKey, row['供应商']);
                 }
               }
-            }
-          });
+            });
+
+            // 处理查询结果，使用查询参数中的值构建key（确保与前端匹配）
+            batch.forEach(item => {
+              if (item.SKU && item['门店/仓库名称']) {
+                // 查找匹配的查询结果（SKU和门店名称都匹配）
+                // 注意：数据库字段是"门店/仓名称"，库存汇总字段是"门店/仓库名称"
+                // 如果值相同，可以直接匹配
+                const mapKey = `${item.SKU}_${item['门店/仓库名称']}`;
+                const supplier = directDataMap.get(mapKey);
+                if (supplier) {
+                  // 使用库存汇总的字段名构建key，确保与前端匹配
+                  const resultKey = `${item.SKU}_${item['门店/仓库名称']}`;
+                  if (!result[resultKey]) {
+                    result[resultKey] = supplier;
+                  }
+                }
+              }
+            });
+
+            allDirectData.push(...directData);
+          }
         }
+
+        // 仓店维度只查询直送方式，不再查询配送方式
       }
 
       // 城市/全部维度：查询供应商名称(最低价)
       if ((type === '城市' || type === '全部') && fields.includes('供应商名称(最低价)')) {
-        const skus = [...new Set(limitedItems.filter(i => i.SKU).map(i => i.SKU!))];
+        // 确保SKU是字符串格式，避免类型不匹配
+        const skus = [...new Set(limitedItems.filter(i => i.SKU).map(i => String(i.SKU!).trim()))];
         if (skus.length === 0) {
           // 继续处理其他字段
         } else {
-          // 使用子查询优化：为每个SKU选择最低价的供应商
-          // 先查询直送方式
-          const directQuery = `
-            SELECT 
-              t1.\`商品SKU\`,
-              t1.\`供应商\`
-            FROM \`仓店补货参考\` t1
-            INNER JOIN (
-              SELECT 
-                \`商品SKU\`,
-                MIN(\`采购单价 (基础单位)\`) as min_price
-              FROM \`仓店补货参考\`
-              WHERE \`商品SKU\` IN (${skus.map(() => '?').join(',')})
+          // 分批处理SKU列表，避免IN子句参数过多导致MySQL通信包错误
+          const BATCH_SIZE = 200;
+          const skuBatches: string[][] = [];
+          for (let i = 0; i < skus.length; i += BATCH_SIZE) {
+            skuBatches.push(skus.slice(i, i + BATCH_SIZE));
+          }
+
+          // 合并数据，为每个SKU选择最低价的供应商
+          const skuMap: Record<string, string> = {};
+
+          // 城市维度需要添加门店筛选条件
+          const cityFilterClause = type === '城市' && city ? `AND \`门店/仓名称\` LIKE ?` : '';
+          const cityFilterParams = type === '城市' && city ? [`%${city}%`] : [];
+
+          // 分批查询，只查询直送方式
+          for (const skuBatch of skuBatches) {
+            // 使用窗口函数优化查询，确保每个SKU只返回一条记录
+            let whereClause = `\`商品SKU\` IN (${skuBatch.map(() => '?').join(',')})
                 AND \`送货方式\` = '直送'
                 AND \`供应商\` IS NOT NULL
                 AND \`供应商\` != ''
                 AND \`采购单价 (基础单位)\` IS NOT NULL
-                AND \`采购单价 (基础单位)\` > 0
-              GROUP BY \`商品SKU\`
-            ) t2 ON t1.\`商品SKU\` = t2.\`商品SKU\` 
-              AND t1.\`采购单价 (基础单位)\` = t2.min_price
-            WHERE t1.\`送货方式\` = '直送'
-              AND t1.\`供应商\` IS NOT NULL
-              AND t1.\`供应商\` != ''
-            LIMIT 5000
-          `;
+                AND \`采购单价 (基础单位)\` > 0`;
 
-          const [directData]: any = await connection.execute(directQuery, [...skus, ...skus]);
+            const queryParams: any[] = [...skuBatch];
 
-          // 查询配送方式：从补货参考(中心仓)表查询
-          const centerQuery = `
-            SELECT 
-              t1.\`商品SKU\`,
-              t1.\`供应商\`
-            FROM \`补货参考(中心仓)\` t1
-            INNER JOIN (
+            // 城市维度添加门店筛选
+            if (cityFilterClause) {
+              whereClause += ` ${cityFilterClause}`;
+              queryParams.push(...cityFilterParams);
+            }
+
+            // 使用窗口函数ROW_NUMBER()来优化查询，确保每个SKU只返回价格最低的那条记录
+            // 如果有多个相同最低价的供应商，取第一个（按供应商名称排序）
+            const query = `
               SELECT 
                 \`商品SKU\`,
-                MIN(\`采购单价 (基础单位)\`) as min_price
-              FROM \`补货参考(中心仓)\`
-              WHERE \`商品SKU\` IN (${skus.map(() => '?').join(',')})
-                AND \`供应商\` IS NOT NULL
-                AND \`供应商\` != ''
-                AND \`采购单价 (基础单位)\` IS NOT NULL
-                AND \`采购单价 (基础单位)\` > 0
-              GROUP BY \`商品SKU\`
-            ) t2 ON t1.\`商品SKU\` = t2.\`商品SKU\` 
-              AND t1.\`采购单价 (基础单位)\` = t2.min_price
-            WHERE t1.\`供应商\` IS NOT NULL
-              AND t1.\`供应商\` != ''
-            LIMIT 5000
-          `;
+                \`供应商\`
+              FROM (
+                SELECT 
+                  \`商品SKU\`,
+                  \`供应商\`,
+                  \`采购单价 (基础单位)\`,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY \`商品SKU\` 
+                    ORDER BY \`采购单价 (基础单位)\` ASC, \`供应商\` ASC
+                  ) as rn
+                FROM \`仓店补货参考\`
+                WHERE ${whereClause}
+              ) t
+              WHERE t.rn = 1
+              LIMIT 5000
+            `;
 
-          const [centerData]: any = await connection.execute(centerQuery, [...skus, ...skus]);
+            Logger.log(`[SupplierQuotationService] 执行最低价查询，SKU数量: ${skuBatch.length}`);
+            const startTime = Date.now();
+            const [data]: any = await connection.execute(query, queryParams);
+            const queryTime = Date.now() - startTime;
+            Logger.log(`[SupplierQuotationService] 最低价查询完成，耗时: ${queryTime}ms，返回记录数: ${data.length}`);
 
-          // 合并数据，为每个SKU选择最低价的供应商
-          const skuMap: Record<string, { supplier: string; price: number }> = {};
+            // 处理查询结果
+            data.forEach((row: any) => {
+              const sku = row['商品SKU'];
+              // 确保SKU是字符串格式，避免类型不匹配
+              const skuStr = sku ? String(sku).trim() : '';
+              if (skuStr && row['供应商']) {
+                const supplier = String(row['供应商']).trim();
+                if (supplier && !skuMap[skuStr]) {
+                  skuMap[skuStr] = supplier;
+                }
+              }
+            });
+          }
 
-          // 处理直送数据
-          directData.forEach((row: any) => {
-            const sku = row['商品SKU'];
-            if (sku && row['供应商'] && !skuMap[sku]) {
-              skuMap[sku] = {
-                supplier: row['供应商'],
-                price: 0, // 已经是最低价，不需要再比较
-              };
-            }
-          });
-
-          // 处理配送数据（如果直送没有找到，使用配送的）
-          centerData.forEach((row: any) => {
-            const sku = row['商品SKU'];
-            if (sku && row['供应商'] && !skuMap[sku]) {
-              skuMap[sku] = {
-                supplier: row['供应商'],
-                price: 0,
-              };
-            }
-          });
-
-          // 生成结果
+          // 生成结果（确保SKU格式一致）
           Object.keys(skuMap).forEach(sku => {
-            result[`${sku}_最低价`] = skuMap[sku].supplier;
+            const skuStr = String(sku).trim();
+            result[`${skuStr}_最低价`] = skuMap[sku];
           });
         }
       }
 
       // 城市/全部维度：查询供应商名称(最近时间)
       if ((type === '城市' || type === '全部') && fields.includes('供应商名称(最近时间)')) {
-        const skus = [...new Set(limitedItems.filter(i => i.SKU).map(i => i.SKU!))];
+        // 确保SKU是字符串格式，避免类型不匹配
+        const skus = [...new Set(limitedItems.filter(i => i.SKU).map(i => String(i.SKU!).trim()))];
+
+        // 调试日志：检查输入的SKU列表
+        const testSkus = ['1946496732548804617', '1852634076041908275', '1722537865550049340'];
+        Logger.log(`[SupplierQuotationService] 最近时间查询 - 输入SKU列表（前20个）: ${skus.slice(0, 20).join(', ')}`);
+        Logger.log(`[SupplierQuotationService] 最近时间查询 - SKU总数: ${skus.length}`);
+
+        // 检查特定的SKU是否在输入列表中
+        testSkus.forEach(testSku => {
+          const inList = skus.includes(testSku);
+          Logger.log(`[SupplierQuotationService] 测试SKU ${testSku} 是否在输入列表中: ${inList}`);
+        });
+
         if (skus.length === 0) {
           // 继续处理其他字段
         } else {
-          // 使用子查询优化：为每个SKU选择最近时间的供应商
-          // 先查询直送方式
-          const directQuery = `
-            SELECT 
-              t1.\`商品SKU\`,
-              t1.\`供应商\`
-            FROM \`仓店补货参考\` t1
-            INNER JOIN (
-              SELECT 
-                \`商品SKU\`,
-                MAX(\`上次补货时间\`) as max_time
-              FROM \`仓店补货参考\`
-              WHERE \`商品SKU\` IN (${skus.map(() => '?').join(',')})
-                AND \`送货方式\` = '直送'
-                AND \`供应商\` IS NOT NULL
-                AND \`供应商\` != ''
-                AND \`上次补货时间\` IS NOT NULL
-              GROUP BY \`商品SKU\`
-            ) t2 ON t1.\`商品SKU\` = t2.\`商品SKU\` 
-              AND t1.\`上次补货时间\` = t2.max_time
-            WHERE t1.\`送货方式\` = '直送'
-              AND t1.\`供应商\` IS NOT NULL
-              AND t1.\`供应商\` != ''
-            LIMIT 5000
-          `;
-
-          const [directData]: any = await connection.execute(directQuery, [...skus, ...skus]);
-
-          // 查询配送方式：从补货参考(中心仓)表查询
-          const centerQuery = `
-            SELECT 
-              t1.\`商品SKU\`,
-              t1.\`供应商\`
-            FROM \`补货参考(中心仓)\` t1
-            INNER JOIN (
-              SELECT 
-                \`商品SKU\`,
-                MAX(\`上次补货时间\`) as max_time
-              FROM \`补货参考(中心仓)\`
-              WHERE \`商品SKU\` IN (${skus.map(() => '?').join(',')})
-                AND \`供应商\` IS NOT NULL
-                AND \`供应商\` != ''
-                AND \`上次补货时间\` IS NOT NULL
-              GROUP BY \`商品SKU\`
-            ) t2 ON t1.\`商品SKU\` = t2.\`商品SKU\` 
-              AND t1.\`上次补货时间\` = t2.max_time
-            WHERE t1.\`供应商\` IS NOT NULL
-              AND t1.\`供应商\` != ''
-            LIMIT 5000
-          `;
-
-          const [centerData]: any = await connection.execute(centerQuery, [...skus, ...skus]);
+          // 分批处理SKU列表，避免IN子句参数过多导致MySQL通信包错误
+          const BATCH_SIZE = 200;
+          const skuBatches: string[][] = [];
+          for (let i = 0; i < skus.length; i += BATCH_SIZE) {
+            skuBatches.push(skus.slice(i, i + BATCH_SIZE));
+          }
 
           // 合并数据，为每个SKU选择最近时间的供应商
           const skuMap: Record<string, string> = {};
 
-          // 处理直送数据
-          directData.forEach((row: any) => {
-            const sku = row['商品SKU'];
-            if (sku && row['供应商'] && !skuMap[sku]) {
-              skuMap[sku] = row['供应商'];
-            }
-          });
+          // 获取今天的日期（格式：YYYY-MM-DD）
+          // 注意：使用本地时区，确保日期正确
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          const todayStr = `${year}-${month}-${day}`;
+          Logger.log(`[SupplierQuotationService] 最近时间查询，今天日期: ${todayStr}`);
 
-          // 处理配送数据（如果直送没有找到，使用配送的）
-          centerData.forEach((row: any) => {
-            const sku = row['商品SKU'];
-            if (sku && row['供应商'] && !skuMap[sku]) {
-              skuMap[sku] = row['供应商'];
-            }
-          });
+          // 城市维度需要添加门店筛选条件
+          const cityFilterClause = type === '城市' && city ? `AND \`门店/仓名称\` LIKE ?` : '';
+          const cityFilterParams = type === '城市' && city ? [`%${city}%`] : [];
 
-          // 生成结果
+          // 分批查询，只查询直送方式
+          for (const skuBatch of skuBatches) {
+            // 使用窗口函数优化查询，确保每个SKU只返回一条记录
+            let whereClause = `\`商品SKU\` IN (${skuBatch.map(() => '?').join(',')})
+                AND \`送货方式\` = '直送'
+                AND \`供应商\` IS NOT NULL
+                AND \`供应商\` != ''
+                AND \`上次补货时间\` IS NOT NULL
+                AND DATE(\`上次补货时间\`) <= ?`;
+
+            const queryParams: any[] = [...skuBatch, todayStr];
+
+            // 城市维度添加门店筛选
+            if (cityFilterClause) {
+              whereClause += ` ${cityFilterClause}`;
+              queryParams.push(...cityFilterParams);
+            }
+
+            // 使用窗口函数ROW_NUMBER()来优化查询，确保每个SKU只返回时间最近的那条记录
+            // 如果有多个相同最近时间的供应商，取第一个（按供应商名称排序）
+            const query = `
+              SELECT 
+                \`商品SKU\`,
+                \`供应商\`
+              FROM (
+                SELECT 
+                  \`商品SKU\`,
+                  \`供应商\`,
+                  \`上次补货时间\`,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY \`商品SKU\` 
+                    ORDER BY \`上次补货时间\` DESC, \`供应商\` ASC
+                  ) as rn
+                FROM \`仓店补货参考\`
+                WHERE ${whereClause}
+              ) t
+              WHERE t.rn = 1
+              LIMIT 5000
+            `;
+
+            Logger.log(`[SupplierQuotationService] 执行最近时间查询，SKU数量: ${skuBatch.length}`);
+            const startTime = Date.now();
+            const [data]: any = await connection.execute(query, queryParams);
+            const queryTime = Date.now() - startTime;
+            Logger.log(`[SupplierQuotationService] 最近时间查询完成，耗时: ${queryTime}ms，返回记录数: ${data.length}`);
+
+            // 处理查询结果
+            data.forEach((row: any) => {
+              const sku = row['商品SKU'];
+              // 确保SKU是字符串格式，避免类型不匹配
+              const skuStr = sku ? String(sku).trim() : '';
+              if (skuStr && row['供应商']) {
+                const supplier = String(row['供应商']).trim();
+                if (supplier && !skuMap[skuStr]) {
+                  skuMap[skuStr] = supplier;
+                }
+              }
+            });
+          }
+
+          // 生成结果（确保SKU格式一致）
           Object.keys(skuMap).forEach(sku => {
-            result[`${sku}_最近时间`] = skuMap[sku];
+            const skuStr = String(sku).trim();
+            result[`${skuStr}_最近时间`] = skuMap[sku];
+          });
+
+          // 调试日志：检查生成的最终结果
+          Logger.log(`[SupplierQuotationService] 最近时间查询 - skuMap大小: ${Object.keys(skuMap).length}`);
+          Logger.log(`[SupplierQuotationService] 最近时间查询 - result大小: ${Object.keys(result).length}`);
+
+          // 检查特定的SKU是否在最终结果中
+          testSkus.forEach(testSku => {
+            const resultKey = `${testSku}_最近时间`;
+            const resultValue = result[resultKey];
+            const inSkuMap = testSku in skuMap;
+            const skuMapValue = skuMap[testSku];
+            Logger.log(`[SupplierQuotationService] 测试SKU ${testSku} 最终结果: resultKey=${resultKey}, resultValue=${resultValue}, inSkuMap=${inSkuMap}, skuMapValue=${skuMapValue}`);
+          });
+
+          // 调试日志：检查特定SKU的数据和查询结果
+          const testSku = '1852628840871190615';
+          const testSkuInList = skus.some(s => String(s).trim() === testSku);
+          const testSkuInMap = testSku in skuMap || Object.keys(skuMap).some(k => String(k).trim() === testSku);
+          const testSkuMapKey = Object.keys(skuMap).find(k => String(k).trim() === testSku);
+          const testSkuInLimitedItems = limitedItems.some(item => item.SKU && String(item.SKU).trim() === testSku);
+
+          Logger.log(`[SupplierQuotationService] 调试SKU ${testSku} (最近时间查询):`, {
+            inLimitedItems: testSkuInLimitedItems,
+            inSkuList: testSkuInList,
+            skuListSample: skus.slice(0, 10),
+            skuListTotal: skus.length,
+            inSkuMap: testSkuInMap,
+            skuMapKey: testSkuMapKey,
+            skuMapValue: testSkuMapKey ? skuMap[testSkuMapKey] : null,
+            skuMapSize: Object.keys(skuMap).length,
+            allSkuMapKeysSample: Object.keys(skuMap).slice(0, 10),
+            resultKey: `${testSku}_最近时间`,
+            resultValue: result[`${testSku}_最近时间`],
+            resultKeysSample: Object.keys(result).filter(k => k.includes('最近时间')).slice(0, 10),
+            resultTotal: Object.keys(result).length,
           });
         }
       }

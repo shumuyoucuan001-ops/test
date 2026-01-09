@@ -164,6 +164,7 @@ export class SupplierQuotationController {
             type: '全部' | '仓店' | '城市';
             items: any[];
             fields: string[];
+            city?: string; // 城市维度时传递的城市名称
         },
     ) {
         try {
@@ -171,6 +172,7 @@ export class SupplierQuotationController {
                 body.type,
                 body.items || [],
                 body.fields || [],
+                body.city,
             );
         } catch (error) {
             throw new HttpException(

@@ -1445,6 +1445,7 @@ export const supplierQuotationApi = {
     type: '全部' | '仓店' | '城市';
     items: InventorySummary[];
     fields: string[];
+    city?: string; // 城市维度时传递的城市名称
   }): Promise<Record<string, string>> =>
     api.post('/supplier-quotation/supplier-names', data).then(res => res.data),
 

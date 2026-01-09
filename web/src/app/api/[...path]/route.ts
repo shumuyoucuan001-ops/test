@@ -84,9 +84,16 @@ async function proxyRequest(
   const startTime = Date.now();
   const path = pathSegments.join('/');
 
-  // 对于长时间运行的存储过程，设置更长的超时时间（5分钟）
+  // 对于长时间运行的请求，设置更长的超时时间
+  // generate-bill: 5分钟（存储过程）
+  // supplier-names: 30秒（供应商名称查询，可能需要较长时间）
   // 其他请求保持10秒超时
-  const REQUEST_TIMEOUT = path.includes('generate-bill') ? 300000 : 10000; // 5分钟或10秒
+  let REQUEST_TIMEOUT = 10000; // 默认10秒
+  if (path.includes('generate-bill')) {
+    REQUEST_TIMEOUT = 300000; // 5分钟
+  } else if (path.includes('supplier-names')) {
+    REQUEST_TIMEOUT = 30000; // 30秒
+  }
 
   try {
     const url = `${BACKEND_URL}/${path}`;
