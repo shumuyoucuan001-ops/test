@@ -47,17 +47,19 @@ export class ProductMasterController {
 
   @Get(':sku/product-info')
   async getProductInfo(@Param('sku') sku: string) {
-    // 从仓店补货参考表查询数据（使用聚合查询）
+    // 从仓店补货参考表和商品主档销售规格表查询数据
     const rows: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT 
-        MAX(\`商品名称\`) AS productName, 
-        MAX(\`商品UPC\`) AS productCode, 
-        MAX(\`规格\`) AS specName,
-        MAX(\`采购单价 (基础单位)\`) AS purchasePriceBase,
-        MAX(\`采购单价 (采购单位)\`) AS purchasePriceUnit
-       FROM \`sm_chaigou\`.\`仓店补货参考\`
-       WHERE \`商品SKU\` = ? 
-       GROUP BY \`商品SKU\`
+        MAX(c.\`商品名称\`) AS productName, 
+        MAX(c.\`商品UPC\`) AS productCode, 
+        MAX(c.\`规格\`) AS specName,
+        MAX(c.\`采购单价 (基础单位)\`) AS purchasePriceBase,
+        MAX(c.\`采购单价 (采购单位)\`) AS purchasePriceUnit,
+        p.\`SPU编码\` AS spuCode
+       FROM \`sm_chaigou\`.\`仓店补货参考\` c
+       LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON c.\`商品SKU\` = p.\`SKU编码\`
+       WHERE c.\`商品SKU\` = ? 
+       GROUP BY c.\`商品SKU\`, p.\`SPU编码\`
        LIMIT 1`,
       sku,
     );
@@ -65,6 +67,7 @@ export class ProductMasterController {
       return {
         productName: rows[0].productName || null,
         productCode: rows[0].productCode || null,
+        spuCode: rows[0].spuCode || null,
         specName: rows[0].specName || null,
         purchasePriceBase: rows[0].purchasePriceBase || null,
         purchasePriceUnit: rows[0].purchasePriceUnit || null,

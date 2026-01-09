@@ -697,15 +697,14 @@ export class SupplierQuotationService {
         params.push(info.supplierCode, info.supplierProductCode);
       });
 
-      // 查询有报价比例数据的记录（两个字段都不为空才显示'转'字）
+      // 查询有计算后供货价格的记录（计算后供货价格不为NULL才显示'转'字）
       const query = `
         SELECT DISTINCT
           供应商编码,
           供应商商品编码
-        FROM \`供应商编码手动绑定sku\`
+        FROM \`供应商报价\`
         WHERE (${conditions.join(' OR ')})
-          AND 报价比例_供应商商品 IS NOT NULL 
-          AND 报价比例_牵牛花商品 IS NOT NULL
+          AND 计算后供货价格 IS NOT NULL
       `;
 
       const [data]: any = await connection.execute(query, params);

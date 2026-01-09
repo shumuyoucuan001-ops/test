@@ -1,8 +1,8 @@
 
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { OperationLogService } from '../operation-log/operation-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
-import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface OpsActivityDispatchItem {
     'SKU': string;
@@ -18,6 +18,7 @@ export interface OpsActivityDispatchItem {
     // 从仓店补货参考表关联的字段
     '商品名称'?: string | null;
     '商品UPC'?: string | null;
+    'SPU编码'?: string | null;
     '规格'?: string | null;
     '采购单价 (基础单位)'?: string | number | null;
     '采购单价 (采购单位)'?: string | number | null;
@@ -69,10 +70,11 @@ export class OpsActivityDispatchService {
                 a.\`活动确认人\` LIKE ? OR
                 c.\`商品名称\` LIKE ? OR
                 c.\`商品UPC\` LIKE ? OR
-                c.\`规格\` LIKE ?
+                c.\`规格\` LIKE ? OR
+                COALESCE(p.\`SPU编码\`, '') LIKE ?
             )`;
             clauses.push(whereCondition);
-            params.push(like, like, like, like, like, like, like, like, like, like, like);
+            params.push(like, like, like, like, like, like, like, like, like, like, like, like);
         }
 
         // 按字段精确搜索（AND）
@@ -112,7 +114,7 @@ export class OpsActivityDispatchService {
         // 构建 WHERE 条件
         const whereCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
 
-        // 构建 SQL - 左连接仓店补货参考表
+        // 构建 SQL - 左连接仓店补货参考表和商品主档销售规格表（获取SPU编码）
         const countSql = `SELECT COUNT(*) as total 
             FROM ${this.table} a
             LEFT JOIN (
@@ -126,6 +128,7 @@ export class OpsActivityDispatchService {
                 FROM \`sm_chaigou\`.\`仓店补货参考\`
                 GROUP BY \`商品SKU\`
             ) c ON a.\`SKU\` = c.\`商品SKU\`
+            LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON a.\`SKU\` = p.\`SKU编码\`
             ${whereCondition}`;
         const sql = `SELECT 
             a.\`SKU\`,
@@ -142,6 +145,7 @@ export class OpsActivityDispatchService {
             c.\`采购单价 (采购单位)\`,
             c.\`商品名称\`,
             c.\`商品UPC\`,
+            p.\`SPU编码\` AS \`SPU编码\`,
             c.\`规格\`
          FROM ${this.table} a
          LEFT JOIN (
@@ -155,6 +159,7 @@ export class OpsActivityDispatchService {
              FROM \`sm_chaigou\`.\`仓店补货参考\`
              GROUP BY \`商品SKU\`
          ) c ON a.\`SKU\` = c.\`商品SKU\`
+         LEFT JOIN \`sm_shangping\`.\`商品主档销售规格\` p ON a.\`SKU\` = p.\`SKU编码\`
          ${whereCondition}
          ${orderBy}
          LIMIT ${limit} OFFSET ${offset}`;
@@ -183,6 +188,7 @@ export class OpsActivityDispatchService {
                 '采购单价 (采购单位)': r['采购单价 (采购单位)'] !== null && r['采购单价 (采购单位)'] !== undefined ? r['采购单价 (采购单位)'] : null,
                 '商品名称': r['商品名称'] ? String(r['商品名称']) : null,
                 '商品UPC': r['商品UPC'] ? String(r['商品UPC']) : null,
+                'SPU编码': r['SPU编码'] ? String(r['SPU编码']) : null,
                 '规格': r['规格'] ? String(r['规格']) : null,
             };
         });

@@ -74,6 +74,7 @@ export class TransactionRecordService {
                     if (part.includes(':')) {
                         const [fieldName, fieldValue] = part.split(':').map(s => s.trim());
                         if (fieldName && fieldValue) {
+                            // 公共字段
                             if (fieldName === '支付渠道') {
                                 fieldConditions.push('支付渠道 LIKE ?');
                                 fieldParams.push(`%${fieldValue}%`);
@@ -82,6 +83,13 @@ export class TransactionRecordService {
                                 fieldParams.push(`%${fieldValue}%`);
                             } else if (fieldName === '交易账单号') {
                                 fieldConditions.push('交易账单号 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '账单交易时间') {
+                                // 账单交易时间是日期时间字段，需要使用 DATE_FORMAT 格式化后搜索
+                                // 支持搜索年份（如2025）、日期、时间等
+                                // 格式化后的字符串格式：2025-01-01 12:00:00，所以搜索 "2025" 可以匹配年份
+                                // 确保字段不为 NULL，避免 DATE_FORMAT 返回 NULL 导致 LIKE 搜索失败
+                                fieldConditions.push('账单交易时间 IS NOT NULL AND DATE_FORMAT(账单交易时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
                                 fieldParams.push(`%${fieldValue}%`);
                             } else if (fieldName === '收支金额') {
                                 const amount = parseFloat(fieldValue);
@@ -95,6 +103,49 @@ export class TransactionRecordService {
                                         fieldConditions.push('收支金额 = ?');
                                         fieldParams.push(amount);
                                     }
+                                }
+                            }
+                            // 支付宝渠道特有字段
+                            else if (channel === '支付宝') {
+                                if (fieldName === '交易时间') {
+                                    fieldConditions.push('交易时间 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易分类') {
+                                    fieldConditions.push('交易分类 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易对方') {
+                                    fieldConditions.push('交易对方 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '对方账号') {
+                                    fieldConditions.push('对方账号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商品说明') {
+                                    fieldConditions.push('商品说明 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/支') {
+                                    fieldConditions.push('`收/支` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '金额') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('金额 LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '收/付款方式') {
+                                    fieldConditions.push('`收/付款方式` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易状态') {
+                                    fieldConditions.push('交易状态 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易订单号') {
+                                    fieldConditions.push('交易订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商家订单号') {
+                                    fieldConditions.push('商家订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '备注') {
+                                    fieldConditions.push('备注 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
                                 }
                             }
                         }
@@ -112,12 +163,34 @@ export class TransactionRecordService {
 
                 // 添加通用搜索条件
                 if (hasGeneralSearch) {
-                    whereClause += ` AND (
+                    if (channel === '支付宝') {
+                        // 支付宝渠道的通用搜索范围更广，包括所有常用字段
+                        whereClause += ` AND (
+            交易账单号 LIKE ? OR 
+            支付账号 LIKE ? OR
+            支付渠道 LIKE ? OR
+            交易分类 LIKE ? OR
+            交易对方 LIKE ? OR
+            对方账号 LIKE ? OR
+            商品说明 LIKE ? OR
+            交易订单号 LIKE ? OR
+            商家订单号 LIKE ? OR
+            备注 LIKE ?
+          )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else {
+                        // 其他渠道的通用搜索
+                        whereClause += ` AND (
             交易账单号 LIKE ? OR 
             支付账号 LIKE ? OR
             支付渠道 LIKE ?
           )`;
-                    queryParams.push(`%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`);
+                        queryParams.push(`%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`);
+                    }
                 }
             }
 
@@ -706,12 +779,128 @@ export class TransactionRecordService {
             const queryParams: any[] = [];
 
             if (search) {
-                whereClause += ` AND (
-          交易账单号 LIKE ? OR 
-          支付账号 LIKE ? OR
-          支付渠道 LIKE ?
-        )`;
-                queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+                const searchTrimmed = search.trim();
+                // 支持格式：字段名:值（多个条件用空格分隔）或 直接搜索
+                const searchParts = searchTrimmed.split(/\s+/);
+                const fieldConditions: string[] = [];
+                const fieldParams: any[] = [];
+                let hasGeneralSearch = false;
+                let generalSearchTerm = '';
+
+                for (const part of searchParts) {
+                    if (part.includes(':')) {
+                        const [fieldName, fieldValue] = part.split(':').map(s => s.trim());
+                        if (fieldName && fieldValue) {
+                            // 公共字段
+                            if (fieldName === '支付渠道') {
+                                fieldConditions.push('支付渠道 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '支付账号') {
+                                fieldConditions.push('支付账号 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '交易账单号') {
+                                fieldConditions.push('交易账单号 LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '账单交易时间') {
+                                // 账单交易时间是日期时间字段，需要使用 DATE_FORMAT 格式化后搜索
+                                // 支持搜索年份（如2025）、日期、时间等
+                                // 格式化后的字符串格式：2025-01-01 12:00:00，所以搜索 "2025" 可以匹配年份
+                                // 确保字段不为 NULL，避免 DATE_FORMAT 返回 NULL 导致 LIKE 搜索失败
+                                fieldConditions.push('账单交易时间 IS NOT NULL AND DATE_FORMAT(账单交易时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                fieldParams.push(`%${fieldValue}%`);
+                            } else if (fieldName === '收支金额') {
+                                const amount = parseFloat(fieldValue);
+                                if (!isNaN(amount)) {
+                                    if (amount >= 0) {
+                                        fieldConditions.push('(收支金额 = ? OR 收支金额 = ?)');
+                                        fieldParams.push(amount, -amount);
+                                    } else {
+                                        fieldConditions.push('收支金额 = ?');
+                                        fieldParams.push(amount);
+                                    }
+                                }
+                            }
+                            // 支付宝渠道特有字段
+                            else if (channel === '支付宝') {
+                                if (fieldName === '交易时间') {
+                                    fieldConditions.push('交易时间 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易分类') {
+                                    fieldConditions.push('交易分类 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易对方') {
+                                    fieldConditions.push('交易对方 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '对方账号') {
+                                    fieldConditions.push('对方账号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商品说明') {
+                                    fieldConditions.push('商品说明 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/支') {
+                                    fieldConditions.push('`收/支` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '金额') {
+                                    fieldConditions.push('金额 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/付款方式') {
+                                    fieldConditions.push('`收/付款方式` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易状态') {
+                                    fieldConditions.push('交易状态 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易订单号') {
+                                    fieldConditions.push('交易订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商家订单号') {
+                                    fieldConditions.push('商家订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '备注') {
+                                    fieldConditions.push('备注 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                }
+                            }
+                        }
+                    } else if (part) {
+                        hasGeneralSearch = true;
+                        generalSearchTerm = part;
+                    }
+                }
+
+                // 添加字段条件
+                if (fieldConditions.length > 0) {
+                    whereClause += ' AND (' + fieldConditions.join(' AND ') + ')';
+                    queryParams.push(...fieldParams);
+                }
+
+                // 添加通用搜索条件
+                if (hasGeneralSearch) {
+                    if (channel === '支付宝') {
+                        // 支付宝渠道的通用搜索范围更广
+                        whereClause += ` AND (
+              交易账单号 LIKE ? OR 
+              支付账号 LIKE ? OR
+              支付渠道 LIKE ? OR
+              交易分类 LIKE ? OR
+              交易对方 LIKE ? OR
+              对方账号 LIKE ? OR
+              商品说明 LIKE ? OR
+              交易订单号 LIKE ? OR
+              商家订单号 LIKE ? OR
+              备注 LIKE ?
+            )`;
+                        queryParams.push(`%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`);
+                    } else {
+                        whereClause += ` AND (
+              交易账单号 LIKE ? OR 
+              支付账号 LIKE ? OR
+              支付渠道 LIKE ?
+            )`;
+                        queryParams.push(`%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`);
+                    }
+                }
             }
 
             const query = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC`;

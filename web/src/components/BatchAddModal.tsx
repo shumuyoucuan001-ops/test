@@ -583,7 +583,7 @@ export default function BatchAddModal<T = any>({
             okText="确定创建"
             cancelText="取消"
             width={width}
-            destroyOnClose
+            destroyOnHidden
         >
             <div style={{
                 marginBottom: 16,

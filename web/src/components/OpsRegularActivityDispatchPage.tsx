@@ -21,6 +21,7 @@ const fieldLabels: Record<keyof OpsRegularActivityDispatchItem, string> = {
     "数据更新时间": "数据更新时间",
     "商品名称": "商品名称",
     "商品UPC": "商品UPC",
+    "SPU编码": "SPU编码",
     "规格": "规格",
     "采购单价 (基础单位)": "采购单价 (基础单位)",
     "采购单价 (采购单位)": "采购单价 (采购单位)",
@@ -378,6 +379,7 @@ export default function OpsRegularActivityDispatchPage() {
         { key: 'SKU', label: 'SKU' },
         { key: '商品名称', label: '商品名称' },
         { key: '商品UPC', label: '商品UPC' },
+        { key: 'SPU编码', label: 'SPU编码' },
         { key: '规格', label: '规格' },
         { key: '采购单价 (基础单位)', label: '采购单价 (基础单位)' },
         { key: '采购单价 (采购单位)', label: '采购单价 (采购单位)' },
@@ -482,6 +484,19 @@ export default function OpsRegularActivityDispatchPage() {
             {
                 title: (
                     <span>
+                        SPU编码{' '}
+                        <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
+                    </span>
+                ),
+                dataIndex: 'SPU编码',
+                key: 'SPU编码',
+                width: 150,
+                ellipsis: true,
+                render: (text: string) => text || '-',
+            },
+            {
+                title: (
+                    <span>
                         规格{' '}
                         <Tag color="blue" style={{ marginLeft: 4 }}>自动匹配</Tag>
                     </span>
@@ -568,7 +583,7 @@ export default function OpsRegularActivityDispatchPage() {
 
     // 初始化列顺序
     useEffect(() => {
-        if (columnOrder.length === 0 && defaultOrder.length > 0) {
+        if (defaultOrder.length > 0) {
             const savedOrder = localStorage.getItem('ops_regular_activity_dispatch_column_order');
             if (!savedOrder) {
                 const order = getDefaultColumnOrder();
@@ -578,22 +593,56 @@ export default function OpsRegularActivityDispatchPage() {
                 try {
                     const parsed = JSON.parse(savedOrder);
                     // 合并保存的顺序和默认顺序，确保新列也会显示
-                    const mergedOrder = [...parsed];
+                    let mergedOrder = [...parsed];
                     const defaultKeys = defaultOrder;
-                    // 添加默认顺序中存在但保存顺序中不存在的列
+
+                    // 检查SPU编码的位置是否正确（应该在商品UPC之后，规格之前）
+                    const spuIndex = mergedOrder.indexOf('SPU编码');
+                    const upcIndex = mergedOrder.indexOf('商品UPC');
+                    const specIndex = mergedOrder.indexOf('规格');
+
+                    // 如果SPU编码不存在，或者位置不对（不在商品UPC和规格之间），使用默认顺序
+                    let shouldUseDefaultOrder = false;
+                    if (defaultKeys.includes('SPU编码')) {
+                        if (!mergedOrder.includes('SPU编码')) {
+                            // SPU编码不存在，使用默认顺序
+                            shouldUseDefaultOrder = true;
+                        } else if (spuIndex !== -1) {
+                            // 检查位置是否正确：应该在商品UPC之后，规格之前
+                            if (upcIndex !== -1 && specIndex !== -1) {
+                                // 如果SPU编码不在商品UPC和规格之间，使用默认顺序
+                                if (spuIndex <= upcIndex || spuIndex >= specIndex) {
+                                    shouldUseDefaultOrder = true;
+                                }
+                            } else if (upcIndex !== -1 && spuIndex <= upcIndex) {
+                                // 如果SPU编码在商品UPC之前，使用默认顺序
+                                shouldUseDefaultOrder = true;
+                            } else if (specIndex !== -1 && spuIndex >= specIndex) {
+                                // 如果SPU编码在规格之后，使用默认顺序
+                                shouldUseDefaultOrder = true;
+                            }
+                        }
+                    }
+
+                    if (shouldUseDefaultOrder) {
+                        // 直接使用默认顺序，确保SPU编码在正确位置
+                        const defaultOrder = getDefaultColumnOrder();
+                        saveColumnOrder(defaultOrder);
+                        setColumnOrder(defaultOrder);
+                        return; // 提前返回，不再执行后续逻辑
+                    }
+
+                    // 添加其他默认顺序中存在但保存顺序中不存在的列（除了SPU编码，已经处理过了）
                     defaultKeys.forEach(key => {
-                        if (!mergedOrder.includes(key)) {
+                        if (key !== 'SPU编码' && !mergedOrder.includes(key)) {
                             mergedOrder.push(key);
                         }
                     });
                     // 移除已不存在的列
                     const validOrder = mergedOrder.filter(key => defaultKeys.includes(key));
-                    if (JSON.stringify(validOrder) !== JSON.stringify(parsed)) {
-                        saveColumnOrder(validOrder);
-                        setColumnOrder(validOrder);
-                    } else {
-                        setColumnOrder(parsed);
-                    }
+                    // 始终更新列顺序，确保SPU编码位置正确
+                    saveColumnOrder(validOrder);
+                    setColumnOrder(validOrder);
                 } catch (error) {
                     console.error('加载列顺序失败:', error);
                     const order = getDefaultColumnOrder();
@@ -843,6 +892,7 @@ export default function OpsRegularActivityDispatchPage() {
                                                 form.setFieldsValue({
                                                     '商品名称': productInfo.productName,
                                                     '商品UPC': productInfo.productCode,
+                                                    'SPU编码': productInfo.spuCode,
                                                     '规格': productInfo.specName,
                                                     '采购单价 (基础单位)': productInfo.purchasePriceBase,
                                                     '采购单价 (采购单位)': productInfo.purchasePriceUnit,
@@ -866,6 +916,9 @@ export default function OpsRegularActivityDispatchPage() {
                         <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item name="商品UPC" label="商品UPC">
+                        <Input maxLength={200} disabled />
+                    </Form.Item>
+                    <Form.Item name="SPU编码" label="SPU编码">
                         <Input maxLength={200} disabled />
                     </Form.Item>
                     <Form.Item name="规格" label="规格">

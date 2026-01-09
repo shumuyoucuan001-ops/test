@@ -218,9 +218,10 @@ export default function SupplierQuotationPage() {
         : defaultRightVisibleColumnsStoreCity;
       // 先添加默认显示的列（按顺序）
       const defaultOrder = defaultVisible.filter(key => allColumns.includes(key));
-      // 然后添加其他列
-      const otherColumns = allColumns.filter(key => !defaultVisible.includes(key));
-      setRightColumnOrder([...defaultOrder, ...otherColumns]);
+      // 然后添加其他列（排除对比结果列）
+      const otherColumns = allColumns.filter(key => !defaultVisible.includes(key) && key !== '对比结果');
+      // 最后添加对比结果列
+      setRightColumnOrder([...defaultOrder, ...otherColumns, '对比结果']);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 只在组件首次加载时执行，不依赖 inventoryType
@@ -232,12 +233,14 @@ export default function SupplierQuotationPage() {
       const allColumnKeys = getRightColumns().map(col => col.key as string).filter(Boolean);
       // 过滤掉不存在的列，保留存在的列的顺序
       const validOrder = rightColumnOrder.filter(key => allColumnKeys.includes(key));
-      // 添加新出现的列到末尾
-      const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
-      if (missingKeys.length > 0 || validOrder.length !== rightColumnOrder.length) {
-        setRightColumnOrder([...validOrder, ...missingKeys]);
+      // 添加新出现的列到末尾（排除对比结果列）
+      const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key) && key !== '对比结果');
+      // 确保对比结果列在最后
+      const finalOrder = [...validOrder.filter(key => key !== '对比结果'), ...missingKeys, '对比结果'];
+      if (finalOrder.join(',') !== rightColumnOrder.join(',')) {
+        setRightColumnOrder(finalOrder);
         // 保存更新后的列顺序
-        localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify([...validOrder, ...missingKeys]));
+        localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify(finalOrder));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -368,13 +371,6 @@ export default function SupplierQuotationPage() {
         render: (text: number) => text ? `¥${Number(text).toFixed(4)}` : '-',
       },
       {
-        title: '计算后供货价格',
-        dataIndex: '计算后供货价格',
-        key: '计算后供货价格',
-        width: 150,
-        render: (text: number) => text ? `¥${Number(text).toFixed(4)}` : '-',
-      },
-      {
         title: '最小销售单位',
         dataIndex: '最小销售单位',
         key: '最小销售单位',
@@ -457,12 +453,21 @@ export default function SupplierQuotationPage() {
     const currentOrder = rightColumnOrder.length > 0 ? rightColumnOrder : allColumns.map(col => col.key as string).filter(Boolean);
 
     // 按顺序排列
-    const orderedColumns = currentOrder
+    let orderedColumns = currentOrder
       .map(key => allColumns.find(col => col.key === key))
       .filter((col): col is ColumnType<InventorySummary> => col !== undefined);
 
     // 过滤隐藏的列
-    return orderedColumns.filter(col => !rightHiddenColumns.has(col.key as string));
+    orderedColumns = orderedColumns.filter(col => !rightHiddenColumns.has(col.key as string));
+
+    // 确保对比结果列始终在最后（如果存在）
+    const comparisonResultCol = orderedColumns.find(col => col.key === '对比结果');
+    if (comparisonResultCol) {
+      orderedColumns = orderedColumns.filter(col => col.key !== '对比结果');
+      orderedColumns.push(comparisonResultCol);
+    }
+
+    return orderedColumns;
   };
 
   // 对比结果的所有可能值（提前定义，供getRightColumns使用）
@@ -679,32 +684,54 @@ export default function SupplierQuotationPage() {
           </div>
         );
 
+        // 获取计算后供货价格
+        const calculatedPrice = matchedQuotation && '计算后供货价格' in matchedQuotation
+          ? (matchedQuotation as any).计算后供货价格
+          : undefined;
+
+        // 计算后供货价格显示内容
+        const priceContent = calculatedPrice !== undefined && calculatedPrice !== null ? (
+          <div style={{ padding: 8, minWidth: 150 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>计算后供货价格</div>
+            <div style={{ fontSize: 16, color: '#1890ff' }}>¥{Number(calculatedPrice).toFixed(4)}</div>
+          </div>
+        ) : null;
+
         return (
-          <Popover
-            content={ratioContent}
-            title="报价比例设置"
-            trigger="click"
-            open={isEditing}
-            onOpenChange={(open) => {
-              if (open) {
-                setEditingRatioSku(text || null);
-                // 加载当前比例数据
-                if (text && matchedQuotation && matchedQuotation.供应商编码 && matchedQuotation.最小销售规格UPC商品条码) {
-                  loadPriceRatios(matchedQuotation.供应商编码, matchedQuotation.最小销售规格UPC商品条码, text);
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Popover
+              content={ratioContent}
+              title="报价比例设置"
+              trigger="click"
+              open={isEditing}
+              onOpenChange={(open) => {
+                if (open) {
+                  setEditingRatioSku(text || null);
+                  // 加载当前比例数据
+                  if (text && matchedQuotation && matchedQuotation.供应商编码 && matchedQuotation.最小销售规格UPC商品条码) {
+                    loadPriceRatios(matchedQuotation.供应商编码, matchedQuotation.最小销售规格UPC商品条码, text);
+                  }
+                } else {
+                  setEditingRatioSku(null);
                 }
-              } else {
-                setEditingRatioSku(null);
-              }
-            }}
-            placement="top"
-          >
-            <span style={{ cursor: 'pointer', color: '#1890ff', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              {text || '-'}
-              {hasBinding && (
-                <Tag color="blue" style={{ margin: 0 }}>转</Tag>
-              )}
-            </span>
-          </Popover>
+              }}
+              placement="top"
+            >
+              <span style={{ cursor: 'pointer', color: '#000', display: 'inline-flex', alignItems: 'center' }}>
+                {text || '-'}
+              </span>
+            </Popover>
+            {hasBinding && (
+              <Popover
+                content={priceContent}
+                title="计算后供货价格"
+                trigger="click"
+                placement="top"
+              >
+                <Tag color="blue" style={{ margin: 0, cursor: 'pointer' }}>转</Tag>
+              </Popover>
+            )}
+          </span>
         );
       },
     });
@@ -1137,17 +1164,23 @@ export default function SupplierQuotationPage() {
   };
 
   // 加载SKU绑定标记
-  const loadSkuBindingFlags = async (items: InventorySummary[], quotationData: SupplierQuotation[]) => {
+  const loadSkuBindingFlags = async (
+    items: InventorySummary[],
+    quotationData: SupplierQuotation[],
+    upcToSkuMapParam?: Record<string, string[]>
+  ) => {
     if (!items || items.length === 0 || !quotationData || quotationData.length === 0) {
       setSkuBindingFlags({});
       return;
     }
 
     try {
+      // 使用传入的upcToSkuMap参数，如果没有则使用状态中的
+      const upcMapToUse = upcToSkuMapParam || upcToSkuMap;
       const result = await supplierQuotationApi.getSkuBindingFlags({
         items: items,
         quotationData: quotationData,
-        upcToSkuMap: upcToSkuMap,
+        upcToSkuMap: upcMapToUse,
       });
       setSkuBindingFlags(result || {});
     } catch (error) {
@@ -1546,14 +1579,9 @@ export default function SupplierQuotationPage() {
         return;
       }
 
-      // 检查是否仍然是最新请求
-      if (currentRequestId !== loadRightDataRequestIdRef.current) {
-        setRightLoading(false);
-        return;
-      }
-
       // 保存所有数据（用于匹配）
-      setRightAllData(dataWithComparison);
+      // 使用展开运算符创建新数组，确保引用变化，触发useEffect
+      setRightAllData([...dataWithComparison]);
 
       console.log('[SupplierQuotation] loadRightData 完成，设置 rightAllData:', {
         requestId: currentRequestId,
@@ -1564,10 +1592,16 @@ export default function SupplierQuotationPage() {
         sampleSkus: dataWithComparison.slice(0, 5).map(item => item.SKU),
       });
 
-      // 应用分页
-      const start = (rightCurrentPage - 1) * rightPageSize;
-      const end = start + rightPageSize;
-      const paginatedData = dataWithComparison.slice(start, end);
+      // 查询SKU绑定标记（在设置rightAllData之后立即调用，确保初始加载时就能显示'转'字）
+      // 使用upcToSkuMapLocal而不是状态中的upcToSkuMap，确保使用最新的映射
+      if (dataWithComparison.length > 0 && quotationDataToUse && quotationDataToUse.length > 0) {
+        await loadSkuBindingFlags(dataWithComparison, quotationDataToUse, upcToSkuMapLocal);
+      }
+
+      // 如果选择了供应商名称字段，查询供应商名称数据
+      if (supplierNameFields.length > 0 && dataWithComparison.length > 0) {
+        await loadSupplierNames(dataWithComparison, supplierNameFields);
+      }
 
       // 最后检查是否仍然是最新请求
       if (currentRequestId !== loadRightDataRequestIdRef.current) {
@@ -1575,17 +1609,14 @@ export default function SupplierQuotationPage() {
         return;
       }
 
+      // 应用分页（使用最新的分页状态）
+      // 注意：分页会在useEffect中自动应用，但为了确保初始加载时也能正确分页，这里也设置一次
+      const currentPage = rightCurrentPage;
+      const currentPageSize = rightPageSize;
+      const start = (currentPage - 1) * currentPageSize;
+      const end = start + currentPageSize;
+      const paginatedData = dataWithComparison.slice(start, end);
       setRightData(paginatedData);
-
-      // 如果选择了供应商名称字段，查询供应商名称数据
-      if (supplierNameFields.length > 0 && dataWithComparison.length > 0) {
-        await loadSupplierNames(dataWithComparison, supplierNameFields);
-      }
-
-      // 查询SKU绑定标记
-      if (dataWithComparison.length > 0 && quotationDataToUse && quotationDataToUse.length > 0) {
-        await loadSkuBindingFlags(dataWithComparison, quotationDataToUse);
-      }
     } catch (error) {
       // 检查是否仍然是最新请求
       if (currentRequestId !== loadRightDataRequestIdRef.current) {
@@ -2067,6 +2098,17 @@ export default function SupplierQuotationPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventorySkuSearch]);
+
+  // 当右侧分页或数据变化时，重新应用分页（不重新加载数据，只重新切片）
+  useEffect(() => {
+    // 只有在有数据且不在加载中时才重新切片
+    if (rightAllData.length > 0 && !rightLoading) {
+      const start = (rightCurrentPage - 1) * rightPageSize;
+      const end = start + rightPageSize;
+      const paginatedData = rightAllData.slice(start, end);
+      setRightData(paginatedData);
+    }
+  }, [rightCurrentPage, rightPageSize, rightAllData, rightLoading]);
 
   // 注意：移除了当库存类型变化时的 useEffect，因为 loadLeftData 完成后会自动调用 loadRightData
   // 这样可以避免重复调用和竞态条件

@@ -379,7 +379,7 @@ export const productMasterApi = {
     api.get('/product-master', { params }).then(res => res.data),
   detail: (sku: string): Promise<Record<string, any>> =>
     api.get(`/product-master/${sku}`).then(res => res.data),
-  getProductInfo: (sku: string): Promise<{ productName: string | null; productCode: string | null; specName: string | null; purchasePriceBase?: string | number | null; purchasePriceUnit?: string | number | null } | null> =>
+  getProductInfo: (sku: string): Promise<{ productName: string | null; productCode: string | null; spuCode?: string | null; specName: string | null; purchasePriceBase?: string | number | null; purchasePriceUnit?: string | number | null } | null> =>
     api.get(`/product-master/${sku}/product-info`).then(res => res.data),
 };
 
@@ -455,6 +455,7 @@ export interface OpsActivityDispatchItem {
   '数据更新时间': string | null;
   '商品名称'?: string | null;
   '商品UPC'?: string | null;
+  'SPU编码'?: string | null;
   '规格'?: string | null;
   '采购单价 (基础单位)'?: string | number | null;
   '采购单价 (采购单位)'?: string | number | null;
@@ -519,6 +520,7 @@ export interface OpsRegularActivityDispatchItem {
   '数据更新时间': string | null;
   '商品名称'?: string | null;
   '商品UPC'?: string | null;
+  'SPU编码'?: string | null;
   '规格'?: string | null;
   '采购单价 (基础单位)'?: string | number | null;
   '采购单价 (采购单位)'?: string | number | null;
@@ -715,6 +717,7 @@ export interface MaxPurchaseQuantityItem {
   '修改人': string;
   '商品名称'?: string | null;
   '商品UPC'?: string | null;
+  'SPU编码'?: string | null;
   '规格'?: string | null;
   '采购单价 (基础单位)'?: string | number | null;
   '采购单价 (采购单位)'?: string | number | null;
@@ -792,6 +795,7 @@ export interface MaxStoreSkuInventoryItem {
   '修改人': string;
   '商品名称'?: string | null;
   '商品UPC'?: string | null;
+  'SPU编码'?: string | null;
   '规格'?: string | null;
   '采购单价 (基础单位)'?: string | number | null;
   '采购单价 (采购单位)'?: string | number | null;

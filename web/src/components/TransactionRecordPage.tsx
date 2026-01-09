@@ -3,6 +3,7 @@
 import { formatDateTime } from '@/lib/dateUtils';
 import {
   DownloadOutlined,
+  FilterOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -28,7 +29,7 @@ import {
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { nonPurchaseBillRecordApi, transactionRecordApi } from '../lib/api';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
@@ -116,7 +117,13 @@ const getChannelFields = (channel: ChannelType): FieldConfig<any>[] => {
 };
 
 // 获取各渠道的表格列定义
-const getChannelColumns = (channel: ChannelType, onAddNonPurchase?: (record: any) => void) => {
+const getChannelColumns = (
+  channel: ChannelType,
+  onAddNonPurchase?: (record: any) => void,
+  columnFilters?: Record<string, string[]>,
+  onFilterChange?: (columnKey: string, selectedValues: string[]) => void,
+  allRecords?: any[]
+) => {
   const commonColumns = [
     {
       title: '支付渠道',
@@ -276,6 +283,146 @@ const getChannelColumns = (channel: ChannelType, onAddNonPurchase?: (record: any
   return commonColumns;
 };
 
+
+// 搜索框筛选组件
+const SearchFilterDropdown = ({
+  columnKey,
+  columnTitle,
+  searchText,
+  onSearchChange,
+  onConfirm,
+  onClear,
+  setSelectedKeys,
+  confirm,
+  clearFilters,
+}: {
+  columnKey: string;
+  columnTitle: string;
+  searchText: string;
+  onSearchChange: (text: string) => void;
+  onConfirm: (text: string) => void;
+  onClear: () => void;
+  setSelectedKeys: (keys: string[]) => void;
+  confirm: () => void;
+  clearFilters?: () => void;
+}) => {
+  const [localSearchText, setLocalSearchText] = useState(searchText);
+
+  // 当外部 searchText 变化时，同步到本地状态
+  useEffect(() => {
+    setLocalSearchText(searchText);
+  }, [searchText]);
+
+  const handleConfirm = () => {
+    onSearchChange(localSearchText);
+    onConfirm(localSearchText);
+    if (localSearchText) {
+      setSelectedKeys([localSearchText]);
+    } else {
+      setSelectedKeys([]);
+    }
+    confirm();
+  };
+
+  const handleClear = () => {
+    setLocalSearchText('');
+    onSearchChange('');
+    onClear();
+    setSelectedKeys([]);
+    if (clearFilters) {
+      clearFilters();
+    }
+    confirm();
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleConfirm();
+    }
+  };
+
+  return (
+    <div style={{ padding: 12, minWidth: 300 }}>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500, color: '#333' }}>
+          搜索 {columnTitle}
+        </div>
+        <Input
+          placeholder={`请输入${columnTitle}关键词进行搜索`}
+          allowClear
+          value={localSearchText}
+          onChange={(e) => setLocalSearchText(e.target.value)}
+          onPressEnter={handleKeyPress}
+          size="small"
+          prefix={<SearchOutlined />}
+          autoFocus
+        />
+        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+          将在数据库中搜索该列的所有匹配数据
+        </div>
+      </div>
+      <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          onClick={handleClear}
+        >
+          清空
+        </Button>
+        <Button
+          type="primary"
+          size="small"
+          onClick={handleConfirm}
+        >
+          搜索
+        </Button>
+      </Space>
+    </div>
+  );
+};
+
+// 为支付宝渠道的列添加搜索筛选功能
+const addSearchFiltersToAlipayColumns = (
+  columns: any[],
+  columnSearchKeywords: Record<string, string>,
+  onSearchChange: (columnKey: string, keyword: string) => void,
+  onSearchClear: (columnKey: string) => void
+): any[] => {
+  return columns.map(col => {
+    const columnKey = col.key as string;
+    const columnTitle = col.title as string;
+    if (!columnKey || columnKey === 'action' || columnKey === '绑定状态' || columnKey === '绑定状态对应情况') {
+      return col;
+    }
+
+    const searchKeyword = columnSearchKeywords[columnKey] || '';
+
+    return {
+      ...col,
+      filteredValue: searchKeyword ? [searchKeyword] : null,
+      filterIcon: (filtered: boolean) => (
+        <FilterOutlined style={{ color: filtered ? '#1890ff' : undefined }} />
+      ),
+      filterDropdown: ({ setSelectedKeys, confirm, clearFilters }: any) => (
+        <SearchFilterDropdown
+          columnKey={columnKey}
+          columnTitle={columnTitle}
+          searchText={searchKeyword}
+          onSearchChange={(text) => onSearchChange(columnKey, text)}
+          onConfirm={(text) => {
+            onSearchChange(columnKey, text);
+          }}
+          onClear={() => {
+            onSearchClear(columnKey);
+          }}
+          setSelectedKeys={setSelectedKeys}
+          confirm={confirm}
+          clearFilters={clearFilters}
+        />
+      ),
+    };
+  });
+};
+
 export default function TransactionRecordPage() {
   const [channel, setChannel] = useState<ChannelType>('1688先采后付');
   const [records, setRecords] = useState<any[]>([]);
@@ -309,6 +456,9 @@ export default function TransactionRecordPage() {
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+  // 支付宝渠道的列搜索关键词（每列的搜索关键词）
+  const [columnSearchKeywords, setColumnSearchKeywords] = useState<Record<string, string>>({});
 
   // 加载记录列表
   const loadRecords = async (
@@ -356,6 +506,12 @@ export default function TransactionRecordPage() {
         searchParams.push(`收支金额:${amountValue}`);
       }
 
+      // 添加列搜索关键词到搜索参数（仅在支付宝渠道）
+      if (channel === '支付宝') {
+        const columnSearchParams = buildColumnSearchParams();
+        searchParams.push(...columnSearchParams);
+      }
+
       const finalSearch = searchParams.length > 0 ? searchParams.join(' ') : undefined;
 
       const result = await transactionRecordApi.getAll({
@@ -383,7 +539,18 @@ export default function TransactionRecordPage() {
       }
 
       setRecords(filteredData);
-      setTotal(filteredTotal);
+      // 在异步分页模式下，如果前端过滤导致数据长度变化
+      // 确保 total 合理设置：如果过滤后数据少于 pageSize，total 应该等于数据长度
+      // 如果过滤后数据等于 pageSize，total 应该使用后端返回的值
+      if (filteredData.length < currentSize) {
+        // 如果过滤后数据少于 pageSize，说明已经是最后的数据了
+        // total 应该等于实际数据长度
+        setTotal(filteredData.length);
+      } else {
+        // 如果过滤后数据等于 pageSize，使用后端返回的 total
+        // 但确保 total 至少等于当前数据长度
+        setTotal(Math.max(filteredTotal, filteredData.length));
+      }
     } catch (error: any) {
       message.error(error.message || '加载记录列表失败');
       console.error(error);
@@ -391,6 +558,38 @@ export default function TransactionRecordPage() {
       setLoading(false);
     }
   };
+
+  // 将列搜索关键词转换为搜索参数
+  const buildColumnSearchParams = useCallback((): string[] => {
+    if (channel !== '支付宝') {
+      return [];
+    }
+    const searchParams: string[] = [];
+    Object.entries(columnSearchKeywords).forEach(([columnKey, keyword]) => {
+      if (keyword && keyword.trim()) {
+        // 将搜索关键词转换为搜索格式：列名:关键词
+        searchParams.push(`${columnKey}:${keyword.trim()}`);
+      }
+    });
+    return searchParams;
+  }, [channel, columnSearchKeywords]);
+
+
+  // 检查是否有列搜索条件
+  const hasActiveColumnFilters = channel === '支付宝' && Object.values(columnSearchKeywords).some(keyword => keyword && keyword.trim());
+
+  // 显示的数据就是当前加载的记录（筛选通过后端搜索实现）
+  const displayedRecords = records;
+
+  // 当列搜索关键词改变时，通过搜索重新加载数据
+  useEffect(() => {
+    if (channel === '支付宝') {
+      // 搜索关键词改变时，重置到第一页并重新加载数据（搜索关键词会通过buildColumnSearchParams自动添加到搜索参数）
+      setCurrentPage(1);
+      loadRecords(1, searchText || undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnSearchKeywords, channel]);
 
   // 初始化加载
   useEffect(() => {
@@ -406,6 +605,11 @@ export default function TransactionRecordPage() {
     // 切换渠道时，清除该渠道的列宽设置，使用默认列宽确保对齐
     const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
     localStorage.removeItem(widthStorageKey);
+
+    // 切换渠道时清除列搜索
+    if (channel !== '支付宝') {
+      setColumnSearchKeywords({});
+    }
 
     loadRecords(1, undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -505,6 +709,7 @@ export default function TransactionRecordPage() {
 
   // 重置
   const handleReset = () => {
+    // 先清除所有搜索条件
     setSearchText('');
     setSearch支付渠道('');
     setSearch支付账号('');
@@ -513,14 +718,22 @@ export default function TransactionRecordPage() {
     setSearch账单交易时间范围(null);
     setSelectedBindingStatuses([]);
     setCurrentPage(1);
-    // 重置时传入空的搜索参数，确保立即查询默认数据
-    loadRecords(1, undefined, undefined, {
-      支付渠道: '',
-      支付账号: '',
-      交易账单号: '',
-      收支金额: '',
-      账单交易时间范围: null,
-    });
+
+    // 清除所有列搜索关键词（支付宝渠道的表头搜索）
+    // 这会触发 useEffect，自动重新加载数据（仅对支付宝渠道）
+    setColumnSearchKeywords({});
+
+    // 对于非支付宝渠道，或者确保支付宝渠道也能立即重置，我们手动调用一次 loadRecords
+    // 使用 setTimeout 确保 setState 完成后再加载数据
+    setTimeout(() => {
+      loadRecords(1, undefined, undefined, {
+        支付渠道: '',
+        支付账号: '',
+        交易账单号: '',
+        收支金额: '',
+        账单交易时间范围: null,
+      });
+    }, 0);
   };
 
   // 文件转换为base64
@@ -697,7 +910,28 @@ export default function TransactionRecordPage() {
   }, [channel, searchText]);
 
   // 表格列定义
-  const allColumns = getChannelColumns(channel, handleOpenNonPurchaseModal);
+  const baseColumns = getChannelColumns(channel, handleOpenNonPurchaseModal);
+
+  // 为支付宝渠道添加搜索筛选功能
+  const allColumns = channel === '支付宝'
+    ? addSearchFiltersToAlipayColumns(
+      baseColumns,
+      columnSearchKeywords,
+      (columnKey: string, keyword: string) => {
+        setColumnSearchKeywords(prev => ({
+          ...prev,
+          [columnKey]: keyword,
+        }));
+      },
+      (columnKey: string) => {
+        setColumnSearchKeywords(prev => {
+          const newKeywords = { ...prev };
+          delete newKeywords[columnKey];
+          return newKeywords;
+        });
+      }
+    )
+    : baseColumns;
 
   // 根据列设置过滤和排序列
   const getFilteredColumns = () => {
@@ -889,7 +1123,7 @@ export default function TransactionRecordPage() {
         <ResponsiveTable<any>
           tableId={`transaction-record-${channel}`}
           columns={columns as any}
-          dataSource={records}
+          dataSource={displayedRecords}
           rowKey={(record) => record.交易账单号 || String(Math.random())}
           loading={loading}
           isMobile={false}
@@ -897,25 +1131,48 @@ export default function TransactionRecordPage() {
           pagination={{
             current: currentPage,
             pageSize: pageSize,
-            total: total,
+            // 在异步模式下，确保 total 正确设置
+            // 如果数据长度小于 pageSize，说明是最后一页，total 应该等于数据长度
+            // 否则 total 应该使用后端返回的值，但至少等于数据长度
+            total: displayedRecords.length < pageSize
+              ? displayedRecords.length
+              : Math.max(total, displayedRecords.length),
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+            showTotal: (total, range) => {
+              const filterHint = hasActiveColumnFilters ? '（已筛选）' : '';
+              return `第 ${range[0]}-${range[1]} 条，共 ${total} 条${filterHint}`;
+            },
             onChange: (page, size) => {
               setCurrentPage(page);
-              if (size && size !== pageSize) {
-                setPageSize(size);
-                // 切换分页大小时，立即加载数据，传入新的size
-                loadRecords(page, searchText || undefined, size);
+              if (!hasActiveColumnFilters) {
+                // 如果没有筛选条件，正常加载数据
+                if (size && size !== pageSize) {
+                  setPageSize(size);
+                  loadRecords(page, searchText || undefined, size);
+                } else {
+                  loadRecords(page, searchText || undefined);
+                }
               } else {
-                loadRecords(page, searchText || undefined);
+                // 如果有筛选条件，也需要重新加载数据（筛选条件会在loadRecords中自动添加）
+                if (size && size !== pageSize) {
+                  setPageSize(size);
+                  loadRecords(page, searchText || undefined, size);
+                } else {
+                  loadRecords(page, searchText || undefined);
+                }
               }
             },
             onShowSizeChange: (current, size) => {
               setCurrentPage(1);
               setPageSize(size);
-              // 切换分页大小时，立即加载数据，传入新的size
-              loadRecords(1, searchText || undefined, size);
+              if (!hasActiveColumnFilters) {
+                // 如果没有筛选条件，正常加载数据
+                loadRecords(1, searchText || undefined, size);
+              } else {
+                // 如果有筛选条件，也需要重新加载数据
+                loadRecords(1, searchText || undefined, size);
+              }
             },
           }}
         />
