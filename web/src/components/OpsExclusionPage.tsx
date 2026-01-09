@@ -2,12 +2,13 @@
 
 import { OpsExclusionItem, opsExclusionApi, productMasterApi } from "@/lib/api";
 import { showErrorBoth } from "@/lib/errorUtils";
-import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, Tag, message } from "antd";
+import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
+import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Select, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
+import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
 import ResponsiveTable from "./ResponsiveTable";
 
 const fieldLabels: Record<keyof OpsExclusionItem, string> = {
@@ -45,6 +46,9 @@ export default function OpsExclusionPage() {
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+    const [exportModalOpen, setExportModalOpen] = useState(false);
+    const [storeList, setStoreList] = useState<Array<{ storeId: string; storeName: string }>>([]);
+    const [loadingStoreList, setLoadingStoreList] = useState(false);
 
     // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
@@ -193,6 +197,23 @@ export default function OpsExclusionPage() {
         load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
+
+    // 加载门店列表
+    useEffect(() => {
+        const loadStoreList = async () => {
+            setLoadingStoreList(true);
+            try {
+                const stores = await opsExclusionApi.getStoreList();
+                setStoreList(stores);
+            } catch (error) {
+                console.error('加载门店列表失败:', error);
+                message.error('加载门店列表失败');
+            } finally {
+                setLoadingStoreList(false);
+            }
+        };
+        loadStoreList();
+    }, []);
 
     const handleSearch = () => {
         setCurrentPage(1);
@@ -369,6 +390,53 @@ export default function OpsExclusionPage() {
             console.error('批量创建失败:', e);
         }
     }, []);
+
+    // 获取全部数据（用于导出）
+    const fetchAllData = useCallback(async (): Promise<OpsExclusionItem[]> => {
+        try {
+            const cleanFilters = Object.fromEntries(
+                Object.entries(searchFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+            );
+            const res = await opsExclusionApi.list({
+                ...cleanFilters,
+                keyword: searchText || undefined,
+                page: 1,
+                limit: 100000, // 导出数据量限制为100000条
+            });
+            let allData: OpsExclusionItem[] = [];
+            if (Array.isArray(res)) {
+                allData = res || [];
+            } else if (res && typeof res === 'object') {
+                allData = res?.data || [];
+            }
+
+            // 检查数据量限制
+            if (allData.length > 100000) {
+                message.warning(`数据量超过限制，仅导出前 100000 条数据（共 ${allData.length} 条）`);
+                return allData.slice(0, 100000);
+            }
+
+            return allData;
+        } catch (error) {
+            console.error('获取全部数据失败:', error);
+            message.error('获取全部数据失败');
+            return [];
+        }
+    }, [searchFilters, searchText]);
+
+    // 导出字段配置
+    const exportFields: ExcelExportField[] = useMemo(() => [
+        { key: '视图名称', label: '视图名称' },
+        { key: '门店编码', label: '门店编码' },
+        { key: 'SKU编码', label: 'SKU编码' },
+        { key: '商品名称', label: '商品名称' },
+        { key: '商品UPC', label: '商品UPC' },
+        { key: 'SPU编码', label: 'SPU编码' },
+        { key: '规格', label: '规格' },
+        { key: '采购单价 (基础单位)', label: '采购单价 (基础单位)' },
+        { key: '采购单价 (采购单位)', label: '采购单价 (采购单位)' },
+        { key: '备注', label: '备注' },
+    ], []);
 
     // 使用转义机制解析行数据（处理备注列中的分隔符）- 已废弃，保留用于兼容
     const parseLineWithEscapedDelimiter = (line: string, delimiter: string, expectedColumns: number): string[] => {
@@ -579,7 +647,7 @@ export default function OpsExclusionPage() {
             ),
         };
         return [selectionCol, ...orderedCols, actionCol];
-    }, [data, selectedRowKeys, hiddenColumns, columnOrder]);
+    }, [data, selectedRowKeys, hiddenColumns, columnOrder, openEdit, handleDelete, getRowKey, handleSelectAll, handleSelect]);
 
     return (
         <div style={{ padding: 24 }}>
@@ -641,6 +709,7 @@ export default function OpsExclusionPage() {
                             </Space>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} block>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate} block>批量新增</Button>
+                            <Button icon={<DownloadOutlined />} onClick={() => setExportModalOpen(true)} block>导出数据</Button>
                             <Popover
                                 content={
                                     <ColumnSettings
@@ -728,6 +797,7 @@ export default function OpsExclusionPage() {
                             }}>重置</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button>
                             <Button type="primary" icon={<PlusOutlined />} onClick={openBatchCreate}>批量新增</Button>
+                            <Button icon={<DownloadOutlined />} onClick={() => setExportModalOpen(true)}>导出数据</Button>
                             <Popover
                                 content={
                                     <ColumnSettings
@@ -807,7 +877,38 @@ export default function OpsExclusionPage() {
                         <Input maxLength={100} />
                     </Form.Item>
                     <Form.Item name="门店编码" label="门店编码">
-                        <Input maxLength={50} />
+                        <Select
+                            placeholder="请选择门店编码"
+                            showSearch
+                            allowClear
+                            loading={loadingStoreList}
+                            filterOption={(input, option) => {
+                                const label = option?.label as string || '';
+                                return label.toLowerCase().includes(input.toLowerCase());
+                            }}
+                            options={[
+                                { label: '全部门店', value: '' },
+                                ...storeList.map(store => ({
+                                    label: `${store.storeId} ${store.storeName}`,
+                                    value: store.storeId,
+                                })),
+                            ]}
+                            optionRender={(option) => {
+                                if (option.value === '') {
+                                    return <span>{option.label}</span>;
+                                }
+                                const store = storeList.find(s => s.storeId === option.value);
+                                if (store) {
+                                    return (
+                                        <span>
+                                            {store.storeId}{' '}
+                                            <span style={{ color: '#999' }}>{store.storeName}</span>
+                                        </span>
+                                    );
+                                }
+                                return <span>{option.label}</span>;
+                            }}
+                        />
                     </Form.Item>
                     <Form.Item name="SKU编码" label="SKU编码">
                         <Input
@@ -870,6 +971,17 @@ export default function OpsExclusionPage() {
                 onCancel={() => setBatchModalOpen(false)}
                 onSave={handleBatchSave}
                 createItem={createBatchItem}
+            />
+
+            {/* Excel导出弹窗 */}
+            <ExcelExportModal<OpsExclusionItem>
+                open={exportModalOpen}
+                title="导出数据为Excel"
+                fields={exportFields}
+                selectedData={data.filter(item => selectedRowKeys.includes(getRowKey(item)))}
+                fetchAllData={fetchAllData}
+                onCancel={() => setExportModalOpen(false)}
+                fileName="排除活动商品数据"
             />
         </div>
     );

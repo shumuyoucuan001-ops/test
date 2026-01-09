@@ -105,6 +105,126 @@ export class TransactionRecordService {
                                     }
                                 }
                             }
+                            // 1688先采后付渠道特有字段
+                            else if (channel === '1688先采后付') {
+                                if (fieldName === '订单号') {
+                                    fieldConditions.push('订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '订单支付时间') {
+                                    fieldConditions.push('订单支付时间 IS NOT NULL AND DATE_FORMAT(订单支付时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '订单名称') {
+                                    fieldConditions.push('订单名称 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '支付金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`支付金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '确认收货金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`确认收货金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '确认收货时间') {
+                                    fieldConditions.push('确认收货时间 IS NOT NULL AND DATE_FORMAT(确认收货时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '账期类型') {
+                                    fieldConditions.push('账期类型 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '是否有退款') {
+                                    fieldConditions.push('是否有退款 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '退款金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`退款金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                }
+                            }
+                            // 京东金融渠道特有字段
+                            else if (channel === '京东金融') {
+                                if (fieldName === '交易时间') {
+                                    fieldConditions.push('交易时间 IS NOT NULL AND DATE_FORMAT(交易时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商户名称') {
+                                    fieldConditions.push('商户名称 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易说明') {
+                                    fieldConditions.push('交易说明 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '金额') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('金额 LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '收/付款方式') {
+                                    fieldConditions.push('`收/付款方式` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易状态') {
+                                    fieldConditions.push('交易状态 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/支') {
+                                    fieldConditions.push('`收/支` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易分类') {
+                                    fieldConditions.push('交易分类 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易订单号') {
+                                    fieldConditions.push('交易订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商家订单号') {
+                                    fieldConditions.push('商家订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '备注') {
+                                    fieldConditions.push('备注 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                }
+                            }
+                            // 微信渠道特有字段
+                            else if (channel === '微信') {
+                                if (fieldName === '交易时间') {
+                                    fieldConditions.push('交易时间 IS NOT NULL AND DATE_FORMAT(交易时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易类型') {
+                                    fieldConditions.push('交易类型 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易对方') {
+                                    fieldConditions.push('交易对方 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商品') {
+                                    fieldConditions.push('商品 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/支') {
+                                    fieldConditions.push('`收/支` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '支付方式') {
+                                    fieldConditions.push('支付方式 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '当前状态') {
+                                    fieldConditions.push('当前状态 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易单号') {
+                                    fieldConditions.push('交易单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商户单号') {
+                                    fieldConditions.push('商户单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '备注') {
+                                    fieldConditions.push('备注 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                }
+                            }
                             // 支付宝渠道特有字段
                             else if (channel === '支付宝') {
                                 if (fieldName === '交易时间') {
@@ -163,7 +283,56 @@ export class TransactionRecordService {
 
                 // 添加通用搜索条件
                 if (hasGeneralSearch) {
-                    if (channel === '支付宝') {
+                    if (channel === '1688先采后付') {
+                        // 1688先采后付渠道的通用搜索
+                        whereClause += ` AND (
+            交易账单号 LIKE ? OR 
+            支付账号 LIKE ? OR
+            支付渠道 LIKE ? OR
+            订单号 LIKE ? OR
+            订单名称 LIKE ? OR
+            备注 LIKE ?
+          )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else if (channel === '京东金融') {
+                        // 京东金融渠道的通用搜索
+                        whereClause += ` AND (
+            交易账单号 LIKE ? OR 
+            支付账号 LIKE ? OR
+            支付渠道 LIKE ? OR
+            商户名称 LIKE ? OR
+            交易说明 LIKE ? OR
+            交易订单号 LIKE ? OR
+            商家订单号 LIKE ? OR
+            备注 LIKE ?
+          )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else if (channel === '微信') {
+                        // 微信渠道的通用搜索
+                        whereClause += ` AND (
+            交易账单号 LIKE ? OR 
+            支付账号 LIKE ? OR
+            支付渠道 LIKE ? OR
+            交易类型 LIKE ? OR
+            交易对方 LIKE ? OR
+            商品 LIKE ? OR
+            交易单号 LIKE ? OR
+            商户单号 LIKE ? OR
+            备注 LIKE ?
+          )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else if (channel === '支付宝') {
                         // 支付宝渠道的通用搜索范围更广，包括所有常用字段
                         whereClause += ` AND (
             交易账单号 LIKE ? OR 
@@ -183,7 +352,7 @@ export class TransactionRecordService {
                             `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
                         );
                     } else {
-                        // 其他渠道的通用搜索
+                        // 其他渠道的通用搜索（兜底）
                         whereClause += ` AND (
             交易账单号 LIKE ? OR 
             支付账号 LIKE ? OR
@@ -820,6 +989,126 @@ export class TransactionRecordService {
                                     }
                                 }
                             }
+                            // 1688先采后付渠道特有字段
+                            else if (channel === '1688先采后付') {
+                                if (fieldName === '订单号') {
+                                    fieldConditions.push('订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '订单支付时间') {
+                                    fieldConditions.push('订单支付时间 IS NOT NULL AND DATE_FORMAT(订单支付时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '订单名称') {
+                                    fieldConditions.push('订单名称 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '支付金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`支付金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '确认收货金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`确认收货金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '确认收货时间') {
+                                    fieldConditions.push('确认收货时间 IS NOT NULL AND DATE_FORMAT(确认收货时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '账期类型') {
+                                    fieldConditions.push('账期类型 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '是否有退款') {
+                                    fieldConditions.push('是否有退款 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '退款金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`退款金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                }
+                            }
+                            // 京东金融渠道特有字段
+                            else if (channel === '京东金融') {
+                                if (fieldName === '交易时间') {
+                                    fieldConditions.push('交易时间 IS NOT NULL AND DATE_FORMAT(交易时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商户名称') {
+                                    fieldConditions.push('商户名称 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易说明') {
+                                    fieldConditions.push('交易说明 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '金额') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('金额 LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '收/付款方式') {
+                                    fieldConditions.push('`收/付款方式` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易状态') {
+                                    fieldConditions.push('交易状态 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/支') {
+                                    fieldConditions.push('`收/支` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易分类') {
+                                    fieldConditions.push('交易分类 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易订单号') {
+                                    fieldConditions.push('交易订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商家订单号') {
+                                    fieldConditions.push('商家订单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '备注') {
+                                    fieldConditions.push('备注 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                }
+                            }
+                            // 微信渠道特有字段
+                            else if (channel === '微信') {
+                                if (fieldName === '交易时间') {
+                                    fieldConditions.push('交易时间 IS NOT NULL AND DATE_FORMAT(交易时间, \'%Y-%m-%d %H:%i:%s\') LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易类型') {
+                                    fieldConditions.push('交易类型 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易对方') {
+                                    fieldConditions.push('交易对方 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商品') {
+                                    fieldConditions.push('商品 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '收/支') {
+                                    fieldConditions.push('`收/支` LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '金额(元)') {
+                                    const amount = parseFloat(fieldValue);
+                                    if (!isNaN(amount)) {
+                                        fieldConditions.push('`金额(元)` LIKE ?');
+                                        fieldParams.push(`%${fieldValue}%`);
+                                    }
+                                } else if (fieldName === '支付方式') {
+                                    fieldConditions.push('支付方式 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '当前状态') {
+                                    fieldConditions.push('当前状态 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '交易单号') {
+                                    fieldConditions.push('交易单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '商户单号') {
+                                    fieldConditions.push('商户单号 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                } else if (fieldName === '备注') {
+                                    fieldConditions.push('备注 LIKE ?');
+                                    fieldParams.push(`%${fieldValue}%`);
+                                }
+                            }
                             // 支付宝渠道特有字段
                             else if (channel === '支付宝') {
                                 if (fieldName === '交易时间') {
@@ -875,7 +1164,56 @@ export class TransactionRecordService {
 
                 // 添加通用搜索条件
                 if (hasGeneralSearch) {
-                    if (channel === '支付宝') {
+                    if (channel === '1688先采后付') {
+                        // 1688先采后付渠道的通用搜索
+                        whereClause += ` AND (
+              交易账单号 LIKE ? OR 
+              支付账号 LIKE ? OR
+              支付渠道 LIKE ? OR
+              订单号 LIKE ? OR
+              订单名称 LIKE ? OR
+              备注 LIKE ?
+            )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else if (channel === '京东金融') {
+                        // 京东金融渠道的通用搜索
+                        whereClause += ` AND (
+              交易账单号 LIKE ? OR 
+              支付账号 LIKE ? OR
+              支付渠道 LIKE ? OR
+              商户名称 LIKE ? OR
+              交易说明 LIKE ? OR
+              交易订单号 LIKE ? OR
+              商家订单号 LIKE ? OR
+              备注 LIKE ?
+            )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else if (channel === '微信') {
+                        // 微信渠道的通用搜索
+                        whereClause += ` AND (
+              交易账单号 LIKE ? OR 
+              支付账号 LIKE ? OR
+              支付渠道 LIKE ? OR
+              交易类型 LIKE ? OR
+              交易对方 LIKE ? OR
+              商品 LIKE ? OR
+              交易单号 LIKE ? OR
+              商户单号 LIKE ? OR
+              备注 LIKE ?
+            )`;
+                        queryParams.push(
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
+                            `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`
+                        );
+                    } else if (channel === '支付宝') {
                         // 支付宝渠道的通用搜索范围更广
                         whereClause += ` AND (
               交易账单号 LIKE ? OR 
@@ -893,6 +1231,7 @@ export class TransactionRecordService {
                             `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`,
                             `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`, `%${generalSearchTerm}%`);
                     } else {
+                        // 其他渠道的通用搜索（兜底）
                         whereClause += ` AND (
               交易账单号 LIKE ? OR 
               支付账号 LIKE ? OR

@@ -439,6 +439,8 @@ export const opsExclusionApi = {
     api.post('/ops-exclusion/check-exists', data).then(res => res.data),
   checkBatchExists: (items: OpsExclusionItem[]): Promise<{ exists: boolean; duplicateItems: OpsExclusionItem[] }> =>
     api.post('/ops-exclusion/check-batch-exists', { items }).then(res => res.data),
+  getStoreList: (): Promise<Array<{ storeId: string; storeName: string }>> =>
+    api.get('/ops-exclusion/store-list').then(res => res.data),
 };
 
 // 运营组管理 - 手动强制活动分发
@@ -658,6 +660,8 @@ export const opsShelfExclusionApi = {
     api.post('/ops-shelf-exclusion/check-exists', data).then(res => res.data),
   checkBatchExists: (items: OpsShelfExclusionItem[]): Promise<{ exists: boolean; duplicateItems: OpsShelfExclusionItem[] }> =>
     api.post('/ops-shelf-exclusion/check-batch-exists', { items }).then(res => res.data),
+  getStoreList: (): Promise<Array<{ storeId: string; storeName: string }>> =>
+    api.get('/ops-shelf-exclusion/store-list').then(res => res.data),
 };
 
 // 门店管理 - 驳回差异单

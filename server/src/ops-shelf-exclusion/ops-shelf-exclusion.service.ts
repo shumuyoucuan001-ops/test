@@ -1,8 +1,8 @@
 
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { OperationLogService } from '../operation-log/operation-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
-import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface OpsShelfExclusionItem {
     'SPU': string;
@@ -19,6 +19,26 @@ export class OpsShelfExclusionService {
     ) { }
 
     private table = '`sm_shangping`.`商品上下架排除规则`';
+
+    // 获取门店列表（用于下拉选择）
+    async getStoreList(): Promise<Array<{ storeId: string; storeName: string }>> {
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT DISTINCT \`门店ID\` AS storeId, \`门店名称\` AS storeName
+                 FROM \`sm_shezhijichuxinxi\`.\`门店信息\`
+                 WHERE \`门店ID\` IS NOT NULL AND TRIM(\`门店ID\`) <> ''
+                   AND \`门店名称\` IS NOT NULL AND TRIM(\`门店名称\`) <> ''
+                 ORDER BY \`门店ID\``
+            );
+            return (rows || []).map(r => ({
+                storeId: String(r.storeId || '').trim(),
+                storeName: String(r.storeName || '').trim(),
+            })).filter(item => item.storeId && item.storeName);
+        } catch (error) {
+            Logger.error('[OpsShelfExclusionService] 获取门店列表失败:', error);
+            return [];
+        }
+    }
 
     async list(
         filters?: {
@@ -114,8 +134,8 @@ export class OpsShelfExclusionService {
         } catch (error: any) {
             Logger.error('[OpsShelfExclusionService] Create error:', error);
             // 捕获数据库主键冲突错误（多种格式）
-            if (error?.code === 'P2010' || 
-                error?.code === 'ER_DUP_ENTRY' || 
+            if (error?.code === 'P2010' ||
+                error?.code === 'ER_DUP_ENTRY' ||
                 error?.errno === 1062 ||
                 (error?.meta?.code === '1062' && error?.meta?.message?.includes('Duplicate entry')) ||
                 (error?.message && error.message.includes('Duplicate entry'))) {

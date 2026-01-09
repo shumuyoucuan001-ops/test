@@ -55,6 +55,13 @@ export async function DELETE(
   return proxyRequest(request, params.path, 'DELETE');
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return proxyRequest(request, params.path, 'PATCH');
+}
+
 // 带超时的 fetch 封装
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 10000): Promise<Response> {
   const controller = new AbortController();

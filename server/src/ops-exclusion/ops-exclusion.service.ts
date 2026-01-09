@@ -1,8 +1,8 @@
 
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { OperationLogService } from '../operation-log/operation-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '../utils/logger.util';
-import { OperationLogService } from '../operation-log/operation-log.service';
 
 export interface OpsExclusionItem {
     '视图名称': string;
@@ -25,6 +25,26 @@ export class OpsExclusionService {
     ) { }
 
     private table = '`sm_cuxiaohuodong`.`活动视图排除规则`';
+
+    // 获取门店列表（用于下拉选择）
+    async getStoreList(): Promise<Array<{ storeId: string; storeName: string }>> {
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT DISTINCT \`门店ID\` AS storeId, \`门店名称\` AS storeName
+                 FROM \`sm_shezhijichuxinxi\`.\`门店信息\`
+                 WHERE \`门店ID\` IS NOT NULL AND TRIM(\`门店ID\`) <> ''
+                   AND \`门店名称\` IS NOT NULL AND TRIM(\`门店名称\`) <> ''
+                 ORDER BY \`门店ID\``
+            );
+            return (rows || []).map(r => ({
+                storeId: String(r.storeId || '').trim(),
+                storeName: String(r.storeName || '').trim(),
+            })).filter(item => item.storeId && item.storeName);
+        } catch (error) {
+            Logger.error('[OpsExclusionService] 获取门店列表失败:', error);
+            return [];
+        }
+    }
 
     async list(
         filters?: {

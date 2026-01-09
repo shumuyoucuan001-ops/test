@@ -17,7 +17,7 @@ export class OpsExclusionController {
         @Query('limit') limit?: string,
     ): Promise<{ data: OpsExclusionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
-        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 100000));
 
         const filters: any = {};
         if (视图名称) filters.视图名称 = 视图名称;
@@ -89,5 +89,10 @@ export class OpsExclusionController {
     async checkBatchExists(@Body() body: { items: OpsExclusionItem[] }) {
         const result = await this.service.checkBatchExists(body.items);
         return result;
+    }
+
+    @Get('store-list')
+    async getStoreList() {
+        return this.service.getStoreList();
     }
 }

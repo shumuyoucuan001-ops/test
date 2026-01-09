@@ -149,6 +149,13 @@ export default function ExcelExportModal<T = any>({
                 return;
             }
 
+            // 检查数据量限制（100000条）
+            const MAX_EXPORT_LIMIT = 100000;
+            if (dataToExport.length > MAX_EXPORT_LIMIT) {
+                message.warning(`数据量超过限制，仅导出前 ${MAX_EXPORT_LIMIT} 条数据（共 ${dataToExport.length} 条）`);
+                dataToExport = dataToExport.slice(0, MAX_EXPORT_LIMIT);
+            }
+
             // 构建表头（只包含选中的字段）
             const selectedFieldsArray = fields.filter(f => selectedFields.has(f.key));
             const headers = selectedFieldsArray.map(f => f.label);

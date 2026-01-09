@@ -154,7 +154,7 @@ export class SupplierQuotationService {
       const [totalResult]: any = await connection.execute(totalQuery, queryParams);
       const total = totalResult[0].count;
 
-      // 获取数据，JOIN供应商属性信息表获取供应商名称
+      // 获取数据，JOIN供应商属性信息表获取供应商名称，JOIN供应商编码手动绑定sku表获取计算后供货价格
       const dataQuery = `
         SELECT 
           q.序号,
@@ -168,11 +168,12 @@ export class SupplierQuotationService {
           q.最小销售规格UPC商品条码,
           q.中包或整件销售规格条码,
           q.供货价格,
-          q.计算后供货价格,
+          COALESCE(b.\`计算后供货价格\`, NULL) as \`计算后供货价格\`,
           q.供应商商品备注,
           q.数据更新时间
         FROM \`供应商报价\` q
         LEFT JOIN \`供应商属性信息\` s ON q.\`供应商编码\` = s.\`供应商编码\`
+        LEFT JOIN \`供应商编码手动绑定sku\` b ON q.\`供应商编码\` = b.\`供应商编码\` AND q.\`供应商商品编码\` = b.\`供应商商品编码\`
         WHERE ${whereClause}
         ORDER BY q.\`供应商编码\` ASC, q.序号 ASC
         LIMIT ? OFFSET ?
@@ -560,29 +561,21 @@ export class SupplierQuotationService {
       const exists = checkResult[0].count > 0;
 
       if (exists) {
-        // 更新（不更新SKU字段）
+        // 更新（不更新SKU字段），同时更新计算后供货价格
         const updateQuery = `
           UPDATE \`供应商编码手动绑定sku\`
-          SET 报价比例_供应商商品 = ?, 报价比例_牵牛花商品 = ?
+          SET 报价比例_供应商商品 = ?, 报价比例_牵牛花商品 = ?, 计算后供货价格 = ?
           WHERE 供应商编码 = ? AND 供应商商品编码 = ?
         `;
-        await connection.execute(updateQuery, [supplierRatio, qianniuhuaRatio, supplierCode, supplierProductCode]);
+        await connection.execute(updateQuery, [supplierRatio, qianniuhuaRatio, calculatedPrice, supplierCode, supplierProductCode]);
       } else {
-        // 插入（不插入SKU字段）
+        // 插入（不插入SKU字段），同时插入计算后供货价格
         const insertQuery = `
-          INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, 报价比例_供应商商品, 报价比例_牵牛花商品)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, 报价比例_供应商商品, 报价比例_牵牛花商品, 计算后供货价格)
+          VALUES (?, ?, ?, ?, ?)
         `;
-        await connection.execute(insertQuery, [supplierCode, supplierProductCode, supplierRatio, qianniuhuaRatio]);
+        await connection.execute(insertQuery, [supplierCode, supplierProductCode, supplierRatio, qianniuhuaRatio, calculatedPrice]);
       }
-
-      // 更新供应商报价表的计算后供货价格
-      const updatePriceQuery = `
-        UPDATE \`供应商报价\`
-        SET 计算后供货价格 = ?
-        WHERE 供应商编码 = ? AND 最小销售规格UPC商品条码 = ?
-      `;
-      await connection.execute(updatePriceQuery, [calculatedPrice, supplierCode, upcCode]);
 
       return true;
     } catch (error) {
@@ -626,22 +619,14 @@ export class SupplierQuotationService {
       const exists = checkResult[0].count > 0;
 
       if (exists) {
-        // 更新：将报价比例字段设置为NULL
+        // 更新：将报价比例字段和计算后供货价格设置为NULL
         const updateQuery = `
           UPDATE \`供应商编码手动绑定sku\`
-          SET 报价比例_供应商商品 = NULL, 报价比例_牵牛花商品 = NULL
+          SET 报价比例_供应商商品 = NULL, 报价比例_牵牛花商品 = NULL, 计算后供货价格 = NULL
           WHERE 供应商编码 = ? AND 供应商商品编码 = ?
         `;
         await connection.execute(updateQuery, [supplierCode, supplierProductCode]);
       }
-
-      // 将供应商报价表的计算后供货价格设置为NULL
-      const updatePriceQuery = `
-        UPDATE \`供应商报价\`
-        SET 计算后供货价格 = NULL
-        WHERE 供应商编码 = ? AND 最小销售规格UPC商品条码 = ?
-      `;
-      await connection.execute(updatePriceQuery, [supplierCode, upcCode]);
 
       return true;
     } catch (error) {
@@ -698,11 +683,12 @@ export class SupplierQuotationService {
       });
 
       // 查询有计算后供货价格的记录（计算后供货价格不为NULL才显示'转'字）
+      // 从供应商编码手动绑定sku表查询
       const query = `
         SELECT DISTINCT
           供应商编码,
           供应商商品编码
-        FROM \`供应商报价\`
+        FROM \`供应商编码手动绑定sku\`
         WHERE (${conditions.join(' OR ')})
           AND 计算后供货价格 IS NOT NULL
       `;

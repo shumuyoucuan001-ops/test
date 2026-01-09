@@ -380,8 +380,8 @@ const SearchFilterDropdown = ({
   );
 };
 
-// 为支付宝渠道的列添加搜索筛选功能
-const addSearchFiltersToAlipayColumns = (
+// 为所有渠道的列添加搜索筛选功能
+const addSearchFiltersToColumns = (
   columns: any[],
   columnSearchKeywords: Record<string, string>,
   onSearchChange: (columnKey: string, keyword: string) => void,
@@ -457,7 +457,7 @@ export default function TransactionRecordPage() {
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
 
-  // 支付宝渠道的列搜索关键词（每列的搜索关键词）
+  // 所有渠道的列搜索关键词（每列的搜索关键词）
   const [columnSearchKeywords, setColumnSearchKeywords] = useState<Record<string, string>>({});
 
   // 加载记录列表
@@ -506,11 +506,9 @@ export default function TransactionRecordPage() {
         searchParams.push(`收支金额:${amountValue}`);
       }
 
-      // 添加列搜索关键词到搜索参数（仅在支付宝渠道）
-      if (channel === '支付宝') {
-        const columnSearchParams = buildColumnSearchParams();
-        searchParams.push(...columnSearchParams);
-      }
+      // 添加列搜索关键词到搜索参数（支持所有渠道）
+      const columnSearchParams = buildColumnSearchParams();
+      searchParams.push(...columnSearchParams);
 
       const finalSearch = searchParams.length > 0 ? searchParams.join(' ') : undefined;
 
@@ -559,11 +557,8 @@ export default function TransactionRecordPage() {
     }
   };
 
-  // 将列搜索关键词转换为搜索参数
+  // 将列搜索关键词转换为搜索参数（支持所有渠道）
   const buildColumnSearchParams = useCallback((): string[] => {
-    if (channel !== '支付宝') {
-      return [];
-    }
     const searchParams: string[] = [];
     Object.entries(columnSearchKeywords).forEach(([columnKey, keyword]) => {
       if (keyword && keyword.trim()) {
@@ -572,24 +567,22 @@ export default function TransactionRecordPage() {
       }
     });
     return searchParams;
-  }, [channel, columnSearchKeywords]);
+  }, [columnSearchKeywords]);
 
 
-  // 检查是否有列搜索条件
-  const hasActiveColumnFilters = channel === '支付宝' && Object.values(columnSearchKeywords).some(keyword => keyword && keyword.trim());
+  // 检查是否有列搜索条件（支持所有渠道）
+  const hasActiveColumnFilters = Object.values(columnSearchKeywords).some(keyword => keyword && keyword.trim());
 
   // 显示的数据就是当前加载的记录（筛选通过后端搜索实现）
   const displayedRecords = records;
 
-  // 当列搜索关键词改变时，通过搜索重新加载数据
+  // 当列搜索关键词改变时，通过搜索重新加载数据（支持所有渠道）
   useEffect(() => {
-    if (channel === '支付宝') {
-      // 搜索关键词改变时，重置到第一页并重新加载数据（搜索关键词会通过buildColumnSearchParams自动添加到搜索参数）
-      setCurrentPage(1);
-      loadRecords(1, searchText || undefined);
-    }
+    // 搜索关键词改变时，重置到第一页并重新加载数据（搜索关键词会通过buildColumnSearchParams自动添加到搜索参数）
+    setCurrentPage(1);
+    loadRecords(1, searchText || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columnSearchKeywords, channel]);
+  }, [columnSearchKeywords]);
 
   // 初始化加载
   useEffect(() => {
@@ -606,10 +599,8 @@ export default function TransactionRecordPage() {
     const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
     localStorage.removeItem(widthStorageKey);
 
-    // 切换渠道时清除列搜索
-    if (channel !== '支付宝') {
-      setColumnSearchKeywords({});
-    }
+    // 切换渠道时清除列搜索（所有渠道都支持，切换时清除）
+    setColumnSearchKeywords({});
 
     loadRecords(1, undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -719,8 +710,8 @@ export default function TransactionRecordPage() {
     setSelectedBindingStatuses([]);
     setCurrentPage(1);
 
-    // 清除所有列搜索关键词（支付宝渠道的表头搜索）
-    // 这会触发 useEffect，自动重新加载数据（仅对支付宝渠道）
+    // 清除所有列搜索关键词（所有渠道的表头搜索）
+    // 这会触发 useEffect，自动重新加载数据
     setColumnSearchKeywords({});
 
     // 对于非支付宝渠道，或者确保支付宝渠道也能立即重置，我们手动调用一次 loadRecords
@@ -912,26 +903,24 @@ export default function TransactionRecordPage() {
   // 表格列定义
   const baseColumns = getChannelColumns(channel, handleOpenNonPurchaseModal);
 
-  // 为支付宝渠道添加搜索筛选功能
-  const allColumns = channel === '支付宝'
-    ? addSearchFiltersToAlipayColumns(
-      baseColumns,
-      columnSearchKeywords,
-      (columnKey: string, keyword: string) => {
-        setColumnSearchKeywords(prev => ({
-          ...prev,
-          [columnKey]: keyword,
-        }));
-      },
-      (columnKey: string) => {
-        setColumnSearchKeywords(prev => {
-          const newKeywords = { ...prev };
-          delete newKeywords[columnKey];
-          return newKeywords;
-        });
-      }
-    )
-    : baseColumns;
+  // 为所有渠道添加搜索筛选功能
+  const allColumns = addSearchFiltersToColumns(
+    baseColumns,
+    columnSearchKeywords,
+    (columnKey: string, keyword: string) => {
+      setColumnSearchKeywords(prev => ({
+        ...prev,
+        [columnKey]: keyword,
+      }));
+    },
+    (columnKey: string) => {
+      setColumnSearchKeywords(prev => {
+        const newKeywords = { ...prev };
+        delete newKeywords[columnKey];
+        return newKeywords;
+      });
+    }
+  );
 
   // 根据列设置过滤和排序列
   const getFilteredColumns = () => {

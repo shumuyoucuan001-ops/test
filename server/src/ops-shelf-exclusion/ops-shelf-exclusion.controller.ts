@@ -16,7 +16,7 @@ export class OpsShelfExclusionController {
         @Query('limit') limit?: string,
     ): Promise<{ data: OpsShelfExclusionItem[]; total: number }> {
         const pageNum = Math.max(1, parseInt(page || '1', 10));
-        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 50));
+        const limitNum = Math.max(1, Math.min(parseInt(limit || '20', 10), 100000));
 
         const filters: any = {};
         if (门店编码) filters.门店编码 = 门店编码;
@@ -87,6 +87,11 @@ export class OpsShelfExclusionController {
     async checkBatchExists(@Body() body: { items: OpsShelfExclusionItem[] }) {
         const result = await this.service.checkBatchExists(body.items);
         return result;
+    }
+
+    @Get('store-list')
+    async getStoreList() {
+        return this.service.getStoreList();
     }
 }
 
