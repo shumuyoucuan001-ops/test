@@ -27,7 +27,7 @@ export interface SupplierFullInfo extends SupplierBasicInfo {
 
 @Controller('suppliers')
 export class SupplierController {
-  constructor(private readonly supplierService: SupplierService) {}
+  constructor(private readonly supplierService: SupplierService) { }
 
   // 获取所有供应商信息（基础信息+管理信息）
   @Get()
