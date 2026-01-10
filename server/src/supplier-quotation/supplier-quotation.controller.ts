@@ -25,6 +25,10 @@ export class SupplierQuotationController {
         @Query('limit') limit?: string,
         @Query('search') search?: string,
         @Query('supplierCodes') supplierCodes?: string | string[],
+        @Query('supplierName') supplierName?: string,
+        @Query('supplierCode') supplierCode?: string,
+        @Query('productName') productName?: string,
+        @Query('upcCode') upcCode?: string,
     ) {
         try {
             const pageNum = page ? parseInt(page, 10) : 1;
@@ -39,7 +43,16 @@ export class SupplierQuotationController {
                     supplierCodesArray = supplierCodes.split(',').filter(s => s.trim());
                 }
             }
-            return await this.service.getSupplierQuotations(pageNum, limitNum, search, supplierCodesArray);
+            return await this.service.getSupplierQuotations(
+                pageNum,
+                limitNum,
+                search,
+                supplierCodesArray,
+                supplierName,
+                supplierCode,
+                productName,
+                upcCode,
+            );
         } catch (error) {
             throw new HttpException(
                 error.message || '查询供应商报价失败',

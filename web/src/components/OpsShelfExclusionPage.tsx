@@ -34,7 +34,7 @@ export default function OpsShelfExclusionPage() {
     const [searchText, setSearchText] = useState(''); // 总搜索（全字段）
     const [searchFilters, setSearchFilters] = useState<{
         SPU?: string;
-        门店编码?: string;
+        门店编码?: string[];
         渠道编码?: string;
     }>({});
 
@@ -63,9 +63,19 @@ export default function OpsShelfExclusionPage() {
             const finalFilters = overrideParams?.filters ?? searchFilters;
 
             // 过滤掉空值
-            const cleanFilters = Object.fromEntries(
-                Object.entries(finalFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-            );
+            // 对于数组类型的过滤器，如果为空数组则过滤掉
+            const cleanFilters: any = {};
+            Object.entries(finalFilters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    if (value.length > 0) {
+                        // 将空字符串转换为"全部门店"，然后转换为逗号分隔的字符串传递给后端
+                        const processedValues = value.map(v => v === '' ? '全部门店' : v);
+                        cleanFilters[key] = processedValues.join(',');
+                    }
+                } else if (value !== undefined && value !== null && value !== '') {
+                    cleanFilters[key] = value;
+                }
+            });
 
             const res = await opsShelfExclusionApi.list({
                 ...cleanFilters,
@@ -145,7 +155,11 @@ export default function OpsShelfExclusionPage() {
 
     const openEdit = useCallback((record: OpsShelfExclusionItem) => {
         setEditing(record);
-        form.setFieldsValue(record);
+        const formValues = {
+            ...record,
+            '门店编码': record['门店编码'] === '全部门店' ? '' : record['门店编码'],
+        };
+        form.setFieldsValue(formValues);
         setModalOpen(true);
     }, [form]);
 
@@ -155,7 +169,7 @@ export default function OpsShelfExclusionPage() {
             // 处理表单数据：trim 字符串字段，空字符串转为 null
             const submitData: OpsShelfExclusionItem = {
                 'SPU': values['SPU']?.trim() || '',
-                '门店编码': values['门店编码']?.trim() || '',
+                '门店编码': values['门店编码'] === '' || values['门店编码']?.trim() === '' ? '全部门店' : (values['门店编码']?.trim() || ''),
                 '渠道编码': values['渠道编码']?.trim() || '',
                 '备注': values['备注']?.trim() || null,
             };
@@ -298,9 +312,19 @@ export default function OpsShelfExclusionPage() {
     // 获取全部数据（用于导出）
     const fetchAllData = useCallback(async (): Promise<OpsShelfExclusionItem[]> => {
         try {
-            const cleanFilters = Object.fromEntries(
-                Object.entries(searchFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-            );
+            // 对于数组类型的过滤器，如果为空数组则过滤掉
+            const cleanFilters: any = {};
+            Object.entries(searchFilters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    if (value.length > 0) {
+                        // 将空字符串转换为"全部门店"，然后转换为逗号分隔的字符串传递给后端
+                        const processedValues = value.map(v => v === '' ? '全部门店' : v);
+                        cleanFilters[key] = processedValues.join(',');
+                    }
+                } else if (value !== undefined && value !== null && value !== '') {
+                    cleanFilters[key] = value;
+                }
+            });
             const res = await opsShelfExclusionApi.list({
                 ...cleanFilters,
                 keyword: searchText || undefined,
@@ -395,12 +419,42 @@ export default function OpsShelfExclusionPage() {
                     onChange={(e) => setSearchFilters({ ...searchFilters, SPU: e.target.value })}
                     allowClear
                 />
-                <Input
+                <Select
                     placeholder="门店编码"
-                    style={isMobile ? { width: '100%' } : { width: 150 }}
+                    style={isMobile ? { width: '100%' } : { width: 200 }}
+                    mode="multiple"
                     value={searchFilters.门店编码}
-                    onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
+                    onChange={(value) => setSearchFilters({ ...searchFilters, 门店编码: value })}
                     allowClear
+                    showSearch
+                    loading={loadingStoreList}
+                    maxTagCount="responsive"
+                    filterOption={(input, option) => {
+                        const label = option?.label as string || '';
+                        return label.toLowerCase().includes(input.toLowerCase());
+                    }}
+                    options={[
+                        { label: '全部门店', value: '' },
+                        ...storeList.map(store => ({
+                            label: `${store.storeId} ${store.storeName}`,
+                            value: store.storeId,
+                        })),
+                    ]}
+                    optionRender={(option) => {
+                        if (option.value === '') {
+                            return <span>{option.label}</span>;
+                        }
+                        const store = storeList.find(s => s.storeId === option.value);
+                        if (store) {
+                            return (
+                                <span>
+                                    {store.storeId}{' '}
+                                    <span style={{ color: '#999' }}>{store.storeName}</span>
+                                </span>
+                            );
+                        }
+                        return <span>{option.label}</span>;
+                    }}
                 />
                 <Input
                     placeholder="渠道编码"

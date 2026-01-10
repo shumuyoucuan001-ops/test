@@ -24,6 +24,20 @@ const fieldLabels: Record<keyof OpsExclusionItem, string> = {
     "采购单价 (采购单位)": "采购单价 (采购单位)",
 };
 
+// 视图名称选项列表
+const VIEW_NAME_OPTIONS = [
+    '取消京东到家单品直降',
+    '设置京东爆品活动',
+    '设置京东单品直降',
+    '取消美团单品直降',
+    '取消美团爆品活动',
+    '设置美团单品直降',
+    '设置美团爆品活动',
+    '设置饿了么单品直降',
+    '饿了么商品特价',
+    '取消饿了么单品直降',
+];
+
 export default function OpsExclusionPage() {
     const [data, setData] = useState<OpsExclusionItem[]>([]);
     const [total, setTotal] = useState(0);
@@ -38,8 +52,8 @@ export default function OpsExclusionPage() {
     const [batchModalOpen, setBatchModalOpen] = useState(false); // 批量新增弹窗
     const [searchText, setSearchText] = useState(''); // 总搜索（全字段）
     const [searchFilters, setSearchFilters] = useState<{
-        视图名称?: string;
-        门店编码?: string;
+        视图名称?: string[];
+        门店编码?: string[];
         SKU编码?: string;
         SPU编码?: string;
     }>({});
@@ -162,9 +176,19 @@ export default function OpsExclusionPage() {
                 : searchFilters;
 
             // 过滤掉undefined值，避免API调用问题
-            const cleanFilters = Object.fromEntries(
-                Object.entries(finalFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-            );
+            // 对于数组类型的过滤器，如果为空数组则过滤掉
+            const cleanFilters: any = {};
+            Object.entries(finalFilters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    if (value.length > 0) {
+                        // 将空字符串转换为"全部门店"，然后转换为逗号分隔的字符串传递给后端
+                        const processedValues = value.map(v => v === '' ? '全部门店' : v);
+                        cleanFilters[key] = processedValues.join(',');
+                    }
+                } else if (value !== undefined && value !== null && value !== '') {
+                    cleanFilters[key] = value;
+                }
+            });
 
             const res = await opsExclusionApi.list({
                 ...cleanFilters,
@@ -232,7 +256,11 @@ export default function OpsExclusionPage() {
 
     const openEdit = (record: OpsExclusionItem) => {
         setEditing(record);
-        form.setFieldsValue(record);
+        const formValues = {
+            ...record,
+            '门店编码': record['门店编码'] === '全部门店' ? '' : record['门店编码'],
+        };
+        form.setFieldsValue(formValues);
         setModalOpen(true);
     };
 
@@ -242,7 +270,7 @@ export default function OpsExclusionPage() {
             // 确保只传视图名称（必填），其他字段为空字符串时转为 undefined/null
             const submitData: OpsExclusionItem = {
                 '视图名称': values['视图名称'] || '',
-                '门店编码': values['门店编码']?.trim() || '',
+                '门店编码': values['门店编码'] === '' || values['门店编码']?.trim() === '' ? '全部门店' : (values['门店编码']?.trim() || ''),
                 'SKU编码': values['SKU编码']?.trim() || '',
                 'SPU编码': values['SPU编码']?.trim() || '',
                 '备注': values['备注']?.trim() || null,
@@ -394,9 +422,19 @@ export default function OpsExclusionPage() {
     // 获取全部数据（用于导出）
     const fetchAllData = useCallback(async (): Promise<OpsExclusionItem[]> => {
         try {
-            const cleanFilters = Object.fromEntries(
-                Object.entries(searchFilters).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-            );
+            // 对于数组类型的过滤器，如果为空数组则过滤掉
+            const cleanFilters: any = {};
+            Object.entries(searchFilters).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    if (value.length > 0) {
+                        // 将空字符串转换为"全部门店"，然后转换为逗号分隔的字符串传递给后端
+                        const processedValues = value.map(v => v === '' ? '全部门店' : v);
+                        cleanFilters[key] = processedValues.join(',');
+                    }
+                } else if (value !== undefined && value !== null && value !== '') {
+                    cleanFilters[key] = value;
+                }
+            });
             const res = await opsExclusionApi.list({
                 ...cleanFilters,
                 keyword: searchText || undefined,
@@ -656,19 +694,50 @@ export default function OpsExclusionPage() {
                 extra={
                     isMobile ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-                            <Input
+                            <Select
                                 placeholder="视图名称"
                                 style={{ width: '100%' }}
+                                mode="multiple"
                                 value={searchFilters.视图名称}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 视图名称: e.target.value })}
+                                onChange={(value) => setSearchFilters({ ...searchFilters, 视图名称: value })}
                                 allowClear
+                                options={VIEW_NAME_OPTIONS.map(opt => ({ label: opt, value: opt }))}
                             />
-                            <Input
+                            <Select
                                 placeholder="门店编码"
                                 style={{ width: '100%' }}
+                                mode="multiple"
                                 value={searchFilters.门店编码}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
+                                onChange={(value) => setSearchFilters({ ...searchFilters, 门店编码: value })}
                                 allowClear
+                                showSearch
+                                loading={loadingStoreList}
+                                filterOption={(input, option) => {
+                                    const label = option?.label as string || '';
+                                    return label.toLowerCase().includes(input.toLowerCase());
+                                }}
+                                options={[
+                                    { label: '全部门店', value: '' },
+                                    ...storeList.map(store => ({
+                                        label: `${store.storeId} ${store.storeName}`,
+                                        value: store.storeId,
+                                    })),
+                                ]}
+                                optionRender={(option) => {
+                                    if (option.value === '') {
+                                        return <span>{option.label}</span>;
+                                    }
+                                    const store = storeList.find(s => s.storeId === option.value);
+                                    if (store) {
+                                        return (
+                                            <span>
+                                                {store.storeId}{' '}
+                                                <span style={{ color: '#999' }}>{store.storeName}</span>
+                                            </span>
+                                        );
+                                    }
+                                    return <span>{option.label}</span>;
+                                }}
                             />
                             <Input
                                 placeholder="SKU编码"
@@ -746,19 +815,52 @@ export default function OpsExclusionPage() {
                         </div>
                     ) : (
                         <Space wrap>
-                            <Input
+                            <Select
                                 placeholder="视图名称"
-                                style={{ width: 150 }}
+                                style={{ width: 200 }}
+                                mode="multiple"
                                 value={searchFilters.视图名称}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 视图名称: e.target.value })}
+                                onChange={(value) => setSearchFilters({ ...searchFilters, 视图名称: value })}
                                 allowClear
+                                maxTagCount="responsive"
+                                options={VIEW_NAME_OPTIONS.map(opt => ({ label: opt, value: opt }))}
                             />
-                            <Input
+                            <Select
                                 placeholder="门店编码"
-                                style={{ width: 150 }}
+                                style={{ width: 200 }}
+                                mode="multiple"
                                 value={searchFilters.门店编码}
-                                onChange={(e) => setSearchFilters({ ...searchFilters, 门店编码: e.target.value })}
+                                onChange={(value) => setSearchFilters({ ...searchFilters, 门店编码: value })}
                                 allowClear
+                                showSearch
+                                loading={loadingStoreList}
+                                maxTagCount="responsive"
+                                filterOption={(input, option) => {
+                                    const label = option?.label as string || '';
+                                    return label.toLowerCase().includes(input.toLowerCase());
+                                }}
+                                options={[
+                                    { label: '全部门店', value: '' },
+                                    ...storeList.map(store => ({
+                                        label: `${store.storeId} ${store.storeName}`,
+                                        value: store.storeId,
+                                    })),
+                                ]}
+                                optionRender={(option) => {
+                                    if (option.value === '') {
+                                        return <span>{option.label}</span>;
+                                    }
+                                    const store = storeList.find(s => s.storeId === option.value);
+                                    if (store) {
+                                        return (
+                                            <span>
+                                                {store.storeId}{' '}
+                                                <span style={{ color: '#999' }}>{store.storeName}</span>
+                                            </span>
+                                        );
+                                    }
+                                    return <span>{option.label}</span>;
+                                }}
                             />
                             <Input
                                 placeholder="SKU编码"
@@ -873,8 +975,11 @@ export default function OpsExclusionPage() {
                 destroyOnClose
             >
                 <Form form={form} layout="vertical">
-                    <Form.Item name="视图名称" label="视图名称" rules={[{ required: true, message: "请输入视图名称" }]}>
-                        <Input maxLength={100} />
+                    <Form.Item name="视图名称" label="视图名称" rules={[{ required: true, message: "请选择视图名称" }]}>
+                        <Select
+                            placeholder="请选择视图名称"
+                            options={VIEW_NAME_OPTIONS.map(opt => ({ label: opt, value: opt }))}
+                        />
                     </Form.Item>
                     <Form.Item name="门店编码" label="门店编码">
                         <Select

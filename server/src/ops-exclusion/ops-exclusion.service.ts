@@ -74,15 +74,49 @@ export class OpsExclusionService {
         }
 
         // 按字段精确搜索（AND）
+        // 支持多选：如果值包含逗号，则分割并使用IN查询
         if (filters?.视图名称?.trim()) {
-            const like = buildLike(filters.视图名称);
-            clauses.push(`t.\`视图名称\` LIKE ?`);
-            params.push(like);
+            const values = filters.视图名称.split(',').map(v => v.trim()).filter(v => v);
+            if (values.length > 0) {
+                if (values.length === 1) {
+                    clauses.push(`t.\`视图名称\` = ?`);
+                    params.push(values[0]);
+                } else {
+                    const placeholders = values.map(() => '?').join(',');
+                    clauses.push(`t.\`视图名称\` IN (${placeholders})`);
+                    params.push(...values);
+                }
+            }
         }
         if (filters?.门店编码?.trim()) {
-            const like = buildLike(filters.门店编码);
-            clauses.push(`t.\`门店编码\` LIKE ?`);
-            params.push(like);
+            const values = filters.门店编码.split(',').map(v => v.trim());
+            // 保留空字符串，因为空字符串代表"全部门店"
+            const nonEmptyValues = values.filter(v => v);
+            if (values.length > 0) {
+                // 处理"全部门店"的特殊情况（空字符串或"全部门店"）
+                const hasAllStores = values.includes('') || values.includes('全部门店');
+                const storeIds = nonEmptyValues.filter(v => v !== '全部门店');
+                
+                if (hasAllStores && storeIds.length === 0) {
+                    // 只选择了"全部门店"，只查询门店编码='全部门店'的数据
+                    clauses.push(`t.\`门店编码\` = '全部门店'`);
+                } else if (hasAllStores && storeIds.length > 0) {
+                    // 同时选择了"全部门店"和其他门店
+                    const placeholders = storeIds.map(() => '?').join(',');
+                    clauses.push(`(t.\`门店编码\` = '全部门店' OR t.\`门店编码\` IN (${placeholders}))`);
+                    params.push(...storeIds);
+                } else {
+                    // 只选择了具体门店
+                    if (storeIds.length === 1) {
+                        clauses.push(`t.\`门店编码\` = ?`);
+                        params.push(storeIds[0]);
+                    } else {
+                        const placeholders = storeIds.map(() => '?').join(',');
+                        clauses.push(`t.\`门店编码\` IN (${placeholders})`);
+                        params.push(...storeIds);
+                    }
+                }
+            }
         }
         if (filters?.SKU编码?.trim()) {
             const like = buildLike(filters.SKU编码);
@@ -97,10 +131,9 @@ export class OpsExclusionService {
 
         // 构建 WHERE 条件（主查询使用表别名，count查询去掉表别名）
         const whereCondition = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-        // countSql需要去掉表别名t.
-        const countWhereCondition = clauses.length > 0
-            ? `WHERE ${clauses.join(' AND ').replace(/t\.`/g, '`')}`
-            : '';
+        // countSql需要去掉表别名t.，但要保留参数
+        const countClauses = clauses.map(clause => clause.replace(/t\.`/g, '`'));
+        const countWhereCondition = countClauses.length > 0 ? `WHERE ${countClauses.join(' AND ')}` : '';
 
         // 构建 SQL
         const countSql = `SELECT COUNT(*) as total 

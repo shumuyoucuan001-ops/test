@@ -1383,6 +1383,10 @@ export const supplierQuotationApi = {
     limit?: number;
     search?: string;
     supplierCodes?: string[];
+    supplierName?: string;
+    supplierCode?: string;
+    productName?: string;
+    upcCode?: string;
   }): Promise<{ data: SupplierQuotation[]; total: number }> => {
     // 处理supplierCodes数组参数，转换为逗号分隔的字符串
     const processedParams: any = { ...params };

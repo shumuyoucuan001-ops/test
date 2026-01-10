@@ -37,6 +37,7 @@ export default function SupplierQuotationPage() {
   const [supplierNameSearch, setSupplierNameSearch] = useState(''); // 供应商名称搜索
   const [supplierCodeSearch, setSupplierCodeSearch] = useState(''); // 供应商编码搜索
   const [productNameSearch, setProductNameSearch] = useState(''); // 商品名称搜索
+  const [upcCodeSearch, setUpcCodeSearch] = useState(''); // 最小销售规格UPC商品条码搜索
 
   const [selectedSupplierCodes, setSelectedSupplierCodes] = useState<string[]>([]); // 选中的供应商编码列表
   const [allSupplierCodes, setAllSupplierCodes] = useState<string[]>([]); // 所有供应商编码列表
@@ -121,134 +122,130 @@ export default function SupplierQuotationPage() {
   // 右栏默认显示的字段（仓店/城市类型）：SKU, 最近采购价, 对比结果（SKU商品标签、城市、门店/仓库名称默认隐藏）
   const defaultRightVisibleColumnsStoreCity = ['SKU', '最近采购价', '对比结果'];
 
-  // 初始化左栏列设置
+  // 初始化左栏列设置（参考Refund1688FollowUpPage的实现方式）
   useEffect(() => {
     const savedHidden = localStorage.getItem('supplier-quotation-left-hidden-columns');
-    const savedOrder = localStorage.getItem('supplier-quotation-left-column-order');
-
     if (savedHidden) {
       try {
-        const hidden = JSON.parse(savedHidden);
-        setLeftHiddenColumns(new Set(hidden));
-      } catch (e) {
-        console.error('Failed to parse hidden columns:', e);
-        // 如果解析失败，使用默认设置
-        const allColumns = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
-        const hidden = allColumns.filter(key => !defaultVisibleColumns.includes(key));
-        setLeftHiddenColumns(new Set(hidden));
+        const parsed = JSON.parse(savedHidden);
+        setLeftHiddenColumns(new Set(parsed));
+      } catch (error) {
+        console.error('加载列显示偏好失败:', error);
       }
-    } else {
-      // 默认隐藏非默认显示的字段
-      const allColumns = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
-      const hidden = allColumns.filter(key => !defaultVisibleColumns.includes(key));
-      setLeftHiddenColumns(new Set(hidden));
     }
 
+    const savedOrder = localStorage.getItem('supplier-quotation-left-column-order');
     if (savedOrder) {
       try {
-        const order = JSON.parse(savedOrder);
-        // 验证保存的列顺序是否包含所有列
-        const allColumnKeys = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
-        const validOrder = order.filter((key: string) => allColumnKeys.includes(key));
-        // 添加缺失的列到末尾
-        const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
-        setLeftColumnOrder([...validOrder, ...missingKeys]);
-      } catch (e) {
-        console.error('Failed to parse column order:', e);
-        // 如果解析失败，使用默认顺序
-        const allColumns = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
-        setLeftColumnOrder(allColumns);
+        const parsed = JSON.parse(savedOrder);
+        setLeftColumnOrder(parsed);
+      } catch (error) {
+        console.error('加载列顺序失败:', error);
       }
-    } else {
-      // 如果没有保存的列顺序，使用默认顺序（按照 defaultVisibleColumns 的顺序，然后添加其他列）
-      const allColumns = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
-      // 先添加默认显示的列（按顺序）
-      const defaultOrder = defaultVisibleColumns.filter(key => allColumns.includes(key));
-      // 然后添加其他列
-      const otherColumns = allColumns.filter(key => !defaultVisibleColumns.includes(key));
-      setLeftColumnOrder([...defaultOrder, ...otherColumns]);
     }
   }, []);
 
-  // 初始化右栏列设置（只在组件首次加载时执行，不依赖 inventoryType）
+  // 如果列顺序为空，初始化默认顺序（仅在首次加载时）
+  useEffect(() => {
+    if (leftColumnOrder.length === 0) {
+      const savedOrder = localStorage.getItem('supplier-quotation-left-column-order');
+      if (!savedOrder) {
+        // 首次加载，保存默认顺序
+        const allColumns = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
+        // 先添加默认显示的列（按顺序）
+        const defaultOrder = defaultVisibleColumns.filter(key => allColumns.includes(key));
+        // 然后添加其他列
+        const otherColumns = allColumns.filter(key => !defaultVisibleColumns.includes(key));
+        const order = [...defaultOrder, ...otherColumns];
+        setLeftColumnOrder(order);
+        localStorage.setItem('supplier-quotation-left-column-order', JSON.stringify(order));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 初始化右栏列设置（参考Refund1688FollowUpPage的实现方式）
   useEffect(() => {
     const savedHidden = localStorage.getItem('supplier-quotation-right-hidden-columns');
-    const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
-
     if (savedHidden) {
       try {
-        const hidden = JSON.parse(savedHidden);
-        setRightHiddenColumns(new Set(hidden));
-      } catch (e) {
-        console.error('Failed to parse hidden columns:', e);
-        // 如果解析失败，使用默认设置
+        const parsed = JSON.parse(savedHidden);
+        setRightHiddenColumns(new Set(parsed));
+      } catch (error) {
+        console.error('加载列显示偏好失败:', error);
+      }
+    }
+
+    const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
+    if (savedOrder) {
+      try {
+        const parsed = JSON.parse(savedOrder);
+        setRightColumnOrder(parsed);
+      } catch (error) {
+        console.error('加载列顺序失败:', error);
+      }
+    }
+  }, []);
+
+  // 如果列顺序为空，初始化默认顺序（仅在首次加载时）
+  useEffect(() => {
+    if (rightColumnOrder.length === 0) {
+      const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
+      if (!savedOrder) {
+        // 首次加载，保存默认顺序
         const allColumns = getRightColumns().map(col => col.key as string).filter(Boolean);
         const defaultVisible = inventoryType === '全部'
           ? defaultRightVisibleColumns
           : defaultRightVisibleColumnsStoreCity;
-        const hidden = allColumns.filter(key => !defaultVisible.includes(key));
-        setRightHiddenColumns(new Set(hidden));
+        // 先添加默认显示的列（按顺序）
+        const defaultOrder = defaultVisible.filter(key => allColumns.includes(key));
+        // 然后添加其他列（排除对比结果列）
+        const otherColumns = allColumns.filter(key => !defaultVisible.includes(key) && key !== '对比结果');
+        // 最后添加对比结果列
+        const order = [...defaultOrder, ...otherColumns, '对比结果'];
+        setRightColumnOrder(order);
+        localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify(order));
       }
-    } else {
-      // 默认隐藏非默认显示的字段
-      const allColumns = getRightColumns().map(col => col.key as string).filter(Boolean);
-      const defaultVisible = inventoryType === '全部'
-        ? defaultRightVisibleColumns
-        : defaultRightVisibleColumnsStoreCity;
-      const hidden = allColumns.filter(key => !defaultVisible.includes(key));
-      setRightHiddenColumns(new Set(hidden));
-    }
-
-    if (savedOrder) {
-      try {
-        const order = JSON.parse(savedOrder);
-        // 验证保存的列顺序是否包含所有列
-        const allColumnKeys = getRightColumns().map(col => col.key as string).filter(Boolean);
-        const validOrder = order.filter((key: string) => allColumnKeys.includes(key));
-        // 添加缺失的列到末尾
-        const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
-        setRightColumnOrder([...validOrder, ...missingKeys]);
-      } catch (e) {
-        console.error('Failed to parse column order:', e);
-        // 如果解析失败，使用默认顺序
-        const allColumns = getRightColumns().map(col => col.key as string).filter(Boolean);
-        setRightColumnOrder(allColumns);
-      }
-    } else {
-      // 如果没有保存的列顺序，使用默认顺序（按照默认可见列的顺序，然后添加其他列）
-      const allColumns = getRightColumns().map(col => col.key as string).filter(Boolean);
-      const defaultVisible = inventoryType === '全部'
-        ? defaultRightVisibleColumns
-        : defaultRightVisibleColumnsStoreCity;
-      // 先添加默认显示的列（按顺序）
-      const defaultOrder = defaultVisible.filter(key => allColumns.includes(key));
-      // 然后添加其他列（排除对比结果列）
-      const otherColumns = allColumns.filter(key => !defaultVisible.includes(key) && key !== '对比结果');
-      // 最后添加对比结果列
-      setRightColumnOrder([...defaultOrder, ...otherColumns, '对比结果']);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 只在组件首次加载时执行，不依赖 inventoryType
+  }, []);
 
-  // 当 inventoryType 改变时，同步列顺序（移除不存在的列，添加新出现的列）
+  // 当 inventoryType 改变时，只过滤掉不存在的列，不自动保存（参考Refund1688FollowUpPage的实现方式）
   useEffect(() => {
-    // 只有在已经有保存的列顺序时才需要同步
+    // 只有在已经有保存的列顺序时才需要过滤
     if (rightColumnOrder.length > 0) {
       const allColumnKeys = getRightColumns().map(col => col.key as string).filter(Boolean);
-      // 过滤掉不存在的列，保留存在的列的顺序
+      // 过滤掉不存在的列，保留存在的列的顺序（完全保持用户保存的顺序）
       const validOrder = rightColumnOrder.filter(key => allColumnKeys.includes(key));
       // 添加新出现的列到末尾（排除对比结果列）
       const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key) && key !== '对比结果');
-      // 确保对比结果列在最后
-      const finalOrder = [...validOrder.filter(key => key !== '对比结果'), ...missingKeys, '对比结果'];
+      // 确保对比结果列在最后（如果用户保存的顺序中已经有对比结果列，保持其位置）
+      let finalOrder: string[];
+      if (validOrder.includes('对比结果')) {
+        // 如果用户保存的顺序中已经有对比结果列，保持其位置，只添加缺失的列
+        finalOrder = [...validOrder, ...missingKeys];
+      } else {
+        // 如果用户保存的顺序中没有对比结果列，添加到末尾
+        finalOrder = [...validOrder, ...missingKeys, '对比结果'];
+      }
+      // 只有在顺序确实有变化时才更新（避免不必要的更新）
       if (finalOrder.join(',') !== rightColumnOrder.join(',')) {
         setRightColumnOrder(finalOrder);
-        // 保存更新后的列顺序
-        localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify(finalOrder));
+        // 不自动保存，只有在用户手动修改时才保存
+      }
+    }
+
+    // 同步隐藏列设置：移除不存在的列，保留用户的隐藏设置
+    if (rightHiddenColumns.size > 0) {
+      const allColumnKeys = getRightColumns().map(col => col.key as string).filter(Boolean);
+      const validHidden = Array.from(rightHiddenColumns).filter(key => allColumnKeys.includes(key));
+      if (validHidden.length !== rightHiddenColumns.size) {
+        setRightHiddenColumns(new Set(validHidden));
+        // 不自动保存，只有在用户手动修改时才保存
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryType]); // 当 inventoryType 改变时，同步列顺序
+  }, [inventoryType]); // 当 inventoryType 改变时，只过滤不存在的列，不自动保存
 
   // 保存左栏列设置
   const saveLeftColumnSettings = () => {
@@ -650,15 +647,53 @@ export default function SupplierQuotationPage() {
   // 获取过滤后的左栏列
   const getFilteredLeftColumns = (): ColumnType<SupplierQuotation>[] => {
     const allColumns = getAllLeftColumns();
-    const currentOrder = leftColumnOrder.length > 0 ? leftColumnOrder : allColumns.map(col => col.key as string).filter(Boolean);
+
+    // 如果状态为空，尝试从 localStorage 读取（参考Refund1688FollowUpPage的实现方式）
+    let currentOrder: string[];
+    if (leftColumnOrder.length > 0) {
+      currentOrder = leftColumnOrder;
+    } else {
+      // 尝试从 localStorage 读取
+      const savedOrder = localStorage.getItem('supplier-quotation-left-column-order');
+      if (savedOrder) {
+        try {
+          const parsed = JSON.parse(savedOrder);
+          currentOrder = parsed;
+        } catch (error) {
+          // 如果解析失败，使用默认顺序
+          currentOrder = allColumns.map(col => col.key as string).filter(Boolean);
+        }
+      } else {
+        // 如果没有保存的顺序，使用默认顺序
+        currentOrder = allColumns.map(col => col.key as string).filter(Boolean);
+      }
+    }
 
     // 按顺序排列
     const orderedColumns = currentOrder
       .map(key => allColumns.find(col => col.key === key))
       .filter((col): col is ColumnType<SupplierQuotation> => col !== undefined);
 
+    // 获取隐藏列（如果状态为空，尝试从 localStorage 读取）
+    let hiddenSet: Set<string>;
+    if (leftHiddenColumns.size > 0) {
+      hiddenSet = leftHiddenColumns;
+    } else {
+      const savedHidden = localStorage.getItem('supplier-quotation-left-hidden-columns');
+      if (savedHidden) {
+        try {
+          const parsed = JSON.parse(savedHidden);
+          hiddenSet = new Set(parsed);
+        } catch (error) {
+          hiddenSet = new Set();
+        }
+      } else {
+        hiddenSet = new Set();
+      }
+    }
+
     // 过滤隐藏的列
-    return orderedColumns.filter(col => !leftHiddenColumns.has(col.key as string));
+    return orderedColumns.filter(col => !hiddenSet.has(col.key as string));
   };
 
   // 获取过滤后的右栏列
@@ -669,8 +704,26 @@ export default function SupplierQuotationPage() {
     const supplierNameKeys = ['供应商名称', '供应商名称(最低价)', '供应商名称(最近时间)'];
     const selectedSupplierNameKeys = supplierNameKeys.filter(key => supplierNameFields.includes(key));
 
-    // 构建列顺序：先使用保存的顺序，然后添加新选择的供应商名称列（如果不在顺序中）
-    let currentOrder = rightColumnOrder.length > 0 ? [...rightColumnOrder] : allColumns.map(col => col.key as string).filter(Boolean);
+    // 如果状态为空，尝试从 localStorage 读取（参考Refund1688FollowUpPage的实现方式）
+    let currentOrder: string[];
+    if (rightColumnOrder.length > 0) {
+      currentOrder = [...rightColumnOrder];
+    } else {
+      // 尝试从 localStorage 读取
+      const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
+      if (savedOrder) {
+        try {
+          const parsed = JSON.parse(savedOrder);
+          currentOrder = parsed;
+        } catch (error) {
+          // 如果解析失败，使用默认顺序
+          currentOrder = allColumns.map(col => col.key as string).filter(Boolean);
+        }
+      } else {
+        // 如果没有保存的顺序，使用默认顺序
+        currentOrder = allColumns.map(col => col.key as string).filter(Boolean);
+      }
+    }
     const allColumnKeys = allColumns.map(col => col.key as string).filter(Boolean);
 
     // 确保所有选择的供应商名称列都在顺序中
@@ -697,6 +750,24 @@ export default function SupplierQuotationPage() {
       .map(key => allColumns.find(col => col.key === key))
       .filter((col): col is ColumnType<InventorySummary> => col !== undefined);
 
+    // 获取隐藏列（如果状态为空，尝试从 localStorage 读取）
+    let hiddenSet: Set<string>;
+    if (rightHiddenColumns.size > 0) {
+      hiddenSet = rightHiddenColumns;
+    } else {
+      const savedHidden = localStorage.getItem('supplier-quotation-right-hidden-columns');
+      if (savedHidden) {
+        try {
+          const parsed = JSON.parse(savedHidden);
+          hiddenSet = new Set(parsed);
+        } catch (error) {
+          hiddenSet = new Set();
+        }
+      } else {
+        hiddenSet = new Set();
+      }
+    }
+
     // 过滤隐藏的列，但供应商名称相关列不能隐藏（如果已选择）
     orderedColumns = orderedColumns.filter(col => {
       const key = col.key as string;
@@ -705,7 +776,7 @@ export default function SupplierQuotationPage() {
         return true;
       }
       // 其他列按隐藏列表过滤
-      return !rightHiddenColumns.has(key);
+      return !hiddenSet.has(key);
     });
 
     // 确保对比结果列始终在最后（如果存在）
@@ -1144,17 +1215,14 @@ export default function SupplierQuotationPage() {
     }
   };
 
-  // 构建搜索文本（合并多个搜索条件）
-  const buildSearchText = () => {
-    const parts: string[] = [];
-    if (supplierNameSearch.trim()) parts.push(`供应商名称:${supplierNameSearch.trim()}`);
-    if (supplierCodeSearch.trim()) parts.push(`供应商编码:${supplierCodeSearch.trim()}`);
-    if (productNameSearch.trim()) parts.push(`商品名称:${productNameSearch.trim()}`);
-    // 兼容旧的leftSearchText
-    if (leftSearchText.trim() && parts.length === 0) {
-      return leftSearchText.trim();
-    }
-    return parts.length > 0 ? parts.join(' ') : undefined;
+  // 构建搜索参数（不再合并为单个字符串，而是分别传递）
+  const buildSearchParams = () => {
+    return {
+      supplierName: supplierNameSearch.trim() || undefined,
+      supplierCode: supplierCodeSearch.trim() || undefined,
+      productName: productNameSearch.trim() || undefined,
+      upcCode: upcCodeSearch.trim() || undefined,
+    };
   };
 
   // 加载所有供应商报价数据（不分页，用于筛选）
@@ -1170,10 +1238,11 @@ export default function SupplierQuotationPage() {
 
     try {
       // 获取所有数据，使用一个很大的 limit 值
+      const searchParams = buildSearchParams();
       const result = await supplierQuotationApi.getAll({
         page: 1,
         limit: 10000, // 设置一个足够大的值以获取所有数据
-        search: buildSearchText(),
+        ...searchParams,
         supplierCodes: codesToUse,
       });
 
@@ -1266,10 +1335,11 @@ export default function SupplierQuotationPage() {
 
       setLeftLoading(true);
 
+      const searchParams = buildSearchParams();
       const result = await supplierQuotationApi.getAll({
         page: pageToUse,
         limit: pageSizeToUse,
-        search: buildSearchText(),
+        ...searchParams,
         supplierCodes: codesToUse,
       });
 
@@ -1290,7 +1360,7 @@ export default function SupplierQuotationPage() {
           total: (result.data || []).length,
           requestParams: {
             supplierCodes: codesToUse,
-            search: buildSearchText(),
+            ...buildSearchParams(),
           }
         });
         if (unexpectedCodes.length > 0) {
@@ -2031,11 +2101,12 @@ export default function SupplierQuotationPage() {
     }
   };
 
-  // 重置供应商报价搜索条件（只清空3个搜索框和供应商编码筛选框）
+  // 重置供应商报价搜索条件（清空所有搜索框和供应商编码筛选框）
   const handleResetSearch = () => {
     setSupplierNameSearch('');
     setSupplierCodeSearch('');
     setProductNameSearch('');
+    setUpcCodeSearch('');
     setLeftSearchText('');
     setSelectedSupplierCodes([]);
     setLeftCurrentPage(1);
@@ -2510,21 +2581,8 @@ export default function SupplierQuotationPage() {
   // 当右侧分页或数据变化时，重新应用分页（不重新加载数据，只重新切片）
   // 注意：供应商名称查询逻辑已移到下面的 useEffect 中，避免重复查询
 
-  // 当库存汇总SKU搜索条件变化时，重新过滤数据
-  // 注意：这里只重新过滤已有数据，不重新加载，因为 loadRightData 内部已经有 SKU 搜索过滤逻辑
-  useEffect(() => {
-    // 如果正在加载中，不处理（避免与 loadRightData 冲突）
-    if (rightLoading) {
-      return;
-    }
-
-    // 如果有数据或搜索条件，重新调用 loadRightData 进行过滤
-    // 使用当前的数据和状态
-    if (selectedSupplierCodes.length > 0 && leftData.length > 0) {
-      loadRightData(leftData, selectedSupplierCodes);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventorySkuSearch]);
+  // 移除自动搜索：当库存汇总SKU搜索条件变化时，不再自动重新过滤数据
+  // 用户需要点击搜索按钮才会触发搜索
 
   // 当右侧分页或数据变化时，重新应用分页（不重新加载数据，只重新切片）
   useEffect(() => {
@@ -2553,8 +2611,13 @@ export default function SupplierQuotationPage() {
   // 当筛选条件变化时，加载所有数据并重置分页
   useEffect(() => {
     if (comparisonResultFilter.length > 0) {
+      // 加载所有数据用于筛选（包含当前搜索条件）
       loadAllLeftData();
       setLeftCurrentPage(1); // 重置到第一页
+      // 同时需要重新加载库存汇总数据，确保筛选基于所有数据
+      if (selectedSupplierCodes.length > 0 && leftData.length > 0) {
+        loadRightData(leftData, selectedSupplierCodes, storeNameFilter, cityFilter);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comparisonResultFilter]);
@@ -3129,46 +3192,36 @@ export default function SupplierQuotationPage() {
                     filterOption={false}
                     notFoundContent={supplierCodeSearchValue ? '未找到匹配的供应商编码' : '请输入供应商编码进行筛选'}
                   />
-                  <Search
+                  <Input
                     placeholder="搜索供应商名称"
                     value={supplierNameSearch}
                     onChange={(e) => setSupplierNameSearch(e.target.value)}
-                    onSearch={() => {
-                      setLeftCurrentPage(1);
-                      setRightCurrentPage(1);
-                      loadLeftData(undefined, undefined, undefined, 1, leftPageSize);
-                    }}
                     allowClear
-                    enterButton={<SearchOutlined />}
                     style={{ width: 150 }}
                     size="small"
                   />
-                  <Search
+                  <Input
                     placeholder="搜索供应商编码"
                     value={supplierCodeSearch}
                     onChange={(e) => setSupplierCodeSearch(e.target.value)}
-                    onSearch={() => {
-                      setLeftCurrentPage(1);
-                      setRightCurrentPage(1);
-                      loadLeftData(undefined, undefined, undefined, 1, leftPageSize);
-                    }}
                     allowClear
-                    enterButton={<SearchOutlined />}
                     style={{ width: 150 }}
                     size="small"
                   />
-                  <Search
+                  <Input
                     placeholder="搜索商品名称"
                     value={productNameSearch}
                     onChange={(e) => setProductNameSearch(e.target.value)}
-                    onSearch={() => {
-                      setLeftCurrentPage(1);
-                      setRightCurrentPage(1);
-                      loadLeftData(undefined, undefined, undefined, 1, leftPageSize);
-                    }}
                     allowClear
-                    enterButton={<SearchOutlined />}
                     style={{ width: 150 }}
+                    size="small"
+                  />
+                  <Input
+                    placeholder="搜索最小销售规格UPC商品条码"
+                    value={upcCodeSearch}
+                    onChange={(e) => setUpcCodeSearch(e.target.value)}
+                    allowClear
+                    style={{ width: 200 }}
                     size="small"
                   />
                   <Button
@@ -3222,15 +3275,11 @@ export default function SupplierQuotationPage() {
               <div>
                 <div style={{ marginBottom: 4, fontWeight: 500, color: '#52c41a', fontSize: '13px' }}>库存汇总</div>
                 <Space wrap size="small">
-                  <Search
+                  <Input
                     placeholder="搜索SKU"
                     value={inventorySkuSearch}
                     onChange={(e) => setInventorySkuSearch(e.target.value)}
-                    onSearch={() => {
-                      loadRightData();
-                    }}
                     allowClear
-                    enterButton={<SearchOutlined />}
                     style={{ width: 150 }}
                     size="small"
                   />
@@ -3238,7 +3287,11 @@ export default function SupplierQuotationPage() {
                     mode="multiple"
                     placeholder="筛选对比结果"
                     value={comparisonResultFilter}
-                    onChange={setComparisonResultFilter}
+                    onChange={(values) => {
+                      setComparisonResultFilter(values);
+                      // 筛选时重置到第一页
+                      setLeftCurrentPage(1);
+                    }}
                     style={{ minWidth: 150 }}
                     maxTagCount="responsive"
                     allowClear
@@ -3252,6 +3305,24 @@ export default function SupplierQuotationPage() {
                       value: opt.value,
                     }))}
                   />
+                  <Button
+                    type="primary"
+                    icon={<SearchOutlined />}
+                    onClick={() => {
+                      if (selectedSupplierCodes.length === 0) {
+                        message.warning('请至少选择一个供应商编码');
+                        return;
+                      }
+                      // 如果有SKU搜索，重新加载库存汇总数据
+                      if (inventorySkuSearch.trim()) {
+                        loadRightData();
+                      }
+                    }}
+                    disabled={selectedSupplierCodes.length === 0}
+                    size="small"
+                  >
+                    搜索
+                  </Button>
                   {inventoryType === '仓店' && (
                     <Select
                       placeholder="选择供应商名称字段"

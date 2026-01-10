@@ -122,6 +122,10 @@ export class SupplierQuotationService {
     limit: number = 20,
     search?: string,
     supplierCodes?: string[],
+    supplierName?: string,
+    supplierCode?: string,
+    productName?: string,
+    upcCode?: string,
   ): Promise<{ data: SupplierQuotation[]; total: number }> {
     const connection = await this.getConnection();
 
@@ -139,22 +143,43 @@ export class SupplierQuotationService {
         queryParams.push(...supplierCodes);
       }
 
-      if (search) {
+      // 兼容旧的search参数（如果提供了新的单独参数，则忽略search）
+      if (search && !supplierName && !supplierCode && !productName && !upcCode) {
         whereClause += ' AND (q.供应商编码 LIKE ? OR q.商品名称 LIKE ? OR q.商品规格 LIKE ? OR q.供应商商品编码 LIKE ?)';
         queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      } else {
+        // 使用新的单独搜索参数
+        if (supplierName && supplierName.trim()) {
+          whereClause += ' AND s.供应商名称 LIKE ?';
+          queryParams.push(`%${supplierName.trim()}%`);
+        }
+        if (supplierCode && supplierCode.trim()) {
+          whereClause += ' AND q.供应商编码 LIKE ?';
+          queryParams.push(`%${supplierCode.trim()}%`);
+        }
+        if (productName && productName.trim()) {
+          whereClause += ' AND q.商品名称 LIKE ?';
+          queryParams.push(`%${productName.trim()}%`);
+        }
+        if (upcCode && upcCode.trim()) {
+          whereClause += ' AND q.最小销售规格UPC商品条码 LIKE ?';
+          queryParams.push(`%${upcCode.trim()}%`);
+        }
       }
 
-      // 获取总数
+      // 获取总数（如果需要搜索供应商名称，必须JOIN供应商属性信息表）
+      const needJoinSupplierInfo = (supplierName && supplierName.trim()) || (supplierCodes && supplierCodes.length > 0);
       const totalQuery = `
         SELECT COUNT(*) as count 
         FROM \`供应商报价\` q
-        ${supplierCodes && supplierCodes.length > 0 ? 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`' : ''}
+        ${needJoinSupplierInfo ? 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`' : ''}
         WHERE ${whereClause}
       `;
       const [totalResult]: any = await connection.execute(totalQuery, queryParams);
       const total = totalResult[0].count;
 
       // 获取数据，JOIN供应商属性信息表获取供应商名称，JOIN供应商编码手动绑定sku表获取计算后供货价格
+      // 如果需要搜索供应商名称，必须JOIN供应商属性信息表
       const dataQuery = `
         SELECT 
           q.序号,
@@ -172,7 +197,7 @@ export class SupplierQuotationService {
           q.供应商商品备注,
           q.数据更新时间
         FROM \`供应商报价\` q
-        LEFT JOIN \`供应商属性信息\` s ON q.\`供应商编码\` = s.\`供应商编码\`
+        ${needJoinSupplierInfo ? 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`' : 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`'}
         LEFT JOIN \`供应商编码手动绑定sku\` b ON q.\`供应商编码\` = b.\`供应商编码\` AND q.\`供应商商品编码\` = b.\`供应商商品编码\`
         WHERE ${whereClause}
         ORDER BY q.\`供应商编码\` ASC, q.序号 ASC
