@@ -2372,7 +2372,7 @@ export default function SupplierQuotationPage() {
 
     // 注意：库存汇总数据已经基于所有供应商报价数据自动显示，不需要重新加载
     // 只需要加载下栏数据（包含采购下单渠道）
-    loadBottomData();
+    loadBottomData(record);
   };
 
   // 右栏筛选变化
