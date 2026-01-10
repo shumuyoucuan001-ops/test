@@ -35,10 +35,12 @@ export class SupplierController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '20',
     @Query('search') search?: string,
+    @Query('contactPerson') contactPerson?: string,
+    @Query('officeAddress') officeAddress?: string,
   ): Promise<{ data: SupplierFullInfo[]; total: number }> {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    return this.supplierService.getAllSuppliers(pageNum, limitNum, search);
+    return this.supplierService.getAllSuppliers(pageNum, limitNum, search, contactPerson, officeAddress);
   }
 
   // 获取单个供应商信息

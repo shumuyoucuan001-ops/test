@@ -110,6 +110,8 @@ export class SupplierService {
     page: number = 1,
     limit: number = 20,
     search?: string,
+    contactPerson?: string,
+    officeAddress?: string,
   ): Promise<{ data: SupplierFullInfo[]; total: number }> {
     const connection = await this.getConnection();
 
@@ -123,6 +125,16 @@ export class SupplierService {
       if (search) {
         whereClause += ' AND (sb.供应商编码 LIKE ? OR sb.供应商名称 LIKE ?)';
         queryParams.push(`%${search}%`, `%${search}%`);
+      }
+
+      if (contactPerson) {
+        whereClause += ' AND sb.联系人 LIKE ?';
+        queryParams.push(`%${contactPerson}%`);
+      }
+
+      if (officeAddress) {
+        whereClause += ' AND sb.办公地址 LIKE ?';
+        queryParams.push(`%${officeAddress}%`);
       }
 
       // 获取总数

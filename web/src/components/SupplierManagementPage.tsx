@@ -68,13 +68,25 @@ interface Statistics {
 
 // API函数
 const supplierApi = {
-  async getAllSuppliers(page: number = 1, limit: number = 20, search?: string): Promise<{ data: SupplierFullInfo[]; total: number }> {
+  async getAllSuppliers(
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    contactPerson?: string,
+    officeAddress?: string
+  ): Promise<{ data: SupplierFullInfo[]; total: number }> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     if (search) {
       params.append('search', search);
+    }
+    if (contactPerson) {
+      params.append('contactPerson', contactPerson);
+    }
+    if (officeAddress) {
+      params.append('officeAddress', officeAddress);
     }
 
     const response = await fetch(`/api/suppliers?${params}`);
@@ -161,6 +173,8 @@ export default function SupplierManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
+  const [contactPersonSearch, setContactPersonSearch] = useState('');
+  const [officeAddressSearch, setOfficeAddressSearch] = useState('');
   const [statistics, setStatistics] = useState<Statistics | null>(null);
 
   // 模态框状态
@@ -183,10 +197,15 @@ export default function SupplierManagementPage() {
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
 
   // 加载供应商列表
-  const loadSuppliers = async (page: number = currentPage, search?: string) => {
+  const loadSuppliers = async (
+    page: number = currentPage,
+    search?: string,
+    contactPerson?: string,
+    officeAddress?: string
+  ) => {
     try {
       setLoading(true);
-      const result = await supplierApi.getAllSuppliers(page, pageSize, search);
+      const result = await supplierApi.getAllSuppliers(page, pageSize, search, contactPerson, officeAddress);
       setSuppliers(result.data);
       setTotal(result.total);
     } catch (error) {
@@ -274,18 +293,18 @@ export default function SupplierManagementPage() {
   };
 
   // 搜索处理
-  const handleSearch = (value?: string) => {
-    const searchValue = value !== undefined ? value : searchText;
-    setSearchText(searchValue);
+  const handleSearch = () => {
     setCurrentPage(1);
-    loadSuppliers(1, searchValue);
+    loadSuppliers(1, searchText, contactPersonSearch, officeAddressSearch);
   };
 
   // 重置处理
   const handleReset = () => {
     setSearchText('');
+    setContactPersonSearch('');
+    setOfficeAddressSearch('');
     setCurrentPage(1);
-    loadSuppliers(1, '');
+    loadSuppliers(1, '', '', '');
   };
 
   // 打开编辑模态框
@@ -326,7 +345,7 @@ export default function SupplierManagementPage() {
 
       message.success('保存成功');
       setModalVisible(false);
-      loadSuppliers();
+      loadSuppliers(currentPage, searchText, contactPersonSearch, officeAddressSearch);
     } catch (error) {
       message.error('保存失败');
       console.error(error);
@@ -338,7 +357,7 @@ export default function SupplierManagementPage() {
     try {
       await supplierApi.deleteSupplierManagement(supplierCode);
       message.success('清空管理信息成功');
-      loadSuppliers();
+      loadSuppliers(currentPage, searchText, contactPersonSearch, officeAddressSearch);
     } catch (error) {
       message.error('清空管理信息失败');
       console.error(error);
@@ -359,7 +378,8 @@ export default function SupplierManagementPage() {
       message.success('创建供应商成功');
       setCreateModalVisible(false);
       createForm.resetFields();
-      loadSuppliers();
+      setCurrentPage(1);
+      loadSuppliers(1, searchText, contactPersonSearch, officeAddressSearch);
     } catch (error: any) {
       message.error(error.message || '创建供应商失败');
       console.error(error);
@@ -543,13 +563,29 @@ export default function SupplierManagementPage() {
           </Space>
         }
         extra={
-          <Space>
+          <Space wrap>
             <Input
               placeholder="搜索供应商名称或编码"
               allowClear
-              style={{ width: 250 }}
+              style={{ width: 200 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
+              onPressEnter={() => handleSearch()}
+            />
+            <Input
+              placeholder="搜索联系人"
+              allowClear
+              style={{ width: 150 }}
+              value={contactPersonSearch}
+              onChange={(e) => setContactPersonSearch(e.target.value)}
+              onPressEnter={() => handleSearch()}
+            />
+            <Input
+              placeholder="搜索办公地址"
+              allowClear
+              style={{ width: 200 }}
+              value={officeAddressSearch}
+              onChange={(e) => setOfficeAddressSearch(e.target.value)}
               onPressEnter={() => handleSearch()}
             />
             <Button
@@ -558,6 +594,13 @@ export default function SupplierManagementPage() {
               onClick={() => handleSearch()}
             >
               搜索
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleCreate}
+            >
+              新增供应商
             </Button>
             <Popover
               content={
@@ -578,13 +621,6 @@ export default function SupplierManagementPage() {
             >
               <Button icon={<SettingOutlined />}>列设置</Button>
             </Popover>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleCreate}
-            >
-              新增供应商
-            </Button>
             <Button
               icon={<ReloadOutlined />}
               onClick={handleReset}
@@ -612,7 +648,7 @@ export default function SupplierManagementPage() {
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size || 20);
-              loadSuppliers(page, searchText);
+              loadSuppliers(page, searchText, contactPersonSearch, officeAddressSearch);
             },
           }}
         />
