@@ -1487,6 +1487,10 @@ export const supplierQuotationApi = {
     upcToSkuMap?: Record<string, string[]>;
   }): Promise<Record<string, boolean>> =>
     api.post('/supplier-quotation/sku-binding-flags', data).then(res => res.data),
+
+  // 根据供应商编码获取采购下单渠道
+  getSupplierOrderChannel: (supplierCode: string): Promise<string | null> =>
+    api.get(`/supplier-quotation/order-channel/${encodeURIComponent(supplierCode)}`).then(res => res.data),
 };
 
 export default api;

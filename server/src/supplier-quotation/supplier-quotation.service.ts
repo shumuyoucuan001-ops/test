@@ -1253,5 +1253,32 @@ export class SupplierQuotationService {
       await connection.end();
     }
   }
+
+  // 根据供应商编码获取采购下单渠道
+  async getSupplierOrderChannel(supplierCode: string): Promise<string | null> {
+    const connection = await this.getConnection();
+
+    try {
+      const query = `
+        SELECT \`采购下单渠道\`
+        FROM \`供应商属性信息\`
+        WHERE \`供应商编码\` = ?
+        LIMIT 1
+      `;
+
+      const [result]: any = await connection.execute(query, [supplierCode]);
+
+      if (result.length === 0) {
+        return null;
+      }
+
+      return result[0]['采购下单渠道'] || null;
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 查询采购下单渠道失败:', error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
 }
 

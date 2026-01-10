@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { SupplierQuotationService } from './supplier-quotation.service';
 
 @Controller('supplier-quotation')
@@ -275,6 +275,19 @@ export class SupplierQuotationController {
         } catch (error) {
             throw new HttpException(
                 error.message || '查询SKU绑定标记失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 根据供应商编码获取采购下单渠道
+    @Get('order-channel/:supplierCode')
+    async getSupplierOrderChannel(@Param('supplierCode') supplierCode: string) {
+        try {
+            return await this.service.getSupplierOrderChannel(supplierCode);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询采购下单渠道失败',
                 HttpStatus.INTERNAL_SERVER_ERROR,
             );
         }
