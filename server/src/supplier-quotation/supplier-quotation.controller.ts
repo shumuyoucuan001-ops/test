@@ -292,5 +292,18 @@ export class SupplierQuotationController {
             );
         }
     }
+
+    // 根据SKU编码获取商品供货关系
+    @Get('product-supply-relations/:sku')
+    async getProductSupplyRelations(@Param('sku') sku: string) {
+        try {
+            return await this.service.getProductSupplyRelations(sku);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询商品供货关系失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 }
 

@@ -1491,6 +1491,10 @@ export const supplierQuotationApi = {
   // 根据供应商编码获取采购下单渠道
   getSupplierOrderChannel: (supplierCode: string): Promise<string | null> =>
     api.get(`/supplier-quotation/order-channel/${encodeURIComponent(supplierCode)}`).then(res => res.data),
+
+  // 根据SKU编码获取商品供货关系
+  getProductSupplyRelations: (sku: string): Promise<any[]> =>
+    api.get(`/supplier-quotation/product-supply-relations/${encodeURIComponent(sku)}`).then(res => res.data),
 };
 
 export default api;

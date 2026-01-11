@@ -1280,5 +1280,70 @@ export class SupplierQuotationService {
       await connection.end();
     }
   }
+
+  // 根据SKU编码获取商品供货关系（按供应商编码去重）
+  async getProductSupplyRelations(sku: string): Promise<any[]> {
+    const connection = await this.getShangpingConnection();
+
+    try {
+      Logger.log(`[SupplierQuotationService] 开始查询商品供货关系，SKU: ${sku}`);
+
+      const query = `
+        SELECT DISTINCT
+          \`SPU编码\`,
+          \`商品名称\`,
+          \`SKU编码\`,
+          \`采购规格\`,
+          \`基础单位\`,
+          \`供货关系编码\`,
+          \`采购单位\`,
+          \`转换比例\`,
+          \`供应商编码\`,
+          \`供应商名称\`,
+          \`采购下单渠道\`,
+          \`渠道店铺\`,
+          \`供应商到货天数\`,
+          \`最小起订量\`,
+          \`是否默认供货关系\`,
+          \`采购价（元）\`,
+          \`结算方式\`,
+          \`付款方式\`,
+          \`1688商品offerid\`,
+          \`供应商商品 编码\`,
+          \`下单比例-供应商商品\`,
+          \`下单比例-牵牛花商品\`,
+          \`供应商商品 名称\`,
+          \`供应商商品 规格\`,
+          \`供应商商品 备注\`,
+          \`供应商商品 链接\`,
+          \`1688下单方式\`,
+          \`数据更新时间\`
+        FROM \`商品供货关系\`
+        WHERE \`SKU编码\` = ?
+        ORDER BY \`供应商编码\`
+      `;
+
+      Logger.log(`[SupplierQuotationService] 执行SQL查询，SKU: ${sku}`);
+      const [result]: any = await connection.execute(query, [sku]);
+
+      Logger.log(`[SupplierQuotationService] 查询结果数量: ${result?.length || 0}`);
+      if (result && result.length > 0) {
+        Logger.log(`[SupplierQuotationService] 查询结果示例（第一条）:`, {
+          SKU编码: result[0]['SKU编码'],
+          供应商编码: result[0]['供应商编码'],
+          供应商名称: result[0]['供应商名称'],
+        });
+      } else {
+        Logger.warn(`[SupplierQuotationService] 未找到SKU ${sku} 的商品供货关系数据`);
+      }
+
+      return result || [];
+    } catch (error) {
+      Logger.error(`[SupplierQuotationService] 查询商品供货关系失败，SKU: ${sku}`, error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
 }
 

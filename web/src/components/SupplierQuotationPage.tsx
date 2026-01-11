@@ -7,6 +7,7 @@ import {
   Card,
   Form,
   Input,
+  Layout,
   message,
   Modal,
   Pagination,
@@ -79,6 +80,16 @@ export default function SupplierQuotationPage() {
   const [orderChannel, setOrderChannel] = useState<string | null>(null); // 采购下单渠道
   const [form] = Form.useForm();
 
+  // 其他信息容器相关状态
+  const [otherInfoActiveMenu, setOtherInfoActiveMenu] = useState<'sku-binding' | 'product-info'>('sku-binding'); // 默认显示SKU绑定信息
+  const [productInfoData, setProductInfoData] = useState<any[]>([]); // 商品信息数据
+  const [productInfoLoading, setProductInfoLoading] = useState(false); // 商品信息加载状态
+  const [productInfoHiddenColumns, setProductInfoHiddenColumns] = useState<Set<string>>(new Set()); // 商品信息隐藏列
+  const [productInfoColumnOrder, setProductInfoColumnOrder] = useState<string[]>([]); // 商品信息列顺序
+  const [productInfoColumnSettingsOpen, setProductInfoColumnSettingsOpen] = useState(false); // 商品信息列设置弹窗
+  const [otherInfoHeight, setOtherInfoHeight] = useState<number>(300); // 其他信息容器高度
+  const [isResizing, setIsResizing] = useState(false); // 是否正在调整高度
+
   // 左栏列设置相关状态
   const [leftHiddenColumns, setLeftHiddenColumns] = useState<Set<string>>(new Set());
   const [leftColumnOrder, setLeftColumnOrder] = useState<string[]>([]);
@@ -90,6 +101,11 @@ export default function SupplierQuotationPage() {
   const [rightTableHeight, setRightTableHeight] = useState<number>(400);
   const isScrolling = useRef(false);
   const [leftColumnSettingsOpen, setLeftColumnSettingsOpen] = useState(false);
+
+  // 其他信息容器高度调整相关
+  const otherInfoResizeRef = useRef<HTMLDivElement>(null);
+  const resizeStartYRef = useRef<number>(0);
+  const resizeStartHeightRef = useRef<number>(300);
 
   // 用于跟踪正在进行的 loadRightData 请求，避免竞态条件
   const loadRightDataRequestIdRef = useRef<number>(0);
@@ -241,6 +257,16 @@ export default function SupplierQuotationPage() {
   // 导出相关状态
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportFilter, setExportFilter] = useState<string[]>([]);
+
+  // 手动绑定SKU Modal相关状态
+  const [manualBindingModalOpen, setManualBindingModalOpen] = useState(false);
+  const [manualBindingRecord, setManualBindingRecord] = useState<{
+    record: InventorySummary;
+    upc: string;
+    matchedQuotations: SupplierQuotation[];
+  } | null>(null);
+  const [manualBindingSkuInput, setManualBindingSkuInput] = useState('');
+  const [manualBindingSelectedQuotation, setManualBindingSelectedQuotation] = useState<SupplierQuotation | null>(null);
 
   // 合并表格相关状态
   const [selectedMergedRowKey, setSelectedMergedRowKey] = useState<string | null>(null); // 选中的合并表格行key
@@ -459,6 +485,212 @@ export default function SupplierQuotationPage() {
   const handleRightColumnOrderChange = (newOrder: string[]) => {
     setRightColumnOrder(newOrder);
     saveRightColumnSettings();
+  };
+
+  // 商品信息列设置相关函数
+  const saveProductInfoColumnSettings = () => {
+    localStorage.setItem('supplier-quotation-product-info-hidden-columns', JSON.stringify(Array.from(productInfoHiddenColumns)));
+    localStorage.setItem('supplier-quotation-product-info-column-order', JSON.stringify(productInfoColumnOrder));
+  };
+
+  const handleProductInfoToggleVisibility = (columnKey: string) => {
+    const newHidden = new Set(productInfoHiddenColumns);
+    if (newHidden.has(columnKey)) {
+      newHidden.delete(columnKey);
+    } else {
+      newHidden.add(columnKey);
+    }
+    setProductInfoHiddenColumns(newHidden);
+    saveProductInfoColumnSettings();
+  };
+
+  const handleProductInfoMoveColumn = (columnKey: string, direction: 'up' | 'down') => {
+    const currentOrder = productInfoColumnOrder.length > 0 ? productInfoColumnOrder : getAllProductInfoColumns().map(col => col.key as string).filter(Boolean);
+    const index = currentOrder.indexOf(columnKey);
+    if (index === -1) return;
+
+    const newOrder = [...currentOrder];
+    if (direction === 'up' && index > 0) {
+      [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    } else if (direction === 'down' && index < newOrder.length - 1) {
+      [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    }
+    setProductInfoColumnOrder(newOrder);
+    saveProductInfoColumnSettings();
+  };
+
+  const handleProductInfoColumnOrderChange = (newOrder: string[]) => {
+    setProductInfoColumnOrder(newOrder);
+    saveProductInfoColumnSettings();
+  };
+
+  // 获取商品信息所有列定义
+  const getAllProductInfoColumns = (): ColumnType<any>[] => {
+    return [
+      { title: 'SPU编码', dataIndex: 'SPU编码', key: 'SPU编码', width: 150 },
+      { title: '商品名称', dataIndex: '商品名称', key: '商品名称', width: 200, ellipsis: true },
+      { title: 'SKU编码', dataIndex: 'SKU编码', key: 'SKU编码', width: 200 },
+      { title: '采购规格', dataIndex: '采购规格', key: '采购规格', width: 150, ellipsis: true },
+      { title: '基础单位', dataIndex: '基础单位', key: '基础单位', width: 100 },
+      { title: '供货关系编码', dataIndex: '供货关系编码', key: '供货关系编码', width: 150 },
+      { title: '采购单位', dataIndex: '采购单位', key: '采购单位', width: 100 },
+      { title: '转换比例', dataIndex: '转换比例', key: '转换比例', width: 100 },
+      { title: '供应商编码', dataIndex: '供应商编码', key: '供应商编码', width: 150 },
+      { title: '供应商名称', dataIndex: '供应商名称', key: '供应商名称', width: 150, ellipsis: true },
+      { title: '采购下单渠道', dataIndex: '采购下单渠道', key: '采购下单渠道', width: 150, ellipsis: true },
+      { title: '渠道店铺', dataIndex: '渠道店铺', key: '渠道店铺', width: 150, ellipsis: true },
+      { title: '供应商到货天数', dataIndex: '供应商到货天数', key: '供应商到货天数', width: 130 },
+      { title: '最小起订量', dataIndex: '最小起订量', key: '最小起订量', width: 100 },
+      { title: '是否默认供货关系', dataIndex: '是否默认供货关系', key: '是否默认供货关系', width: 150 },
+      {
+        title: '采购价（元）',
+        dataIndex: '采购价（元）',
+        key: '采购价（元）',
+        width: 120,
+        render: (text: any) => text !== null && text !== undefined ? `¥${Number(text).toFixed(2)}` : '-'
+      },
+      { title: '结算方式', dataIndex: '结算方式', key: '结算方式', width: 120, ellipsis: true },
+      { title: '付款方式', dataIndex: '付款方式', key: '付款方式', width: 120, ellipsis: true },
+      { title: '1688商品offerid', dataIndex: '1688商品offerid', key: '1688商品offerid', width: 150, ellipsis: true },
+      { title: '供应商商品 编码', dataIndex: '供应商商品 编码', key: '供应商商品 编码', width: 180, ellipsis: true },
+      {
+        title: '下单比例-供应商商品',
+        dataIndex: '下单比例-供应商商品',
+        key: '下单比例-供应商商品',
+        width: 160,
+        render: (text: any) => text !== null && text !== undefined ? Number(text).toFixed(2) : '-'
+      },
+      {
+        title: '下单比例-牵牛花商品',
+        dataIndex: '下单比例-牵牛花商品',
+        key: '下单比例-牵牛花商品',
+        width: 160,
+        render: (text: any) => text !== null && text !== undefined ? Number(text).toFixed(2) : '-'
+      },
+      { title: '供应商商品 名称', dataIndex: '供应商商品 名称', key: '供应商商品 名称', width: 200, ellipsis: true },
+      { title: '供应商商品 规格', dataIndex: '供应商商品 规格', key: '供应商商品 规格', width: 150, ellipsis: true },
+      { title: '供应商商品 备注', dataIndex: '供应商商品 备注', key: '供应商商品 备注', width: 200, ellipsis: true },
+      { title: '供应商商品 链接', dataIndex: '供应商商品 链接', key: '供应商商品 链接', width: 200, ellipsis: true },
+      { title: '1688下单方式', dataIndex: '1688下单方式', key: '1688下单方式', width: 120, ellipsis: true },
+      {
+        title: '数据更新时间',
+        dataIndex: '数据更新时间',
+        key: '数据更新时间',
+        width: 180,
+        render: (text: string | Date) => {
+          if (!text) return '-';
+          try {
+            const date = typeof text === 'string' ? new Date(text) : text;
+            const formatted = date.toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            });
+            return formatted || String(text);
+          } catch {
+            return String(text);
+          }
+        },
+      },
+    ];
+  };
+
+  // 获取过滤后的商品信息列
+  const getFilteredProductInfoColumns = (): ColumnType<any>[] => {
+    const allColumns = getAllProductInfoColumns();
+    let currentOrder: string[];
+    if (productInfoColumnOrder.length > 0) {
+      currentOrder = productInfoColumnOrder;
+    } else {
+      const savedOrder = localStorage.getItem('supplier-quotation-product-info-column-order');
+      if (savedOrder) {
+        try {
+          const parsed = JSON.parse(savedOrder);
+          currentOrder = parsed;
+        } catch {
+          currentOrder = allColumns.map(col => col.key as string).filter(Boolean);
+        }
+      } else {
+        currentOrder = allColumns.map(col => col.key as string).filter(Boolean);
+      }
+    }
+
+    const orderedColumns = currentOrder
+      .map(key => allColumns.find(col => col.key === key))
+      .filter((col): col is ColumnType<any> => col !== undefined);
+
+    let hiddenSet: Set<string>;
+    if (productInfoHiddenColumns.size > 0) {
+      hiddenSet = productInfoHiddenColumns;
+    } else {
+      const savedHidden = localStorage.getItem('supplier-quotation-product-info-hidden-columns');
+      if (savedHidden) {
+        try {
+          const parsed = JSON.parse(savedHidden);
+          hiddenSet = new Set(parsed);
+        } catch {
+          hiddenSet = new Set();
+        }
+      } else {
+        hiddenSet = new Set();
+      }
+    }
+
+    return orderedColumns.filter(col => !hiddenSet.has(col.key as string));
+  };
+
+  // 导出商品信息数据
+  const handleExportProductInfo = () => {
+    if (productInfoData.length === 0) {
+      message.warning('没有数据可导出');
+      return;
+    }
+
+    try {
+      const columns = getFilteredProductInfoColumns();
+      const headers = columns.map(col => col.title as string);
+      const rows = productInfoData.map(item => {
+        return columns.map(col => {
+          const key = col.dataIndex as string;
+          const value = (item as any)[key];
+          if (col.render && value !== null && value !== undefined) {
+            if (key === '采购价（元）') {
+              return value ? `¥${Number(value).toFixed(2)}` : '-';
+            } else if (key === '下单比例-供应商商品' || key === '下单比例-牵牛花商品') {
+              return value !== null && value !== undefined ? Number(value).toFixed(2) : '-';
+            } else if (key === '数据更新时间') {
+              if (!value) return '-';
+              try {
+                const date = typeof value === 'string' ? new Date(value) : value;
+                return date.toLocaleString('zh-CN', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                });
+              } catch {
+                return String(value);
+              }
+            }
+          }
+          return value ?? '';
+        });
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      XLSX.utils.book_append_sheet(wb, ws, '商品信息');
+      XLSX.writeFile(wb, `商品信息_${new Date().toISOString().split('T')[0]}.xlsx`);
+      message.success(`成功导出 ${productInfoData.length} 条数据`);
+    } catch (error: any) {
+      console.error('导出商品信息失败:', error);
+      message.error(`导出失败: ${error?.message || '未知错误'}`);
+    }
   };
 
   // 获取左栏所有列定义（按默认显示顺序）
@@ -993,26 +1225,29 @@ export default function SupplierQuotationPage() {
       fixed: 'left' as const,
       render: (text: string, record: InventorySummary, index?: number) => {
         // 处理SKU值：可能是"-"、undefined、null或空字符串
-        const skuText = text === '-' || !text || text.trim() === '' ? '-' : text;
-        const isSkuEmpty = skuText === '-' || !skuText || skuText.trim() === '';
+        // 注意：text可能是undefined、null、空字符串或"-"
+        const textStr = text === null || text === undefined ? '' : String(text);
+        const skuText = textStr === '-' || textStr.trim() === '' ? '-' : textStr.trim();
+        const isSkuEmpty = skuText === '-';
 
         // 使用唯一标识符作为key：如果有SKU则用SKU，否则用UPC，如果都没有则用索引+UPC组合
         // 确保uniqueKey稳定，即使SKU为"-"也能正确工作
         const skuValue = !isSkuEmpty ? skuText : null;
-        const upcValue = record.UPC && record.UPC.trim() !== '' ? record.UPC.trim() : null;
-        const uniqueKey = skuValue || upcValue || `row-${index || 0}`;
+        const upcValue = record.UPC && String(record.UPC).trim() !== '' ? String(record.UPC).trim() : null;
+        const uniqueKey = skuValue || upcValue || `row-${index || 0}-${upcValue || ''}`;
         const isEditing = editingSkuQuotation === uniqueKey;
         const currentSkuInput = skuBindingInput[uniqueKey] || '';
 
-        // 调试日志：检查render函数是否被调用
+        // 调试日志：检查render函数是否被调用（仅当SKU为空时输出）
         if (isSkuEmpty) {
           console.log('[SKU绑定] Render函数被调用，SKU为空或"-"', {
             text,
+            textStr,
             skuText,
             isSkuEmpty,
             recordUPC: record.UPC,
             uniqueKey,
-            record,
+            hasRecord: !!record,
           });
         }
 
@@ -1037,46 +1272,55 @@ export default function SupplierQuotationPage() {
         }
 
         // 方法2：即使SKU为空（显示"-"），也可以通过UPC直接匹配供应商报价
-        if (!matchedQuotation && record.UPC && record.UPC.trim() !== '') {
-          const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
-          // 使用trim()处理可能的空格问题
-          const recordUpc = record.UPC.trim();
+        // 处理UPC字段可能包含多个值（用逗号分隔）的情况
+        if (!matchedQuotation && record.UPC) {
+          const upcStr = record.UPC ? String(record.UPC).trim() : '';
+          if (upcStr !== '') {
+            const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+            // 处理UPC字段可能包含多个值（用逗号分隔）的情况
+            const upcArray = upcStr.split(',').map(u => u.trim()).filter(u => u !== '');
 
-          // 调试日志：检查数据源和UPC（使用isSkuEmpty判断）
-          if (isSkuEmpty) {
-            console.log('[SKU绑定] 尝试通过UPC匹配，数据源数量:', dataSource.length, 'UPC:', recordUpc, 'text:', text, 'isSkuEmpty:', isSkuEmpty);
-          }
-
-          const quotation = dataSource.find(q => {
-            if (!q.最小销售规格UPC商品条码) return false;
-            const qUpc = q.最小销售规格UPC商品条码.trim();
-            return qUpc === recordUpc;
-          });
-
-          if (quotation && quotation.供应商编码 && quotation.供应商商品编码) {
-            matchedQuotation = quotation;
-            supplierCode = quotation.供应商编码;
-            supplierProductCode = quotation.供应商商品编码;
-
-            // 调试日志：匹配成功
+            // 调试日志：检查数据源和UPC（仅当SKU为空时输出）
             if (isSkuEmpty) {
-              console.log('[SKU绑定] 通过UPC匹配成功:', {
-                supplierCode,
-                supplierProductCode,
-                upc: recordUpc,
-              });
+              console.log('[SKU绑定] 尝试通过UPC匹配，数据源数量:', dataSource.length, 'UPC:', upcArray, 'text:', text, 'isSkuEmpty:', isSkuEmpty);
             }
-          } else {
-            // 调试日志：匹配失败
-            if (isSkuEmpty) {
-              console.log('[SKU绑定] 通过UPC匹配失败，未找到匹配的供应商报价，UPC:', recordUpc, '数据源数量:', dataSource.length);
+
+            // 遍历所有UPC值，找到第一个匹配的供应商报价
+            for (const recordUpc of upcArray) {
+              const quotation = dataSource.find(q => {
+                if (!q.最小销售规格UPC商品条码) return false;
+                const qUpc = String(q.最小销售规格UPC商品条码).trim();
+                return qUpc === recordUpc;
+              });
+
+              if (quotation && quotation.供应商编码 && quotation.供应商商品编码) {
+                matchedQuotation = quotation;
+                supplierCode = quotation.供应商编码;
+                supplierProductCode = quotation.供应商商品编码;
+
+                // 调试日志：匹配成功（仅当SKU为空时输出）
+                if (isSkuEmpty) {
+                  console.log('[SKU绑定] 通过UPC匹配成功:', {
+                    supplierCode,
+                    supplierProductCode,
+                    upc: recordUpc,
+                    matchedUpc: recordUpc,
+                  });
+                }
+                break; // 找到第一个匹配的就退出
+              }
+            }
+
+            // 调试日志：匹配失败（仅当SKU为空时输出）
+            if (!matchedQuotation && isSkuEmpty) {
+              console.log('[SKU绑定] 通过UPC匹配失败，未找到匹配的供应商报价，UPC:', upcArray, '数据源数量:', dataSource.length);
             }
           }
         }
 
-        // 调试日志：检查最终匹配情况（使用isSkuEmpty判断）
+        // 调试日志：检查最终匹配情况（仅当SKU为空时输出）
         if (isSkuEmpty) {
-          console.log('[SKU绑定] SKU为空或为"-"，最终匹配情况:', {
+          console.log('[SKU绑定] SKU为空或"-"，最终匹配情况:', {
             text,
             skuText,
             isSkuEmpty,
@@ -1093,108 +1337,127 @@ export default function SupplierQuotationPage() {
         const bindingKey = supplierCode && supplierProductCode ? `${supplierCode}_${supplierProductCode}` : null;
         const boundSku = bindingKey ? skuBindingMap[bindingKey] : null;
         // 如果有绑定SKU，直接显示"绑"标签；否则检查原SKU是否在绑定标记中
-        const hasBinding = boundSku ? true : (text ? (skuBindingFlags[text] || false) : false);
+        const hasBinding = boundSku ? true : (skuText && !isSkuEmpty ? (skuBindingFlags[skuText] || false) : false);
 
         // 显示绑定的SKU，如果没有绑定则显示原SKU
         const displaySku = boundSku || skuText || '-';
 
+        // 优先检查：如果通过最小销售规格UPC商品条码去获取'商品主档销售规格'的'SKU编码'时没有获取到数据，显示"绑定SKU"按钮
+        const upcStr = record.UPC ? String(record.UPC).trim() : '';
+
+        // 处理UPC字段可能包含多个值（用逗号分隔）的情况
+        // 将UPC字符串拆分为数组（去除空格）
+        const upcArray = upcStr !== '' ? upcStr.split(',').map(u => u.trim()).filter(u => u !== '') : [];
+
+        // 检查该UPC（或多个UPC）在upcToSkuMap中是否有对应的SKU编码（通过UPC获取商品主档销售规格的SKU编码）
+        // 如果所有UPC都没有获取到数据（upcToSkuMap中没有任何一个UPC，或者所有UPC对应的数组都为空），则显示"绑定SKU"按钮
+        let hasUpcToSkuMapping = false;
+        if (upcArray.length > 0 && upcToSkuMap) {
+          // 检查是否有任何一个UPC在upcToSkuMap中有映射
+          hasUpcToSkuMapping = upcArray.some(upc => {
+            const skuCodesFromUpc = upcToSkuMap[upc];
+            return skuCodesFromUpc && Array.isArray(skuCodesFromUpc) && skuCodesFromUpc.length > 0;
+          });
+        }
+
+        // 添加详细的调试日志
+        console.log('[SKU绑定] 检查绑定SKU按钮显示条件', {
+          text,
+          textStr: typeof text === 'string' ? text : String(text),
+          skuText,
+          isSkuEmpty,
+          recordUPC: record.UPC,
+          upcStr,
+          upcArray,
+          upcArrayLength: upcArray.length,
+          hasUpcToSkuMapping,
+          hasMatchedQuotation: !!matchedQuotation,
+          matchedQuotationUpc: matchedQuotation?.最小销售规格UPC商品条码,
+          upcToSkuMapKeys: upcToSkuMap ? Object.keys(upcToSkuMap).length : 0,
+          shouldShowButton: upcArray.length > 0 && !hasUpcToSkuMapping && !!matchedQuotation,
+        });
+
+        // 如果UPC不为空，且通过UPC获取商品主档销售规格的SKU编码时没有获取到数据，且已找到匹配的供应商报价，显示"绑定SKU"按钮
+        // 使用已经匹配到的matchedQuotation作为供应商报价数据（不需要再去查找）
+        if (upcArray.length > 0 && !hasUpcToSkuMapping && matchedQuotation && supplierCode && supplierProductCode) {
+          // 使用匹配到的供应商报价的UPC
+          const quotationToUse = matchedQuotation; // 类型保护：此时matchedQuotation一定不为null
+          const upcToUse = quotationToUse.最小销售规格UPC商品条码 ? String(quotationToUse.最小销售规格UPC商品条码).trim() : upcArray[0];
+
+          console.log('[SKU绑定] 通过UPC未获取到SKU编码，显示绑定SKU按钮', {
+            text,
+            skuText,
+            isSkuEmpty,
+            recordUPC: record.UPC,
+            upcStr,
+            upcArray,
+            matchedQuotation: quotationToUse,
+            supplierCode,
+            supplierProductCode,
+            upcToUse,
+          });
+
+          return (
+            <div
+              data-sku-column="true"
+              onClick={(e) => {
+                // 阻止事件冒泡，避免触发行点击事件
+                e.stopPropagation();
+                console.log('[SKU绑定] 点击绑定SKU区域', {
+                  record,
+                  matchedQuotation: quotationToUse,
+                  supplierCode,
+                  supplierProductCode,
+                  upc: upcToUse,
+                });
+                // 打开手动绑定SKU Modal（与点击匹配出数据的SKU时的同款弹框）
+                // 直接使用已经匹配到的matchedQuotation作为供应商报价数据
+                setManualBindingRecord({
+                  record,
+                  upc: upcToUse,
+                  matchedQuotations: [quotationToUse], // 使用已匹配的供应商报价
+                });
+                setManualBindingSkuInput('');
+                setManualBindingSelectedQuotation(quotationToUse); // 直接使用已匹配的供应商报价
+                setManualBindingModalOpen(true);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+            >
+              <Tag color="orange" style={{ margin: 0, cursor: 'pointer' }}>
+                绑定SKU
+              </Tag>
+            </div>
+          );
+        }
+
         // 如果仍然没有找到匹配的供应商报价，检查是否可以显示可点击的元素
         if (!matchedQuotation || !supplierCode || !supplierProductCode) {
           // 调试日志：没有找到匹配的供应商报价
-          if (isSkuEmpty) {
-            console.log('[SKU绑定] 没有找到匹配的供应商报价，准备显示提示信息');
-          }
+          console.log('[SKU绑定] 没有找到匹配的供应商报价', {
+            isSkuEmpty,
+            hasUPC: !!record.UPC,
+            upcValue: record.UPC,
+            hasBinding,
+            boundSku,
+          });
 
           // 如果有绑定SKU，显示绑定信息（即使没有匹配到供应商报价）
           if (hasBinding && boundSku) {
             return (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                {boundSku}
-                <Tag color="green" style={{ margin: 0 }}>绑</Tag>
-              </span>
-            );
-          }
-
-          // 如果SKU为"-"或空，且有UPC，显示提示信息（允许点击）
-          if (isSkuEmpty && record.UPC && record.UPC.trim() !== '') {
-            // 检查是否有供应商报价数据（即使没有匹配到，也可以提示用户）
-            const hasSupplierData = (allLeftData.length > 0 || leftData.length > 0);
-            const hasSelectedSuppliers = selectedSupplierCodes.length > 0;
-
-            // 调试日志：准备显示提示Popover
-            console.log('[SKU绑定] 准备显示提示Popover，UPC:', record.UPC, 'hasSupplierData:', hasSupplierData, 'hasSelectedSuppliers:', hasSelectedSuppliers);
-
-            return (
-              <Popover
-                content={
-                  <div style={{ padding: 8, minWidth: 200 }}>
-                    {!hasSupplierData ? (
-                      <>
-                        <div style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>
-                          未找到匹配的供应商报价
-                        </div>
-                        <div style={{ fontSize: 12, color: '#999' }}>
-                          UPC: {record.UPC}
-                        </div>
-                        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-                          请先在左侧选择对应的供应商报价数据，然后再尝试绑定SKU
-                        </div>
-                      </>
-                    ) : !hasSelectedSuppliers ? (
-                      <>
-                        <div style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>
-                          未找到匹配的供应商报价
-                        </div>
-                        <div style={{ fontSize: 12, color: '#999' }}>
-                          UPC: {record.UPC}
-                        </div>
-                        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-                          请先在左侧选择对应的供应商编码，然后再尝试绑定SKU
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>
-                          未找到匹配的供应商报价
-                        </div>
-                        <div style={{ fontSize: 12, color: '#999' }}>
-                          UPC: {record.UPC}
-                        </div>
-                        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-                          当前选择的供应商报价数据中没有匹配UPC为 {record.UPC} 的记录
-                        </div>
-                      </>
-                    )}
-                  </div>
-                }
-                title="无法绑定SKU"
-                trigger="click"
-                placement="top"
-                onOpenChange={(open) => {
-                  console.log('[SKU绑定] 提示Popover onOpenChange:', { open, uniqueKey, isSkuEmpty, recordUPC: record.UPC });
-                }}
+              <div
+                data-sku-column="true"
+                onClick={(e) => e.stopPropagation()}
               >
-                <span
-                  style={{ cursor: 'pointer', color: '#999', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                  onClick={(e) => {
-                    console.log('[SKU绑定] 点击"-"列:', {
-                      text,
-                      skuText,
-                      isSkuEmpty,
-                      recordUPC: record.UPC,
-                      uniqueKey,
-                      e: e.target,
-                    });
-                  }}
-                >
-                  {skuText || '-'}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {boundSku}
+                  <Tag color="green" style={{ margin: 0 }}>绑</Tag>
                 </span>
-              </Popover>
+              </div>
             );
           }
 
           // 如果没有UPC或SKU，显示普通文本（不可点击）
-          console.log('[SKU绑定] SKU为空且无UPC，显示普通文本', { text, skuText, isSkuEmpty, recordUPC: record.UPC });
+          console.log('[SKU绑定] 没有匹配且无UPC，显示普通文本', { text, skuText, isSkuEmpty, recordUPC: record.UPC });
           return <span>{skuText || '-'}</span>;
         }
 
@@ -1341,88 +1604,110 @@ export default function SupplierQuotationPage() {
         // 如果找到了匹配的供应商报价，显示可点击的绑定弹框
         // 使用controlled模式，确保即使SKU为"-"也能正确显示
         return (
-          <Popover
-            content={skuBindingContent}
-            title="手动绑定SKU"
-            trigger="click"
-            open={isEditing}
-            onOpenChange={(open) => {
-              console.log('[SKU绑定] Popover onOpenChange:', {
-                open,
-                uniqueKey,
-                isEditing,
-                matchedQuotation: !!matchedQuotation,
-                supplierCode,
-                supplierProductCode,
-              });
+          <div
+            data-sku-column="true"
+            onClick={(e) => {
+              // 阻止事件冒泡，避免触发行点击事件
+              e.stopPropagation();
+            }}
+          >
+            <Popover
+              className="sku-binding-popover"
+              data-sku-binding="true"
+              content={skuBindingContent}
+              title="手动绑定SKU"
+              trigger="click"
+              open={isEditing}
+              onOpenChange={(open) => {
+                console.log('[SKU绑定] Popover onOpenChange:', {
+                  open,
+                  uniqueKey,
+                  isEditing,
+                  matchedQuotation: !!matchedQuotation,
+                  supplierCode,
+                  supplierProductCode,
+                });
 
-              if (open) {
-                setEditingSkuQuotation(uniqueKey);
-                // 加载当前SKU绑定数据
-                if (supplierCode && supplierProductCode) {
-                  // 查询当前绑定的SKU
-                  supplierQuotationApi.getSkuBindings({
-                    supplierCode: supplierCode,
-                    supplierProductCode: supplierProductCode,
-                  }).then(result => {
-                    if (result && result.length > 0 && result[0].SKU) {
-                      setSkuBindingInput(prev => ({
-                        ...prev,
-                        [uniqueKey]: result[0].SKU || '',
-                      }));
-                    } else {
+                if (open) {
+                  setEditingSkuQuotation(uniqueKey);
+                  // 加载当前SKU绑定数据
+                  if (supplierCode && supplierProductCode) {
+                    // 查询当前绑定的SKU
+                    supplierQuotationApi.getSkuBindings({
+                      supplierCode: supplierCode,
+                      supplierProductCode: supplierProductCode,
+                    }).then(result => {
+                      if (result && result.length > 0 && result[0].SKU) {
+                        setSkuBindingInput(prev => ({
+                          ...prev,
+                          [uniqueKey]: result[0].SKU || '',
+                        }));
+                      } else {
+                        setSkuBindingInput(prev => ({
+                          ...prev,
+                          [uniqueKey]: '',
+                        }));
+                      }
+                    }).catch(error => {
+                      console.error('加载SKU绑定数据失败:', error);
                       setSkuBindingInput(prev => ({
                         ...prev,
                         [uniqueKey]: '',
                       }));
-                    }
-                  }).catch(error => {
-                    console.error('加载SKU绑定数据失败:', error);
+                    });
+                  } else {
+                    // 如果没有supplierCode和supplierProductCode，初始化输入为空
                     setSkuBindingInput(prev => ({
                       ...prev,
                       [uniqueKey]: '',
                     }));
-                  });
+                  }
                 } else {
-                  // 如果没有supplierCode和supplierProductCode，初始化输入为空
-                  setSkuBindingInput(prev => ({
-                    ...prev,
-                    [uniqueKey]: '',
-                  }));
-                }
-              } else {
-                setEditingSkuQuotation(null);
-              }
-            }}
-            placement="top"
-          >
-            <span
-              style={{ cursor: 'pointer', color: '#FF6A00', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              onClick={(e) => {
-                console.log('[SKU绑定] 点击SKU列:', {
-                  text,
-                  skuText,
-                  isSkuEmpty,
-                  uniqueKey,
-                  recordUPC: record.UPC,
-                  matchedQuotation: !!matchedQuotation,
-                  supplierCode,
-                  supplierProductCode,
-                  currentEditing: editingSkuQuotation,
-                });
-                // 如果点击时还没有设置editingSkuQuotation，立即设置
-                if (editingSkuQuotation !== uniqueKey) {
-                  console.log('[SKU绑定] 设置editingSkuQuotation为:', uniqueKey);
-                  setEditingSkuQuotation(uniqueKey);
+                  setEditingSkuQuotation(null);
                 }
               }}
+              placement="top"
+              overlayInnerStyle={{
+                zIndex: 2000, // 设置较高的z-index，确保显示在其他元素之上
+              }}
+              getPopupContainer={(triggerNode) => {
+                // 确保Popover渲染在body中，避免被表格遮挡
+                // 使用document.body确保Popover能正确显示在其他元素之上
+                return document.body;
+              }}
+              zIndex={2000}
             >
-              {displaySku || '-'}
-              {hasBinding && (
-                <Tag color="green" style={{ margin: 0 }}>绑</Tag>
-              )}
-            </span>
-          </Popover>
+              <span
+                data-sku-column="true"
+                style={{ cursor: 'pointer', color: '#FF6A00', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                onClick={(e) => {
+                  // 阻止事件冒泡，避免触发行点击事件
+                  e.stopPropagation();
+                  console.log('[SKU绑定] 点击SKU列:', {
+                    text,
+                    skuText,
+                    isSkuEmpty,
+                    uniqueKey,
+                    recordUPC: record.UPC,
+                    matchedQuotation: !!matchedQuotation,
+                    supplierCode,
+                    supplierProductCode,
+                    currentEditing: editingSkuQuotation,
+                  });
+                  // 如果点击时还没有设置editingSkuQuotation，立即设置
+                  if (editingSkuQuotation !== uniqueKey) {
+                    console.log('[SKU绑定] 设置editingSkuQuotation为:', uniqueKey);
+                    setEditingSkuQuotation(uniqueKey);
+                  }
+                }}
+              >
+                {displaySku || '-'}
+                {hasBinding && (
+                  <Tag color="green" style={{ margin: 0 }}>绑</Tag>
+                )}
+              </span>
+            </Popover>
+          </div>
         );
       },
     });
@@ -2530,12 +2815,11 @@ export default function SupplierQuotationPage() {
 
       // 查询供应商报价绑定标记（在设置rightAllData之后立即调用，确保初始加载时就能显示'转'字）
       // 使用upcToSkuMapLocal而不是状态中的upcToSkuMap，确保使用最新的映射
-      // 注意：SKU绑定数据不再在这里批量加载，避免在有大量数据时（如21265条）创建大量并发请求导致资源不足
-      // SKU绑定数据会在useEffect中延迟加载当前页的数据，或者按需加载
       if (dataWithComparison.length > 0 && quotationDataToUse && quotationDataToUse.length > 0) {
         await loadQuotationBindingFlags(dataWithComparison, quotationDataToUse, upcToSkuMapLocal);
-        // 不再批量加载所有SKU绑定数据，改为延迟加载当前页的数据（在useEffect中）
-        // await loadSkuBindingMap(quotationDataToUse, upcToSkuMapLocal);
+        // 加载SKU绑定数据（确保从缓存加载时也能显示'绑'标识）
+        // 注意：这里使用quotationDataToUse（当前显示的供应商报价数据），而不是所有数据，避免性能问题
+        await loadSkuBindingMap(quotationDataToUse, upcToSkuMapLocal);
       }
 
       // 应用分页（使用最新的分页状态）
@@ -2654,11 +2938,106 @@ export default function SupplierQuotationPage() {
     }
   };
 
+  // 加载商品信息数据（从右栏库存汇总的SKU列获取数据）
+  const loadProductInfoData = async () => {
+    // 从右栏（库存汇总）数据中提取所有唯一的SKU
+    const skus = rightData
+      .map(item => item.SKU)
+      .filter((sku): sku is string => !!sku && sku.trim() !== '' && sku !== '-')
+      .filter((sku, index, self) => self.indexOf(sku) === index); // 去重
+
+    console.log('[商品信息] 从右栏提取的SKU列表:', skus);
+    console.log('[商品信息] 右栏数据总数:', rightData.length);
+
+    if (skus.length === 0) {
+      console.log('[商品信息] 没有找到有效的SKU，清空数据');
+      setProductInfoData([]);
+      return;
+    }
+
+    setProductInfoLoading(true);
+    try {
+      // 对每个SKU查询商品供货关系，然后合并结果
+      const allResults = await Promise.all(
+        skus.map(async (sku) => {
+          try {
+            console.log('[商品信息] 查询SKU:', sku);
+            const result = await supplierQuotationApi.getProductSupplyRelations(sku);
+            console.log(`[商品信息] SKU ${sku} 查询结果数量:`, result?.length || 0);
+            if (result && result.length > 0) {
+              console.log(`[商品信息] SKU ${sku} 查询结果示例:`, result[0]);
+            }
+            return result || [];
+          } catch (error) {
+            console.error(`[商品信息] SKU ${sku} 查询失败:`, error);
+            return [];
+          }
+        })
+      );
+
+      // 合并所有结果
+      const mergedResults = allResults.flat();
+      console.log('[商品信息] 合并后的结果数量:', mergedResults.length);
+
+      // 按供应商编码去重（使用Map保留第一条记录）
+      const supplierCodeMap = new Map<string, any>();
+      mergedResults.forEach(item => {
+        const supplierCode = item['供应商编码'];
+        if (supplierCode && !supplierCodeMap.has(supplierCode)) {
+          supplierCodeMap.set(supplierCode, item);
+        }
+      });
+
+      const finalData = Array.from(supplierCodeMap.values());
+      console.log('[商品信息] 去重后的结果数量:', finalData.length);
+      console.log('[商品信息] 最终数据:', finalData);
+      setProductInfoData(finalData);
+    } catch (error) {
+      message.error('加载商品信息失败');
+      console.error('[商品信息] 加载失败:', error);
+      setProductInfoData([]);
+    } finally {
+      setProductInfoLoading(false);
+    }
+  };
+
+  // 处理高度调整
+  const handleResize = (e: MouseEvent) => {
+    if (!isResizing) return;
+    const deltaY = e.clientY - resizeStartYRef.current;
+    const newHeight = Math.max(200, Math.min(800, resizeStartHeightRef.current + deltaY));
+    setOtherInfoHeight(newHeight);
+  };
+
+  const handleResizeEnd = () => {
+    setIsResizing(false);
+    document.removeEventListener('mousemove', handleResize);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  };
+
+  // 监听菜单切换，当切换到商品信息时加载数据
+  useEffect(() => {
+    if (otherInfoActiveMenu === 'product-info' && rightData.length > 0) {
+      loadProductInfoData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otherInfoActiveMenu, rightData]);
+
+  // 清理事件监听器
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleResize);
+      document.removeEventListener('mouseup', handleResizeEnd);
+    };
+  }, []);
+
   // 左栏行点击
   const handleLeftRowClick = (record: SupplierQuotation, event?: React.MouseEvent) => {
     setSelectedLeftRecord(record);
     // 清空之前的采购下单渠道，等待新数据加载
     setOrderChannel(null);
+    // 重置为默认菜单
+    setOtherInfoActiveMenu('sku-binding');
 
     // 找到被点击行在 paginatedLeftData 中的索引
     const rowIndex = paginatedLeftData.findIndex(
@@ -3620,14 +3999,50 @@ export default function SupplierQuotationPage() {
           // 处理库存汇总数据（可能没有匹配的供应商报价）
           if (record.inventory) {
             const value = (record.inventory as any)[col.dataIndex as string];
-            const renderedValue = col.render ? col.render(value, record.inventory, 0) : (value ?? '-');
+            // 对于SKU列，确保即使value为空也能正确传递给render函数
+            const valueToRender = col.key === 'SKU' ? (value ?? null) : value;
+            const renderedValue = col.render ? col.render(valueToRender, record.inventory, 0) : (value ?? '-');
             // 库存汇总数据使用黑色文字
             // 如果是对比结果列或SKU列，需要特殊处理
             if (col.key === '对比结果') {
               return renderedValue; // 对比结果列已经有Tag渲染，不需要再包裹
             }
             if (col.key === 'SKU') {
-              return renderedValue; // SKU列已经有Popover和Tag渲染，不需要再包裹
+              // SKU列已经有Popover和Tag渲染，不需要再包裹
+              // 确保返回的是React元素，而不是字符串
+              if (renderedValue && typeof renderedValue === 'object' && 'type' in renderedValue) {
+                // 如果已经是React元素，确保它有data-sku-column属性
+                // 由于renderedValue已经是React元素，我们需要用div包裹它以确保有data-sku-column属性
+                return (
+                  <div
+                    data-sku-column="true"
+                    onClick={(e) => {
+                      // 阻止事件冒泡，避免触发行点击事件
+                      e.stopPropagation();
+                    }}
+                  >
+                    {renderedValue}
+                  </div>
+                );
+              }
+              // 如果不是React元素，说明render函数可能返回了字符串或其他值
+              // 这种情况下，应该返回一个可点击的元素
+              return (
+                <div
+                  data-sku-column="true"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('[SKU绑定] 合并表格中SKU列render返回非React元素，点击事件:', {
+                      value,
+                      renderedValue,
+                      inventory: record.inventory,
+                      colKey: col.key,
+                    });
+                  }}
+                >
+                  <span style={{ cursor: 'pointer', color: '#999' }}>{renderedValue || '-'}</span>
+                </div>
+              );
             }
             return <span style={{ color: '#000000' }}>{renderedValue}</span>;
           }
@@ -3656,6 +4071,21 @@ export default function SupplierQuotationPage() {
           }
           .ant-table-tbody > tr.merged-row-selected:hover > td {
             background-color: #e6f7ff !important;
+          }
+          
+          /* 确保SKU绑定的Popover显示在其他元素之上 */
+          .ant-popover.sku-binding-popover {
+            z-index: 2000 !important;
+          }
+          .ant-popover.sku-binding-popover .ant-popover-content {
+            z-index: 2000 !important;
+          }
+          .ant-popover.sku-binding-popover .ant-popover-inner {
+            z-index: 2000 !important;
+          }
+          /* 确保Popover不会被表格遮挡 */
+          .ant-popover[data-sku-binding="true"] {
+            z-index: 2000 !important;
           }
         `
       }} />
@@ -4170,7 +4600,78 @@ export default function SupplierQuotationPage() {
                   const isSelected = selectedMergedRowKey === record.key;
 
                   return {
-                    onClick: () => {
+                    onClick: (e: React.MouseEvent) => {
+                      // 检查点击的目标元素，如果是SKU列的Popover、输入框或包含data-sku-column属性的元素，不执行行点击逻辑
+                      const target = e.target as HTMLElement;
+
+                      // 方法1：检查TD单元格内部是否有data-sku-column属性的元素
+                      let isSkuColumnClick = false;
+
+                      // 如果target是TD，检查TD内部是否有data-sku-column属性的元素
+                      if (target.tagName === 'TD' || target.closest('td')) {
+                        const tdElement = target.tagName === 'TD' ? target : target.closest('td') as HTMLElement;
+                        if (tdElement) {
+                          // 检查TD内部是否有data-sku-column属性的元素
+                          const skuElement = tdElement.querySelector('[data-sku-column="true"]');
+                          if (skuElement) {
+                            isSkuColumnClick = true;
+                          } else {
+                            // 检查TD的className是否包含SKU相关的标识（通过列索引或class判断）
+                            // 由于SKU列是fixed列，通常会有特定的class，但更可靠的方法是检查内容
+                            // 检查TD内部是否有Popover相关元素
+                            if (tdElement.querySelector('.ant-popover') ||
+                              tdElement.querySelector('.ant-popover-trigger') ||
+                              tdElement.querySelector('[data-sku-column]')) {
+                              isSkuColumnClick = true;
+                            }
+                          }
+                        }
+                      }
+
+                      // 方法2：检查target及其父元素是否有data-sku-column属性
+                      let currentElement: HTMLElement | null = target;
+                      while (currentElement && currentElement !== e.currentTarget && !isSkuColumnClick) {
+                        // 检查是否有data-sku-column属性
+                        if (currentElement.getAttribute('data-sku-column') === 'true') {
+                          isSkuColumnClick = true;
+                          break;
+                        }
+                        // 检查是否是Popover相关元素
+                        if (currentElement.closest('.ant-popover') ||
+                          currentElement.closest('.ant-popover-content') ||
+                          currentElement.closest('.ant-popover-inner') ||
+                          currentElement.closest('.ant-popover-trigger')) {
+                          isSkuColumnClick = true;
+                          break;
+                        }
+                        // 检查是否是输入框
+                        if (currentElement.closest('.ant-input') ||
+                          currentElement.tagName === 'INPUT' ||
+                          currentElement.tagName === 'TEXTAREA') {
+                          isSkuColumnClick = true;
+                          break;
+                        }
+
+                        currentElement = currentElement.parentElement;
+                      }
+
+                      if (isSkuColumnClick) {
+                        // 如果是SKU列的点击，阻止行点击事件，让Popover正常显示
+                        console.log('[SKU绑定] 行点击事件：检测到SKU列点击，阻止事件冒泡', {
+                          target: target.tagName,
+                          targetClass: target.className,
+                          isTd: target.tagName === 'TD',
+                        });
+                        e.stopPropagation();
+                        e.preventDefault();
+                        return;
+                      }
+
+                      console.log('[SKU绑定] 行点击事件：执行行点击逻辑', {
+                        target: target.tagName,
+                        targetClass: target.className,
+                      });
+
                       setSelectedMergedRowKey(record.key);
                       if (record.quotation) {
                         handleLeftRowClick(record.quotation);
@@ -4222,165 +4723,455 @@ export default function SupplierQuotationPage() {
         </Card>
 
         {/* 下栏 */}
-        <Card
-          title={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>SKU绑定信息</span>
-              {orderChannel && (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    padding: '4px 16px',
-                    borderRadius: '20px', // 使用更大的圆角值，配合padding形成椭圆形
-                    backgroundColor:
-                      orderChannel.toLowerCase().includes('1688') ? '#FF6A00' :
-                        orderChannel.includes('闪电仓') ? '#FFD100' : // 美团色
-                          '#1890ff', // 默认蓝色
-                    color: '#ffffff',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    whiteSpace: 'nowrap',
-                    lineHeight: '1.5',
-                  }}
+        <div style={{ position: 'relative' }}>
+          {/* 调整高度的拖拽线 */}
+          <div
+            ref={otherInfoResizeRef}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setIsResizing(true);
+              resizeStartYRef.current = e.clientY;
+              resizeStartHeightRef.current = otherInfoHeight;
+              document.addEventListener('mousemove', handleResize);
+              document.addEventListener('mouseup', handleResizeEnd);
+            }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              cursor: 'row-resize',
+              backgroundColor: isResizing ? '#1890ff' : '#d9d9d9',
+              zIndex: 10,
+              userSelect: 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (!isResizing) {
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#1890ff';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isResizing) {
+                (e.currentTarget as HTMLElement).style.backgroundColor = '#d9d9d9';
+              }
+            }}
+          />
+          <Card
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>其他信息</span>
+                {orderChannel && otherInfoActiveMenu === 'sku-binding' && (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 16px',
+                      borderRadius: '20px',
+                      backgroundColor:
+                        orderChannel.toLowerCase().includes('1688') ? '#FF6A00' :
+                          orderChannel.includes('闪电仓') ? '#FFD100' :
+                            '#1890ff',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      lineHeight: '1.5',
+                    }}
+                  >
+                    {orderChannel}
+                  </span>
+                )}
+              </div>
+            }
+            extra={
+              otherInfoActiveMenu === 'sku-binding' ? (
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={handleSaveSkuBindings}
+                  disabled={!selectedLeftRecord || bottomData.length === 0}
                 >
-                  {orderChannel}
-                </span>
+                  保存
+                </Button>
+              ) : (
+                <Space>
+                  <Popover
+                    content={
+                      <ColumnSettings
+                        columns={getAllProductInfoColumns()}
+                        hiddenColumns={productInfoHiddenColumns}
+                        columnOrder={productInfoColumnOrder}
+                        onToggleVisibility={handleProductInfoToggleVisibility}
+                        onMoveColumn={handleProductInfoMoveColumn}
+                        onColumnOrderChange={handleProductInfoColumnOrderChange}
+                      />
+                    }
+                    title="列设置"
+                    trigger="click"
+                    open={productInfoColumnSettingsOpen}
+                    onOpenChange={setProductInfoColumnSettingsOpen}
+                    placement="bottomRight"
+                  >
+                    <Button icon={<SettingOutlined />}>列设置</Button>
+                  </Popover>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    onClick={handleExportProductInfo}
+                    disabled={productInfoData.length === 0}
+                  >
+                    导出数据
+                  </Button>
+                </Space>
+              )
+            }
+            style={{ height: otherInfoHeight, flexShrink: 0, overflow: 'hidden', marginTop: 4 }}
+            styles={{ body: { overflow: 'hidden', padding: 0, height: 'calc(100% - 57px)' } }}
+          >
+            <Layout style={{ height: '100%' }}>
+              <Layout.Sider
+                width={120}
+                style={{
+                  background: '#fafafa',
+                  borderRight: '1px solid #f0f0f0',
+                }}
+              >
+                <div style={{ padding: '8px 0' }}>
+                  <div
+                    onClick={() => setOtherInfoActiveMenu('sku-binding')}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      backgroundColor: otherInfoActiveMenu === 'sku-binding' ? '#e6f7ff' : 'transparent',
+                      borderLeft: otherInfoActiveMenu === 'sku-binding' ? '3px solid #1890ff' : '3px solid transparent',
+                      color: otherInfoActiveMenu === 'sku-binding' ? '#1890ff' : '#666',
+                      fontWeight: otherInfoActiveMenu === 'sku-binding' ? 500 : 400,
+                    }}
+                  >
+                    SKU绑定信息
+                  </div>
+                  <div
+                    onClick={() => setOtherInfoActiveMenu('product-info')}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      backgroundColor: otherInfoActiveMenu === 'product-info' ? '#e6f7ff' : 'transparent',
+                      borderLeft: otherInfoActiveMenu === 'product-info' ? '3px solid #1890ff' : '3px solid transparent',
+                      color: otherInfoActiveMenu === 'product-info' ? '#1890ff' : '#666',
+                      fontWeight: otherInfoActiveMenu === 'product-info' ? 500 : 400,
+                    }}
+                  >
+                    商品信息
+                  </div>
+                </div>
+              </Layout.Sider>
+              <Layout.Content style={{ padding: 16, overflow: 'hidden' }}>
+                {otherInfoActiveMenu === 'sku-binding' ? (
+                  selectedLeftRecord ? (
+                    <div style={{ height: '100%', overflow: 'hidden' }}>
+                      <Table
+                        columns={[
+                          {
+                            title: '供应商编码',
+                            dataIndex: '供应商编码',
+                            key: '供应商编码',
+                            width: 150,
+                          },
+                          {
+                            title: '供应商商品编码',
+                            dataIndex: '供应商商品编码',
+                            key: '供应商商品编码',
+                            width: 200,
+                          },
+                          {
+                            title: 'SKU',
+                            key: 'SKU',
+                            width: 200,
+                            render: (_: any, record: SupplierSkuBinding) => {
+                              const uniqueKey = `${record.供应商编码}_${record.供应商商品编码}`;
+                              return (
+                                <Input
+                                  value={editingSkus[uniqueKey] !== undefined ? editingSkus[uniqueKey] : (record.SKU || '')}
+                                  onChange={(e) => {
+                                    setEditingSkus({
+                                      ...editingSkus,
+                                      [uniqueKey]: e.target.value,
+                                    });
+                                  }}
+                                  placeholder="请输入SKU"
+                                  onBlur={(e) => {
+                                    const value = e.target.value;
+                                    setEditingSkus({
+                                      ...editingSkus,
+                                      [uniqueKey]: value,
+                                    });
+                                  }}
+                                />
+                              );
+                            },
+                          },
+                          {
+                            title: '数据更新时间',
+                            dataIndex: '数据更新时间',
+                            key: '数据更新时间',
+                            width: 180,
+                            render: (text: string | Date) => {
+                              if (!text) return '-';
+                              try {
+                                const date = typeof text === 'string' ? new Date(text) : text;
+                                const formatted = date.toLocaleString('zh-CN', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                });
+                                return formatted || String(text);
+                              } catch {
+                                return String(text);
+                              }
+                            },
+                          },
+                        ]}
+                        dataSource={bottomData}
+                        rowKey={(record) => `${record.供应商编码}_${record.供应商商品编码}`}
+                        loading={bottomLoading}
+                        pagination={false}
+                        scroll={{ x: 'max-content', y: 200 }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+                      请先选择左栏数据
+                    </div>
+                  )
+                ) : (
+                  <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                    <Table
+                      columns={getFilteredProductInfoColumns()}
+                      dataSource={productInfoData}
+                      rowKey={(record, index) => `${record.供应商编码}_${index}`}
+                      loading={productInfoLoading}
+                      pagination={false}
+                      scroll={{
+                        x: 'max-content',
+                        y: otherInfoHeight - 120 // 动态计算高度，减去Card头部和padding
+                      }}
+                    />
+                  </div>
+                )}
+              </Layout.Content>
+            </Layout>
+          </Card>
+        </div>
+
+        {/* 手动绑定SKU模态框 */}
+        <Modal
+          title="手动绑定SKU"
+          open={manualBindingModalOpen}
+          onOk={async () => {
+            if (!manualBindingSelectedQuotation) {
+              message.warning('请选择供应商报价');
+              return;
+            }
+            const skuValue = manualBindingSkuInput.trim();
+            if (!skuValue) {
+              message.warning('请输入SKU');
+              return;
+            }
+
+            try {
+              await supplierQuotationApi.updateSkuBinding({
+                supplierCode: manualBindingSelectedQuotation.供应商编码!,
+                supplierProductCode: manualBindingSelectedQuotation.供应商商品编码!,
+                sku: skuValue,
+              });
+              message.success('保存成功');
+
+              // 清除相关供应商编码的缓存
+              if (manualBindingSelectedQuotation.供应商编码) {
+                clearCacheForSupplierCodes([manualBindingSelectedQuotation.供应商编码]);
+                console.log('[缓存] 已清除供应商编码的缓存:', manualBindingSelectedQuotation.供应商编码);
+              }
+
+              // 关闭Modal
+              setManualBindingModalOpen(false);
+              setManualBindingRecord(null);
+              setManualBindingSkuInput('');
+              setManualBindingSelectedQuotation(null);
+
+              // 重新加载数据（强制刷新，跳过缓存）
+              const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+              if (rightAllData.length > 0 && dataSource.length > 0) {
+                await loadQuotationBindingFlags(rightAllData, dataSource);
+                // 重新加载SKU绑定数据
+                await loadSkuBindingMap(dataSource, upcToSkuMap);
+                // 重新加载库存汇总数据以更新匹配（强制刷新，跳过缓存）
+                if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
+                  await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
+                }
+              }
+            } catch (error: any) {
+              console.error('保存SKU绑定失败:', error);
+              message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+            }
+          }}
+          onCancel={() => {
+            setManualBindingModalOpen(false);
+            setManualBindingRecord(null);
+            setManualBindingSkuInput('');
+            setManualBindingSelectedQuotation(null);
+          }}
+          okText="保存"
+          cancelText="取消"
+          width={600}
+        >
+          {manualBindingRecord && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 8, fontWeight: 500 }}>UPC:</div>
+                <div style={{ color: '#666' }}>{manualBindingRecord.upc}</div>
+              </div>
+
+              {manualBindingRecord.matchedQuotations.length > 0 ? (
+                <>
+                  <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择供应商报价:</div>
+                  <Select
+                    style={{ width: '100%', marginBottom: 16 }}
+                    value={manualBindingSelectedQuotation ? `${manualBindingSelectedQuotation.供应商编码}_${manualBindingSelectedQuotation.供应商商品编码}` : undefined}
+                    onChange={(value) => {
+                      const selected = manualBindingRecord!.matchedQuotations.find(
+                        q => `${q.供应商编码}_${q.供应商商品编码}` === value
+                      );
+                      setManualBindingSelectedQuotation(selected || null);
+                    }}
+                    placeholder="请选择供应商报价"
+                    showSearch
+                    filterOption={(input, option) => {
+                      const item = manualBindingRecord!.matchedQuotations.find(
+                        q => `${q.供应商编码}_${q.供应商商品编码}` === option?.value
+                      );
+                      if (!item) return false;
+                      const searchText = input.toLowerCase();
+                      return (
+                        (item.供应商编码 || '').toLowerCase().includes(searchText) ||
+                        (item.供应商名称 || '').toLowerCase().includes(searchText) ||
+                        (item.商品名称 || '').toLowerCase().includes(searchText) ||
+                        (item.供应商商品编码 || '').toLowerCase().includes(searchText)
+                      );
+                    }}
+                  >
+                    {manualBindingRecord.matchedQuotations.map((q, index) => (
+                      <Select.Option
+                        key={`${q.供应商编码}_${q.供应商商品编码}_${index}`}
+                        value={`${q.供应商编码}_${q.供应商商品编码}`}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 500 }}>
+                            {q.供应商名称 || q.供应商编码} - {q.商品名称 || q.供应商商品编码}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#999' }}>
+                            供应商编码: {q.供应商编码} | 商品编码: {q.供应商商品编码}
+                          </div>
+                        </div>
+                      </Select.Option>
+                    ))}
+                  </Select>
+
+                  <div style={{ marginBottom: 8, fontWeight: 500 }}>请输入SKU:</div>
+                  <Input
+                    placeholder="请输入SKU"
+                    value={manualBindingSkuInput}
+                    onChange={(e) => setManualBindingSkuInput(e.target.value)}
+                    onPressEnter={async () => {
+                      if (!manualBindingSelectedQuotation) {
+                        message.warning('请选择供应商报价');
+                        return;
+                      }
+                      const skuValue = manualBindingSkuInput.trim();
+                      if (!skuValue) {
+                        message.warning('请输入SKU');
+                        return;
+                      }
+
+                      try {
+                        await supplierQuotationApi.updateSkuBinding({
+                          supplierCode: manualBindingSelectedQuotation.供应商编码!,
+                          supplierProductCode: manualBindingSelectedQuotation.供应商商品编码!,
+                          sku: skuValue,
+                        });
+                        message.success('保存成功');
+
+                        // 清除相关供应商编码的缓存
+                        if (manualBindingSelectedQuotation.供应商编码) {
+                          clearCacheForSupplierCodes([manualBindingSelectedQuotation.供应商编码]);
+                        }
+
+                        // 关闭Modal
+                        setManualBindingModalOpen(false);
+                        setManualBindingRecord(null);
+                        setManualBindingSkuInput('');
+                        setManualBindingSelectedQuotation(null);
+
+                        // 重新加载数据
+                        const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+                        if (rightAllData.length > 0 && dataSource.length > 0) {
+                          await loadQuotationBindingFlags(rightAllData, dataSource);
+                          await loadSkuBindingMap(dataSource, upcToSkuMap);
+                          if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
+                            await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
+                          }
+                        }
+                      } catch (error: any) {
+                        console.error('保存SKU绑定失败:', error);
+                        message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+                      }
+                    }}
+                  />
+                </>
+              ) : (
+                <div style={{ padding: 16, textAlign: 'center', color: '#999' }}>
+                  未找到匹配UPC为 {manualBindingRecord.upc} 的供应商报价数据
+                  <div style={{ marginTop: 8, fontSize: 12 }}>
+                    请先在左侧选择包含该UPC的供应商报价数据，然后再尝试绑定SKU
+                  </div>
+                </div>
               )}
             </div>
-          }
-          extra={
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={handleSaveSkuBindings}
-              disabled={!selectedLeftRecord || bottomData.length === 0}
-            >
-              保存
-            </Button>
-          }
-          style={{ height: 300, flexShrink: 0, overflow: 'hidden' }}
-          styles={{ body: { overflow: 'hidden', padding: 16 } }}
-        >
-          {selectedLeftRecord ? (
-            <div style={{ height: '100%', overflow: 'hidden' }}>
-              <Table
-                columns={[
-                  {
-                    title: '供应商编码',
-                    dataIndex: '供应商编码',
-                    key: '供应商编码',
-                    width: 150,
-                  },
-                  {
-                    title: '供应商商品编码',
-                    dataIndex: '供应商商品编码',
-                    key: '供应商商品编码',
-                    width: 200,
-                  },
-                  {
-                    title: 'SKU',
-                    key: 'SKU',
-                    width: 200,
-                    render: (_: any, record: SupplierSkuBinding) => {
-                      // 使用稳定的唯一标识符作为key，而不是index
-                      const uniqueKey = `${record.供应商编码}_${record.供应商商品编码}`;
-                      // 使用受控组件，但不使用key属性，避免重新创建组件
-                      return (
-                        <Input
-                          value={editingSkus[uniqueKey] !== undefined ? editingSkus[uniqueKey] : (record.SKU || '')}
-                          onChange={(e) => {
-                            setEditingSkus({
-                              ...editingSkus,
-                              [uniqueKey]: e.target.value,
-                            });
-                          }}
-                          placeholder="请输入SKU"
-                          onBlur={(e) => {
-                            // 确保失焦时也保存值
-                            const value = e.target.value;
-                            setEditingSkus({
-                              ...editingSkus,
-                              [uniqueKey]: value,
-                            });
-                          }}
-                        />
-                      );
-                    },
-                  },
-                  {
-                    title: '数据更新时间',
-                    dataIndex: '数据更新时间',
-                    key: '数据更新时间',
-                    width: 180,
-                    render: (text: string | Date) => {
-                      if (!text) return '-';
-                      try {
-                        const date = typeof text === 'string' ? new Date(text) : text;
-                        const formatted = date.toLocaleString('zh-CN', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        });
-                        return formatted || String(text);
-                      } catch {
-                        return String(text);
-                      }
-                    },
-                  },
-                ]}
-                dataSource={bottomData}
-                rowKey={(record) => {
-                  // 使用稳定的唯一标识符，避免重新创建行导致输入框失去焦点
-                  return `${record.供应商编码}_${record.供应商商品编码}`;
-                }}
-                loading={bottomLoading}
-                pagination={false}
-                scroll={{ x: 'max-content', y: 200 }}
-              />
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-              请先选择左栏数据
-            </div>
           )}
-        </Card >
-      </div >
+        </Modal>
 
-      {/* 导出数据模态框 */}
-      < Modal
-        title="导出数据"
-        open={exportModalOpen}
-        onOk={handleConfirmExport}
-        onCancel={() => setExportModalOpen(false)
-        }
-        okText="导出"
-        cancelText="取消"
-        width={500}
-      >
-        <div style={{ marginTop: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择要导出的对比结果（不选则导出全部）：</div>
-          <Select
-            mode="multiple"
-            placeholder="选择对比结果"
-            style={{ width: '100%' }}
-            value={exportFilter}
-            onChange={setExportFilter}
-            options={comparisonResultOptions.map(opt => ({
-              label: (
-                <Space>
-                  <Tag color={opt.color}>{opt.label}</Tag>
-                </Space>
-              ),
-              value: opt.value,
-            }))}
-            allowClear
-          />
-        </div>
-      </Modal >
-    </>
-  );
+        {/* 导出数据模态框 */}
+        <Modal
+          title="导出数据"
+          open={exportModalOpen}
+          onOk={handleConfirmExport}
+          onCancel={() => setExportModalOpen(false)}
+          okText="导出"
+          cancelText="取消"
+          width={500}
+        >
+          <div style={{ marginTop: 16 }}>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择要导出的对比结果（不选则导出全部）：</div>
+            <Select
+              mode="multiple"
+              placeholder="选择对比结果"
+              style={{ width: '100%' }}
+              value={exportFilter}
+              onChange={setExportFilter}
+              options={comparisonResultOptions.map(opt => ({
+                label: (
+                  <Space>
+                    <Tag color={opt.color}>{opt.label}</Tag>
+                  </Space>
+                ),
+                value: opt.value,
+              }))}
+              allowClear
+            />
+          </div>
+        </Modal>
+      </>
+      );
 }
 
