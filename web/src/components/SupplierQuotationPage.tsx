@@ -4166,17 +4166,310 @@ export default function SupplierQuotationPage() {
           .ant-popover[data-sku-binding="true"] {
             z-index: 2000 !important;
           }
+          
+          /* 调整供应商报价与库存汇总表格的行高和字体大小（仅针对合并表格和下栏表格） */
+          /* 行高：原来的3/4 (约40.5px)，字体大小：原来的3/4 (约10.5px) */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td {
+            height: 40.5px !important;
+            padding: 6px 8px !important;
+            font-size: 10.5px !important;
+            line-height: 1.5 !important;
+          }
+          .supplier-quotation-merged-table-container .ant-table-thead > tr > th,
+          .supplier-quotation-bottom-table-container .ant-table-thead > tr > th {
+            height: 40.5px !important;
+            padding: 6px 8px !important;
+            font-size: 10.5px !important;
+            line-height: 1.5 !important;
+          }
+          /* 调整表格内部元素字体大小 */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td *,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td * {
+            font-size: 10.5px !important;
+          }
+          /* 调整按钮、标签等组件的大小 */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td .ant-btn,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td .ant-btn {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            padding: 0 8px !important;
+            line-height: 24px !important;
+          }
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td .ant-tag,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td .ant-tag {
+            font-size: 10.5px !important;
+            line-height: 18px !important;
+            padding: 0 6px !important;
+          }
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td .ant-input,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td .ant-input {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            padding: 0 8px !important;
+          }
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td .ant-select-selector,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td .ant-select-selector {
+            font-size: 10.5px !important;
+            height: 24px !important;
+          }
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr > td .ant-select-selection-item,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr > td .ant-select-selection-item {
+            font-size: 10.5px !important;
+            line-height: 22px !important;
+          }
+          
+          /* 隐藏表格首行空白行占位和空数据提示 */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr.ant-table-placeholder,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr.ant-table-placeholder {
+            display: none !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            border: none !important;
+          }
+          .supplier-quotation-merged-table-container .ant-table-tbody .ant-empty,
+          .supplier-quotation-bottom-table-container .ant-table-tbody .ant-empty {
+            display: none !important;
+          }
+          /* 隐藏空数据占位行（当表格为空时） */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr:only-child.ant-table-placeholder,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr:only-child.ant-table-placeholder {
+            display: none !important;
+            height: 0 !important;
+          }
+          /* 隐藏表格中所有空行（包括第一行空白行） */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr:empty,
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr:empty {
+            display: none !important;
+            height: 0 !important;
+          }
+          /* 隐藏表格tbody中只有空td的行 */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr:has(td:empty:only-child),
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr:has(td:empty:only-child) {
+            display: none !important;
+          }
+          /* 隐藏所有td的height为0px的行（针对空白行） */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr:has(td[style*="height: 0px"]),
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr:has(td[style*="height: 0px"]) {
+            display: none !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            border: none !important;
+          }
+          /* 隐藏所有td的height为0px的行（针对空白行，兼容不同写法） */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr:has(td[style*="height:0px"]),
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr:has(td[style*="height:0px"]) {
+            display: none !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            border: none !important;
+          }
+          /* 隐藏所有td的height为0的行（针对空白行，兼容不同写法） */
+          .supplier-quotation-merged-table-container .ant-table-tbody > tr:has(td[style*="height: 0"]),
+          .supplier-quotation-bottom-table-container .ant-table-tbody > tr:has(td[style*="height: 0"]) {
+            display: none !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            border: none !important;
+          }
+          /* 直接隐藏所有td的height为0px的td元素 */
+          .supplier-quotation-merged-table-container .ant-table-tbody td[style*="height: 0px"],
+          .supplier-quotation-bottom-table-container .ant-table-tbody td[style*="height: 0px"],
+          .supplier-quotation-merged-table-container .ant-table-tbody td[style*="height:0px"],
+          .supplier-quotation-bottom-table-container .ant-table-tbody td[style*="height:0px"],
+          .supplier-quotation-merged-table-container .ant-table-tbody td[style*="height: 0"],
+          .supplier-quotation-bottom-table-container .ant-table-tbody td[style*="height: 0"] {
+            display: none !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            border: none !important;
+          }
+          
+          /* 调整上栏容器的搜索框、筛选框、按钮、标题等为原来的3/4 */
+          /* Card标题 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-head-title {
+            font-size: 14.25px !important; /* 19px * 3/4 */
+          }
+          /* Card extra区域整体 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra {
+            font-size: 10.5px !important; /* 14px * 3/4 */
+          }
+          /* 按钮 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-btn {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            padding: 0 8px !important;
+            line-height: 24px !important;
+            min-height: 24px !important;
+          }
+          /* 输入框 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-input {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            padding: 0 8px !important;
+            line-height: 24px !important;
+          }
+          /* 选择器 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selector {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            min-height: 24px !important;
+          }
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-item {
+            font-size: 10.5px !important;
+            line-height: 22px !important;
+            height: 20px !important;
+            margin: 2px 4px 2px 0 !important;
+            padding: 0 4px !important;
+          }
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-item-content {
+            font-size: 10.5px !important;
+            line-height: 20px !important;
+          }
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-placeholder {
+            font-size: 10.5px !important;
+            line-height: 22px !important;
+          }
+          /* 多选模式下的溢出容器 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-overflow {
+            font-size: 10.5px !important;
+          }
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-overflow-item {
+            font-size: 10.5px !important;
+          }
+          /* 标签（包括选择器内显示的标签） */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-tag {
+            font-size: 10.5px !important;
+            line-height: 18px !important;
+            padding: 0 6px !important;
+            margin: 0 !important;
+            height: 18px !important;
+          }
+          /* 选择器内显示的标签（多选模式） */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-item .ant-tag {
+            font-size: 10.5px !important;
+            line-height: 18px !important;
+            padding: 0 4px !important;
+            margin: 0 !important;
+            height: 18px !important;
+          }
+          /* 选择器内显示的文本（单选模式） */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-search {
+            font-size: 10.5px !important;
+          }
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-search-input {
+            font-size: 10.5px !important;
+            line-height: 22px !important;
+          }
+          /* 选择器内显示的已选择值（单选模式） */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-selection-selected-value {
+            font-size: 10.5px !important;
+            line-height: 22px !important;
+          }
+          /* 搜索区域标题字体大小 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .supplier-quotation-search-title {
+            font-size: 9.75px !important; /* 13px * 3/4 */
+          }
+          /* Space组件间距 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-space {
+            font-size: 10.5px !important;
+          }
+          /* 选择器的下拉选项 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown {
+            font-size: 10.5px !important;
+          }
+          /* 选择器下拉选项中的选项项 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown .ant-select-item {
+            font-size: 10.5px !important;
+            line-height: 24px !important;
+            min-height: 24px !important;
+            padding: 0 8px !important;
+          }
+          /* 选择器下拉选项中的选项项内容 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown .ant-select-item-option-content {
+            font-size: 10.5px !important;
+            line-height: 24px !important;
+          }
+          /* 选择器下拉选项中的标签 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown .ant-tag {
+            font-size: 10.5px !important;
+            line-height: 18px !important;
+            padding: 0 6px !important;
+            margin: 0 !important;
+          }
+          /* 选择器下拉选项中的Space组件 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown .ant-space {
+            font-size: 10.5px !important;
+          }
+          /* 选择器下拉选项中的输入框（搜索框） */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown .ant-input {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            padding: 0 8px !important;
+            line-height: 24px !important;
+          }
+          /* 选择器下拉选项中的"未找到"提示 */
+          .supplier-quotation-page-container .supplier-quotation-top-card .ant-card-extra .ant-select-dropdown .ant-select-item-empty {
+            font-size: 10.5px !important;
+            line-height: 24px !important;
+            padding: 0 8px !important;
+          }
+          /* 通过popupClassName选择器来设置下拉选项样式（更精确） */
+          .supplier-quotation-select-dropdown {
+            font-size: 10.5px !important;
+          }
+          .supplier-quotation-select-dropdown .ant-select-item {
+            font-size: 10.5px !important;
+            line-height: 24px !important;
+            min-height: 24px !important;
+            padding: 0 8px !important;
+          }
+          .supplier-quotation-select-dropdown .ant-select-item-option-content {
+            font-size: 10.5px !important;
+            line-height: 24px !important;
+          }
+          .supplier-quotation-select-dropdown .ant-tag {
+            font-size: 10.5px !important;
+            line-height: 18px !important;
+            padding: 0 6px !important;
+            margin: 0 !important;
+          }
+          .supplier-quotation-select-dropdown .ant-space {
+            font-size: 10.5px !important;
+          }
+          .supplier-quotation-select-dropdown .ant-input {
+            font-size: 10.5px !important;
+            height: 24px !important;
+            padding: 0 8px !important;
+            line-height: 24px !important;
+          }
+          .supplier-quotation-select-dropdown .ant-select-item-empty {
+            font-size: 10.5px !important;
+            line-height: 24px !important;
+            padding: 0 8px !important;
+          }
         `
       }} />
-      <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+      <div className="supplier-quotation-page-container" style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
         {/* 合并的表格容器 */}
         <Card
+          className="supplier-quotation-top-card"
           title="供应商报价与库存汇总"
           extra={
             <Space direction="vertical" size="small" style={{ width: '100%' }}>
               {/* 供应商报价搜索区域 */}
               <div style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: 4, marginBottom: 4 }}>
-                <div style={{ marginBottom: 4, fontWeight: 500, color: '#1890ff', fontSize: '13px' }}>供应商报价</div>
+                <div className="supplier-quotation-search-title" style={{ marginBottom: 4, fontWeight: 500, color: '#1890ff', fontSize: '9.75px' }}>供应商报价</div>
                 <Space wrap size="small">
                   <Select
                     mode="multiple"
@@ -4213,7 +4506,8 @@ export default function SupplierQuotationPage() {
                     allowClear
                     showSearch
                     maxTagCount="responsive"
-                    dropdownStyle={{ maxHeight: 300, overflow: 'auto' }}
+                    dropdownStyle={{ maxHeight: 300, overflow: 'auto', fontSize: '10.5px' }}
+                    popupClassName="supplier-quotation-select-dropdown"
                     filterOption={false}
                     notFoundContent={supplierCodeSearchValue ? '未找到匹配的供应商编码' : '请输入供应商编码进行筛选'}
                   />
@@ -4304,7 +4598,7 @@ export default function SupplierQuotationPage() {
               </div>
               {/* 库存汇总搜索区域 */}
               <div>
-                <div style={{ marginBottom: 4, fontWeight: 500, color: '#52c41a', fontSize: '13px' }}>库存汇总</div>
+                <div className="supplier-quotation-search-title" style={{ marginBottom: 4, fontWeight: 500, color: '#52c41a', fontSize: '9.75px' }}>库存汇总</div>
                 <Space wrap size="small">
                   <Input
                     placeholder="搜索SKU"
@@ -4326,6 +4620,8 @@ export default function SupplierQuotationPage() {
                     maxTagCount="responsive"
                     allowClear
                     size="small"
+                    dropdownStyle={{ maxHeight: 300, overflow: 'auto', fontSize: '10.5px' }}
+                    popupClassName="supplier-quotation-select-dropdown"
                     options={comparisonResultOptions.map(opt => ({
                       label: (
                         <Space>
@@ -4445,6 +4741,8 @@ export default function SupplierQuotationPage() {
                       style={{ minWidth: 150 }}
                       allowClear
                       size="small"
+                      dropdownStyle={{ maxHeight: 300, overflow: 'auto', fontSize: '10.5px' }}
+                      popupClassName="supplier-quotation-select-dropdown"
                       options={[
                         { label: '供应商名称', value: '供应商名称' },
                       ]}
@@ -4468,6 +4766,8 @@ export default function SupplierQuotationPage() {
                       maxTagCount="responsive"
                       allowClear
                       size="small"
+                      dropdownStyle={{ maxHeight: 300, overflow: 'auto', fontSize: '10.5px' }}
+                      popupClassName="supplier-quotation-select-dropdown"
                       options={[
                         { label: '供应商名称(最低价)', value: '供应商名称(最低价)' },
                         { label: '供应商名称(最近时间)', value: '供应商名称(最近时间)' },
@@ -4666,7 +4966,7 @@ export default function SupplierQuotationPage() {
           style={{ flex: `0 0 ${topPanelHeight}%`, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', boxSizing: 'border-box' }}
           styles={{ body: { flex: 1, overflow: 'hidden', padding: 8, display: 'flex', flexDirection: 'column' } }}
         >
-          <div ref={mergedTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div ref={mergedTableContainerRef} className="supplier-quotation-merged-table-container" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <Table
                 columns={getFilteredMergedColumns()}
@@ -4675,6 +4975,8 @@ export default function SupplierQuotationPage() {
                 loading={leftLoading || rightLoading}
                 scroll={{ x: 'max-content', y: mergedTableHeight }}
                 pagination={false}
+                className="supplier-quotation-merged-table"
+                locale={{ emptyText: '' }}
                 onRow={(record) => {
                   const isSelected = selectedMergedRowKey === record.key;
 
@@ -4847,7 +5149,7 @@ export default function SupplierQuotationPage() {
         />
 
         {/* 下栏 */}
-        <div style={{ flex: `1 1 ${100 - topPanelHeight}%`, minHeight: 200, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
+        <div className="supplier-quotation-bottom-table-container" style={{ flex: `1 1 ${100 - topPanelHeight}%`, minHeight: 200, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
           <Card
             title={
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4960,6 +5262,7 @@ export default function SupplierQuotationPage() {
                   selectedLeftRecord ? (
                     <div style={{ height: '100%', overflow: 'hidden' }}>
                       <Table
+                        className="supplier-quotation-bottom-table"
                         columns={[
                           {
                             title: '供应商编码',
@@ -5029,6 +5332,7 @@ export default function SupplierQuotationPage() {
                         loading={bottomLoading}
                         pagination={false}
                         scroll={{ x: 'max-content', y: 200 }}
+                        locale={{ emptyText: '' }}
                       />
                     </div>
                   ) : (
@@ -5039,6 +5343,7 @@ export default function SupplierQuotationPage() {
                 ) : (
                   <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
                     <Table
+                      className="supplier-quotation-bottom-table"
                       columns={getFilteredProductInfoColumns()}
                       dataSource={productInfoData}
                       rowKey={(record, index) => `${record.供应商编码}_${index}`}
@@ -5048,6 +5353,7 @@ export default function SupplierQuotationPage() {
                         x: 'max-content',
                         y: 300 // 固定高度，表格会自动适应容器
                       }}
+                      locale={{ emptyText: '' }}
                     />
                   </div>
                 )}
