@@ -19,7 +19,7 @@ import {
   Tag
 } from 'antd';
 import type { ColumnType } from 'antd/es/table';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ColumnSettings from './ColumnSettings';
 
@@ -4062,7 +4062,7 @@ export default function SupplierQuotationPage() {
   };
 
   return (
-    <>
+    <React.Fragment>
       <style dangerouslySetInnerHTML={{
         __html: `
           /* 点击后的高亮样式 */
@@ -4721,457 +4721,458 @@ export default function SupplierQuotationPage() {
             </div>
           </div>
         </Card>
+      </div>
 
-        {/* 下栏 */}
-        <div style={{ position: 'relative' }}>
-          {/* 调整高度的拖拽线 */}
-          <div
-            ref={otherInfoResizeRef}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setIsResizing(true);
-              resizeStartYRef.current = e.clientY;
-              resizeStartHeightRef.current = otherInfoHeight;
-              document.addEventListener('mousemove', handleResize);
-              document.addEventListener('mouseup', handleResizeEnd);
-            }}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 4,
-              cursor: 'row-resize',
-              backgroundColor: isResizing ? '#1890ff' : '#d9d9d9',
-              zIndex: 10,
-              userSelect: 'none',
-            }}
-            onMouseEnter={(e) => {
-              if (!isResizing) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = '#1890ff';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isResizing) {
-                (e.currentTarget as HTMLElement).style.backgroundColor = '#d9d9d9';
-              }
-            }}
-          />
-          <Card
-            title={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>其他信息</span>
-                {orderChannel && otherInfoActiveMenu === 'sku-binding' && (
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 16px',
-                      borderRadius: '20px',
-                      backgroundColor:
-                        orderChannel.toLowerCase().includes('1688') ? '#FF6A00' :
-                          orderChannel.includes('闪电仓') ? '#FFD100' :
-                            '#1890ff',
-                      color: '#ffffff',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      whiteSpace: 'nowrap',
-                      lineHeight: '1.5',
-                    }}
-                  >
-                    {orderChannel}
-                  </span>
-                )}
-              </div>
-            }
-            extra={
-              otherInfoActiveMenu === 'sku-binding' ? (
-                <Button
-                  type="primary"
-                  icon={<SaveOutlined />}
-                  onClick={handleSaveSkuBindings}
-                  disabled={!selectedLeftRecord || bottomData.length === 0}
-                >
-                  保存
-                </Button>
-              ) : (
-                <Space>
-                  <Popover
-                    content={
-                      <ColumnSettings
-                        columns={getAllProductInfoColumns()}
-                        hiddenColumns={productInfoHiddenColumns}
-                        columnOrder={productInfoColumnOrder}
-                        onToggleVisibility={handleProductInfoToggleVisibility}
-                        onMoveColumn={handleProductInfoMoveColumn}
-                        onColumnOrderChange={handleProductInfoColumnOrderChange}
-                      />
-                    }
-                    title="列设置"
-                    trigger="click"
-                    open={productInfoColumnSettingsOpen}
-                    onOpenChange={setProductInfoColumnSettingsOpen}
-                    placement="bottomRight"
-                  >
-                    <Button icon={<SettingOutlined />}>列设置</Button>
-                  </Popover>
-                  <Button
-                    icon={<DownloadOutlined />}
-                    onClick={handleExportProductInfo}
-                    disabled={productInfoData.length === 0}
-                  >
-                    导出数据
-                  </Button>
-                </Space>
-              )
-            }
-            style={{ height: otherInfoHeight, flexShrink: 0, overflow: 'hidden', marginTop: 4 }}
-            styles={{ body: { overflow: 'hidden', padding: 0, height: 'calc(100% - 57px)' } }}
-          >
-            <Layout style={{ height: '100%' }}>
-              <Layout.Sider
-                width={120}
-                style={{
-                  background: '#fafafa',
-                  borderRight: '1px solid #f0f0f0',
-                }}
-              >
-                <div style={{ padding: '8px 0' }}>
-                  <div
-                    onClick={() => setOtherInfoActiveMenu('sku-binding')}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      backgroundColor: otherInfoActiveMenu === 'sku-binding' ? '#e6f7ff' : 'transparent',
-                      borderLeft: otherInfoActiveMenu === 'sku-binding' ? '3px solid #1890ff' : '3px solid transparent',
-                      color: otherInfoActiveMenu === 'sku-binding' ? '#1890ff' : '#666',
-                      fontWeight: otherInfoActiveMenu === 'sku-binding' ? 500 : 400,
-                    }}
-                  >
-                    SKU绑定信息
-                  </div>
-                  <div
-                    onClick={() => setOtherInfoActiveMenu('product-info')}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      backgroundColor: otherInfoActiveMenu === 'product-info' ? '#e6f7ff' : 'transparent',
-                      borderLeft: otherInfoActiveMenu === 'product-info' ? '3px solid #1890ff' : '3px solid transparent',
-                      color: otherInfoActiveMenu === 'product-info' ? '#1890ff' : '#666',
-                      fontWeight: otherInfoActiveMenu === 'product-info' ? 500 : 400,
-                    }}
-                  >
-                    商品信息
-                  </div>
-                </div>
-              </Layout.Sider>
-              <Layout.Content style={{ padding: 16, overflow: 'hidden' }}>
-                {otherInfoActiveMenu === 'sku-binding' ? (
-                  selectedLeftRecord ? (
-                    <div style={{ height: '100%', overflow: 'hidden' }}>
-                      <Table
-                        columns={[
-                          {
-                            title: '供应商编码',
-                            dataIndex: '供应商编码',
-                            key: '供应商编码',
-                            width: 150,
-                          },
-                          {
-                            title: '供应商商品编码',
-                            dataIndex: '供应商商品编码',
-                            key: '供应商商品编码',
-                            width: 200,
-                          },
-                          {
-                            title: 'SKU',
-                            key: 'SKU',
-                            width: 200,
-                            render: (_: any, record: SupplierSkuBinding) => {
-                              const uniqueKey = `${record.供应商编码}_${record.供应商商品编码}`;
-                              return (
-                                <Input
-                                  value={editingSkus[uniqueKey] !== undefined ? editingSkus[uniqueKey] : (record.SKU || '')}
-                                  onChange={(e) => {
-                                    setEditingSkus({
-                                      ...editingSkus,
-                                      [uniqueKey]: e.target.value,
-                                    });
-                                  }}
-                                  placeholder="请输入SKU"
-                                  onBlur={(e) => {
-                                    const value = e.target.value;
-                                    setEditingSkus({
-                                      ...editingSkus,
-                                      [uniqueKey]: value,
-                                    });
-                                  }}
-                                />
-                              );
-                            },
-                          },
-                          {
-                            title: '数据更新时间',
-                            dataIndex: '数据更新时间',
-                            key: '数据更新时间',
-                            width: 180,
-                            render: (text: string | Date) => {
-                              if (!text) return '-';
-                              try {
-                                const date = typeof text === 'string' ? new Date(text) : text;
-                                const formatted = date.toLocaleString('zh-CN', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit',
-                                });
-                                return formatted || String(text);
-                              } catch {
-                                return String(text);
-                              }
-                            },
-                          },
-                        ]}
-                        dataSource={bottomData}
-                        rowKey={(record) => `${record.供应商编码}_${record.供应商商品编码}`}
-                        loading={bottomLoading}
-                        pagination={false}
-                        scroll={{ x: 'max-content', y: 200 }}
-                      />
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
-                      请先选择左栏数据
-                    </div>
-                  )
-                ) : (
-                  <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-                    <Table
-                      columns={getFilteredProductInfoColumns()}
-                      dataSource={productInfoData}
-                      rowKey={(record, index) => `${record.供应商编码}_${index}`}
-                      loading={productInfoLoading}
-                      pagination={false}
-                      scroll={{
-                        x: 'max-content',
-                        y: otherInfoHeight - 120 // 动态计算高度，减去Card头部和padding
-                      }}
-                    />
-                  </div>
-                )}
-              </Layout.Content>
-            </Layout>
-          </Card>
-        </div>
-
-        {/* 手动绑定SKU模态框 */}
-        <Modal
-          title="手动绑定SKU"
-          open={manualBindingModalOpen}
-          onOk={async () => {
-            if (!manualBindingSelectedQuotation) {
-              message.warning('请选择供应商报价');
-              return;
-            }
-            const skuValue = manualBindingSkuInput.trim();
-            if (!skuValue) {
-              message.warning('请输入SKU');
-              return;
-            }
-
-            try {
-              await supplierQuotationApi.updateSkuBinding({
-                supplierCode: manualBindingSelectedQuotation.供应商编码!,
-                supplierProductCode: manualBindingSelectedQuotation.供应商商品编码!,
-                sku: skuValue,
-              });
-              message.success('保存成功');
-
-              // 清除相关供应商编码的缓存
-              if (manualBindingSelectedQuotation.供应商编码) {
-                clearCacheForSupplierCodes([manualBindingSelectedQuotation.供应商编码]);
-                console.log('[缓存] 已清除供应商编码的缓存:', manualBindingSelectedQuotation.供应商编码);
-              }
-
-              // 关闭Modal
-              setManualBindingModalOpen(false);
-              setManualBindingRecord(null);
-              setManualBindingSkuInput('');
-              setManualBindingSelectedQuotation(null);
-
-              // 重新加载数据（强制刷新，跳过缓存）
-              const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
-              if (rightAllData.length > 0 && dataSource.length > 0) {
-                await loadQuotationBindingFlags(rightAllData, dataSource);
-                // 重新加载SKU绑定数据
-                await loadSkuBindingMap(dataSource, upcToSkuMap);
-                // 重新加载库存汇总数据以更新匹配（强制刷新，跳过缓存）
-                if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
-                  await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
-                }
-              }
-            } catch (error: any) {
-              console.error('保存SKU绑定失败:', error);
-              message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+      {/* 下栏 */}
+      <div style={{ position: 'relative' }}>
+        {/* 调整高度的拖拽线 */}
+        <div
+          ref={otherInfoResizeRef}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+            resizeStartYRef.current = e.clientY;
+            resizeStartHeightRef.current = otherInfoHeight;
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', handleResizeEnd);
+          }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            cursor: 'row-resize',
+            backgroundColor: isResizing ? '#1890ff' : '#d9d9d9',
+            zIndex: 10,
+            userSelect: 'none',
+          }}
+          onMouseEnter={(e) => {
+            if (!isResizing) {
+              (e.currentTarget as HTMLElement).style.backgroundColor = '#1890ff';
             }
           }}
-          onCancel={() => {
+          onMouseLeave={(e) => {
+            if (!isResizing) {
+              (e.currentTarget as HTMLElement).style.backgroundColor = '#d9d9d9';
+            }
+          }}
+        />
+        <Card
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>其他信息</span>
+              {orderChannel && otherInfoActiveMenu === 'sku-binding' && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '4px 16px',
+                    borderRadius: '20px',
+                    backgroundColor:
+                      orderChannel.toLowerCase().includes('1688') ? '#FF6A00' :
+                        orderChannel.includes('闪电仓') ? '#FFD100' :
+                          '#1890ff',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  {orderChannel}
+                </span>
+              )}
+            </div>
+          }
+          extra={
+            otherInfoActiveMenu === 'sku-binding' ? (
+              <Button
+                type="primary"
+                icon={<SaveOutlined />}
+                onClick={handleSaveSkuBindings}
+                disabled={!selectedLeftRecord || bottomData.length === 0}
+              >
+                保存
+              </Button>
+            ) : (
+              <Space>
+                <Popover
+                  content={
+                    <ColumnSettings
+                      columns={getAllProductInfoColumns()}
+                      hiddenColumns={productInfoHiddenColumns}
+                      columnOrder={productInfoColumnOrder}
+                      onToggleVisibility={handleProductInfoToggleVisibility}
+                      onMoveColumn={handleProductInfoMoveColumn}
+                      onColumnOrderChange={handleProductInfoColumnOrderChange}
+                    />
+                  }
+                  title="列设置"
+                  trigger="click"
+                  open={productInfoColumnSettingsOpen}
+                  onOpenChange={setProductInfoColumnSettingsOpen}
+                  placement="bottomRight"
+                >
+                  <Button icon={<SettingOutlined />}>列设置</Button>
+                </Popover>
+                <Button
+                  icon={<DownloadOutlined />}
+                  onClick={handleExportProductInfo}
+                  disabled={productInfoData.length === 0}
+                >
+                  导出数据
+                </Button>
+              </Space>
+            )
+          }
+          style={{ height: otherInfoHeight, flexShrink: 0, overflow: 'hidden', marginTop: 4 }}
+          styles={{ body: { overflow: 'hidden', padding: 0, height: 'calc(100% - 57px)' } }}
+        >
+          <Layout style={{ height: '100%' }}>
+            <Layout.Sider
+              width={120}
+              style={{
+                background: '#fafafa',
+                borderRight: '1px solid #f0f0f0',
+              }}
+            >
+              <div style={{ padding: '8px 0' }}>
+                <div
+                  onClick={() => setOtherInfoActiveMenu('sku-binding')}
+                  style={{
+                    padding: '12px 16px',
+                    cursor: 'pointer',
+                    backgroundColor: otherInfoActiveMenu === 'sku-binding' ? '#e6f7ff' : 'transparent',
+                    borderLeft: otherInfoActiveMenu === 'sku-binding' ? '3px solid #1890ff' : '3px solid transparent',
+                    color: otherInfoActiveMenu === 'sku-binding' ? '#1890ff' : '#666',
+                    fontWeight: otherInfoActiveMenu === 'sku-binding' ? 500 : 400,
+                  }}
+                >
+                  SKU绑定信息
+                </div>
+                <div
+                  onClick={() => setOtherInfoActiveMenu('product-info')}
+                  style={{
+                    padding: '12px 16px',
+                    cursor: 'pointer',
+                    backgroundColor: otherInfoActiveMenu === 'product-info' ? '#e6f7ff' : 'transparent',
+                    borderLeft: otherInfoActiveMenu === 'product-info' ? '3px solid #1890ff' : '3px solid transparent',
+                    color: otherInfoActiveMenu === 'product-info' ? '#1890ff' : '#666',
+                    fontWeight: otherInfoActiveMenu === 'product-info' ? 500 : 400,
+                  }}
+                >
+                  商品信息
+                </div>
+              </div>
+            </Layout.Sider>
+            <Layout.Content style={{ padding: 16, overflow: 'hidden' }}>
+              {otherInfoActiveMenu === 'sku-binding' ? (
+                selectedLeftRecord ? (
+                  <div style={{ height: '100%', overflow: 'hidden' }}>
+                    <Table
+                      columns={[
+                        {
+                          title: '供应商编码',
+                          dataIndex: '供应商编码',
+                          key: '供应商编码',
+                          width: 150,
+                        },
+                        {
+                          title: '供应商商品编码',
+                          dataIndex: '供应商商品编码',
+                          key: '供应商商品编码',
+                          width: 200,
+                        },
+                        {
+                          title: 'SKU',
+                          key: 'SKU',
+                          width: 200,
+                          render: (_: any, record: SupplierSkuBinding) => {
+                            const uniqueKey = `${record.供应商编码}_${record.供应商商品编码}`;
+                            return (
+                              <Input
+                                value={editingSkus[uniqueKey] !== undefined ? editingSkus[uniqueKey] : (record.SKU || '')}
+                                onChange={(e) => {
+                                  setEditingSkus({
+                                    ...editingSkus,
+                                    [uniqueKey]: e.target.value,
+                                  });
+                                }}
+                                placeholder="请输入SKU"
+                                onBlur={(e) => {
+                                  const value = e.target.value;
+                                  setEditingSkus({
+                                    ...editingSkus,
+                                    [uniqueKey]: value,
+                                  });
+                                }}
+                              />
+                            );
+                          },
+                        },
+                        {
+                          title: '数据更新时间',
+                          dataIndex: '数据更新时间',
+                          key: '数据更新时间',
+                          width: 180,
+                          render: (text: string | Date) => {
+                            if (!text) return '-';
+                            try {
+                              const date = typeof text === 'string' ? new Date(text) : text;
+                              const formatted = date.toLocaleString('zh-CN', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              });
+                              return formatted || String(text);
+                            } catch {
+                              return String(text);
+                            }
+                          },
+                        },
+                      ]}
+                      dataSource={bottomData}
+                      rowKey={(record) => `${record.供应商编码}_${record.供应商商品编码}`}
+                      loading={bottomLoading}
+                      pagination={false}
+                      scroll={{ x: 'max-content', y: 200 }}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
+                    请先选择左栏数据
+                  </div>
+                )
+              ) : (
+                <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                  <Table
+                    columns={getFilteredProductInfoColumns()}
+                    dataSource={productInfoData}
+                    rowKey={(record, index) => `${record.供应商编码}_${index}`}
+                    loading={productInfoLoading}
+                    pagination={false}
+                    scroll={{
+                      x: 'max-content',
+                      y: otherInfoHeight - 120 // 动态计算高度，减去Card头部和padding
+                    }}
+                  />
+                </div>
+              )}
+            </Layout.Content>
+          </Layout>
+        </Card>
+      </div>
+
+      {/* 手动绑定SKU模态框 */}
+      <Modal
+        title="手动绑定SKU"
+        open={manualBindingModalOpen}
+        onOk={async () => {
+          if (!manualBindingSelectedQuotation) {
+            message.warning('请选择供应商报价');
+            return;
+          }
+          const skuValue = manualBindingSkuInput.trim();
+          if (!skuValue) {
+            message.warning('请输入SKU');
+            return;
+          }
+
+          try {
+            await supplierQuotationApi.updateSkuBinding({
+              supplierCode: manualBindingSelectedQuotation.供应商编码!,
+              supplierProductCode: manualBindingSelectedQuotation.供应商商品编码!,
+              sku: skuValue,
+            });
+            message.success('保存成功');
+
+            // 清除相关供应商编码的缓存
+            if (manualBindingSelectedQuotation.供应商编码) {
+              clearCacheForSupplierCodes([manualBindingSelectedQuotation.供应商编码]);
+              console.log('[缓存] 已清除供应商编码的缓存:', manualBindingSelectedQuotation.供应商编码);
+            }
+
+            // 关闭Modal
             setManualBindingModalOpen(false);
             setManualBindingRecord(null);
             setManualBindingSkuInput('');
             setManualBindingSelectedQuotation(null);
-          }}
-          okText="保存"
-          cancelText="取消"
-          width={600}
-        >
-          {manualBindingRecord && (
-            <div style={{ marginTop: 16 }}>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ marginBottom: 8, fontWeight: 500 }}>UPC:</div>
-                <div style={{ color: '#666' }}>{manualBindingRecord.upc}</div>
-              </div>
 
-              {manualBindingRecord.matchedQuotations.length > 0 ? (
-                <>
-                  <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择供应商报价:</div>
-                  <Select
-                    style={{ width: '100%', marginBottom: 16 }}
-                    value={manualBindingSelectedQuotation ? `${manualBindingSelectedQuotation.供应商编码}_${manualBindingSelectedQuotation.供应商商品编码}` : undefined}
-                    onChange={(value) => {
-                      const selected = manualBindingRecord!.matchedQuotations.find(
-                        q => `${q.供应商编码}_${q.供应商商品编码}` === value
-                      );
-                      setManualBindingSelectedQuotation(selected || null);
-                    }}
-                    placeholder="请选择供应商报价"
-                    showSearch
-                    filterOption={(input, option) => {
-                      const item = manualBindingRecord!.matchedQuotations.find(
-                        q => `${q.供应商编码}_${q.供应商商品编码}` === option?.value
-                      );
-                      if (!item) return false;
-                      const searchText = input.toLowerCase();
-                      return (
-                        (item.供应商编码 || '').toLowerCase().includes(searchText) ||
-                        (item.供应商名称 || '').toLowerCase().includes(searchText) ||
-                        (item.商品名称 || '').toLowerCase().includes(searchText) ||
-                        (item.供应商商品编码 || '').toLowerCase().includes(searchText)
-                      );
-                    }}
-                  >
-                    {manualBindingRecord.matchedQuotations.map((q, index) => (
-                      <Select.Option
-                        key={`${q.供应商编码}_${q.供应商商品编码}_${index}`}
-                        value={`${q.供应商编码}_${q.供应商商品编码}`}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 500 }}>
-                            {q.供应商名称 || q.供应商编码} - {q.商品名称 || q.供应商商品编码}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#999' }}>
-                            供应商编码: {q.供应商编码} | 商品编码: {q.供应商商品编码}
-                          </div>
-                        </div>
-                      </Select.Option>
-                    ))}
-                  </Select>
-
-                  <div style={{ marginBottom: 8, fontWeight: 500 }}>请输入SKU:</div>
-                  <Input
-                    placeholder="请输入SKU"
-                    value={manualBindingSkuInput}
-                    onChange={(e) => setManualBindingSkuInput(e.target.value)}
-                    onPressEnter={async () => {
-                      if (!manualBindingSelectedQuotation) {
-                        message.warning('请选择供应商报价');
-                        return;
-                      }
-                      const skuValue = manualBindingSkuInput.trim();
-                      if (!skuValue) {
-                        message.warning('请输入SKU');
-                        return;
-                      }
-
-                      try {
-                        await supplierQuotationApi.updateSkuBinding({
-                          supplierCode: manualBindingSelectedQuotation.供应商编码!,
-                          supplierProductCode: manualBindingSelectedQuotation.供应商商品编码!,
-                          sku: skuValue,
-                        });
-                        message.success('保存成功');
-
-                        // 清除相关供应商编码的缓存
-                        if (manualBindingSelectedQuotation.供应商编码) {
-                          clearCacheForSupplierCodes([manualBindingSelectedQuotation.供应商编码]);
-                        }
-
-                        // 关闭Modal
-                        setManualBindingModalOpen(false);
-                        setManualBindingRecord(null);
-                        setManualBindingSkuInput('');
-                        setManualBindingSelectedQuotation(null);
-
-                        // 重新加载数据
-                        const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
-                        if (rightAllData.length > 0 && dataSource.length > 0) {
-                          await loadQuotationBindingFlags(rightAllData, dataSource);
-                          await loadSkuBindingMap(dataSource, upcToSkuMap);
-                          if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
-                            await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
-                          }
-                        }
-                      } catch (error: any) {
-                        console.error('保存SKU绑定失败:', error);
-                        message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
-                      }
-                    }}
-                  />
-                </>
-              ) : (
-                <div style={{ padding: 16, textAlign: 'center', color: '#999' }}>
-                  未找到匹配UPC为 {manualBindingRecord.upc} 的供应商报价数据
-                  <div style={{ marginTop: 8, fontSize: 12 }}>
-                    请先在左侧选择包含该UPC的供应商报价数据，然后再尝试绑定SKU
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </Modal>
-
-        {/* 导出数据模态框 */}
-        <Modal
-          title="导出数据"
-          open={exportModalOpen}
-          onOk={handleConfirmExport}
-          onCancel={() => setExportModalOpen(false)}
-          okText="导出"
-          cancelText="取消"
-          width={500}
-        >
+            // 重新加载数据（强制刷新，跳过缓存）
+            const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+            if (rightAllData.length > 0 && dataSource.length > 0) {
+              await loadQuotationBindingFlags(rightAllData, dataSource);
+              // 重新加载SKU绑定数据
+              await loadSkuBindingMap(dataSource, upcToSkuMap);
+              // 重新加载库存汇总数据以更新匹配（强制刷新，跳过缓存）
+              if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
+                await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
+              }
+            }
+          } catch (error: any) {
+            console.error('保存SKU绑定失败:', error);
+            message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+          }
+        }}
+        onCancel={() => {
+          setManualBindingModalOpen(false);
+          setManualBindingRecord(null);
+          setManualBindingSkuInput('');
+          setManualBindingSelectedQuotation(null);
+        }}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        {manualBindingRecord && (
           <div style={{ marginTop: 16 }}>
-            <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择要导出的对比结果（不选则导出全部）：</div>
-            <Select
-              mode="multiple"
-              placeholder="选择对比结果"
-              style={{ width: '100%' }}
-              value={exportFilter}
-              onChange={setExportFilter}
-              options={comparisonResultOptions.map(opt => ({
-                label: (
-                  <Space>
-                    <Tag color={opt.color}>{opt.label}</Tag>
-                  </Space>
-                ),
-                value: opt.value,
-              }))}
-              allowClear
-            />
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>UPC:</div>
+              <div style={{ color: '#666' }}>{manualBindingRecord.upc}</div>
+            </div>
+
+            {manualBindingRecord.matchedQuotations.length > 0 ? (
+              <>
+                <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择供应商报价:</div>
+                <Select
+                  style={{ width: '100%', marginBottom: 16 }}
+                  value={manualBindingSelectedQuotation ? `${manualBindingSelectedQuotation.供应商编码}_${manualBindingSelectedQuotation.供应商商品编码}` : undefined}
+                  onChange={(value) => {
+                    const selected = manualBindingRecord!.matchedQuotations.find(
+                      q => `${q.供应商编码}_${q.供应商商品编码}` === value
+                    );
+                    setManualBindingSelectedQuotation(selected || null);
+                  }}
+                  placeholder="请选择供应商报价"
+                  showSearch
+                  filterOption={(input, option) => {
+                    const item = manualBindingRecord!.matchedQuotations.find(
+                      q => `${q.供应商编码}_${q.供应商商品编码}` === option?.value
+                    );
+                    if (!item) return false;
+                    const searchText = input.toLowerCase();
+                    return (
+                      (item.供应商编码 || '').toLowerCase().includes(searchText) ||
+                      (item.供应商名称 || '').toLowerCase().includes(searchText) ||
+                      (item.商品名称 || '').toLowerCase().includes(searchText) ||
+                      (item.供应商商品编码 || '').toLowerCase().includes(searchText)
+                    );
+                  }}
+                >
+                  {manualBindingRecord.matchedQuotations.map((q, index) => (
+                    <Select.Option
+                      key={`${q.供应商编码}_${q.供应商商品编码}_${index}`}
+                      value={`${q.供应商编码}_${q.供应商商品编码}`}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 500 }}>
+                          {q.供应商名称 || q.供应商编码} - {q.商品名称 || q.供应商商品编码}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#999' }}>
+                          供应商编码: {q.供应商编码} | 商品编码: {q.供应商商品编码}
+                        </div>
+                      </div>
+                    </Select.Option>
+                  ))}
+                </Select>
+
+                <div style={{ marginBottom: 8, fontWeight: 500 }}>请输入SKU:</div>
+                <Input
+                  placeholder="请输入SKU"
+                  value={manualBindingSkuInput}
+                  onChange={(e) => setManualBindingSkuInput(e.target.value)}
+                  onPressEnter={async () => {
+                    if (!manualBindingSelectedQuotation) {
+                      message.warning('请选择供应商报价');
+                      return;
+                    }
+                    const skuValue = manualBindingSkuInput.trim();
+                    if (!skuValue) {
+                      message.warning('请输入SKU');
+                      return;
+                    }
+
+                    try {
+                      await supplierQuotationApi.updateSkuBinding({
+                        supplierCode: manualBindingSelectedQuotation.供应商编码!,
+                        supplierProductCode: manualBindingSelectedQuotation.供应商商品编码!,
+                        sku: skuValue,
+                      });
+                      message.success('保存成功');
+
+                      // 清除相关供应商编码的缓存
+                      if (manualBindingSelectedQuotation.供应商编码) {
+                        clearCacheForSupplierCodes([manualBindingSelectedQuotation.供应商编码]);
+                      }
+
+                      // 关闭Modal
+                      setManualBindingModalOpen(false);
+                      setManualBindingRecord(null);
+                      setManualBindingSkuInput('');
+                      setManualBindingSelectedQuotation(null);
+
+                      // 重新加载数据
+                      const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+                      if (rightAllData.length > 0 && dataSource.length > 0) {
+                        await loadQuotationBindingFlags(rightAllData, dataSource);
+                        await loadSkuBindingMap(dataSource, upcToSkuMap);
+                        if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
+                          await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
+                        }
+                      }
+                    } catch (error: any) {
+                      console.error('保存SKU绑定失败:', error);
+                      message.error(`保存失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+                    }
+                  }}
+                />
+              </>
+            ) : (
+              <div style={{ padding: 16, textAlign: 'center', color: '#999' }}>
+                未找到匹配UPC为 {manualBindingRecord.upc} 的供应商报价数据
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  请先在左侧选择包含该UPC的供应商报价数据，然后再尝试绑定SKU
+                </div>
+              </div>
+            )}
           </div>
-        </Modal>
-      </>
-      );
+        )}
+      </Modal>
+
+      {/* 导出数据模态框 */}
+      <Modal
+        title="导出数据"
+        open={exportModalOpen}
+        onOk={handleConfirmExport}
+        onCancel={() => setExportModalOpen(false)}
+        okText="导出"
+        cancelText="取消"
+        width={500}
+      >
+        <div style={{ marginTop: 16 }}>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>请选择要导出的对比结果（不选则导出全部）：</div>
+          <Select
+            mode="multiple"
+            placeholder="选择对比结果"
+            style={{ width: '100%' }}
+            value={exportFilter}
+            onChange={setExportFilter}
+            options={comparisonResultOptions.map(opt => ({
+              label: (
+                <Space>
+                  <Tag color={opt.color}>{opt.label}</Tag>
+                </Space>
+              ),
+              value: opt.value,
+            }))}
+            allowClear
+          />
+        </div>
+      </Modal>
+    </React.Fragment>
+  );
 }
 
