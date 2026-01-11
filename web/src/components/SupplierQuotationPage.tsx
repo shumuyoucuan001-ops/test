@@ -3119,7 +3119,7 @@ export default function SupplierQuotationPage() {
     try {
       message.loading({ content: '正在准备导出数据...', key: 'export' });
 
-      // 1. 根据用户筛选的供应商编码获取供应商报价数据
+      // 1. 根据用户筛选的供应商编码实时获取供应商报价数据（不使用缓存）
       let allQuotations: SupplierQuotation[] = [];
       if (selectedSupplierCodes.length === 0) {
         message.warning('请先选择至少一个供应商编码');
@@ -3127,26 +3127,17 @@ export default function SupplierQuotationPage() {
         return;
       }
 
-      // 如果有筛选条件或需要导出筛选的数据，使用 allLeftData（如果已加载）
-      // 否则根据搜索条件和供应商编码加载数据
-      if (allLeftData.length > 0 && selectedSupplierCodes.every(code => allLeftData.some(q => q.供应商编码 === code))) {
-        // 如果 allLeftData 已经包含选中的供应商编码，直接使用
-        allQuotations = allLeftData.filter(q =>
-          q.供应商编码 && selectedSupplierCodes.includes(q.供应商编码)
-        );
-      } else {
-        // 否则需要根据搜索条件和供应商编码加载数据
-        const searchParams = buildSearchParams();
-        const result = await supplierQuotationApi.getAll({
-          page: 1,
-          limit: 10000,
-          ...searchParams,
-          supplierCodes: selectedSupplierCodes,
-        });
-        allQuotations = (result.data || []).filter(item =>
-          item.供应商编码 && selectedSupplierCodes.includes(item.供应商编码)
-        );
-      }
+      // 实时查询供应商报价数据（不使用缓存）
+      const searchParams = buildSearchParams();
+      const result = await supplierQuotationApi.getAll({
+        page: 1,
+        limit: 10000,
+        ...searchParams,
+        supplierCodes: selectedSupplierCodes,
+      });
+      allQuotations = (result.data || []).filter(item =>
+        item.供应商编码 && selectedSupplierCodes.includes(item.供应商编码)
+      );
 
       if (allQuotations.length === 0) {
         message.warning('没有找到符合条件的供应商报价数据');
@@ -3154,7 +3145,7 @@ export default function SupplierQuotationPage() {
         return;
       }
 
-      // 2. 根据仓店/城市维度筛选库存汇总数据
+      // 2. 根据仓店/城市维度实时获取库存汇总数据（不使用缓存）
       let storeNamesParam: string[] | undefined;
       if (inventoryType === '仓店' && storeNameFilter && storeNameFilter.trim()) {
         // 仓店维度：只导出选中的门店/仓名称的数据
@@ -3165,13 +3156,13 @@ export default function SupplierQuotationPage() {
       }
       // 全部维度：不需要过滤，导出所有数据
 
-      // 获取库存汇总数据（根据维度筛选）
+      // 实时获取库存汇总数据（根据维度筛选）
       const inventoryResult = await supplierQuotationApi.getInventorySummary({
         type: inventoryType,
         storeNames: storeNamesParam,
       });
 
-      // 3. 获取UPC到SKU的映射（用于匹配）
+      // 3. 实时获取UPC到SKU的映射（用于匹配）
       const upcCodes = allQuotations
         .map(q => q.最小销售规格UPC商品条码)
         .filter((upc): upc is string => !!upc && upc.trim() !== '');
@@ -3183,20 +3174,99 @@ export default function SupplierQuotationPage() {
         });
       }
 
-      // 4. 创建对齐的数据结构（与 alignedData 相同的逻辑）
+      // 4. 加载SKU绑定数据（用于匹配时优先使用绑定的SKU）
+      let skuBindingMapForExport: Record<string, string> = {}; // key为"供应商编码_供应商商品编码"，value为绑定的SKU
+      try {
+        // 收集所有唯一的供应商编码和供应商商品编码组合
+        const quotationKeys = new Set<string>();
+        allQuotations.forEach(quotation => {
+          if (quotation.供应商编码 && quotation.供应商商品编码) {
+            const key = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
+            quotationKeys.add(key);
+          }
+        });
+
+        // 批量查询SKU绑定数据（限制并发数量，避免性能问题）
+        const BATCH_SIZE = 50;
+        const keyArray = Array.from(quotationKeys);
+        for (let i = 0; i < keyArray.length; i += BATCH_SIZE) {
+          const batch = keyArray.slice(i, i + BATCH_SIZE);
+          const batchPromises = batch.map(async (key) => {
+            const [supplierCode, supplierProductCode] = key.split('_');
+            try {
+              const bindingResult = await supplierQuotationApi.getSkuBindings({
+                supplierCode: supplierCode,
+                supplierProductCode: supplierProductCode,
+              });
+              if (bindingResult && bindingResult.length > 0 && bindingResult[0].SKU) {
+                skuBindingMapForExport[key] = bindingResult[0].SKU;
+              }
+            } catch (error) {
+              console.error(`导出时查询SKU绑定失败 [${key}]:`, error);
+            }
+          });
+          await Promise.all(batchPromises);
+        }
+      } catch (error) {
+        console.error('导出时批量加载SKU绑定数据失败:', error);
+      }
+
+      // 5. 创建对齐的数据结构（与 alignedData 相同的逻辑，优先使用绑定的SKU）
       const exportAlignedData = allQuotations.map((quotation) => {
-        // 找到匹配的库存汇总（通过SKU编码匹配，与 alignedData 逻辑一致）
+        // 找到匹配的库存汇总（优先使用绑定的SKU，如果没有绑定SKU，则使用UPC到SKU的映射）
         let matchedInventory: InventorySummary | null = null;
 
-        if (quotation.最小销售规格UPC商品条码) {
-          // 1. 通过UPC条码获取对应的SKU编码列表
+        // 检查是否有绑定的SKU
+        const bindingKey = quotation.供应商编码 && quotation.供应商商品编码
+          ? `${quotation.供应商编码}_${quotation.供应商商品编码}`
+          : null;
+        const boundSku = bindingKey ? skuBindingMapForExport[bindingKey] : null;
+
+        if (boundSku) {
+          // 如果有绑定SKU，优先使用绑定SKU匹配库存汇总
+          matchedInventory = inventoryResult.find(item => {
+            if (!item.SKU || item.SKU !== boundSku) return false;
+
+            // 根据维度应用筛选条件（与查询逻辑一致）
+            // 仓店维度：需要匹配门店/仓名称（如果storeNamesParam有值）
+            if (inventoryType === '仓店' && storeNamesParam && storeNamesParam.length > 0) {
+              return item['门店/仓库名称'] === storeNamesParam[0];
+            }
+
+            // 城市维度：需要匹配城市（如果storeNamesParam有值，实际是城市名称）
+            if (inventoryType === '城市' && storeNamesParam && storeNamesParam.length > 0) {
+              return item.城市 === storeNamesParam[0];
+            }
+
+            // 全部维度：不需要额外筛选条件
+            return true;
+          }) || null;
+        }
+
+        // 如果没有绑定SKU或通过绑定SKU没有找到匹配，使用UPC到SKU的映射
+        if (!matchedInventory && quotation.最小销售规格UPC商品条码) {
+          // 通过UPC条码获取对应的SKU编码列表
           const skuCodes = upcToSkuMapForExport[quotation.最小销售规格UPC商品条码] || [];
 
-          // 2. 通过SKU编码匹配库存汇总
+          // 通过SKU编码匹配库存汇总
           if (skuCodes.length > 0) {
             matchedInventory = inventoryResult.find(item => {
               if (!item.SKU) return false;
-              return skuCodes.includes(item.SKU);
+              if (!skuCodes.includes(item.SKU)) return false;
+
+              // 根据维度应用筛选条件（与查询逻辑一致）
+              // 仓店维度：需要匹配门店/仓名称（如果storeNamesParam有值）
+              if (inventoryType === '仓店' && storeNamesParam && storeNamesParam.length > 0) {
+                return item['门店/仓库名称'] === storeNamesParam[0];
+              }
+
+              // 城市维度：需要匹配城市（如果storeNamesParam有值，实际是城市名称）
+              if (inventoryType === '城市' && storeNamesParam && storeNamesParam.length > 0) {
+                return item.城市 === storeNamesParam[0];
+              }
+
+              // 全部维度：不需要额外筛选条件
+              return true;
             }) || null;
           }
         }
@@ -3357,7 +3427,16 @@ export default function SupplierQuotationPage() {
         // 供应商报价字段
         leftColumns.forEach(col => {
           const key = col.dataIndex as string;
-          const value = (item.quotation as any)[key];
+          let value = (item.quotation as any)[key];
+
+          // 对于供货价格列，优先使用计算后供货价格，如果为NULL则使用原供货价格
+          if (key === '供货价格') {
+            const quotation = item.quotation as SupplierQuotation;
+            value = quotation.计算后供货价格 !== undefined && quotation.计算后供货价格 !== null
+              ? quotation.计算后供货价格
+              : quotation.供货价格;
+          }
+
           if (col.render && typeof value !== 'undefined' && value !== null) {
             // 对于有render函数的列，需要手动格式化
             if (key === '供货价格') {
