@@ -169,7 +169,7 @@ export default function TemplatesPage() {
         onOk={handleSave}
         onCancel={closeModal}
         width={800}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}

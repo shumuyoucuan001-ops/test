@@ -121,7 +121,7 @@ export default function PermissionPage() {
         />
       </Card>
 
-      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} title={editing ? '编辑权限' : '新增权限'} destroyOnClose>
+      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} title={editing ? '编辑权限' : '新增权限'} destroyOnHidden>
         <Form form={form} layout="vertical">
           <Form.Item name="code" label="权限编码" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item>

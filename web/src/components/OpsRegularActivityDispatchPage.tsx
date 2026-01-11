@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { OpsRegularActivityDispatchItem, opsRegularActivityDispatchApi, productMasterApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
@@ -27,26 +28,54 @@ const fieldLabels: Record<keyof OpsRegularActivityDispatchItem, string> = {
     "采购单价 (采购单位)": "采购单价 (采购单位)",
 };
 
+// 页面唯一标识符
+const PAGE_KEY = 'ops-regular-activity-dispatch';
+
 export default function OpsRegularActivityDispatchPage() {
+    // 定义默认状态
+    const defaultState = {
+        currentPage: 1,
+        pageSize: 20,
+        searchText: '',
+        searchFilters: {} as {
+            SKU?: string;
+            活动价?: string;
+            活动类型?: string;
+            活动备注?: string;
+            活动确认人?: string;
+        },
+    };
+
+    // 恢复保存的状态
+    const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
     const [data, setData] = useState<OpsRegularActivityDispatchItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+    const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<OpsRegularActivityDispatchItem | null>(null);
     const [form] = Form.useForm<OpsRegularActivityDispatchItem>();
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
     const [batchModalOpen, setBatchModalOpen] = useState(false);
-    const [searchText, setSearchText] = useState('');
+    const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
     const [searchFilters, setSearchFilters] = useState<{
         SKU?: string;
         活动价?: string;
         活动类型?: string;
         活动备注?: string;
         活动确认人?: string;
-    }>({});
+    }>(restoredState?.searchFilters ?? defaultState.searchFilters);
+
+    // 保存状态（自动保存，防抖 300ms）
+    usePageStateSave(PAGE_KEY, {
+        currentPage,
+        pageSize,
+        searchText,
+        searchFilters,
+    });
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -874,7 +903,7 @@ export default function OpsRegularActivityDispatchPage() {
                 onOk={handleSave}
                 okText="确定"
                 cancelText="取消"
-                destroyOnClose
+                destroyOnHidden
                 width={600}
             >
                 <Form form={form} layout="vertical">

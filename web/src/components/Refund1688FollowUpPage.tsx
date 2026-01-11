@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { refund1688Api, Refund1688FollowUp } from '@/lib/api';
 import { formatDateTime } from '@/lib/dateUtils';
 import { LinkOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
@@ -21,12 +22,15 @@ import {
 import { ColumnType } from 'antd/es/table';
 import Upload from 'antd/es/upload';
 import type { RcFile } from 'antd/es/upload/interface';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
 const { TextArea } = Input;
 const { Option } = Select;
+
+// 页面唯一标识符
+const PAGE_KEY = 'refund-1688-follow-up';
 
 // 进度追踪状态选项
 const PROGRESS_STATUS_OPTIONS = [
@@ -40,22 +44,47 @@ const PROGRESS_STATUS_OPTIONS = [
 ];
 
 export default function Refund1688FollowUpPage() {
+    // 定义默认状态
+    const defaultState = {
+        currentPage: 1,
+        pageSize: 20,
+        searchText: '',
+        searchFilters: {} as {
+            收货人姓名?: string;
+            订单编号?: string;
+            订单状态?: string;
+            进度追踪?: string;
+            采购单号?: string;
+        },
+    };
+
+    // 恢复保存的状态
+    const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
     const [data, setData] = useState<Refund1688FollowUp[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Refund1688FollowUp | null>(null);
     const [form] = Form.useForm();
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
-    const [searchText, setSearchText] = useState('');
+    const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+    const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+    const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
     const [searchFilters, setSearchFilters] = useState<{
         收货人姓名?: string;
         订单编号?: string;
         订单状态?: string;
         进度追踪?: string;
         采购单号?: string;
-    }>({});
+    }>(restoredState?.searchFilters ?? defaultState.searchFilters);
+
+    // 保存状态（自动保存，防抖 300ms）
+    usePageStateSave(PAGE_KEY, {
+        currentPage,
+        pageSize,
+        searchText,
+        searchFilters,
+    });
     const [followUpImagePreview, setFollowUpImagePreview] = useState<string | undefined>(undefined);
     const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
     const [imageCache, setImageCache] = useState<Record<string, string>>({});
@@ -387,8 +416,24 @@ export default function Refund1688FollowUpPage() {
     };
 
 
+    // 使用 ref 标记是否已经初始加载
+    const hasInitialLoadRef = useRef(false);
+
+    // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
     useEffect(() => {
-        loadData();
+        if (!hasInitialLoadRef.current) {
+            hasInitialLoadRef.current = true;
+            loadData();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // 只在组件挂载时执行一次
+
+    // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+    useEffect(() => {
+        // 只有在初始加载之后才响应 currentPage 和 pageSize 的变化
+        if (hasInitialLoadRef.current) {
+            loadData();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 

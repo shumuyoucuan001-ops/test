@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { LabelDataRecord, labelDataApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/dateUtils';
 import { DeleteOutlined, EditOutlined, HistoryOutlined } from '@ant-design/icons';
@@ -17,20 +18,35 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ResponsiveTable from './ResponsiveTable';
 
 const { Search } = Input;
 
+// 页面唯一标识符
+const PAGE_KEY = 'product-supplement';
+
 export default function ProductSupplementPage() {
   const { modal } = App.useApp();
+
+  // 定义默认状态
+  const defaultState = {
+    currentPage: 1,
+    pageSize: 20,
+    searchSku: '',
+    searchSupplier: '',
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
   const [data, setData] = useState<LabelDataRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchSku, setSearchSku] = useState('');
-  const [searchSupplier, setSearchSupplier] = useState('');
+  const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+  const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+  const [searchSku, setSearchSku] = useState(restoredState?.searchSku ?? defaultState.searchSku);
+  const [searchSupplier, setSearchSupplier] = useState(restoredState?.searchSupplier ?? defaultState.searchSupplier);
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<LabelDataRecord | null>(null);
   const [form] = Form.useForm();
@@ -38,6 +54,14 @@ export default function ProductSupplementPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('edit');
   const [isMobile, setIsMobile] = useState(false);
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    currentPage,
+    pageSize,
+    searchSku,
+    searchSupplier,
+  });
 
   // 检测移动端
   useEffect(() => {
@@ -68,9 +92,27 @@ export default function ProductSupplementPage() {
     }
   };
 
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
   useEffect(() => {
-    load();
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      load();
+    }
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+  useEffect(() => {
+    // 只有在初始加载之后才响应 currentPage 和 pageSize 的变化
+    if (hasInitialLoadRef.current) {
+      load();
+    }
   }, [currentPage, pageSize]);
+
+  // 当搜索条件变化时，如果用户点击了搜索按钮，会触发 load
+  // 这里不需要额外的 useEffect，因为搜索是通过 onSearch 回调触发的
 
   const loadLogs = async (sku: string, supplierName: string) => {
     setLogsLoading(true);

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
   DownloadOutlined,
@@ -28,8 +29,10 @@ import {
   Upload
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
+import zhCN from 'antd/locale/zh_CN';
 import dayjs, { Dayjs } from 'dayjs';
-import React, { useCallback, useEffect, useState } from 'react';
+import 'dayjs/locale/zh-cn';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { nonPurchaseBillRecordApi, transactionRecordApi } from '../lib/api';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
 import ColumnSettings from './ColumnSettings';
@@ -42,6 +45,9 @@ const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 
 type ChannelType = '1688先采后付' | '京东金融' | '微信' | '支付宝';
+
+// 页面唯一标识符
+const PAGE_KEY = 'transaction-record';
 
 // 定义各渠道的字段配置
 const getChannelFields = (channel: ChannelType): FieldConfig<any>[] => {
@@ -424,23 +430,77 @@ const addSearchFiltersToColumns = (
 };
 
 export default function TransactionRecordPage() {
-  const [channel, setChannel] = useState<ChannelType>('1688先采后付');
+  // 定义默认状态
+  const defaultState = {
+    channel: '1688先采后付' as ChannelType,
+    currentPage: 1,
+    pageSize: 20,
+    searchText: '',
+    search支付渠道: '',
+    search支付账号: '',
+    search收支金额: '',
+    search交易账单号: '',
+    search账单交易时间范围: null as [Dayjs | null, Dayjs | null] | null,
+    selectedBindingStatuses: [] as string[],
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
+  const [channel, setChannel] = useState<ChannelType>(restoredState?.channel ?? defaultState.channel);
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
+  const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+  const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+  const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
 
   // 5个公共字段的单独搜索
-  const [search支付渠道, setSearch支付渠道] = useState('');
-  const [search支付账号, setSearch支付账号] = useState('');
-  const [search收支金额, setSearch收支金额] = useState('');
-  const [search交易账单号, setSearch交易账单号] = useState('');
-  const [search账单交易时间范围, setSearch账单交易时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [search支付渠道, setSearch支付渠道] = useState(restoredState?.search支付渠道 ?? defaultState.search支付渠道);
+  const [search支付账号, setSearch支付账号] = useState(restoredState?.search支付账号 ?? defaultState.search支付账号);
+  const [search收支金额, setSearch收支金额] = useState(restoredState?.search收支金额 ?? defaultState.search收支金额);
+  const [search交易账单号, setSearch交易账单号] = useState(restoredState?.search交易账单号 ?? defaultState.search交易账单号);
+  // 恢复账单交易时间范围时，需要将字符串转换回 dayjs 对象
+  const getRestored账单交易时间范围 = (): [Dayjs | null, Dayjs | null] | null => {
+    if (!restoredState?.search账单交易时间范围) return defaultState.search账单交易时间范围;
+    const restored = restoredState.search账单交易时间范围;
+    // 如果是数组，尝试转换为 dayjs 对象
+    if (Array.isArray(restored) && restored.length === 2) {
+      const [start, end] = restored;
+      const convertToDayjs = (val: any): Dayjs | null => {
+        if (!val) return null;
+        if (typeof val === 'string') {
+          const d = dayjs(val);
+          return d.isValid() ? d : null;
+        }
+        // 检查是否是 dayjs 对象（有 isValid 方法）
+        if (val && typeof val.isValid === 'function') {
+          return val.isValid() ? val : null;
+        }
+        return null;
+      };
+      return [convertToDayjs(start), convertToDayjs(end)] as [Dayjs | null, Dayjs | null];
+    }
+    return null;
+  };
+  const [search账单交易时间范围, setSearch账单交易时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(getRestored账单交易时间范围());
 
   // 绑定状态筛选
-  const [selectedBindingStatuses, setSelectedBindingStatuses] = useState<string[]>([]);
+  const [selectedBindingStatuses, setSelectedBindingStatuses] = useState<string[]>(restoredState?.selectedBindingStatuses ?? defaultState.selectedBindingStatuses);
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    channel,
+    currentPage,
+    pageSize,
+    searchText,
+    search支付渠道,
+    search支付账号,
+    search收支金额,
+    search交易账单号,
+    search账单交易时间范围,
+    selectedBindingStatuses,
+  });
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -524,12 +584,20 @@ export default function TransactionRecordPage() {
       let filteredData = result.data;
       let filteredTotal = result.total;
       if (currentSearch账单交易时间范围 && currentSearch账单交易时间范围[0] && currentSearch账单交易时间范围[1]) {
-        const startTime = currentSearch账单交易时间范围[0].startOf('day');
-        const endTime = currentSearch账单交易时间范围[1].endOf('day');
+        // 使用与 FinanceReconciliationDifferencePage 相同的格式：YYYY-MM-DD 00:00:00 和 YYYY-MM-DD 23:59:59
+        const startTimeStr = currentSearch账单交易时间范围[0].format('YYYY-MM-DD 00:00:00');
+        const endTimeStr = currentSearch账单交易时间范围[1].format('YYYY-MM-DD 23:59:59');
+        const startTime = dayjs(startTimeStr);
+        const endTime = dayjs(endTimeStr);
         filteredData = result.data.filter((record: any) => {
           if (!record.账单交易时间) return false;
           const recordTime = dayjs(record.账单交易时间);
-          return recordTime.isAfter(startTime) && recordTime.isBefore(endTime);
+          if (!recordTime.isValid()) return false;
+          // 包含边界值：大于等于开始时间（00:00:00）且小于等于结束时间（23:59:59）
+          // 使用 diff 方法比较时间戳：>= 0 表示 >=，<= 0 表示 <=
+          const startDiff = recordTime.diff(startTime);
+          const endDiff = recordTime.diff(endTime);
+          return startDiff >= 0 && endDiff <= 0;
         });
         // 如果前端过滤了数据，总数应该使用过滤后的数量
         // 但为了准确，应该重新查询总数，这里先用过滤后的数据长度
@@ -584,27 +652,68 @@ export default function TransactionRecordPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnSearchKeywords]);
 
-  // 初始化加载
+  // 设置 dayjs 中文 locale
   useEffect(() => {
-    setCurrentPage(1);
-    setSearchText('');
-    setSearch支付渠道('');
-    setSearch支付账号('');
-    setSearch收支金额('');
-    setSearch交易账单号('');
-    setSearch账单交易时间范围(null);
-    setSelectedBindingStatuses([]);
+    dayjs.locale('zh-cn');
+  }, []);
 
-    // 切换渠道时，清除该渠道的列宽设置，使用默认列宽确保对齐
-    const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
-    localStorage.removeItem(widthStorageKey);
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
 
-    // 切换渠道时清除列搜索（所有渠道都支持，切换时清除）
-    setColumnSearchKeywords({});
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
+  useEffect(() => {
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      // 切换渠道时，清除该渠道的列宽设置，使用默认列宽确保对齐
+      const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
+      localStorage.removeItem(widthStorageKey);
 
-    loadRecords(1, undefined);
+      // 切换渠道时清除列搜索（所有渠道都支持，切换时清除）
+      setColumnSearchKeywords({});
+
+      // 使用恢复的搜索参数加载数据
+      loadRecords(currentPage, searchText || undefined, pageSize, {
+        支付渠道: search支付渠道 || undefined,
+        支付账号: search支付账号 || undefined,
+        交易账单号: search交易账单号 || undefined,
+        收支金额: search收支金额 || undefined,
+        账单交易时间范围: search账单交易时间范围 || undefined,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 channel 变化时，重置状态并重新加载数据（排除初始加载）
+  useEffect(() => {
+    if (hasInitialLoadRef.current) {
+      setCurrentPage(1);
+      setSearchText('');
+      setSearch支付渠道('');
+      setSearch支付账号('');
+      setSearch收支金额('');
+      setSearch交易账单号('');
+      setSearch账单交易时间范围(null);
+      setSelectedBindingStatuses([]);
+
+      // 切换渠道时，清除该渠道的列宽设置，使用默认列宽确保对齐
+      const widthStorageKey = `table_column_widths_transaction-record-${channel}`;
+      localStorage.removeItem(widthStorageKey);
+
+      // 切换渠道时清除列搜索（所有渠道都支持，切换时清除）
+      setColumnSearchKeywords({});
+
+      loadRecords(1, undefined);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
+
+  // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+  useEffect(() => {
+    if (hasInitialLoadRef.current) {
+      loadRecords(currentPage, searchText || undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   // 当绑定状态筛选变化时，重新加载数据
   useEffect(() => {
@@ -695,7 +804,13 @@ export default function TransactionRecordPage() {
   // 执行搜索
   const handleSearch = () => {
     setCurrentPage(1);
-    loadRecords(1, searchText || undefined);
+    loadRecords(1, searchText || undefined, undefined, {
+      支付渠道: search支付渠道 || undefined,
+      支付账号: search支付账号 || undefined,
+      交易账单号: search交易账单号 || undefined,
+      收支金额: search收支金额 || undefined,
+      账单交易时间范围: search账单交易时间范围 || undefined,
+    });
   };
 
   // 重置
@@ -1021,14 +1136,16 @@ export default function TransactionRecordPage() {
               onChange={(e) => setSearch交易账单号(e.target.value)}
               onPressEnter={handleSearch}
             />
-            <RangePicker
-              placeholder={['开始时间', '结束时间']}
-              value={search账单交易时间范围}
-              onChange={(dates) => setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null)}
-              showTime
-              format="YYYY-MM-DD HH:mm:ss"
+            <DatePicker.RangePicker
               size="small"
-              style={{ width: 350 }}
+              style={{ width: 180, fontSize: '12px' }}
+              value={search账单交易时间范围}
+              onChange={(dates) => {
+                setSearch账单交易时间范围(dates as [Dayjs | null, Dayjs | null] | null);
+              }}
+              format="YYYY-MM-DD"
+              placeholder={['开始时间', '结束时间']}
+              locale={zhCN.DatePicker}
             />
             <Button
               size="small"
@@ -1120,12 +1237,8 @@ export default function TransactionRecordPage() {
           pagination={{
             current: currentPage,
             pageSize: pageSize,
-            // 在异步模式下，确保 total 正确设置
-            // 如果数据长度小于 pageSize，说明是最后一页，total 应该等于数据长度
-            // 否则 total 应该使用后端返回的值，但至少等于数据长度
-            total: displayedRecords.length < pageSize
-              ? displayedRecords.length
-              : Math.max(total, displayedRecords.length),
+            // 在异步模式下，直接使用 total 状态值（已在 loadRecords 中正确设置）
+            total: total,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => {

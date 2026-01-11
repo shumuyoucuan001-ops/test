@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
@@ -29,7 +30,7 @@ import {
   Upload
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { aclApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi } from '../lib/api';
 import { isLocalhost } from '../utils/localhost';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
@@ -41,20 +42,52 @@ const { Title } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
+// 页面唯一标识符
+const PAGE_KEY = 'purchase-amount-adjustment';
+
 export default function PurchaseAmountAdjustmentPage() {
+  // 定义默认状态
+  const defaultState = {
+    currentPage: 1,
+    pageSize: 20,
+    searchText: '',
+    searchPurchaseOrderNumber: '',
+    searchAdjustmentAmount: '',
+    searchCreator: '',
+    searchFinanceReviewer: '',
+    searchDataUpdateTime: '',
+    searchFinanceReviewStatus: '',
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
   const [adjustments, setAdjustments] = useState<PurchaseAmountAdjustment[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
+  const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+  const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+  const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
   // 单独的搜索字段
-  const [searchPurchaseOrderNumber, setSearchPurchaseOrderNumber] = useState('');
-  const [searchAdjustmentAmount, setSearchAdjustmentAmount] = useState('');
-  const [searchCreator, setSearchCreator] = useState('');
-  const [searchFinanceReviewer, setSearchFinanceReviewer] = useState('');
-  const [searchDataUpdateTime, setSearchDataUpdateTime] = useState('');
-  const [searchFinanceReviewStatus, setSearchFinanceReviewStatus] = useState<string>('');
+  const [searchPurchaseOrderNumber, setSearchPurchaseOrderNumber] = useState(restoredState?.searchPurchaseOrderNumber ?? defaultState.searchPurchaseOrderNumber);
+  const [searchAdjustmentAmount, setSearchAdjustmentAmount] = useState(restoredState?.searchAdjustmentAmount ?? defaultState.searchAdjustmentAmount);
+  const [searchCreator, setSearchCreator] = useState(restoredState?.searchCreator ?? defaultState.searchCreator);
+  const [searchFinanceReviewer, setSearchFinanceReviewer] = useState(restoredState?.searchFinanceReviewer ?? defaultState.searchFinanceReviewer);
+  const [searchDataUpdateTime, setSearchDataUpdateTime] = useState(restoredState?.searchDataUpdateTime ?? defaultState.searchDataUpdateTime);
+  const [searchFinanceReviewStatus, setSearchFinanceReviewStatus] = useState<string>(restoredState?.searchFinanceReviewStatus ?? defaultState.searchFinanceReviewStatus);
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    currentPage,
+    pageSize,
+    searchText,
+    searchPurchaseOrderNumber,
+    searchAdjustmentAmount,
+    searchCreator,
+    searchFinanceReviewer,
+    searchDataUpdateTime,
+    searchFinanceReviewStatus,
+  });
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -179,10 +212,25 @@ export default function PurchaseAmountAdjustmentPage() {
     }
   };
 
-  // 初始化加载
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
   useEffect(() => {
-    loadAdjustments();
-  }, []);
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      loadAdjustments(currentPage, searchText, searchPurchaseOrderNumber, searchAdjustmentAmount, searchCreator, searchFinanceReviewer, searchDataUpdateTime, searchFinanceReviewStatus, pageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+  useEffect(() => {
+    if (hasInitialLoadRef.current) {
+      loadAdjustments(currentPage, searchText, searchPurchaseOrderNumber, searchAdjustmentAmount, searchCreator, searchFinanceReviewer, searchDataUpdateTime, searchFinanceReviewStatus, pageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   // 从 localStorage 加载列显示偏好和顺序
   useEffect(() => {

@@ -30,6 +30,7 @@ import {
 } from 'antd';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { PageStateProvider } from '../../contexts/PageStateContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { aclApi } from '../../lib/api';
 import { isLocalhost, setupLocalhostUser } from '../../utils/localhost';
@@ -213,11 +214,6 @@ const PAGE_CONFIGS: Record<string, PageConfig> = {
     icon: <ShoppingOutlined />,
     url: '/home/refund-1688-follow-up',
   },
-  'finance-management': {
-    title: '账单手动绑定采购单',
-    icon: <AccountBookOutlined />,
-    url: '/home/finance-management',
-  },
   'finance-management-bill': {
     title: '账单手动绑定采购单',
     icon: <AccountBookOutlined />,
@@ -273,6 +269,7 @@ export default function HomeLayout({
   const [activeTab, setActiveTab] = useState('home');
   const [isMobile, setIsMobile] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [manuallyClosedTabs, setManuallyClosedTabs] = useState<Set<string>>(new Set()); // 记录手动关闭的标签
   const { permissions, loading, hasPermission, hasMenuPermission } = usePermissions();
 
   // 检测移动端
@@ -321,14 +318,20 @@ export default function HomeLayout({
     setSelectedKey(pageKey);
     setActiveTab(pageKey);
 
-    // 只有当路径改变时才添加新标签，避免关闭标签时被重新添加
+    // 只有当路径改变时才添加新标签，但如果是手动关闭的标签，则需要通过菜单点击来重新打开
     setOpenTabs(prev => {
-      if (!prev.includes(pageKey)) {
-        return [...prev, pageKey];
+      // 如果标签已经在列表中，不重复添加
+      if (prev.includes(pageKey)) {
+        return prev;
       }
-      return prev; // 保持原有顺序，不重新创建数组
+      // 如果是手动关闭的标签，不自动添加（需要通过菜单点击来重新打开）
+      if (manuallyClosedTabs.has(pageKey)) {
+        return prev;
+      }
+      // 否则添加新标签
+      return [...prev, pageKey];
     });
-  }, [pathname, loading, hasPermission, router]);
+  }, [pathname, loading, hasPermission, router, manuallyClosedTabs]);
 
   // 初始化用户信息
   useEffect(() => {
@@ -464,6 +467,53 @@ export default function HomeLayout({
       setSelectedKey(key);
       setActiveTab(key);
 
+      // 如果之前手动关闭过，清除该页面的状态（确保重新打开时是默认状态）
+      if (manuallyClosedTabs.has(key)) {
+        try {
+          const STORAGE_KEY = 'pageStates';
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            const allStates = JSON.parse(stored);
+            // 页面key（标签key）与PAGE_KEY（状态存储key）的映射关系
+            const pageKeyMap: Record<string, string> = {
+              'products': 'products',
+              'product-supplement': 'product-supplement',
+              'supplier-management': 'supplier-management',
+              'supplier-conversion-relation': 'supplier-conversion-relation',
+              'refund-1688-follow-up': 'refund-1688-follow-up',
+              'ops-exclusion': 'ops-exclusion',
+              'ops-activity-dispatch': 'ops-activity-dispatch',
+              'ops-regular-activity-dispatch': 'ops-regular-activity-dispatch',
+              'ops-shelf-exclusion': 'ops-shelf-exclusion',
+              'store-rejection': 'store-rejection',
+              'max-purchase-quantity': 'max-purchase-quantity',
+              'max-store-sku-inventory': 'max-store-sku-inventory',
+              'finance-management-bill': 'finance-management',
+              'finance-reconciliation-difference': 'finance-reconciliation-difference',
+              'transaction-record': 'transaction-record',
+              'non-purchase-bill-record': 'non-purchase-bill-record',
+              'purchase-amount-adjustment': 'purchase-amount-adjustment',
+              'supplier-quotation': 'supplier-quotation',
+            };
+            const pageStateKey = pageKeyMap[key];
+            if (pageStateKey) {
+              delete allStates[pageStateKey];
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(allStates));
+            }
+          }
+        } catch (error) {
+          console.error('[HomeLayout] Failed to clear page state on menu click:', error);
+        }
+
+        // 从手动关闭列表中移除
+        setManuallyClosedTabs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(key);
+          return newSet;
+        });
+      }
+
+      // 通过菜单点击时，即使之前关闭过，也要重新打开标签
       if (!openTabs.includes(key)) {
         setOpenTabs(prev => [...prev, key]);
       }
@@ -491,6 +541,52 @@ export default function HomeLayout({
   const handleTabClose = (targetKey: string) => {
     if (targetKey === 'home') return; // 首页不能关闭
 
+    // 记录手动关闭的标签（先记录，这样在路由切换前就能标记为已关闭）
+    setManuallyClosedTabs(prev => new Set(prev).add(targetKey));
+
+    // 清除该页面的状态（因为用户手动关闭了标签，下次打开应该重置到默认状态）
+    // 使用 setTimeout 确保在组件卸载后清除，避免组件卸载时重新保存状态
+    setTimeout(() => {
+      try {
+        const STORAGE_KEY = 'pageStates';
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const allStates = JSON.parse(stored);
+          // 页面key（标签key）与PAGE_KEY（状态存储key）的映射关系
+          // 标签key来自PAGE_CONFIGS的key，PAGE_KEY是页面组件中定义的常量
+          const pageKeyMap: Record<string, string> = {
+            'products': 'products', // 商品资料
+            'product-supplement': 'product-supplement', // 标签资料管理
+            'supplier-management': 'supplier-management', // 供应商管理
+            'supplier-conversion-relation': 'supplier-conversion-relation', // 供应商推送换算关系变更
+            'refund-1688-follow-up': 'refund-1688-follow-up', // 1688退款(退货)跟进情况
+            'ops-exclusion': 'ops-exclusion', // 排除活动商品
+            'ops-activity-dispatch': 'ops-activity-dispatch', // 手动强制活动分发
+            'ops-regular-activity-dispatch': 'ops-regular-activity-dispatch', // 手动常规活动分发
+            'ops-shelf-exclusion': 'ops-shelf-exclusion', // 排除上下架商品
+            'store-rejection': 'store-rejection', // 驳回差异单
+            'max-purchase-quantity': 'max-purchase-quantity', // 单次最高采购量
+            'max-store-sku-inventory': 'max-store-sku-inventory', // 仓店sku最高库存
+            'finance-management-bill': 'finance-management', // 账单手动绑定采购单
+            'finance-reconciliation-difference': 'finance-reconciliation-difference', // 账单对账汇总差异
+            'transaction-record': 'transaction-record', // 流水记录
+            'non-purchase-bill-record': 'non-purchase-bill-record', // 非采购单流水记录
+            'purchase-amount-adjustment': 'purchase-amount-adjustment', // 采购单金额调整
+            'supplier-quotation': 'supplier-quotation', // 供应商报价
+            // 可以根据需要添加更多映射
+          };
+          const pageStateKey = pageKeyMap[targetKey];
+          if (pageStateKey) {
+            // 无论是否存在状态，都删除该键，确保清除
+            delete allStates[pageStateKey];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allStates));
+          }
+        }
+      } catch (error) {
+        console.error('[HomeLayout] Failed to clear page state on tab close:', error);
+      }
+    }, 100); // 延迟100ms，确保组件已卸载
+
     // 使用函数式更新确保状态一致性
     setOpenTabs(prevTabs => {
       const newTabs = prevTabs.filter(tab => tab !== targetKey);
@@ -509,6 +605,103 @@ export default function HomeLayout({
 
   // 清除其他标签页
   const handleClearOtherTabs = () => {
+    // 获取当前打开的标签列表
+    const tabsToClose = openTabs.filter(tab => tab !== activeTab && tab !== 'home');
+
+    // 清除所有要关闭的标签的状态
+    try {
+      const STORAGE_KEY = 'pageStates';
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const allStates = JSON.parse(stored);
+        // 页面key（标签key）与PAGE_KEY（状态存储key）的映射关系
+        const pageKeyMap: Record<string, string> = {
+          'products': 'products',
+          'product-supplement': 'product-supplement',
+          'supplier-management': 'supplier-management',
+          'supplier-conversion-relation': 'supplier-conversion-relation',
+          'refund-1688-follow-up': 'refund-1688-follow-up',
+          'ops-exclusion': 'ops-exclusion',
+          'ops-activity-dispatch': 'ops-activity-dispatch',
+          'ops-regular-activity-dispatch': 'ops-regular-activity-dispatch',
+          'ops-shelf-exclusion': 'ops-shelf-exclusion',
+          'store-rejection': 'store-rejection',
+          'max-purchase-quantity': 'max-purchase-quantity',
+          'max-store-sku-inventory': 'max-store-sku-inventory',
+          'finance-management-bill': 'finance-management',
+          'finance-reconciliation-difference': 'finance-reconciliation-difference',
+          'transaction-record': 'transaction-record',
+          'non-purchase-bill-record': 'non-purchase-bill-record',
+          'purchase-amount-adjustment': 'purchase-amount-adjustment',
+        };
+
+        let hasChanges = false;
+        tabsToClose.forEach(targetKey => {
+          const pageStateKey = pageKeyMap[targetKey];
+          if (pageStateKey && allStates[pageStateKey]) {
+            delete allStates[pageStateKey];
+            hasChanges = true;
+          }
+        });
+
+        if (hasChanges) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(allStates));
+        }
+      }
+    } catch (error) {
+      console.error('[HomeLayout] Failed to clear page states on clear other tabs:', error);
+    }
+
+    // 将所有关闭的标签标记为手动关闭
+    tabsToClose.forEach(targetKey => {
+      setManuallyClosedTabs(prev => new Set(prev).add(targetKey));
+    });
+
+    // 延迟再次清除状态，确保组件卸载后也清除
+    setTimeout(() => {
+      try {
+        const STORAGE_KEY = 'pageStates';
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const allStates = JSON.parse(stored);
+          const pageKeyMap: Record<string, string> = {
+            'products': 'products',
+            'product-supplement': 'product-supplement',
+            'supplier-management': 'supplier-management',
+            'supplier-conversion-relation': 'supplier-conversion-relation',
+            'refund-1688-follow-up': 'refund-1688-follow-up',
+            'ops-exclusion': 'ops-exclusion',
+            'ops-activity-dispatch': 'ops-activity-dispatch',
+            'ops-regular-activity-dispatch': 'ops-regular-activity-dispatch',
+            'ops-shelf-exclusion': 'ops-shelf-exclusion',
+            'store-rejection': 'store-rejection',
+            'max-purchase-quantity': 'max-purchase-quantity',
+            'max-store-sku-inventory': 'max-store-sku-inventory',
+            'finance-management-bill': 'finance-management',
+            'finance-reconciliation-difference': 'finance-reconciliation-difference',
+            'transaction-record': 'transaction-record',
+            'non-purchase-bill-record': 'non-purchase-bill-record',
+            'purchase-amount-adjustment': 'purchase-amount-adjustment',
+          };
+
+          let hasChanges = false;
+          tabsToClose.forEach(targetKey => {
+            const pageStateKey = pageKeyMap[targetKey];
+            if (pageStateKey) {
+              delete allStates[pageStateKey];
+              hasChanges = true;
+            }
+          });
+
+          if (hasChanges) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allStates));
+          }
+        }
+      } catch (error) {
+        console.error('[HomeLayout] Failed to clear page states on clear other tabs (delayed):', error);
+      }
+    }, 100);
+
     setOpenTabs([activeTab]);
   };
 
@@ -1252,7 +1445,9 @@ export default function HomeLayout({
                   <Spin size="large" />
                 </div>
               ) : (
-                children
+                <PageStateProvider>
+                  {children}
+                </PageStateProvider>
               )}
             </div>
           </Content>

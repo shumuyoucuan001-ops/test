@@ -1,12 +1,13 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { SupplierConversionRelationItem, supplierConversionRelationApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Space, message } from "antd";
 import { ColumnType } from "antd/es/table";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ResponsiveTable from "./ResponsiveTable";
@@ -19,25 +20,52 @@ const fieldLabels: Record<keyof SupplierConversionRelationItem, string> = {
     "数据更新时间": "数据更新时间",
 };
 
+// 页面唯一标识符
+const PAGE_KEY = 'supplier-conversion-relation';
+
 export default function SupplierConversionRelationPage() {
+    // 定义默认状态
+    const defaultState = {
+        currentPage: 1,
+        pageSize: 20,
+        searchText: '',
+        searchFilters: {} as {
+            供应商编码?: string;
+            '*SKU编码'?: string;
+            换算关系?: string;
+            二次换算关系?: string;
+        },
+    };
+
+    // 恢复保存的状态
+    const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
     const [data, setData] = useState<SupplierConversionRelationItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+    const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<SupplierConversionRelationItem | null>(null);
     const [form] = Form.useForm<SupplierConversionRelationItem>();
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
     const [batchModalOpen, setBatchModalOpen] = useState(false);
-    const [searchText, setSearchText] = useState('');
+    const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
     const [searchFilters, setSearchFilters] = useState<{
         供应商编码?: string;
         '*SKU编码'?: string;
         换算关系?: string;
         二次换算关系?: string;
-    }>({});
+    }>(restoredState?.searchFilters ?? defaultState.searchFilters);
+
+    // 保存状态（自动保存，防抖 300ms）
+    usePageStateSave(PAGE_KEY, {
+        currentPage,
+        pageSize,
+        searchText,
+        searchFilters,
+    });
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -176,8 +204,24 @@ export default function SupplierConversionRelationPage() {
         }
     };
 
+    // 使用 ref 标记是否已经初始加载
+    const hasInitialLoadRef = useRef(false);
+
+    // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
     useEffect(() => {
-        load();
+        if (!hasInitialLoadRef.current) {
+            hasInitialLoadRef.current = true;
+            load();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // 只在组件挂载时执行一次
+
+    // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+    useEffect(() => {
+        // 只有在初始加载之后才响应 currentPage 和 pageSize 的变化
+        if (hasInitialLoadRef.current) {
+            load();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 
@@ -721,7 +765,7 @@ export default function SupplierConversionRelationPage() {
                 onOk={handleSave}
                 okText="确定"
                 cancelText="取消"
-                destroyOnClose
+                destroyOnHidden
                 width={600}
             >
                 <Form form={form} layout="vertical">

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import {
   LabelDataItem,
   labelDataApi,
@@ -27,11 +28,14 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ResponsiveTable from "./ResponsiveTable";
 
 const { Search } = Input;
 const { Text } = Typography;
+
+// 页面唯一标识符
+const PAGE_KEY = 'products';
 
 type MasterListItem = {
   spuCode: string;
@@ -44,11 +48,27 @@ type MasterListItem = {
 
 export default function ProductMasterPage() {
   const { modal } = App.useApp();
+
+  // 定义默认状态
+  const defaultState = {
+    sku: '',
+    q: '',
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MasterListItem[]>([]);
-  const [sku, setSku] = useState("");
-  const [q, setQ] = useState("");
+  const [sku, setSku] = useState(restoredState?.sku ?? defaultState.sku);
+  const [q, setQ] = useState(restoredState?.q ?? defaultState.q);
   const [isMobile, setIsMobile] = useState(false);
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    sku,
+    q,
+  });
 
   // 检测移动端
   useEffect(() => {
@@ -223,9 +243,18 @@ export default function ProductMasterPage() {
     }
   };
 
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
   useEffect(() => {
-    load();
-  }, []);
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      // 使用恢复的搜索条件加载数据
+      load({ sku, q });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在组件挂载时执行一次
 
   const columns = [
     { title: "SPU编码", dataIndex: "spuCode", key: "spuCode", width: 180 },

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
@@ -28,12 +29,15 @@ import {
   Typography,
   message
 } from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
 import ResponsiveTable from './ResponsiveTable';
 
 const { Title } = Typography;
 const { TextArea } = Input;
+
+// 页面唯一标识符
+const PAGE_KEY = 'supplier-management';
 
 // 接口定义
 interface SupplierBasicInfo {
@@ -167,14 +171,33 @@ const supplierApi = {
 };
 
 export default function SupplierManagementPage() {
+  // 定义默认状态
+  const defaultState = {
+    currentPage: 1,
+    pageSize: 20,
+    searchText: '',
+    contactOrAddressSearch: '',
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
   const [suppliers, setSuppliers] = useState<SupplierFullInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
-  const [contactOrAddressSearch, setContactOrAddressSearch] = useState(''); // 合并的联系人或办公地址搜索
+  const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+  const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+  const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
+  const [contactOrAddressSearch, setContactOrAddressSearch] = useState(restoredState?.contactOrAddressSearch ?? defaultState.contactOrAddressSearch);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    currentPage,
+    pageSize,
+    searchText,
+    contactOrAddressSearch,
+  });
 
   // 模态框状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -232,10 +255,27 @@ export default function SupplierManagementPage() {
     }
   };
 
-  // 初始化加载
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
   useEffect(() => {
-    loadSuppliers();
-  }, []);
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      // 使用恢复的搜索条件加载数据
+      loadSuppliers(currentPage, searchText, contactOrAddressSearch, contactOrAddressSearch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+  useEffect(() => {
+    // 只有在初始加载之后才响应 currentPage 和 pageSize 的变化
+    if (hasInitialLoadRef.current) {
+      loadSuppliers(currentPage, searchText, contactOrAddressSearch, contactOrAddressSearch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   // 从 localStorage 加载列显示偏好和顺序
   useEffect(() => {

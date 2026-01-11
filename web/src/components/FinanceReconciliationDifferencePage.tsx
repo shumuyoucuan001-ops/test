@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { FinanceBill, financeManagementApi, FinanceReconciliationDifference, financeReconciliationDifferenceApi, NonPurchaseBillRecord, nonPurchaseBillRecordApi, PurchaseAmountAdjustment, purchaseAmountAdjustmentApi, PurchaseOrderInfo, purchaseOrderInfoApi, TransactionRecord, transactionRecordApi } from '@/lib/api';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
@@ -41,7 +42,26 @@ import ResponsiveTable from './ResponsiveTable';
 const { Title } = Typography;
 const { TextArea } = Input;
 
+// 页面唯一标识符
+const PAGE_KEY = 'finance-reconciliation-difference';
+
 export default function FinanceReconciliationDifferencePage() {
+  // 定义默认状态
+  const defaultState = {
+    currentPage: 1,
+    pageSize: 20,
+    searchText: '',
+    search对账单号: '',
+    search记录状态: [] as string[],
+    search对账单收货状态: [] as string[],
+    search更新时间范围: null as [Dayjs | null, Dayjs | null] | null,
+    search采购单号: '',
+    search交易单号: '',
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
   const [records, setRecords] = useState<FinanceReconciliationDifference[]>([]);
 
   // 调试：监控records的变化，确认数据顺序
@@ -54,16 +74,52 @@ export default function FinanceReconciliationDifferencePage() {
   }, [records]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
+  const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+  const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+  const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
   // 单独的搜索字段（主表）
-  const [search对账单号, setSearch对账单号] = useState('');
-  const [search记录状态, setSearch记录状态] = useState<string[]>([]);
-  const [search对账单收货状态, setSearch对账单收货状态] = useState<string[]>([]);
-  const [search更新时间范围, setSearch更新时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(null);
-  const [search采购单号, setSearch采购单号] = useState(''); // 采购单号搜索对账单号
-  const [search交易单号, setSearch交易单号] = useState(''); // 交易单号搜索对账单号
+  const [search对账单号, setSearch对账单号] = useState(restoredState?.search对账单号 ?? defaultState.search对账单号);
+  const [search记录状态, setSearch记录状态] = useState<string[]>(restoredState?.search记录状态 ?? defaultState.search记录状态);
+  const [search对账单收货状态, setSearch对账单收货状态] = useState<string[]>(restoredState?.search对账单收货状态 ?? defaultState.search对账单收货状态);
+  // 恢复更新时间范围时，需要将字符串转换回 dayjs 对象
+  const getRestored更新时间范围 = (): [Dayjs | null, Dayjs | null] | null => {
+    if (!restoredState?.search更新时间范围) return defaultState.search更新时间范围;
+    const restored = restoredState.search更新时间范围;
+    // 如果是数组，尝试转换为 dayjs 对象
+    if (Array.isArray(restored) && restored.length === 2) {
+      const [start, end] = restored;
+      const convertToDayjs = (val: any): Dayjs | null => {
+        if (!val) return null;
+        if (typeof val === 'string') {
+          const d = dayjs(val);
+          return d.isValid() ? d : null;
+        }
+        // 检查是否是 dayjs 对象（有 isValid 方法）
+        if (val && typeof val.isValid === 'function') {
+          return val.isValid() ? val : null;
+        }
+        return null;
+      };
+      return [convertToDayjs(start), convertToDayjs(end)] as [Dayjs | null, Dayjs | null];
+    }
+    return null;
+  };
+  const [search更新时间范围, setSearch更新时间范围] = useState<[Dayjs | null, Dayjs | null] | null>(getRestored更新时间范围());
+  const [search采购单号, setSearch采购单号] = useState(restoredState?.search采购单号 ?? defaultState.search采购单号); // 采购单号搜索对账单号
+  const [search交易单号, setSearch交易单号] = useState(restoredState?.search交易单号 ?? defaultState.search交易单号); // 交易单号搜索对账单号
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    currentPage,
+    pageSize,
+    searchText,
+    search对账单号,
+    search记录状态,
+    search对账单收货状态,
+    search更新时间范围,
+    search采购单号,
+    search交易单号,
+  });
 
 
   // 列设置相关状态
@@ -288,23 +344,49 @@ export default function FinanceReconciliationDifferencePage() {
     dayjs.locale('zh-cn');
   }, []);
 
-  // 初始化加载
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
   useEffect(() => {
-    const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
-    const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
-    loadRecords(
-      currentPage,
-      searchText?.trim() || undefined,
-      search对账单号?.trim() || undefined,
-      search记录状态.length > 0 ? search记录状态 : undefined,
-      search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
-      更新时间开始,
-      更新时间结束,
-      search采购单号?.trim() || undefined,
-      search交易单号?.trim() || undefined,
-    );
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
+      const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
+      loadRecords(
+        currentPage,
+        searchText?.trim() || undefined,
+        search对账单号?.trim() || undefined,
+        search记录状态.length > 0 ? search记录状态 : undefined,
+        search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
+        更新时间开始,
+        更新时间结束,
+        search采购单号?.trim() || undefined,
+        search交易单号?.trim() || undefined,
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+  useEffect(() => {
+    if (hasInitialLoadRef.current) {
+      const 更新时间开始 = search更新时间范围?.[0] ? search更新时间范围[0].format('YYYY-MM-DD 00:00:00') : undefined;
+      const 更新时间结束 = search更新时间范围?.[1] ? search更新时间范围[1].format('YYYY-MM-DD 23:59:59') : undefined;
+      loadRecords(
+        currentPage,
+        searchText?.trim() || undefined,
+        search对账单号?.trim() || undefined,
+        search记录状态.length > 0 ? search记录状态 : undefined,
+        search对账单收货状态.length > 0 ? search对账单收货状态 : undefined,
+        更新时间开始,
+        更新时间结束,
+        search采购单号?.trim() || undefined,
+        search交易单号?.trim() || undefined,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   // 计算上栏表格滚动高度
   useEffect(() => {

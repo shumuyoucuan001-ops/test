@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import type { ChannelType } from './transaction-record.service';
 import { TransactionRecord, TransactionRecordService } from './transaction-record.service';
+import { Logger } from '../utils/logger.util';
 
 @Controller('transaction-record')
 export class TransactionRecordController {
@@ -14,10 +15,13 @@ export class TransactionRecordController {
         @Query('search') search?: string,
         @Query('bindingStatuses') bindingStatuses?: string, // 逗号分隔的绑定状态列表
     ) {
+        Logger.log(`[TransactionRecordController] getAll called with channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses}`);
+
         const pageNum = parseInt(page, 10) || 1;
         const limitNum = parseInt(limit, 10) || 20;
 
         if (!channel || !['1688先采后付', '京东金融', '微信', '支付宝'].includes(channel)) {
+            Logger.error(`[TransactionRecordController] Invalid channel: ${channel}`);
             throw new Error('无效的渠道类型');
         }
 
@@ -27,13 +31,16 @@ export class TransactionRecordController {
             bindingStatusArray = bindingStatuses.split(',').map(s => s.trim()).filter(Boolean);
         }
 
-        return await this.transactionRecordService.getAll(
+        const result = await this.transactionRecordService.getAll(
             channel as ChannelType,
             pageNum,
             limitNum,
             search,
             bindingStatusArray,
         );
+
+        Logger.log(`[TransactionRecordController] getAll result: data.length=${result.data.length}, total=${result.total}`);
+        return result;
     }
 
     @Post('batch')

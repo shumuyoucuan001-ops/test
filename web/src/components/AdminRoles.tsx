@@ -129,7 +129,7 @@ export default function RolePage() {
         />
       </Card>
 
-      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} title={editing ? '编辑角色' : '新增角色'} destroyOnClose>
+      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} title={editing ? '编辑角色' : '新增角色'} destroyOnHidden>
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="角色名" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="remark" label="备注"><Input /></Form.Item>
@@ -141,7 +141,7 @@ export default function RolePage() {
         onOk={saveGrant}
         onCancel={() => setGrantOpen(false)}
         title={`角色授权 - ${editing?.name || ''}`}
-        destroyOnClose
+        destroyOnHidden
         width={600}
       >
         <Checkbox.Group style={{ width: '100%' }} value={checked} onChange={(vals) => setChecked(vals as number[])}>

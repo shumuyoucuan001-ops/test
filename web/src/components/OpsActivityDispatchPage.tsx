@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { OpsActivityDispatchItem, opsActivityDispatchApi, productMasterApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
@@ -7,7 +8,7 @@ import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, SettingOu
 import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
 import dayjs, { Dayjs } from "dayjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
@@ -32,19 +33,42 @@ const fieldLabels: Record<keyof OpsActivityDispatchItem, string> = {
     "采购单价 (采购单位)": "采购单价 (采购单位)",
 };
 
+// 页面唯一标识符
+const PAGE_KEY = 'ops-activity-dispatch';
+
 export default function OpsActivityDispatchPage() {
+    // 定义默认状态
+    const defaultState = {
+        currentPage: 1,
+        pageSize: 20,
+        searchText: '',
+        searchFilters: {} as {
+            SKU?: string;
+            活动价?: string;
+            最低活动价?: string;
+            活动类型?: string;
+            门店名称?: string;
+            活动备注?: string;
+            剩余活动天数?: string;
+            活动确认人?: string;
+        },
+    };
+
+    // 恢复保存的状态
+    const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
     const [data, setData] = useState<OpsActivityDispatchItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+    const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<OpsActivityDispatchItem | null>(null);
     const [form] = Form.useForm<OpsActivityDispatchItem>();
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
     const [batchModalOpen, setBatchModalOpen] = useState(false);
-    const [searchText, setSearchText] = useState('');
+    const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
     const [searchFilters, setSearchFilters] = useState<{
         SKU?: string;
         活动价?: string;
@@ -54,7 +78,15 @@ export default function OpsActivityDispatchPage() {
         活动备注?: string;
         剩余活动天数?: string;
         活动确认人?: string;
-    }>({});
+    }>(restoredState?.searchFilters ?? defaultState.searchFilters);
+
+    // 保存状态（自动保存，防抖 300ms）
+    usePageStateSave(PAGE_KEY, {
+        currentPage,
+        pageSize,
+        searchText,
+        searchFilters,
+    });
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -213,8 +245,23 @@ export default function OpsActivityDispatchPage() {
         loadStoreNames();
     }, []);
 
+    // 使用 ref 标记是否已经初始加载
+    const hasInitialLoadRef = useRef(false);
+
+    // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
     useEffect(() => {
-        load();
+        if (!hasInitialLoadRef.current) {
+            hasInitialLoadRef.current = true;
+            load();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // 只在组件挂载时执行一次
+
+    // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+    useEffect(() => {
+        if (hasInitialLoadRef.current) {
+            load();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 
@@ -1055,7 +1102,7 @@ export default function OpsActivityDispatchPage() {
                 onOk={handleSave}
                 okText="确定"
                 cancelText="取消"
-                destroyOnClose
+                destroyOnHidden
                 width={600}
             >
                 <Form form={form} layout="vertical">

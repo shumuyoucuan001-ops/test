@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { InventorySummary, SupplierQuotation, supplierQuotationApi, SupplierSkuBinding } from '@/lib/api';
 import { DownloadOutlined, ReloadOutlined, SaveOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
 import {
@@ -25,41 +26,83 @@ import ColumnSettings from './ColumnSettings';
 
 const { Search } = Input;
 
+// 页面唯一标识符
+const PAGE_KEY = 'supplier-quotation';
+
 export default function SupplierQuotationPage() {
+  // 定义默认状态
+  const defaultState = {
+    leftCurrentPage: 1,
+    leftPageSize: 10,
+    supplierNameSearch: '',
+    supplierCodeSearch: '',
+    productNameSearch: '',
+    upcCodeSearch: '',
+    selectedSupplierCodes: [] as string[],
+    rightCurrentPage: 1,
+    rightPageSize: 10,
+    inventoryType: '全部' as '全部' | '仓店' | '城市',
+    comparisonResultFilter: [] as string[],
+    storeNameFilter: '',
+    cityFilter: '',
+    inventorySkuSearch: '',
+  };
+
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
   // 左栏数据
   const [leftData, setLeftData] = useState<SupplierQuotation[]>([]);
   const [allLeftData, setAllLeftData] = useState<SupplierQuotation[]>([]); // 所有供应商报价数据（用于筛选）
   const [leftLoading, setLeftLoading] = useState(false);
   const [leftTotal, setLeftTotal] = useState(0);
-  const [leftCurrentPage, setLeftCurrentPage] = useState(1);
-  const [leftPageSize, setLeftPageSize] = useState(10);
+  const [leftCurrentPage, setLeftCurrentPage] = useState(restoredState?.leftCurrentPage ?? defaultState.leftCurrentPage);
+  const [leftPageSize, setLeftPageSize] = useState(restoredState?.leftPageSize ?? defaultState.leftPageSize);
   const [leftSearchText, setLeftSearchText] = useState(''); // 保留用于兼容，后续可移除
   // 拆分为多个独立的搜索框
-  const [supplierNameSearch, setSupplierNameSearch] = useState(''); // 供应商名称搜索
-  const [supplierCodeSearch, setSupplierCodeSearch] = useState(''); // 供应商编码搜索
-  const [productNameSearch, setProductNameSearch] = useState(''); // 商品名称搜索
-  const [upcCodeSearch, setUpcCodeSearch] = useState(''); // 最小销售规格UPC商品条码搜索
+  const [supplierNameSearch, setSupplierNameSearch] = useState(restoredState?.supplierNameSearch ?? defaultState.supplierNameSearch); // 供应商名称搜索
+  const [supplierCodeSearch, setSupplierCodeSearch] = useState(restoredState?.supplierCodeSearch ?? defaultState.supplierCodeSearch); // 供应商编码搜索
+  const [productNameSearch, setProductNameSearch] = useState(restoredState?.productNameSearch ?? defaultState.productNameSearch); // 商品名称搜索
+  const [upcCodeSearch, setUpcCodeSearch] = useState(restoredState?.upcCodeSearch ?? defaultState.upcCodeSearch); // 最小销售规格UPC商品条码搜索
 
-  const [selectedSupplierCodes, setSelectedSupplierCodes] = useState<string[]>([]); // 选中的供应商编码列表
+  const [selectedSupplierCodes, setSelectedSupplierCodes] = useState<string[]>(restoredState?.selectedSupplierCodes ?? defaultState.selectedSupplierCodes); // 选中的供应商编码列表
   const [allSupplierCodes, setAllSupplierCodes] = useState<string[]>([]); // 所有供应商编码列表
   const [supplierCodeSearchValue, setSupplierCodeSearchValue] = useState(''); // 供应商编码选择框的搜索输入值
 
   // 库存汇总搜索
-  const [inventorySkuSearch, setInventorySkuSearch] = useState(''); // SKU搜索
+  const [inventorySkuSearch, setInventorySkuSearch] = useState(restoredState?.inventorySkuSearch ?? defaultState.inventorySkuSearch); // SKU搜索
 
   // 右栏数据
   const [rightData, setRightData] = useState<InventorySummary[]>([]); // 所有库存汇总数据（未分页）
   const [rightAllData, setRightAllData] = useState<InventorySummary[]>([]); // 所有库存汇总数据（用于匹配）
   const [rightLoading, setRightLoading] = useState(false);
-  const [inventoryType, setInventoryType] = useState<'全部' | '仓店' | '城市'>('全部');
+  const [inventoryType, setInventoryType] = useState<'全部' | '仓店' | '城市'>(restoredState?.inventoryType ?? defaultState.inventoryType);
   const [selectedLeftRecord, setSelectedLeftRecord] = useState<SupplierQuotation | null>(null);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number>(-1); // 记录选中的行索引
-  const [rightCurrentPage, setRightCurrentPage] = useState(1);
-  const [rightPageSize, setRightPageSize] = useState(10);
+  const [rightCurrentPage, setRightCurrentPage] = useState(restoredState?.rightCurrentPage ?? defaultState.rightCurrentPage);
+  const [rightPageSize, setRightPageSize] = useState(restoredState?.rightPageSize ?? defaultState.rightPageSize);
   const [rightTotal, setRightTotal] = useState(0); // 库存汇总总数
-  const [comparisonResultFilter, setComparisonResultFilter] = useState<string[]>([]); // 对比结果筛选
-  const [storeNameFilter, setStoreNameFilter] = useState<string>(''); // 门店/仓名称筛选（仅仓店维度，单选）
-  const [cityFilter, setCityFilter] = useState<string>(''); // 城市筛选（仅城市维度，单选）
+  const [comparisonResultFilter, setComparisonResultFilter] = useState<string[]>(restoredState?.comparisonResultFilter ?? defaultState.comparisonResultFilter); // 对比结果筛选
+  const [storeNameFilter, setStoreNameFilter] = useState<string>(restoredState?.storeNameFilter ?? defaultState.storeNameFilter); // 门店/仓名称筛选（仅仓店维度，单选）
+  const [cityFilter, setCityFilter] = useState<string>(restoredState?.cityFilter ?? defaultState.cityFilter); // 城市筛选（仅城市维度，单选）
+
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    leftCurrentPage,
+    leftPageSize,
+    supplierNameSearch,
+    supplierCodeSearch,
+    productNameSearch,
+    upcCodeSearch,
+    selectedSupplierCodes,
+    rightCurrentPage,
+    rightPageSize,
+    inventoryType,
+    comparisonResultFilter,
+    storeNameFilter,
+    cityFilter,
+    inventorySkuSearch,
+  });
   const [warehousePriorities, setWarehousePriorities] = useState<string[]>([]); // 仓库优先级列表
   const [cities, setCities] = useState<string[]>([]); // 城市列表
   const [upcToSkuMap, setUpcToSkuMap] = useState<Record<string, string[]>>({}); // UPC条码到SKU编码的映射
@@ -3575,9 +3618,24 @@ export default function SupplierQuotationPage() {
     }
   };
 
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
   // 初始化加载供应商编码列表
   useEffect(() => {
     loadAllSupplierCodes();
+    // 如果恢复了状态且selectedSupplierCodes不为空，自动执行查询
+    if (!hasInitialLoadRef.current && restoredState && restoredState.selectedSupplierCodes && restoredState.selectedSupplierCodes.length > 0) {
+      hasInitialLoadRef.current = true;
+      // 延迟执行，确保loadAllSupplierCodes完成后再执行查询
+      setTimeout(() => {
+        isLoadingManuallyRef.current = true;
+        loadLeftData(undefined, undefined, undefined, restoredState.leftCurrentPage, restoredState.leftPageSize);
+      }, 100);
+    } else {
+      hasInitialLoadRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 移除自动搜索：所有筛选和搜索都需要点击搜索按钮才会执行

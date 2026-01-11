@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { formatDateTime } from '@/lib/dateUtils';
 import {
   DeleteOutlined,
@@ -29,7 +30,7 @@ import {
   message
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NonPurchaseBillRecord, aclApi, maxStoreSkuInventoryApi, nonPurchaseBillRecordApi } from '../lib/api';
 import { isLocalhost } from '../utils/localhost';
 import BatchAddModal, { FieldConfig } from './BatchAddModal';
@@ -39,20 +40,52 @@ import ResponsiveTable from './ResponsiveTable';
 const { Title } = Typography;
 const { TextArea } = Input;
 
+// 页面唯一标识符
+const PAGE_KEY = 'non-purchase-bill-record';
+
 export default function NonPurchaseBillRecordPage() {
+  // 定义默认状态
+  const defaultState = {
+    currentPage: 1,
+    pageSize: 20,
+    searchText: '',
+    search账单流水: '',
+    search账单类型: '',
+    search所属仓店: '',
+    search财务审核状态: '',
+    search记录修改人: '',
+    search财务记账凭证号: '',
+  };
+  
+  // 恢复保存的状态
+  const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+  
   const [records, setRecords] = useState<NonPurchaseBillRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [searchText, setSearchText] = useState('');
+  const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+  const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+  const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText);
   // 单独的搜索字段
-  const [search账单流水, setSearch账单流水] = useState('');
-  const [search账单类型, setSearch账单类型] = useState('');
-  const [search所属仓店, setSearch所属仓店] = useState('');
-  const [search财务审核状态, setSearch财务审核状态] = useState('');
-  const [search记录修改人, setSearch记录修改人] = useState('');
-  const [search财务记账凭证号, setSearch财务记账凭证号] = useState('');
+  const [search账单流水, setSearch账单流水] = useState(restoredState?.search账单流水 ?? defaultState.search账单流水);
+  const [search账单类型, setSearch账单类型] = useState(restoredState?.search账单类型 ?? defaultState.search账单类型);
+  const [search所属仓店, setSearch所属仓店] = useState(restoredState?.search所属仓店 ?? defaultState.search所属仓店);
+  const [search财务审核状态, setSearch财务审核状态] = useState(restoredState?.search财务审核状态 ?? defaultState.search财务审核状态);
+  const [search记录修改人, setSearch记录修改人] = useState(restoredState?.search记录修改人 ?? defaultState.search记录修改人);
+  const [search财务记账凭证号, setSearch财务记账凭证号] = useState(restoredState?.search财务记账凭证号 ?? defaultState.search财务记账凭证号);
+  
+  // 保存状态（自动保存，防抖 300ms）
+  usePageStateSave(PAGE_KEY, {
+    currentPage,
+    pageSize,
+    searchText,
+    search账单流水,
+    search账单类型,
+    search所属仓店,
+    search财务审核状态,
+    search记录修改人,
+    search财务记账凭证号,
+  });
 
   // 门店名称列表
   const [storeNames, setStoreNames] = useState<string[]>([]);
@@ -192,16 +225,31 @@ export default function NonPurchaseBillRecordPage() {
     }
   };
 
-  // 初始化加载
+  // 使用 ref 标记是否已经初始加载
+  const hasInitialLoadRef = useRef(false);
+
+  // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
   useEffect(() => {
-    loadRecords();
-    // 加载门店名称列表
-    maxStoreSkuInventoryApi.getStoreNames().then(names => {
-      setStoreNames(names || []);
-    }).catch(error => {
-      console.error('加载门店名称列表失败:', error);
-    });
-  }, []);
+    if (!hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
+      loadRecords(currentPage, searchText, search账单流水, search账单类型, search所属仓店, search财务审核状态, search记录修改人, search财务记账凭证号, pageSize);
+      // 加载门店名称列表
+      maxStoreSkuInventoryApi.getStoreNames().then(names => {
+        setStoreNames(names || []);
+      }).catch(error => {
+        console.error('加载门店名称列表失败:', error);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+  useEffect(() => {
+    if (hasInitialLoadRef.current) {
+      loadRecords(currentPage, searchText, search账单流水, search账单类型, search所属仓店, search财务审核状态, search记录修改人, search财务记账凭证号, pageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   // 从 localStorage 加载列显示偏好和顺序
   useEffect(() => {

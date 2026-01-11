@@ -240,7 +240,7 @@ export default function UserPage() {
         />
       </Card>
 
-      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} confirmLoading={loading} title={editing ? '编辑账号' : '新增账号'} destroyOnClose>
+      <Modal open={open} onOk={onOk} onCancel={() => setOpen(false)} confirmLoading={loading} title={editing ? '编辑账号' : '新增账号'} destroyOnHidden>
         <Form form={form} layout="vertical">
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }, { min: 3, max: 64, message: '3-64个字符' }]}><Input /></Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: !editing, message: '请输入密码' }, { min: 6, max: 128, message: '6-128个字符' }]}><Input.Password /></Form.Item>
@@ -258,7 +258,7 @@ export default function UserPage() {
           setRolePermissionsMap({});
         }}
         title={`分配角色 - ${editing?.username || ''}`}
-        destroyOnClose
+        destroyOnHidden
         width={800}
       >
         <div style={{ marginBottom: 16 }}>

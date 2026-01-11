@@ -1,11 +1,12 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { OpsExclusionItem, opsExclusionApi, productMasterApi } from "@/lib/api";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Popover, Select, Space, Tag, message } from "antd";
 import { ColumnType } from "antd/es/table";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
@@ -38,25 +39,52 @@ const VIEW_NAME_OPTIONS = [
     '取消饿了么单品直降',
 ];
 
+// 页面唯一标识符
+const PAGE_KEY = 'ops-exclusion';
+
 export default function OpsExclusionPage() {
+    // 定义默认状态
+    const defaultState = {
+        currentPage: 1,
+        pageSize: 20,
+        searchText: '',
+        searchFilters: {} as {
+            视图名称?: string[];
+            门店编码?: string[];
+            SKU编码?: string;
+            SPU编码?: string;
+        },
+    };
+
+    // 恢复保存的状态
+    const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+
     const [data, setData] = useState<OpsExclusionItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+    const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<OpsExclusionItem | null>(null);
     const [form] = Form.useForm<OpsExclusionItem>();
     const [isMobile, setIsMobile] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]); // 选中的行
     const [batchModalOpen, setBatchModalOpen] = useState(false); // 批量新增弹窗
-    const [searchText, setSearchText] = useState(''); // 总搜索（全字段）
+    const [searchText, setSearchText] = useState(restoredState?.searchText ?? defaultState.searchText); // 总搜索（全字段）
     const [searchFilters, setSearchFilters] = useState<{
         视图名称?: string[];
         门店编码?: string[];
         SKU编码?: string;
         SPU编码?: string;
-    }>({});
+    }>(restoredState?.searchFilters ?? defaultState.searchFilters);
+
+    // 保存状态（自动保存，防抖 300ms）
+    usePageStateSave(PAGE_KEY, {
+        currentPage,
+        pageSize,
+        searchText,
+        searchFilters,
+    });
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -217,8 +245,24 @@ export default function OpsExclusionPage() {
         }
     };
 
+    // 使用 ref 标记是否已经初始加载
+    const hasInitialLoadRef = useRef(false);
+
+    // 如果恢复了状态，需要重新加载数据（只在组件挂载时执行一次）
     useEffect(() => {
-        load();
+        if (!hasInitialLoadRef.current) {
+            hasInitialLoadRef.current = true;
+            load();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // 只在组件挂载时执行一次
+
+    // 当 currentPage 或 pageSize 变化时加载数据（排除初始加载）
+    useEffect(() => {
+        // 只有在初始加载之后才响应 currentPage 和 pageSize 的变化
+        if (hasInitialLoadRef.current) {
+            load();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 
@@ -972,7 +1016,7 @@ export default function OpsExclusionPage() {
                 onOk={handleSave}
                 okText="确定"
                 cancelText="取消"
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={form} layout="vertical">
                     <Form.Item name="视图名称" label="视图名称" rules={[{ required: true, message: "请选择视图名称" }]}>

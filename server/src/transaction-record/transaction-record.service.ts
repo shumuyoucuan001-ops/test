@@ -52,8 +52,11 @@ export class TransactionRecordService {
         search?: string,
         bindingStatuses?: string[], // 绑定状态筛选：['已绑定采购单', '已生成对账单', '非采购单流水']
     ): Promise<{ data: TransactionRecord[]; total: number }> {
+        Logger.log(`[TransactionRecordService] getAll called: channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses?.join(',') || 'none'}`);
+        
         const connection = await this.getConnection();
         const tableName = this.getTableName(channel);
+        Logger.log(`[TransactionRecordService] Using table: ${tableName}`);
 
         try {
             const offset = (page - 1) * limit;
@@ -464,6 +467,7 @@ export class TransactionRecordService {
 
             // 过滤掉null值（不满足筛选条件的记录）
             let filteredData = data.filter(record => record !== null);
+            Logger.log(`[TransactionRecordService] After filtering binding statuses: ${filteredData.length} records`);
 
             // 如果有绑定状态筛选，只取需要的数量
             if (bindingStatuses && bindingStatuses.length > 0) {

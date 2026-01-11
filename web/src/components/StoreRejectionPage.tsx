@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { StoreRejectionItem, storeRejectionApi } from "@/lib/api";
 import { MailOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Input, Space } from "antd";
@@ -15,8 +16,29 @@ const fieldLabels: Record<keyof StoreRejectionItem, string> = {
     "关联收货单号": "关联收货单号",
 };
 
+// 页面唯一标识符
+const PAGE_KEY = 'store-rejection';
+
 export default function StoreRejectionPage() {
     const { message } = App.useApp();
+    
+    // 定义默认状态
+    const defaultState = {
+        currentPage: 1,
+        pageSize: 20,
+        filters: {} as {
+            store?: string;
+            productName?: string;
+            skuId?: string;
+            upc?: string;
+            purchaseOrderNo?: string;
+            receiptNo?: string;
+        },
+    };
+    
+    // 恢复保存的状态
+    const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
+    
     const [data, setData] = useState<StoreRejectionItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -27,9 +49,16 @@ export default function StoreRejectionPage() {
         upc?: string;
         purchaseOrderNo?: string;
         receiptNo?: string;
-    }>({});
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    }>(restoredState?.filters ?? defaultState.filters);
+    const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
+    const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
+    
+    // 保存状态（自动保存，防抖 300ms）
+    usePageStateSave(PAGE_KEY, {
+        currentPage,
+        pageSize,
+        filters,
+    });
     // 记录每个按钮的最后点击时间，key: rowKey_actionType (如: "xxx_rejection" 或 "xxx_rejectionAll")
     const buttonClickTimesRef = useRef<Record<string, number>>({});
     // 记录每个按钮的禁用状态
