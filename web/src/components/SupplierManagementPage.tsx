@@ -173,8 +173,7 @@ export default function SupplierManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchText, setSearchText] = useState('');
-  const [contactPersonSearch, setContactPersonSearch] = useState('');
-  const [officeAddressSearch, setOfficeAddressSearch] = useState('');
+  const [contactOrAddressSearch, setContactOrAddressSearch] = useState(''); // 合并的联系人或办公地址搜索
   const [statistics, setStatistics] = useState<Statistics | null>(null);
 
   // 模态框状态
@@ -295,14 +294,14 @@ export default function SupplierManagementPage() {
   // 搜索处理
   const handleSearch = () => {
     setCurrentPage(1);
-    loadSuppliers(1, searchText, contactPersonSearch, officeAddressSearch);
+    // 将合并的搜索值同时传递给contactPerson和officeAddress参数
+    loadSuppliers(1, searchText, contactOrAddressSearch, contactOrAddressSearch);
   };
 
   // 重置处理
   const handleReset = () => {
     setSearchText('');
-    setContactPersonSearch('');
-    setOfficeAddressSearch('');
+    setContactOrAddressSearch('');
     setCurrentPage(1);
     loadSuppliers(1, '', '', '');
   };
@@ -345,7 +344,7 @@ export default function SupplierManagementPage() {
 
       message.success('保存成功');
       setModalVisible(false);
-      loadSuppliers(currentPage, searchText, contactPersonSearch, officeAddressSearch);
+      loadSuppliers(currentPage, searchText, contactOrAddressSearch, contactOrAddressSearch);
     } catch (error) {
       message.error('保存失败');
       console.error(error);
@@ -357,7 +356,7 @@ export default function SupplierManagementPage() {
     try {
       await supplierApi.deleteSupplierManagement(supplierCode);
       message.success('清空管理信息成功');
-      loadSuppliers(currentPage, searchText, contactPersonSearch, officeAddressSearch);
+      loadSuppliers(currentPage, searchText, contactOrAddressSearch, contactOrAddressSearch);
     } catch (error) {
       message.error('清空管理信息失败');
       console.error(error);
@@ -379,7 +378,7 @@ export default function SupplierManagementPage() {
       setCreateModalVisible(false);
       createForm.resetFields();
       setCurrentPage(1);
-      loadSuppliers(1, searchText, contactPersonSearch, officeAddressSearch);
+      loadSuppliers(1, searchText, contactOrAddressSearch, contactOrAddressSearch);
     } catch (error: any) {
       message.error(error.message || '创建供应商失败');
       console.error(error);
@@ -573,19 +572,11 @@ export default function SupplierManagementPage() {
               onPressEnter={() => handleSearch()}
             />
             <Input
-              placeholder="搜索联系人"
-              allowClear
-              style={{ width: 150 }}
-              value={contactPersonSearch}
-              onChange={(e) => setContactPersonSearch(e.target.value)}
-              onPressEnter={() => handleSearch()}
-            />
-            <Input
-              placeholder="搜索办公地址"
+              placeholder="搜索联系人或办公地址"
               allowClear
               style={{ width: 200 }}
-              value={officeAddressSearch}
-              onChange={(e) => setOfficeAddressSearch(e.target.value)}
+              value={contactOrAddressSearch}
+              onChange={(e) => setContactOrAddressSearch(e.target.value)}
               onPressEnter={() => handleSearch()}
             />
             <Button
@@ -648,7 +639,7 @@ export default function SupplierManagementPage() {
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size || 20);
-              loadSuppliers(page, searchText, contactPersonSearch, officeAddressSearch);
+              loadSuppliers(page, searchText, contactOrAddressSearch, contactOrAddressSearch);
             },
           }}
         />

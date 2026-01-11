@@ -129,14 +129,14 @@ export class LabelDataController {
     // 字数验证（移除productSpec验证）
     const validationErrors: string[] = [];
 
-    if (data.headerInfo && data.headerInfo.length > 15) {
-      validationErrors.push('抬头信息不能超过15个字');
+    if (data.headerInfo && data.headerInfo.length > 30) {
+      validationErrors.push('抬头信息不能超过30个字');
     }
     if (data.executionStandard && data.executionStandard.length > 30) {
       validationErrors.push('执行标准不能超过30个字');
     }
-    if (data.productName && data.productName.length > 13) {
-      validationErrors.push('产品名称不能超过13个字');
+    if (data.productName && data.productName.length > 30) {
+      validationErrors.push('产品名称不能超过30个字');
     }
     if (data.manufacturerName && data.manufacturerName.length > 26) {
       validationErrors.push('厂家名称不能超过26个字');
@@ -144,11 +144,11 @@ export class LabelDataController {
     if (data.addressInfo && data.addressInfo.length > 26) {
       validationErrors.push('地址信息不能超过26个字');
     }
-    if (data.material && data.material.length > 13) {
-      validationErrors.push('材质不能超过13个字');
+    if (data.material && data.material.length > 30) {
+      validationErrors.push('材质不能超过30个字');
     }
-    if (data.otherInfo && data.otherInfo.length > 12) {
-      validationErrors.push('其他信息不能超过12个字');
+    if (data.otherInfo && data.otherInfo.length > 50) {
+      validationErrors.push('其他信息不能超过50个字');
     }
 
     if (validationErrors.length > 0) {

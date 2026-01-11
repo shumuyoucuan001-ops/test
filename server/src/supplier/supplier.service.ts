@@ -127,14 +127,21 @@ export class SupplierService {
         queryParams.push(`%${search}%`, `%${search}%`);
       }
 
-      if (contactPerson) {
-        whereClause += ' AND sb.联系人 LIKE ?';
-        queryParams.push(`%${contactPerson}%`);
-      }
+      // 如果contactPerson和officeAddress参数值相同，使用OR逻辑合并搜索
+      if (contactPerson && officeAddress && contactPerson === officeAddress) {
+        whereClause += ' AND (sb.联系人 LIKE ? OR sb.办公地址 LIKE ?)';
+        queryParams.push(`%${contactPerson}%`, `%${contactPerson}%`);
+      } else {
+        // 否则保持原有逻辑，分别处理
+        if (contactPerson) {
+          whereClause += ' AND sb.联系人 LIKE ?';
+          queryParams.push(`%${contactPerson}%`);
+        }
 
-      if (officeAddress) {
-        whereClause += ' AND sb.办公地址 LIKE ?';
-        queryParams.push(`%${officeAddress}%`);
+        if (officeAddress) {
+          whereClause += ' AND sb.办公地址 LIKE ?';
+          queryParams.push(`%${officeAddress}%`);
+        }
       }
 
       // 获取总数

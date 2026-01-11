@@ -391,7 +391,7 @@ export default function ProductSupplementPage() {
                   </Form.Item>
 
                   <Form.Item name="headerInfo" label="抬头信息">
-                    <Input maxLength={15} showCount />
+                    <Input maxLength={30} showCount />
                   </Form.Item>
 
                   <Form.Item name="executionStandard" label="执行标准">
@@ -399,7 +399,7 @@ export default function ProductSupplementPage() {
                   </Form.Item>
 
                   <Form.Item name="productName" label="产品名称">
-                    <Input maxLength={13} showCount />
+                    <Input maxLength={30} showCount />
                   </Form.Item>
 
                   <Form.Item name="manufacturerName" label="厂家名称">
@@ -411,11 +411,11 @@ export default function ProductSupplementPage() {
                   </Form.Item>
 
                   <Form.Item name="material" label="材质">
-                    <Input maxLength={13} showCount />
+                    <Input maxLength={30} showCount />
                   </Form.Item>
 
                   <Form.Item name="otherInfo" label="其他信息">
-                    <Input maxLength={12} showCount />
+                    <Input maxLength={50} showCount />
                   </Form.Item>
                 </Form>
               ),

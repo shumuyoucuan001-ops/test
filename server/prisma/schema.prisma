@@ -11,13 +11,13 @@ datasource db {
 model label_data_audit {
   sku                String   @db.VarChar(128)
   supplier_name      String   @db.VarChar(255)
-  header_info        String?  @db.VarChar(15)
+  header_info        String?  @db.VarChar(30)
   execution_standard String?  @db.VarChar(30)
-  product_name       String?  @db.VarChar(13)
+  product_name       String?  @db.VarChar(30)
   manufacturer_name  String?  @db.VarChar(26)
   address_info       String?  @db.VarChar(26)
-  material           String?  @db.VarChar(13)
-  other_info         String?  @db.VarChar(12)
+  material           String?  @db.VarChar(30)
+  other_info         String?  @db.VarChar(50)
   action             String?  @db.VarChar(20)
   payload            Json?
   created_at         DateTime @default(now()) @db.Timestamp(0)
