@@ -305,5 +305,45 @@ export class SupplierQuotationController {
             );
         }
     }
+
+    // 批量查询供应商商品供应信息的备注
+    @Post('supplier-product-remarks')
+    async getSupplierProductRemarks(
+        @Body() body: {
+            items: Array<{ supplierCode: string; supplierProductCode: string }>;
+        },
+    ) {
+        try {
+            return await this.service.getSupplierProductRemarks(body.items || []);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询供应商商品供应信息备注失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 保存或更新供应商商品供应信息的备注
+    @Post('supplier-product-remark')
+    async saveSupplierProductRemark(
+        @Body() body: {
+            supplierCode: string;
+            supplierProductCode: string;
+            remark: string;
+        },
+    ) {
+        try {
+            return await this.service.saveSupplierProductRemark(
+                body.supplierCode,
+                body.supplierProductCode,
+                body.remark,
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '保存供应商商品供应信息备注失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 }
 

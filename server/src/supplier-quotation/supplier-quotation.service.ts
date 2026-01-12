@@ -1345,5 +1345,117 @@ export class SupplierQuotationService {
       await connection.end();
     }
   }
+
+  // 根据供应商编码和供应商商品编码查询供应商商品供应信息的备注
+  async getSupplierProductRemark(
+    supplierCode: string,
+    supplierProductCode: string,
+  ): Promise<string | null> {
+    const connection = await this.getConnection();
+
+    try {
+      const query = `
+        SELECT \`备注\`
+        FROM \`供应商商品供应信息\`
+        WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+        LIMIT 1
+      `;
+
+      const [result]: any = await connection.execute(query, [supplierCode, supplierProductCode]);
+
+      if (result && result.length > 0) {
+        return result[0]['备注'] || null;
+      }
+
+      return null;
+    } catch (error) {
+      Logger.error(
+        `[SupplierQuotationService] 查询供应商商品供应信息备注失败，供应商编码: ${supplierCode}, 供应商商品编码: ${supplierProductCode}`,
+        error,
+      );
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 批量查询供应商商品供应信息的备注
+  async getSupplierProductRemarks(
+    items: Array<{ supplierCode: string; supplierProductCode: string }>,
+  ): Promise<Record<string, string>> {
+    const connection = await this.getConnection();
+
+    try {
+      if (!items || items.length === 0) {
+        return {};
+      }
+
+      // 构建查询条件
+      const conditions: string[] = [];
+      const params: any[] = [];
+
+      items.forEach((item) => {
+        conditions.push('(\`供应商编码\` = ? AND \`供应商商品编码\` = ?)');
+        params.push(item.supplierCode, item.supplierProductCode);
+      });
+
+      const query = `
+        SELECT \`供应商编码\`, \`供应商商品编码\`, \`备注\`
+        FROM \`供应商商品供应信息\`
+        WHERE ${conditions.join(' OR ')}
+      `;
+
+      const [result]: any = await connection.execute(query, params);
+
+      const remarks: Record<string, string> = {};
+      if (result && result.length > 0) {
+        result.forEach((row: any) => {
+          const key = `${row['供应商编码']}_${row['供应商商品编码']}`;
+          remarks[key] = row['备注'] || '';
+        });
+      }
+
+      return remarks;
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 批量查询供应商商品供应信息备注失败', error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 保存或更新供应商商品供应信息的备注（使用REPLACE INTO）
+  async saveSupplierProductRemark(
+    supplierCode: string,
+    supplierProductCode: string,
+    remark: string,
+  ): Promise<boolean> {
+    const connection = await this.getConnection();
+
+    try {
+      // 使用REPLACE INTO，如果记录存在则更新，不存在则插入
+      const query = `
+        REPLACE INTO \`供应商商品供应信息\`
+        (\`供应商编码\`, \`供应商商品编码\`, \`备注\`)
+        VALUES (?, ?, ?)
+      `;
+
+      await connection.execute(query, [supplierCode, supplierProductCode, remark || '']);
+
+      Logger.log(
+        `[SupplierQuotationService] 保存供应商商品供应信息备注成功，供应商编码: ${supplierCode}, 供应商商品编码: ${supplierProductCode}`,
+      );
+
+      return true;
+    } catch (error) {
+      Logger.error(
+        `[SupplierQuotationService] 保存供应商商品供应信息备注失败，供应商编码: ${supplierCode}, 供应商商品编码: ${supplierProductCode}`,
+        error,
+      );
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
 }
 

@@ -1495,6 +1495,20 @@ export const supplierQuotationApi = {
   // 根据SKU编码获取商品供货关系
   getProductSupplyRelations: (sku: string): Promise<any[]> =>
     api.get(`/supplier-quotation/product-supply-relations/${encodeURIComponent(sku)}`).then(res => res.data),
+
+  // 批量查询供应商商品供应信息的备注
+  getSupplierProductRemarks: (data: {
+    items: Array<{ supplierCode: string; supplierProductCode: string }>;
+  }): Promise<Record<string, string>> =>
+    api.post('/supplier-quotation/supplier-product-remarks', data).then(res => res.data),
+
+  // 保存或更新供应商商品供应信息的备注
+  saveSupplierProductRemark: (data: {
+    supplierCode: string;
+    supplierProductCode: string;
+    remark: string;
+  }): Promise<boolean> =>
+    api.post('/supplier-quotation/supplier-product-remark', data).then(res => res.data),
 };
 
 export default api;

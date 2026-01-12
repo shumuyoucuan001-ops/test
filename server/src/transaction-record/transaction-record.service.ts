@@ -53,7 +53,7 @@ export class TransactionRecordService {
         bindingStatuses?: string[], // 绑定状态筛选：['已绑定采购单', '已生成对账单', '非采购单流水']
     ): Promise<{ data: TransactionRecord[]; total: number }> {
         Logger.log(`[TransactionRecordService] getAll called: channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses?.join(',') || 'none'}`);
-        
+
         const connection = await this.getConnection();
         const tableName = this.getTableName(channel);
         Logger.log(`[TransactionRecordService] Using table: ${tableName}`);
@@ -403,7 +403,10 @@ export class TransactionRecordService {
 
             // 查询数据（现在SQL层面已经进行了初步筛选）
             const dataQuery = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ? OFFSET ?`;
+            Logger.log(`[TransactionRecordService] Executing query: ${dataQuery.substring(0, 200)}...`);
+            Logger.log(`[TransactionRecordService] Query params: ${JSON.stringify([...queryParams, limit * 3, offset])}`);
             const [rows]: any = await connection.execute(dataQuery, [...queryParams, limit * 3, offset]); // 查询3倍数据以确保筛选后有足够数据
+            Logger.log(`[TransactionRecordService] Query returned ${rows.length} rows from database`);
 
             // 批量查询绑定状态信息（性能优化）
             const 交易账单号列表 = rows.map((row: any) => row.交易账单号).filter(Boolean);
@@ -532,6 +535,7 @@ export class TransactionRecordService {
                 }
             }
 
+            Logger.log(`[TransactionRecordService] getAll completed: returning ${filteredData.length} records, total=${total}`);
             return { data: filteredData, total };
         } catch (error) {
             Logger.error(`[TransactionRecordService] Failed to get records for ${channel}:`, error);

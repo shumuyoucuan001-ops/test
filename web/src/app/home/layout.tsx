@@ -682,6 +682,7 @@ export default function HomeLayout({
             'transaction-record': 'transaction-record',
             'non-purchase-bill-record': 'non-purchase-bill-record',
             'purchase-amount-adjustment': 'purchase-amount-adjustment',
+            'supplier-quotation': 'supplier-quotation',
           };
 
           let hasChanges = false;
