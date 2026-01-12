@@ -457,21 +457,41 @@ export class SupplierQuotationService {
       const [checkResult]: any = await connection.execute(checkQuery, [supplierCode, supplierProductCode]);
       const exists = checkResult[0].count > 0;
 
-      if (exists) {
-        // 更新
-        const updateQuery = `
-          UPDATE \`供应商编码手动绑定sku\`
-          SET SKU = ?
-          WHERE 供应商编码 = ? AND 供应商商品编码 = ?
-        `;
-        await connection.execute(updateQuery, [sku, supplierCode, supplierProductCode]);
+      // 如果SKU为空字符串，将SKU字段设置为NULL（不删除记录）
+      if (sku === '' || sku === null || sku === undefined) {
+        if (exists) {
+          // 更新：将SKU字段设置为NULL
+          const updateQuery = `
+            UPDATE \`供应商编码手动绑定sku\`
+            SET SKU = NULL
+            WHERE 供应商编码 = ? AND 供应商商品编码 = ?
+          `;
+          await connection.execute(updateQuery, [supplierCode, supplierProductCode]);
+        } else {
+          // 如果不存在，插入一条记录，SKU字段为NULL
+          const insertQuery = `
+            INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, SKU)
+            VALUES (?, ?, NULL)
+          `;
+          await connection.execute(insertQuery, [supplierCode, supplierProductCode]);
+        }
       } else {
-        // 插入
-        const insertQuery = `
-          INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, SKU)
-          VALUES (?, ?, ?)
-        `;
-        await connection.execute(insertQuery, [supplierCode, supplierProductCode, sku]);
+        if (exists) {
+          // 更新
+          const updateQuery = `
+            UPDATE \`供应商编码手动绑定sku\`
+            SET SKU = ?
+            WHERE 供应商编码 = ? AND 供应商商品编码 = ?
+          `;
+          await connection.execute(updateQuery, [sku, supplierCode, supplierProductCode]);
+        } else {
+          // 插入
+          const insertQuery = `
+            INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, SKU)
+            VALUES (?, ?, ?)
+          `;
+          await connection.execute(insertQuery, [supplierCode, supplierProductCode, sku]);
+        }
       }
 
       return true;
@@ -1355,7 +1375,7 @@ export class SupplierQuotationService {
 
     try {
       const query = `
-        SELECT \`备注\`
+        SELECT \`供应商SKU备注\`
         FROM \`供应商商品供应信息\`
         WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
         LIMIT 1
@@ -1364,7 +1384,7 @@ export class SupplierQuotationService {
       const [result]: any = await connection.execute(query, [supplierCode, supplierProductCode]);
 
       if (result && result.length > 0) {
-        return result[0]['备注'] || null;
+        return result[0]['供应商SKU备注'] || null;
       }
 
       return null;
@@ -1400,7 +1420,7 @@ export class SupplierQuotationService {
       });
 
       const query = `
-        SELECT \`供应商编码\`, \`供应商商品编码\`, \`备注\`
+        SELECT \`供应商编码\`, \`供应商商品编码\`, \`供应商SKU备注\`
         FROM \`供应商商品供应信息\`
         WHERE ${conditions.join(' OR ')}
       `;
@@ -1411,7 +1431,7 @@ export class SupplierQuotationService {
       if (result && result.length > 0) {
         result.forEach((row: any) => {
           const key = `${row['供应商编码']}_${row['供应商商品编码']}`;
-          remarks[key] = row['备注'] || '';
+          remarks[key] = row['供应商SKU备注'] || '';
         });
       }
 
@@ -1436,7 +1456,7 @@ export class SupplierQuotationService {
       // 使用REPLACE INTO，如果记录存在则更新，不存在则插入
       const query = `
         REPLACE INTO \`供应商商品供应信息\`
-        (\`供应商编码\`, \`供应商商品编码\`, \`备注\`)
+        (\`供应商编码\`, \`供应商商品编码\`, \`供应商SKU备注\`)
         VALUES (?, ?, ?)
       `;
 

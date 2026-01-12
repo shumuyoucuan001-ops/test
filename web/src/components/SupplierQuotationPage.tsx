@@ -408,9 +408,9 @@ export default function SupplierQuotationPage() {
         // 先添加默认显示的列（按顺序）
         const defaultOrder = defaultVisible.filter(key => allColumns.includes(key));
         // 然后添加其他列（排除备注列和对比结果列）
-        const otherColumns = allColumns.filter(key => !defaultVisible.includes(key) && key !== '对比结果' && key !== '备注');
-        // 最后添加备注列和对比结果列（备注列在对比结果列之前）
-        const order = [...defaultOrder, ...otherColumns, '备注', '对比结果'].filter(key => allColumns.includes(key));
+        const otherColumns = allColumns.filter(key => !defaultVisible.includes(key) && key !== '对比结果' && key !== '供应商SKU备注');
+        // 最后添加供应商SKU备注列和对比结果列（供应商SKU备注列在对比结果列之前）
+        const order = [...defaultOrder, ...otherColumns, '供应商SKU备注', '对比结果'].filter(key => allColumns.includes(key));
         setRightColumnOrder(order);
         localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify(order));
       }
@@ -425,22 +425,22 @@ export default function SupplierQuotationPage() {
       const allColumnKeys = getRightColumns().map(col => col.key as string).filter(Boolean);
       // 过滤掉不存在的列，保留存在的列的顺序（完全保持用户保存的顺序）
       const validOrder = rightColumnOrder.filter(key => allColumnKeys.includes(key));
-      // 添加新出现的列到末尾（排除备注列和对比结果列）
-      const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key) && key !== '对比结果' && key !== '备注');
-      // 确保备注列和对比结果列的顺序：备注列在对比结果列之前，对比结果列在最后
+      // 添加新出现的列到末尾（排除供应商SKU备注列和对比结果列）
+      const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key) && key !== '对比结果' && key !== '供应商SKU备注');
+      // 确保供应商SKU备注列和对比结果列的顺序：供应商SKU备注列在对比结果列之前，对比结果列在最后
       let finalOrder: string[];
-      const hasRemark = validOrder.includes('备注');
+      const hasRemark = validOrder.includes('供应商SKU备注');
       const hasComparison = validOrder.includes('对比结果');
 
-      // 先移除备注列和对比结果列
-      const orderWithoutFixed = validOrder.filter(key => key !== '备注' && key !== '对比结果');
+      // 先移除供应商SKU备注列和对比结果列
+      const orderWithoutFixed = validOrder.filter(key => key !== '供应商SKU备注' && key !== '对比结果');
 
       // 添加缺失的列
       finalOrder = [...orderWithoutFixed, ...missingKeys];
 
-      // 最后添加备注列和对比结果列（备注列在对比结果列之前）
-      if (hasRemark || allColumnKeys.includes('备注')) {
-        finalOrder.push('备注');
+      // 最后添加供应商SKU备注列和对比结果列（供应商SKU备注列在对比结果列之前）
+      if (hasRemark || allColumnKeys.includes('供应商SKU备注')) {
+        finalOrder.push('供应商SKU备注');
       }
       if (hasComparison || allColumnKeys.includes('对比结果')) {
         finalOrder.push('对比结果');
@@ -449,6 +449,18 @@ export default function SupplierQuotationPage() {
       if (finalOrder.join(',') !== rightColumnOrder.join(',')) {
         setRightColumnOrder(finalOrder);
         // 不自动保存，只有在用户手动修改时才保存
+      }
+    } else {
+      // 如果列顺序为空，重新初始化（确保包含所有列，包括'最近采购价'）
+      const allColumnKeys = getRightColumns().map(col => col.key as string).filter(Boolean);
+      const defaultVisible = inventoryType === '全部'
+        ? defaultRightVisibleColumns
+        : defaultRightVisibleColumnsStoreCity;
+      const defaultOrder = defaultVisible.filter(key => allColumnKeys.includes(key));
+      const otherColumns = allColumnKeys.filter(key => !defaultVisible.includes(key) && key !== '对比结果' && key !== '供应商SKU备注');
+      const order = [...defaultOrder, ...otherColumns, '供应商SKU备注', '对比结果'].filter(key => allColumnKeys.includes(key));
+      if (order.length > 0 && order.join(',') !== rightColumnOrder.join(',')) {
+        setRightColumnOrder(order);
       }
     }
 
@@ -1185,12 +1197,12 @@ export default function SupplierQuotationPage() {
         if (skuTagIndex >= 0) {
           currentOrder.splice(skuTagIndex + 1, 0, key);
         } else {
-          // 如果没有SKU商品标签列，添加到备注列之前（备注列在对比结果列之前）
-          const remarkIndex = currentOrder.indexOf('备注');
+          // 如果没有SKU商品标签列，添加到供应商SKU备注列之前（供应商SKU备注列在对比结果列之前）
+          const remarkIndex = currentOrder.indexOf('供应商SKU备注');
           if (remarkIndex >= 0) {
             currentOrder.splice(remarkIndex, 0, key);
           } else {
-            // 如果没有备注列，添加到对比结果列之前
+            // 如果没有供应商SKU备注列，添加到对比结果列之前
             const comparisonIndex = currentOrder.indexOf('对比结果');
             if (comparisonIndex >= 0) {
               currentOrder.splice(comparisonIndex, 0, key);
@@ -1202,14 +1214,14 @@ export default function SupplierQuotationPage() {
       }
     });
 
-    // 确保备注列在顺序中（如果allColumns中有备注列）
-    if (allColumnKeys.includes('备注') && !currentOrder.includes('备注')) {
-      // 如果备注列不在顺序中，添加到对比结果列之前
+    // 确保供应商SKU备注列在顺序中（如果allColumns中有供应商SKU备注列）
+    if (allColumnKeys.includes('供应商SKU备注') && !currentOrder.includes('供应商SKU备注')) {
+      // 如果供应商SKU备注列不在顺序中，添加到对比结果列之前
       const comparisonIndex = currentOrder.indexOf('对比结果');
       if (comparisonIndex >= 0) {
-        currentOrder.splice(comparisonIndex, 0, '备注');
+        currentOrder.splice(comparisonIndex, 0, '供应商SKU备注');
       } else {
-        currentOrder.push('备注');
+        currentOrder.push('供应商SKU备注');
       }
     }
 
@@ -1243,22 +1255,22 @@ export default function SupplierQuotationPage() {
       if (supplierNameKeys.includes(key) && supplierNameFields.includes(key)) {
         return true;
       }
-      // 备注列和对比结果列始终显示（不能隐藏）
-      if (key === '备注' || key === '对比结果') {
+      // 供应商SKU备注列和对比结果列始终显示（不能隐藏）
+      if (key === '供应商SKU备注' || key === '对比结果') {
         return true;
       }
       // 其他列按隐藏列表过滤
       return !hiddenSet.has(key);
     });
 
-    // 确保备注列和对比结果列的顺序：备注列在对比结果列之前，对比结果列在最后
-    const remarkCol = orderedColumns.find(col => col.key === '备注');
+    // 确保供应商SKU备注列和对比结果列的顺序：供应商SKU备注列在对比结果列之前，对比结果列在最后
+    const remarkCol = orderedColumns.find(col => col.key === '供应商SKU备注');
     const comparisonResultCol = orderedColumns.find(col => col.key === '对比结果');
 
     // 先移除这两个列
-    orderedColumns = orderedColumns.filter(col => col.key !== '备注' && col.key !== '对比结果');
+    orderedColumns = orderedColumns.filter(col => col.key !== '供应商SKU备注' && col.key !== '对比结果');
 
-    // 然后按顺序添加：备注列（如果存在），对比结果列（如果存在）
+    // 然后按顺序添加：供应商SKU备注列（如果存在），对比结果列（如果存在）
     if (remarkCol) {
       orderedColumns.push(remarkCol);
     }
@@ -1942,11 +1954,11 @@ export default function SupplierQuotationPage() {
       }
     );
 
-    // 备注列 - 固定在右侧，放在对比结果列之前
+    // 供应商SKU备注列 - 固定在右侧，放在对比结果列之前
     columns.push({
-      title: '备注',
-      dataIndex: '备注',
-      key: '备注',
+      title: '供应商SKU备注',
+      dataIndex: '供应商SKU备注',
+      key: '供应商SKU备注',
       width: 200,
       fixed: 'right' as const,
       render: (_: any, record: InventorySummary) => {
@@ -1998,10 +2010,10 @@ export default function SupplierQuotationPage() {
               const newEditingKeys = new Set(editingRemarkKeys);
               newEditingKeys.delete(remarkKey);
               setEditingRemarkKeys(newEditingKeys);
-              message.success('备注保存成功');
+              message.success('供应商SKU备注保存成功');
             } catch (error) {
-              console.error('保存备注失败:', error);
-              message.error('保存备注失败');
+              console.error('保存供应商SKU备注失败:', error);
+              message.error('保存供应商SKU备注失败');
             }
           }
         };
@@ -2020,6 +2032,10 @@ export default function SupplierQuotationPage() {
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           const newValue = e.target.value;
+          // 限制100字
+          if (newValue.length > 100) {
+            return;
+          }
           setEditingRemarks({
             ...editingRemarks,
             [remarkKey]: newValue,
@@ -2037,13 +2053,17 @@ export default function SupplierQuotationPage() {
           }
         };
 
+        const remainingChars = 100 - remark.length;
+
         return (
           <Space.Compact style={{ width: '100%' }}>
             <Input
               value={remark}
               onChange={handleChange}
-              placeholder="请输入备注"
+              placeholder="请输入供应商SKU备注"
+              maxLength={100}
               style={{ flex: 1 }}
+              suffix={<span style={{ fontSize: '12px', color: remainingChars < 20 ? '#ff4d4f' : '#999' }}>{remainingChars}</span>}
             />
             {hasChanged && (
               <>
@@ -2086,9 +2106,9 @@ export default function SupplierQuotationPage() {
       },
     });
 
-    // 确保备注列和对比结果列都在columns中
-    // 检查备注列是否存在
-    const hasRemarkCol = columns.some(col => col.key === '备注');
+    // 确保供应商SKU备注列和对比结果列都在columns中
+    // 检查供应商SKU备注列是否存在
+    const hasRemarkCol = columns.some(col => col.key === '供应商SKU备注');
     const hasComparisonCol = columns.some(col => col.key === '对比结果');
 
     if (!hasRemarkCol) {
@@ -2727,6 +2747,26 @@ export default function SupplierQuotationPage() {
       // 获取库存汇总数据
       // 仓店维度：传递storeNameFilter（单选）
       // 城市维度：传递cityFilter（单选，复用storeNames参数名）
+      // 检查是否有任何筛选条件
+      // 筛选条件包括：搜索SKU、筛选对比结果、采购价类型、选择供应商名称字段、选择门店仓/名称、选择城市
+      const hasAnyFilter =
+        inventorySkuSearch.trim() !== '' ||
+        comparisonResultFilter.length > 0 ||
+        priceTypeFilter !== undefined ||
+        supplierNameFields.length > 0 ||
+        (inventoryType === '仓店' && storeNameToUse && storeNameToUse.trim() !== '') ||
+        (inventoryType === '城市' && cityToUse && cityToUse.trim() !== '');
+
+      // 如果没有筛选条件，不加载库存汇总数据，直接返回空数组
+      if (!hasAnyFilter) {
+        console.log('[性能优化] 没有筛选条件，跳过库存汇总数据匹配');
+        setRightAllData([]);
+        setRightData([]);
+        setRightTotal(0);
+        setRightLoading(false);
+        return;
+      }
+
       // 使用传入的参数，而不是状态，避免异步状态更新导致的问题
       let storeNamesParam: string[] | undefined;
       if (inventoryType === '仓店' && storeNameToUse) {
@@ -3953,26 +3993,25 @@ export default function SupplierQuotationPage() {
       const uniqueKey = `${selectedLeftRecord.供应商编码}_${selectedLeftRecord.供应商商品编码}`;
       const promises: Promise<any>[] = [];
 
-      // 保存SKU绑定
-      const skuValues = Object.entries(editingSkus)
+      // 保存SKU绑定（包括设置为空的情况）
+      const skuEntries = Object.entries(editingSkus);
+      const skuValues = skuEntries
         .map(([key, sku]) => {
           // key格式为: 供应商编码_供应商商品编码
           const skuValue = sku?.trim() || '';
-          return { key, sku: skuValue };
-        })
-        .filter(item => item.sku); // 只保存非空的SKU
-
-      if (skuValues.length > 0) {
-        // 保存所有SKU绑定
-        skuValues.forEach(({ sku }) => {
-          promises.push(
-            supplierQuotationApi.updateSkuBinding({
-              supplierCode: selectedLeftRecord.供应商编码!,
-              supplierProductCode: selectedLeftRecord.供应商商品编码!,
-              sku: sku,
-            })
-          );
+          return { key, sku: skuValue, isEmpty: skuValue === '' };
         });
+
+      // 处理SKU绑定：包括非空和空值（空值表示将SKU字段设置为NULL）
+      for (const { sku, isEmpty } of skuValues) {
+        // SKU为空或非空都调用updateSkuBinding，后端会处理（空值会将SKU字段设置为NULL，不删除记录）
+        promises.push(
+          supplierQuotationApi.updateSkuBinding({
+            supplierCode: selectedLeftRecord.供应商编码!,
+            supplierProductCode: selectedLeftRecord.供应商商品编码!,
+            sku: isEmpty ? '' : sku, // 空字符串表示将SKU字段设置为NULL
+          })
+        );
       }
 
       // 保存报价比例（如果有UPC条码）
@@ -3982,27 +4021,40 @@ export default function SupplierQuotationPage() {
           const supplierRatio = ratio.supplierRatio;
           const qianniuhuaRatio = ratio.qianniuhuaRatio;
 
-          // 验证：至少有一边为1
-          if ((supplierRatio !== 1 && qianniuhuaRatio !== 1) ||
-            (supplierRatio === undefined && qianniuhuaRatio === undefined) ||
-            (supplierRatio === undefined && qianniuhuaRatio !== 1) ||
-            (qianniuhuaRatio === undefined && supplierRatio !== 1)) {
-            message.error('至少一边为1');
-            return;
-          }
+          // 如果两个比例都为空，清空报价比例
+          if ((supplierRatio === undefined || supplierRatio === null) &&
+            (qianniuhuaRatio === undefined || qianniuhuaRatio === null)) {
+            promises.push(
+              supplierQuotationApi.clearPriceRatios({
+                supplierCode: selectedLeftRecord.供应商编码!,
+                upcCode: selectedLeftRecord.最小销售规格UPC商品条码,
+              })
+            );
+          } else {
+            // 验证：至少有一边为1
+            if ((supplierRatio !== 1 && qianniuhuaRatio !== 1) ||
+              (supplierRatio === undefined && qianniuhuaRatio === undefined) ||
+              (supplierRatio === undefined && qianniuhuaRatio !== 1) ||
+              (qianniuhuaRatio === undefined && supplierRatio !== 1)) {
+              message.error('至少一边为1');
+              return;
+            }
 
-          promises.push(
-            supplierQuotationApi.updatePriceRatios({
-              supplierCode: selectedLeftRecord.供应商编码!,
-              upcCode: selectedLeftRecord.最小销售规格UPC商品条码,
-              supplierRatio: supplierRatio || 1,
-              qianniuhuaRatio: qianniuhuaRatio || 1,
-            })
-          );
+            promises.push(
+              supplierQuotationApi.updatePriceRatios({
+                supplierCode: selectedLeftRecord.供应商编码!,
+                upcCode: selectedLeftRecord.最小销售规格UPC商品条码,
+                supplierRatio: supplierRatio || 1,
+                qianniuhuaRatio: qianniuhuaRatio || 1,
+              })
+            );
+          }
         }
       }
 
-      if (promises.length === 0) {
+      // 如果没有需要保存的数据，但可能有删除操作（SKU设置为空或报价比例设置为空）
+      // 这种情况下也需要刷新数据
+      if (promises.length === 0 && skuEntries.length === 0 && !selectedLeftRecord.最小销售规格UPC商品条码) {
         message.warning('没有需要保存的数据');
         return;
       }
@@ -5621,8 +5673,8 @@ export default function SupplierQuotationPage() {
                             },
                           },
                           {
-                            title: '备注',
-                            key: '备注',
+                            title: '供应商SKU备注',
+                            key: '供应商SKU备注',
                             width: 200,
                             render: (_: any, record: SupplierSkuBinding) => {
                               const uniqueKey = `${record.供应商编码}_${record.供应商商品编码}`;
@@ -5630,13 +5682,20 @@ export default function SupplierQuotationPage() {
                                 ? editingRemarks[uniqueKey]
                                 : (supplierProductRemarks[uniqueKey] || '');
 
+                              const remainingChars = 100 - remark.length;
+
                               return (
                                 <Input
                                   value={remark}
                                   onChange={(e) => {
+                                    const newValue = e.target.value;
+                                    // 限制100字
+                                    if (newValue.length > 100) {
+                                      return;
+                                    }
                                     setEditingRemarks({
                                       ...editingRemarks,
-                                      [uniqueKey]: e.target.value,
+                                      [uniqueKey]: newValue,
                                     });
                                   }}
                                   onBlur={async (e) => {
@@ -5657,15 +5716,17 @@ export default function SupplierQuotationPage() {
                                           ...editingRemarks,
                                           [uniqueKey]: value,
                                         });
-                                        message.success('备注保存成功');
+                                        message.success('供应商SKU备注保存成功');
                                       } catch (error) {
-                                        console.error('保存备注失败:', error);
-                                        message.error('保存备注失败');
+                                        console.error('保存供应商SKU备注失败:', error);
+                                        message.error('保存供应商SKU备注失败');
                                       }
                                     }
                                   }}
-                                  placeholder="请输入备注"
+                                  placeholder="请输入供应商SKU备注"
+                                  maxLength={100}
                                   style={{ width: '100%' }}
+                                  suffix={<span style={{ fontSize: '12px', color: remainingChars < 20 ? '#ff4d4f' : '#999' }}>{remainingChars}</span>}
                                 />
                               );
                             },
