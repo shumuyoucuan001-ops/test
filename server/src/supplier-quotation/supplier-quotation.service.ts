@@ -31,6 +31,7 @@ export interface InventorySummary {
   SKU商品标签?: string;
   '门店/仓库名称'?: string; // 仓店维度专用
   城市?: string; // 城市维度专用
+  '供应商-门店关系'?: number; // 供应商-门店关系数量
 }
 
 export interface SupplierSkuBinding {
@@ -410,6 +411,65 @@ export class SupplierQuotationService {
     }
   }
 
+  // 批量查询供应商-门店关系数据
+  async getSupplierStoreRelations(
+    supplierCodes: string[],
+    type: '全部' | '仓店' | '城市',
+  ): Promise<Record<string, number>> {
+    if (!supplierCodes || supplierCodes.length === 0) {
+      return {};
+    }
+
+    const shangpingConnection = await this.getShangpingConnection();
+
+    try {
+      // 根据维度选择查询字段
+      let relationField = '';
+      switch (type) {
+        case '全部':
+          relationField = '全部维度数量';
+          break;
+        case '城市':
+          relationField = '城市维度数量';
+          break;
+        case '仓店':
+          relationField = '仓店维度结果';
+          break;
+        default:
+          relationField = '全部维度数量';
+      }
+
+      // 构建查询条件
+      const placeholders = supplierCodes.map(() => '?').join(',');
+      const query = `
+        SELECT 
+          供应商编码,
+          \`${relationField}\` AS relationValue
+        FROM \`多维度供应商编码对应数量\`
+        WHERE 供应商编码 IN (${placeholders})
+      `;
+
+      const [relationData]: any = await shangpingConnection.execute(query, supplierCodes);
+
+      // 构建供应商编码到关系值的映射
+      const supplierRelationMap: Record<string, number> = {};
+      (relationData || []).forEach((row: any) => {
+        const supplierCode = row['供应商编码'];
+        const relationValue = row['relationValue'];
+        if (supplierCode && relationValue !== null && relationValue !== undefined) {
+          supplierRelationMap[supplierCode] = Number(relationValue) || 0;
+        }
+      });
+
+      return supplierRelationMap;
+    } catch (error: any) {
+      Logger.error('[SupplierQuotationService] 查询供应商-门店关系失败:', error);
+      throw new Error(`查询供应商-门店关系失败: ${error?.message || '未知错误'}`);
+    } finally {
+      await shangpingConnection.end();
+    }
+  }
+
   // 根据供应商编码和供应商商品编码获取SKU绑定信息
   async getSkuBindings(
     supplierCode: string,
@@ -439,22 +499,73 @@ export class SupplierQuotationService {
     }
   }
 
+  // 批量根据供应商编码和供应商商品编码获取SKU绑定信息
+  async getSkuBindingsBatch(
+    items: Array<{ supplierCode: string; supplierProductCode: string }>,
+  ): Promise<Record<string, string>> {
+    const connection = await this.getConnection();
+
+    try {
+      if (!items || items.length === 0) {
+        return {};
+      }
+
+      // 构建查询条件
+      const conditions: string[] = [];
+      const params: any[] = [];
+
+      items.forEach((item) => {
+        conditions.push('(供应商编码 = ? AND 供应商商品编码 = ?)');
+        params.push(item.supplierCode, item.supplierProductCode);
+      });
+
+      const query = `
+        SELECT 
+          供应商编码,
+          供应商商品编码,
+          SKU
+        FROM \`供应商编码手动绑定sku\`
+        WHERE (${conditions.join(' OR ')})
+          AND SKU IS NOT NULL
+      `;
+
+      const [data]: any = await connection.execute(query, params);
+
+      // 构建映射：key为"供应商编码_供应商商品编码"，value为SKU
+      const result: Record<string, string> = {};
+      data.forEach((row: any) => {
+        const key = `${row['供应商编码']}_${row['供应商商品编码']}`;
+        if (row['SKU']) {
+          result[key] = row['SKU'];
+        }
+      });
+
+      return result;
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 批量查询SKU绑定失败:', error);
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
   // 更新SKU绑定信息
+  // 使用供应商编码和最小销售规格UPC商品条码来查找和更新记录
   async updateSkuBinding(
     supplierCode: string,
-    supplierProductCode: string,
+    upcCode: string,
     sku: string,
   ): Promise<boolean> {
     const connection = await this.getConnection();
 
     try {
-      // 先检查是否存在
+      // 先检查是否存在（使用供应商编码和最小销售规格UPC商品条码）
       const checkQuery = `
         SELECT COUNT(*) as count
         FROM \`供应商编码手动绑定sku\`
         WHERE 供应商编码 = ? AND 供应商商品编码 = ?
       `;
-      const [checkResult]: any = await connection.execute(checkQuery, [supplierCode, supplierProductCode]);
+      const [checkResult]: any = await connection.execute(checkQuery, [supplierCode, upcCode]);
       const exists = checkResult[0].count > 0;
 
       // 如果SKU为空字符串，将SKU字段设置为NULL（不删除记录）
@@ -466,14 +577,14 @@ export class SupplierQuotationService {
             SET SKU = NULL
             WHERE 供应商编码 = ? AND 供应商商品编码 = ?
           `;
-          await connection.execute(updateQuery, [supplierCode, supplierProductCode]);
+          await connection.execute(updateQuery, [supplierCode, upcCode]);
         } else {
           // 如果不存在，插入一条记录，SKU字段为NULL
           const insertQuery = `
             INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, SKU)
             VALUES (?, ?, NULL)
           `;
-          await connection.execute(insertQuery, [supplierCode, supplierProductCode]);
+          await connection.execute(insertQuery, [supplierCode, upcCode]);
         }
       } else {
         if (exists) {
@@ -483,14 +594,14 @@ export class SupplierQuotationService {
             SET SKU = ?
             WHERE 供应商编码 = ? AND 供应商商品编码 = ?
           `;
-          await connection.execute(updateQuery, [sku, supplierCode, supplierProductCode]);
+          await connection.execute(updateQuery, [sku, supplierCode, upcCode]);
         } else {
           // 插入
           const insertQuery = `
             INSERT INTO \`供应商编码手动绑定sku\` (供应商编码, 供应商商品编码, SKU)
             VALUES (?, ?, ?)
           `;
-          await connection.execute(insertQuery, [supplierCode, supplierProductCode, sku]);
+          await connection.execute(insertQuery, [supplierCode, upcCode, sku]);
         }
       }
 
@@ -1366,10 +1477,10 @@ export class SupplierQuotationService {
     }
   }
 
-  // 根据供应商编码和供应商商品编码查询供应商商品供应信息的备注
+  // 根据供应商编码和SKU查询供应商商品供应信息的备注
   async getSupplierProductRemark(
     supplierCode: string,
-    supplierProductCode: string,
+    sku: string,
   ): Promise<string | null> {
     const connection = await this.getConnection();
 
@@ -1377,11 +1488,11 @@ export class SupplierQuotationService {
       const query = `
         SELECT \`供应商SKU备注\`
         FROM \`供应商商品供应信息\`
-        WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+        WHERE \`供应商编码\` = ? AND \`SKU\` = ?
         LIMIT 1
       `;
 
-      const [result]: any = await connection.execute(query, [supplierCode, supplierProductCode]);
+      const [result]: any = await connection.execute(query, [supplierCode, sku]);
 
       if (result && result.length > 0) {
         return result[0]['供应商SKU备注'] || null;
@@ -1390,7 +1501,7 @@ export class SupplierQuotationService {
       return null;
     } catch (error) {
       Logger.error(
-        `[SupplierQuotationService] 查询供应商商品供应信息备注失败，供应商编码: ${supplierCode}, 供应商商品编码: ${supplierProductCode}`,
+        `[SupplierQuotationService] 查询供应商商品供应信息备注失败，供应商编码: ${supplierCode}, SKU: ${sku}`,
         error,
       );
       throw error;
@@ -1401,7 +1512,7 @@ export class SupplierQuotationService {
 
   // 批量查询供应商商品供应信息的备注
   async getSupplierProductRemarks(
-    items: Array<{ supplierCode: string; supplierProductCode: string }>,
+    items: Array<{ supplierCode: string; sku: string }>,
   ): Promise<Record<string, string>> {
     const connection = await this.getConnection();
 
@@ -1415,12 +1526,12 @@ export class SupplierQuotationService {
       const params: any[] = [];
 
       items.forEach((item) => {
-        conditions.push('(\`供应商编码\` = ? AND \`供应商商品编码\` = ?)');
-        params.push(item.supplierCode, item.supplierProductCode);
+        conditions.push('(\`供应商编码\` = ? AND \`SKU\` = ?)');
+        params.push(item.supplierCode, item.sku);
       });
 
       const query = `
-        SELECT \`供应商编码\`, \`供应商商品编码\`, \`供应商SKU备注\`
+        SELECT \`供应商编码\`, \`SKU\`, \`供应商SKU备注\`
         FROM \`供应商商品供应信息\`
         WHERE ${conditions.join(' OR ')}
       `;
@@ -1430,7 +1541,7 @@ export class SupplierQuotationService {
       const remarks: Record<string, string> = {};
       if (result && result.length > 0) {
         result.forEach((row: any) => {
-          const key = `${row['供应商编码']}_${row['供应商商品编码']}`;
+          const key = `${row['供应商编码']}_${row['SKU']}`;
           remarks[key] = row['供应商SKU备注'] || '';
         });
       }
@@ -1447,7 +1558,7 @@ export class SupplierQuotationService {
   // 保存或更新供应商商品供应信息的备注（使用REPLACE INTO）
   async saveSupplierProductRemark(
     supplierCode: string,
-    supplierProductCode: string,
+    sku: string,
     remark: string,
   ): Promise<boolean> {
     const connection = await this.getConnection();
@@ -1456,20 +1567,20 @@ export class SupplierQuotationService {
       // 使用REPLACE INTO，如果记录存在则更新，不存在则插入
       const query = `
         REPLACE INTO \`供应商商品供应信息\`
-        (\`供应商编码\`, \`供应商商品编码\`, \`供应商SKU备注\`)
+        (\`供应商编码\`, \`SKU\`, \`供应商SKU备注\`)
         VALUES (?, ?, ?)
       `;
 
-      await connection.execute(query, [supplierCode, supplierProductCode, remark || '']);
+      await connection.execute(query, [supplierCode, sku, remark || '']);
 
       Logger.log(
-        `[SupplierQuotationService] 保存供应商商品供应信息备注成功，供应商编码: ${supplierCode}, 供应商商品编码: ${supplierProductCode}`,
+        `[SupplierQuotationService] 保存供应商商品供应信息备注成功，供应商编码: ${supplierCode}, SKU: ${sku}`,
       );
 
       return true;
     } catch (error) {
       Logger.error(
-        `[SupplierQuotationService] 保存供应商商品供应信息备注失败，供应商编码: ${supplierCode}, 供应商商品编码: ${supplierProductCode}`,
+        `[SupplierQuotationService] 保存供应商商品供应信息备注失败，供应商编码: ${supplierCode}, SKU: ${sku}`,
         error,
       );
       throw error;

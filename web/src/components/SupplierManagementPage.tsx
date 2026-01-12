@@ -12,6 +12,7 @@ import {
   SettingOutlined
 } from '@ant-design/icons';
 import {
+  App,
   Button,
   Card,
   Col,
@@ -26,8 +27,7 @@ import {
   Tabs,
   Tag,
   Timeline,
-  Typography,
-  message
+  Typography
 } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import ColumnSettings from './ColumnSettings';
@@ -171,6 +171,9 @@ const supplierApi = {
 };
 
 export default function SupplierManagementPage() {
+  // 使用 App.useApp() 获取 message API（支持动态主题）
+  const { message: messageApi } = App.useApp();
+  
   // 定义默认状态
   const defaultState = {
     currentPage: 1,
@@ -231,7 +234,7 @@ export default function SupplierManagementPage() {
       setSuppliers(result.data);
       setTotal(result.total);
     } catch (error) {
-      message.error('加载供应商列表失败');
+      messageApi.error('加载供应商列表失败');
       console.error(error);
     } finally {
       setLoading(false);
@@ -249,7 +252,7 @@ export default function SupplierManagementPage() {
       setLogs(Array.isArray(result) ? result : []);
     } catch (error) {
       console.error('[SupplierManagement] Load logs error:', error);
-      message.error('加载日志失败');
+      messageApi.error('加载日志失败');
     } finally {
       setLogsLoading(false);
     }
@@ -382,11 +385,11 @@ export default function SupplierManagementPage() {
         userName: displayName || undefined,
       });
 
-      message.success('保存成功');
+      messageApi.success('保存成功');
       setModalVisible(false);
       loadSuppliers(currentPage, searchText, contactOrAddressSearch, contactOrAddressSearch);
     } catch (error) {
-      message.error('保存失败');
+      messageApi.error('保存失败');
       console.error(error);
     }
   };
@@ -395,10 +398,10 @@ export default function SupplierManagementPage() {
   const handleDelete = async (supplierCode: string) => {
     try {
       await supplierApi.deleteSupplierManagement(supplierCode);
-      message.success('清空管理信息成功');
+      messageApi.success('清空管理信息成功');
       loadSuppliers(currentPage, searchText, contactOrAddressSearch, contactOrAddressSearch);
     } catch (error) {
-      message.error('清空管理信息失败');
+      messageApi.error('清空管理信息失败');
       console.error(error);
     }
   };
@@ -414,13 +417,13 @@ export default function SupplierManagementPage() {
     try {
       const values = await createForm.validateFields();
       await supplierApi.createSupplier(values);
-      message.success('创建供应商成功');
+      messageApi.success('创建供应商成功');
       setCreateModalVisible(false);
       createForm.resetFields();
       setCurrentPage(1);
       loadSuppliers(1, searchText, contactOrAddressSearch, contactOrAddressSearch);
     } catch (error: any) {
-      message.error(error.message || '创建供应商失败');
+      messageApi.error(error.message || '创建供应商失败');
       console.error(error);
     }
   };

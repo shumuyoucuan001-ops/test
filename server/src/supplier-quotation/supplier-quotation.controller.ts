@@ -114,6 +114,27 @@ export class SupplierQuotationController {
         }
     }
 
+    // 批量查询供应商-门店关系数据
+    @Post('supplier-store-relations')
+    async getSupplierStoreRelations(
+        @Body() body: {
+            supplierCodes: string[];
+            type: '全部' | '仓店' | '城市';
+        },
+    ) {
+        try {
+            return await this.service.getSupplierStoreRelations(
+                body.supplierCodes || [],
+                body.type || '全部',
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询供应商-门店关系失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
     // 获取SKU绑定信息
     @Get('sku-bindings')
     async getSkuBindings(
@@ -130,19 +151,36 @@ export class SupplierQuotationController {
         }
     }
 
+    // 批量获取SKU绑定信息
+    @Post('sku-bindings/batch')
+    async getSkuBindingsBatch(
+        @Body() body: {
+            items: Array<{ supplierCode: string; supplierProductCode: string }>;
+        },
+    ) {
+        try {
+            return await this.service.getSkuBindingsBatch(body.items || []);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '批量查询SKU绑定失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
     // 更新SKU绑定信息
     @Post('sku-bindings')
     async updateSkuBinding(
         @Body() body: {
             supplierCode: string;
-            supplierProductCode: string;
+            upcCode: string;
             sku: string;
         },
     ) {
         try {
             return await this.service.updateSkuBinding(
                 body.supplierCode,
-                body.supplierProductCode,
+                body.upcCode,
                 body.sku,
             );
         } catch (error) {
@@ -310,7 +348,7 @@ export class SupplierQuotationController {
     @Post('supplier-product-remarks')
     async getSupplierProductRemarks(
         @Body() body: {
-            items: Array<{ supplierCode: string; supplierProductCode: string }>;
+            items: Array<{ supplierCode: string; sku: string }>;
         },
     ) {
         try {
@@ -328,14 +366,14 @@ export class SupplierQuotationController {
     async saveSupplierProductRemark(
         @Body() body: {
             supplierCode: string;
-            supplierProductCode: string;
+            sku: string;
             remark: string;
         },
     ) {
         try {
             return await this.service.saveSupplierProductRemark(
                 body.supplierCode,
-                body.supplierProductCode,
+                body.sku,
                 body.remark,
             );
         } catch (error) {

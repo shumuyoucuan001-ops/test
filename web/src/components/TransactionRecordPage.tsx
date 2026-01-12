@@ -12,13 +12,13 @@ import {
   UploadOutlined,
 } from '@ant-design/icons';
 import {
+  App,
   Button,
   Card,
   DatePicker,
   Form,
   Input,
   InputNumber,
-  message,
   Modal,
   Popover,
   Segmented,
@@ -430,6 +430,9 @@ const addSearchFiltersToColumns = (
 };
 
 export default function TransactionRecordPage() {
+  // 使用 App.useApp() 获取 message API（支持动态主题）
+  const { message: messageApi } = App.useApp();
+
   // 定义默认状态
   const defaultState = {
     channel: '1688先采后付' as ChannelType,
@@ -635,7 +638,7 @@ export default function TransactionRecordPage() {
         setTotal(Math.max(filteredTotal, filteredData.length));
       }
     } catch (error: any) {
-      message.error(error.message || '加载记录列表失败');
+      messageApi.error(error.message || '加载记录列表失败');
       console.error(error);
     } finally {
       setLoading(false);
@@ -877,12 +880,12 @@ export default function TransactionRecordPage() {
   const beforeUpload = (file: File) => {
     const isImage = file.type.startsWith('image/');
     if (!isImage) {
-      message.error('只能上传图片文件！');
+      messageApi.error('只能上传图片文件！');
       return false;
     }
     const isLt10M = file.size / 1024 / 1024 < 10;
     if (!isLt10M) {
-      message.error('图片大小不能超过10MB！');
+      messageApi.error('图片大小不能超过10MB！');
       return false;
     }
     return false; // 阻止自动上传，手动处理
@@ -938,7 +941,7 @@ export default function TransactionRecordPage() {
       };
 
       await nonPurchaseBillRecordApi.create(recordData);
-      message.success('创建成功');
+      messageApi.success('创建成功');
       setNonPurchaseModalVisible(false);
       setImageFileList([]);
       loadRecords(currentPage, searchText || undefined);
@@ -952,7 +955,7 @@ export default function TransactionRecordPage() {
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      message.error('创建失败: ' + errorMessage);
+      messageApi.error('创建失败: ' + errorMessage);
     }
   };
 
@@ -968,14 +971,14 @@ export default function TransactionRecordPage() {
     try {
       const values = await form.validateFields();
       await transactionRecordApi.batchCreate(channel, [values]);
-      message.success('创建成功');
+      messageApi.success('创建成功');
       setModalVisible(false);
       loadRecords(currentPage, searchText || undefined);
     } catch (error: any) {
       if (error?.errorFields) {
         return;
       }
-      message.error('创建失败: ' + (error?.message || '未知错误'));
+      messageApi.error('创建失败: ' + (error?.message || '未知错误'));
     }
   };
 
@@ -1006,12 +1009,12 @@ export default function TransactionRecordPage() {
     try {
       const result = await transactionRecordApi.batchCreate(channel, validItems);
       if (result.errors && result.errors.length > 0) {
-        message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+        messageApi.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
-      message.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
+      messageApi.success(`成功创建 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       loadRecords(currentPage, searchText || undefined);
     } catch (e: any) {
-      message.error('批量创建失败: ' + (e?.message || '未知错误'));
+      messageApi.error('批量创建失败: ' + (e?.message || '未知错误'));
     }
   }, [channel, currentPage, searchText]);
 

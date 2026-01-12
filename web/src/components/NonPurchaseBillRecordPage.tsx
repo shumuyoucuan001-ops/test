@@ -13,6 +13,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons';
 import {
+  App,
   Button,
   Card,
   Form,
@@ -26,8 +27,7 @@ import {
   Space,
   Tag,
   Typography,
-  Upload,
-  message
+  Upload
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -44,6 +44,9 @@ const { TextArea } = Input;
 const PAGE_KEY = 'non-purchase-bill-record';
 
 export default function NonPurchaseBillRecordPage() {
+  // 使用 App.useApp() 获取 message API（支持动态主题）
+  const { message: messageApi } = App.useApp();
+
   // 定义默认状态
   const defaultState = {
     currentPage: 1,
@@ -56,10 +59,10 @@ export default function NonPurchaseBillRecordPage() {
     search记录修改人: '',
     search财务记账凭证号: '',
   };
-  
+
   // 恢复保存的状态
   const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
-  
+
   const [records, setRecords] = useState<NonPurchaseBillRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -73,7 +76,7 @@ export default function NonPurchaseBillRecordPage() {
   const [search财务审核状态, setSearch财务审核状态] = useState(restoredState?.search财务审核状态 ?? defaultState.search财务审核状态);
   const [search记录修改人, setSearch记录修改人] = useState(restoredState?.search记录修改人 ?? defaultState.search记录修改人);
   const [search财务记账凭证号, setSearch财务记账凭证号] = useState(restoredState?.search财务记账凭证号 ?? defaultState.search财务记账凭证号);
-  
+
   // 保存状态（自动保存，防抖 300ms）
   usePageStateSave(PAGE_KEY, {
     currentPage,
@@ -154,7 +157,7 @@ export default function NonPurchaseBillRecordPage() {
   // 审核通过/取消审核
   const handleReview = async (record: NonPurchaseBillRecord) => {
     if (!hasReviewPermission()) {
-      message.error('您没有审核权限');
+      messageApi.error('您没有审核权限');
       return;
     }
 
@@ -175,10 +178,10 @@ export default function NonPurchaseBillRecordPage() {
       }
 
       await nonPurchaseBillRecordApi.update(record.账单流水, updateData);
-      message.success(newStatus === '审核通过' ? '审核通过成功' : '取消审核成功');
+      messageApi.success(newStatus === '审核通过' ? '审核通过成功' : '取消审核成功');
       refreshRecords();
     } catch (error: any) {
-      message.error(error.message || '操作失败');
+      messageApi.error(error.message || '操作失败');
       console.error(error);
     }
   };
@@ -218,7 +221,7 @@ export default function NonPurchaseBillRecordPage() {
       setRecords(result.data);
       setTotal(result.total);
     } catch (error: any) {
-      message.error(error.message || '加载记录列表失败');
+      messageApi.error(error.message || '加载记录列表失败');
       console.error(error);
     } finally {
       setLoading(false);
@@ -350,12 +353,12 @@ export default function NonPurchaseBillRecordPage() {
   const beforeUpload = (file: File) => {
     const isImage = file.type.startsWith('image/');
     if (!isImage) {
-      message.error('只能上传图片文件！');
+      messageApi.error('只能上传图片文件！');
       return false;
     }
     const isLt10M = file.size / 1024 / 1024 < 10;
     if (!isLt10M) {
-      message.error('图片大小不能超过10MB！');
+      messageApi.error('图片大小不能超过10MB！');
       return false;
     }
     return false; // 阻止自动上传，手动处理
@@ -449,11 +452,11 @@ export default function NonPurchaseBillRecordPage() {
           setPreviewVisible(true);
         } else {
           console.log('[NonPurchaseBillRecordPage] 该记录没有图片或图片为空');
-          message.info('该记录没有图片');
+          messageApi.info('该记录没有图片');
         }
       } catch (error) {
         console.error('[NonPurchaseBillRecordPage] 获取图片失败:', error);
-        message.error('获取图片失败');
+        messageApi.error('获取图片失败');
       }
     }
   };
@@ -511,11 +514,11 @@ export default function NonPurchaseBillRecordPage() {
         // 更新时，不传递财务审核状态（保持原值）
         delete recordData.财务审核状态;
         await nonPurchaseBillRecordApi.update(editingRecord.账单流水, recordData);
-        message.success('更新成功');
+        messageApi.success('更新成功');
       } else {
         // 新增
         await nonPurchaseBillRecordApi.create(recordData);
-        message.success('创建成功');
+        messageApi.success('创建成功');
       }
 
       setModalVisible(false);
@@ -533,7 +536,7 @@ export default function NonPurchaseBillRecordPage() {
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      message.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
+      messageApi.error((editingRecord ? '更新' : '创建') + '失败: ' + errorMessage);
     }
   };
 
@@ -541,10 +544,10 @@ export default function NonPurchaseBillRecordPage() {
   const handleDelete = async (账单流水: string) => {
     try {
       await nonPurchaseBillRecordApi.delete(账单流水);
-      message.success('删除成功');
+      messageApi.success('删除成功');
       refreshRecords();
     } catch (error: any) {
-      message.error(error.message || '删除失败');
+      messageApi.error(error.message || '删除失败');
       console.error(error);
     }
   };
@@ -606,11 +609,11 @@ export default function NonPurchaseBillRecordPage() {
 
       await nonPurchaseBillRecordApi.update(currentRecord.账单流水, updateData);
       console.log('[NonPurchaseBillRecordPage] 保存成功');
-      message.success('修改成功');
+      messageApi.success('修改成功');
       refreshRecords();
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || '修改失败';
-      message.error(errorMessage);
+      messageApi.error(errorMessage);
       console.error('[NonPurchaseBillRecordPage] 保存失败:', {
         error,
         response: error?.response,
@@ -625,18 +628,18 @@ export default function NonPurchaseBillRecordPage() {
   // 批量删除
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) {
-      message.warning('请选择要删除的记录');
+      messageApi.warning('请选择要删除的记录');
       return;
     }
 
     try {
       const 账单流水列表 = selectedRowKeys.map((key: React.Key) => String(key));
       const result = await nonPurchaseBillRecordApi.batchDelete(账单流水列表);
-      message.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
+      messageApi.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       setSelectedRowKeys([]);
       refreshRecords();
     } catch (error: any) {
-      message.error(error.message || '批量删除失败');
+      messageApi.error(error.message || '批量删除失败');
       console.error(error);
     }
   };
@@ -712,9 +715,9 @@ export default function NonPurchaseBillRecordPage() {
     try {
       const result = await nonPurchaseBillRecordApi.batchCreate(validItems);
       if (result.errors && result.errors.length > 0) {
-        message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+        messageApi.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
-      message.success('非采购账单流水记录-批量新增数据已完成');
+      messageApi.success('非采购账单流水记录-批量新增数据已完成');
       refreshRecords();
     } catch (e: any) {
       let errorMessage = '未知错误';
@@ -723,7 +726,7 @@ export default function NonPurchaseBillRecordPage() {
       } else if (e?.message) {
         errorMessage = e.message;
       }
-      message.error('批量创建失败: ' + errorMessage);
+      messageApi.error('批量创建失败: ' + errorMessage);
     }
   }, []);
 

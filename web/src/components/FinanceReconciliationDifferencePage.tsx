@@ -13,6 +13,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import {
+  App,
   Button,
   Card,
   DatePicker,
@@ -20,7 +21,6 @@ import {
   Image,
   Input,
   InputNumber,
-  message,
   Modal,
   Pagination,
   Popover,
@@ -29,7 +29,7 @@ import {
   Table,
   Tabs,
   Typography,
-  Upload,
+  Upload
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import zhCN from 'antd/locale/zh_CN';
@@ -46,6 +46,9 @@ const { TextArea } = Input;
 const PAGE_KEY = 'finance-reconciliation-difference';
 
 export default function FinanceReconciliationDifferencePage() {
+  // 使用 App.useApp() 获取 message API（支持动态主题）
+  const { message: messageApi } = App.useApp();
+
   // 定义默认状态
   const defaultState = {
     currentPage: 1,
@@ -332,7 +335,7 @@ export default function FinanceReconciliationDifferencePage() {
       }
       setTotal(result.total);
     } catch (error: any) {
-      message.error(error.message || '加载记录列表失败');
+      messageApi.error(error.message || '加载记录列表失败');
       console.error(error);
     } finally {
       setLoading(false);
@@ -608,7 +611,7 @@ export default function FinanceReconciliationDifferencePage() {
             setTransactionRecordLoading(false);
           }
         } catch (error: any) {
-          message.error(error.message || '查询交易单号信息失败');
+          messageApi.error(error.message || '查询交易单号信息失败');
           console.error('查询交易单号信息异常:', error);
           setTransactionRecordData([]);
           setTransactionRecordLoading(false);
@@ -643,7 +646,7 @@ export default function FinanceReconciliationDifferencePage() {
             setPurchaseOrderInfoLoading(false);
           }
         } catch (error: any) {
-          message.error(error.message || '查询采购单号信息失败');
+          messageApi.error(error.message || '查询采购单号信息失败');
           console.error('查询采购单号信息异常:', error);
           setPurchaseOrderInfoData([]);
           setPurchaseOrderInfoLoading(false);
@@ -694,7 +697,7 @@ export default function FinanceReconciliationDifferencePage() {
         setPurchaseOrderInfoData([]);
       }
     } catch (error: any) {
-      message.error(error.message || '加载子维度数据失败');
+      messageApi.error(error.message || '加载子维度数据失败');
       console.error(error);
     } finally {
       setSubLoading(false);
@@ -782,7 +785,7 @@ export default function FinanceReconciliationDifferencePage() {
         setTransactionRecordLoading(false);
       }
     } catch (error: any) {
-      message.error(error.message || '查询交易单号信息失败');
+      messageApi.error(error.message || '查询交易单号信息失败');
       console.error('查询交易单号信息异常:', error);
       setTransactionRecordData([]);
       setTransactionRecordLoading(false);
@@ -817,7 +820,7 @@ export default function FinanceReconciliationDifferencePage() {
         setPurchaseOrderInfoLoading(false);
       }
     } catch (error: any) {
-      message.error(error.message || '查询采购单号信息失败');
+      messageApi.error(error.message || '查询采购单号信息失败');
       console.error('查询采购单号信息异常:', error);
       setPurchaseOrderInfoData([]);
       setPurchaseOrderInfoLoading(false);
@@ -921,7 +924,7 @@ export default function FinanceReconciliationDifferencePage() {
           console.error(`查询交易单号 ${record.交易单号} 的账单手动绑定采购单失败:`, error);
         }
       } catch (error: any) {
-        message.error(error.message || '查询交易单号信息失败');
+        messageApi.error(error.message || '查询交易单号信息失败');
         console.error(error);
         setTransactionRecordData([]);
       } finally {
@@ -953,7 +956,7 @@ export default function FinanceReconciliationDifferencePage() {
           console.error(`查询采购单号 ${record.牵牛花采购单号} 的采购单金额调整失败:`, error);
         }
       } catch (error: any) {
-        message.error(error.message || '查询采购单号信息失败');
+        messageApi.error(error.message || '查询采购单号信息失败');
         console.error(error);
         setPurchaseOrderInfoData([]);
       } finally {
@@ -983,10 +986,10 @@ export default function FinanceReconciliationDifferencePage() {
       setFinanceBillDetailData(result.data || []);
 
       if (!result.data || result.data.length === 0) {
-        message.info('该交易单号无账单手动绑定采购单关联数据');
+        messageApi.info('该交易单号无账单手动绑定采购单关联数据');
       }
     } catch (error: any) {
-      message.error(error.message || '查询账单手动绑定采购单详情失败');
+      messageApi.error(error.message || '查询账单手动绑定采购单详情失败');
       console.error(error);
       setFinanceBillDetailData([]);
     } finally {
@@ -1013,10 +1016,10 @@ export default function FinanceReconciliationDifferencePage() {
       setPurchaseAdjustmentDetailData(result.data || []);
 
       if (!result.data || result.data.length === 0) {
-        message.info('该采购单号无采购单金额调整关联数据');
+        messageApi.info('该采购单号无采购单金额调整关联数据');
       }
     } catch (error: any) {
-      message.error(error.message || '查询采购单金额调整详情失败');
+      messageApi.error(error.message || '查询采购单金额调整详情失败');
       console.error(error);
       setPurchaseAdjustmentDetailData([]);
     } finally {
@@ -1095,7 +1098,7 @@ export default function FinanceReconciliationDifferencePage() {
   // 查询采购单金额调整
   const loadPurchaseAdjustmentData = async (search采购单号?: string) => {
     if (!selected对账单号 || subRecords.length === 0) {
-      message.warning('请先选择对账单号并加载子维度数据');
+      messageApi.warning('请先选择对账单号并加载子维度数据');
       return;
     }
 
@@ -1118,7 +1121,7 @@ export default function FinanceReconciliationDifferencePage() {
       if (牵牛花采购单号列表.length === 0) {
         setPurchaseAdjustmentData([]);
         if (!search采购单号) {
-          message.info('该对账单号无采购单金额调整关联数据');
+          messageApi.info('该对账单号无采购单金额调整关联数据');
         }
         return;
       }
@@ -1151,13 +1154,13 @@ export default function FinanceReconciliationDifferencePage() {
       if (filteredResults.length === 0) {
         setPurchaseAdjustmentData([]);
         if (!search采购单号) {
-          message.info('该对账单号无采购单金额调整关联数据');
+          messageApi.info('该对账单号无采购单金额调整关联数据');
         }
       } else {
         setPurchaseAdjustmentData(filteredResults);
       }
     } catch (error: any) {
-      message.error(error.message || '查询采购单金额调整失败');
+      messageApi.error(error.message || '查询采购单金额调整失败');
       console.error(error);
     } finally {
       setPurchaseAdjustmentQueryLoading(false);
@@ -1167,7 +1170,7 @@ export default function FinanceReconciliationDifferencePage() {
   // 查询账单手动绑定采购单
   const loadFinanceBillData = async (search交易单号?: string, search牵牛花采购单号?: string) => {
     if (!selected对账单号 || subRecords.length === 0) {
-      message.warning('请先选择对账单号并加载子维度数据');
+      messageApi.warning('请先选择对账单号并加载子维度数据');
       return;
     }
 
@@ -1195,7 +1198,7 @@ export default function FinanceReconciliationDifferencePage() {
       if (牵牛花采购单号列表.length === 0 && 交易单号列表.length === 0) {
         setFinanceBillData([]);
         if (!search交易单号 && !search牵牛花采购单号) {
-          message.info('该对账单号无账单手动绑定采购单关联数据');
+          messageApi.info('该对账单号无账单手动绑定采购单关联数据');
         }
         return;
       }
@@ -1264,13 +1267,13 @@ export default function FinanceReconciliationDifferencePage() {
       if (filteredResults.length === 0) {
         setFinanceBillData([]);
         if (!search交易单号 && !search牵牛花采购单号) {
-          message.info('该对账单号无账单手动绑定采购单关联数据');
+          messageApi.info('该对账单号无账单手动绑定采购单关联数据');
         }
       } else {
         setFinanceBillData(filteredResults);
       }
     } catch (error: any) {
-      message.error(error.message || '查询账单手动绑定采购单失败');
+      messageApi.error(error.message || '查询账单手动绑定采购单失败');
       console.error(error);
     } finally {
       setFinanceBillQueryLoading(false);
@@ -1280,7 +1283,7 @@ export default function FinanceReconciliationDifferencePage() {
   // 查询非采购单流水记录
   const loadNonPurchaseRecordData = async (search账单流水?: string) => {
     if (!selected对账单号 || subRecords.length === 0) {
-      message.warning('请先选择对账单号并加载子维度数据');
+      messageApi.warning('请先选择对账单号并加载子维度数据');
       return;
     }
 
@@ -1303,7 +1306,7 @@ export default function FinanceReconciliationDifferencePage() {
       if (交易单号列表.length === 0) {
         setNonPurchaseRecordData([]);
         if (!search账单流水) {
-          message.info('该对账单号无非采购单流水记录关联数据');
+          messageApi.info('该对账单号无非采购单流水记录关联数据');
         }
         return;
       }
@@ -1338,13 +1341,13 @@ export default function FinanceReconciliationDifferencePage() {
       if (filteredResults.length === 0) {
         setNonPurchaseRecordData([]);
         if (!search账单流水) {
-          message.info('该对账单号无非采购单流水记录关联数据');
+          messageApi.info('该对账单号无非采购单流水记录关联数据');
         }
       } else {
         setNonPurchaseRecordData(filteredResults);
       }
     } catch (error: any) {
-      message.error(error.message || '查询非采购单流水记录失败');
+      messageApi.error(error.message || '查询非采购单流水记录失败');
       console.error(error);
     } finally {
       setNonPurchaseRecordQueryLoading(false);
@@ -1947,12 +1950,12 @@ export default function FinanceReconciliationDifferencePage() {
   const beforeUpload = (file: File): boolean => {
     const isImage = file.type.startsWith('image/');
     if (!isImage) {
-      message.error('只能上传图片文件！');
+      messageApi.error('只能上传图片文件！');
       return false;
     }
     const isLt10M = file.size / 1024 / 1024 < 10;
     if (!isLt10M) {
-      message.error('图片大小不能超过10MB！');
+      messageApi.error('图片大小不能超过10MB！');
       return false;
     }
     return false; // 阻止自动上传，手动处理
@@ -2013,7 +2016,7 @@ export default function FinanceReconciliationDifferencePage() {
 
       setPurchaseAdjustmentQueryLoading(true);
       await purchaseAmountAdjustmentApi.create(adjustmentData);
-      message.success('创建成功');
+      messageApi.success('创建成功');
       setPurchaseAdjustmentModalVisible(false);
       purchaseAdjustmentForm.resetFields();
       setPurchaseAdjustmentImageFileList([]);
@@ -2030,7 +2033,7 @@ export default function FinanceReconciliationDifferencePage() {
         // 表单验证错误
         return;
       }
-      message.error(error.message || '保存失败');
+      messageApi.error(error.message || '保存失败');
       console.error(error);
     } finally {
       setPurchaseAdjustmentQueryLoading(false);
@@ -2130,7 +2133,7 @@ export default function FinanceReconciliationDifferencePage() {
 
       setFinanceBillQueryLoading(true);
       await financeManagementApi.create(billData);
-      message.success('创建成功');
+      messageApi.success('创建成功');
       setFinanceBillModalVisible(false);
       financeBillForm.resetFields();
       setFinanceBillImageFileList([]);
@@ -2147,7 +2150,7 @@ export default function FinanceReconciliationDifferencePage() {
         // 表单验证错误
         return;
       }
-      message.error(error.message || '保存失败');
+      messageApi.error(error.message || '保存失败');
       console.error(error);
     } finally {
       setFinanceBillQueryLoading(false);
@@ -2202,7 +2205,7 @@ export default function FinanceReconciliationDifferencePage() {
 
       setNonPurchaseRecordQueryLoading(true);
       await nonPurchaseBillRecordApi.create(recordData);
-      message.success('创建成功');
+      messageApi.success('创建成功');
       setNonPurchaseRecordModalVisible(false);
       nonPurchaseRecordForm.resetFields();
       setNonPurchaseRecordImageFileList([]);
@@ -2219,7 +2222,7 @@ export default function FinanceReconciliationDifferencePage() {
         // 表单验证错误
         return;
       }
-      message.error(error.message || '保存失败');
+      messageApi.error(error.message || '保存失败');
       console.error(error);
     } finally {
       setNonPurchaseRecordQueryLoading(false);
@@ -2435,9 +2438,9 @@ export default function FinanceReconciliationDifferencePage() {
 
                 setGeneratingBill(true);
                 try {
-                  message.loading({ content: '正在生成对账单，请稍候...', key: 'generateBill', duration: 2 });
+                  messageApi.loading({ content: '正在生成对账单，请稍候...', key: 'generateBill', duration: 2 });
                   const result = await financeReconciliationDifferenceApi.generateBill();
-                  message.success({
+                  messageApi.success({
                     content: result.message || '对账单生成成功',
                     key: 'generateBill',
                     duration: 4,
@@ -2447,7 +2450,7 @@ export default function FinanceReconciliationDifferencePage() {
                     handleSearchAll();
                   }, 500);
                 } catch (error: any) {
-                  message.error({
+                  messageApi.error({
                     content: error?.response?.data?.message || error?.message || '生成对账单失败',
                     key: 'generateBill',
                     duration: 5,

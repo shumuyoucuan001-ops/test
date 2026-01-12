@@ -1,4 +1,4 @@
-import { Modal, message, notification } from 'antd';
+import { App, Modal, message, notification } from 'antd';
 
 /**
  * 错误处理工具函数
@@ -92,20 +92,28 @@ export function extractErrorMessage(error: any): string {
 
 /**
  * 显示错误提示 - 方式1：使用 message（顶部提示，自动消失）
+ * @param error 错误对象
+ * @param defaultMessage 默认错误消息
+ * @param messageApi 可选的 message API（从 App.useApp() 获取），如果不提供则使用静态方法
  */
-export function showErrorMessage(error: any, defaultMessage: string = '操作失败'): void {
+export function showErrorMessage(error: any, defaultMessage: string = '操作失败', messageApi?: ReturnType<typeof App.useApp>['message']): void {
     const errorMessage = extractErrorMessage(error);
-    message.error(errorMessage || defaultMessage, 5); // 5秒后自动消失
+    const api = messageApi || message;
+    api.error(errorMessage || defaultMessage, 5); // 5秒后自动消失
 }
 
 /**
  * 显示错误提示 - 方式2：使用 Modal（弹框，需要用户点击确认）
+ * @param error 错误对象
+ * @param defaultMessage 默认错误消息
+ * @param modalApi 可选的 modal API（从 App.useApp() 获取），如果不提供则使用静态方法
  */
-export function showErrorModal(error: any, defaultMessage: string = '操作失败'): void {
+export function showErrorModal(error: any, defaultMessage: string = '操作失败', modalApi?: ReturnType<typeof App.useApp>['modal']): void {
     const errorMessage = extractErrorMessage(error);
     // 先销毁所有现有的 Modal
     Modal.destroyAll();
-    Modal.error({
+    const api = modalApi || Modal;
+    api.error({
         title: '⚠️ 操作失败',
         content: errorMessage || defaultMessage,
         okText: '我知道了',
@@ -134,9 +142,17 @@ export function showErrorNotification(error: any, defaultMessage: string = '操�
  * 组合提示：同时使用 message 和 Modal（最明显，默认使用）
  * 先显示顶部提示（3秒），然后弹出 Modal 弹框（需要用户点击确认）
  * 
- * 注意：此函数需要在 React 组件内部调用，因为它使用了 App.useApp()
+ * @param error 错误对象
+ * @param defaultMessage 默认错误消息
+ * @param messageApi 可选的 message API（从 App.useApp() 获取），如果不提供则使用静态方法
+ * @param modalApi 可选的 modal API（从 App.useApp() 获取），如果不提供则使用静态方法
  */
-export function showErrorBoth(error: any, defaultMessage: string = '操作失败'): void {
+export function showErrorBoth(
+    error: any,
+    defaultMessage: string = '操作失败',
+    messageApi?: ReturnType<typeof App.useApp>['message'],
+    modalApi?: ReturnType<typeof App.useApp>['modal']
+): void {
     console.log('[showErrorBoth] 开始显示错误提示');
     const errorMessage = extractErrorMessage(error);
     const finalMessage = errorMessage || defaultMessage;
@@ -145,7 +161,8 @@ export function showErrorBoth(error: any, defaultMessage: string = '操作失败
 
     // 先显示顶部提示（快速反馈）
     try {
-        message.error(finalMessage, 3);
+        const api = messageApi || message;
+        api.error(finalMessage, 3);
         console.log('[showErrorBoth] 顶部消息提示已显示');
     } catch (e) {
         console.error('[showErrorBoth] 显示顶部消息失败:', e);
@@ -158,7 +175,8 @@ export function showErrorBoth(error: any, defaultMessage: string = '操作失败
             // 先销毁所有现有的 Modal，避免冲突
             Modal.destroyAll();
 
-            Modal.error({
+            const api = modalApi || Modal;
+            api.error({
                 title: '⚠️ 操作失败',
                 content: finalMessage,
                 okText: '我知道了',

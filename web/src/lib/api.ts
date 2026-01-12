@@ -1362,6 +1362,7 @@ export interface InventorySummary {
   差价?: number; // 差价 = 对比价格 - 供货价格
   '门店/仓库名称'?: string; // 仓店维度专用
   城市?: string; // 城市维度专用
+  '供应商-门店关系'?: number; // 供应商-门店关系数量
 }
 
 export interface SupplierSkuBinding {
@@ -1427,6 +1428,13 @@ export const supplierQuotationApi = {
     return api.get('/supplier-quotation/inventory-summary', { params: queryParams }).then(res => res.data);
   },
 
+  // 批量查询供应商-门店关系数据
+  getSupplierStoreRelations: (data: {
+    supplierCodes: string[];
+    type: '全部' | '仓店' | '城市';
+  }): Promise<Record<string, number>> =>
+    api.post('/supplier-quotation/supplier-store-relations', data).then(res => res.data),
+
   // 获取SKU绑定信息
   getSkuBindings: (params: {
     supplierCode: string;
@@ -1434,10 +1442,16 @@ export const supplierQuotationApi = {
   }): Promise<SupplierSkuBinding[]> =>
     api.get('/supplier-quotation/sku-bindings', { params }).then(res => res.data),
 
+  // 批量获取SKU绑定信息
+  getSkuBindingsBatch: (data: {
+    items: Array<{ supplierCode: string; supplierProductCode: string }>;
+  }): Promise<Record<string, string>> =>
+    api.post('/supplier-quotation/sku-bindings/batch', data).then(res => res.data),
+
   // 更新SKU绑定信息
   updateSkuBinding: (data: {
     supplierCode: string;
-    supplierProductCode: string;
+    upcCode: string;
     sku: string;
   }): Promise<boolean> =>
     api.post('/supplier-quotation/sku-bindings', data).then(res => res.data),
@@ -1498,14 +1512,14 @@ export const supplierQuotationApi = {
 
   // 批量查询供应商商品供应信息的备注
   getSupplierProductRemarks: (data: {
-    items: Array<{ supplierCode: string; supplierProductCode: string }>;
+    items: Array<{ supplierCode: string; sku: string }>;
   }): Promise<Record<string, string>> =>
     api.post('/supplier-quotation/supplier-product-remarks', data).then(res => res.data),
 
   // 保存或更新供应商商品供应信息的备注
   saveSupplierProductRemark: (data: {
     supplierCode: string;
-    supplierProductCode: string;
+    sku: string;
     remark: string;
   }): Promise<boolean> =>
     api.post('/supplier-quotation/supplier-product-remark', data).then(res => res.data),

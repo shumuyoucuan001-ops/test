@@ -13,12 +13,12 @@ import {
   UploadOutlined,
 } from '@ant-design/icons';
 import {
+  App,
   Button,
   Card,
   Form,
   Image,
   Input,
-  message,
   Modal,
   Popconfirm,
   Popover,
@@ -41,6 +41,9 @@ const { TextArea } = Input;
 const PAGE_KEY = 'finance-management';
 
 export default function FinanceManagementPage() {
+  // 使用 App.useApp() 获取 message API（支持动态主题）
+  const { message: messageApi } = App.useApp();
+
   // 定义默认状态
   const defaultState = {
     currentPage: 1,
@@ -134,7 +137,7 @@ export default function FinanceManagementPage() {
       setBills(result.data);
       setTotal(result.total);
     } catch (error: any) {
-      message.error(error.message || '加载账单列表失败');
+      messageApi.error(error.message || '加载账单列表失败');
       console.error(error);
     } finally {
       setLoading(false);
@@ -292,12 +295,12 @@ export default function FinanceManagementPage() {
   const beforeUpload = (file: File): boolean => {
     const isImage = file.type.startsWith('image/');
     if (!isImage) {
-      message.error('只能上传图片文件！');
+      messageApi.error('只能上传图片文件！');
       return false;
     }
     const isLt10M = file.size / 1024 / 1024 < 10;
     if (!isLt10M) {
-      message.error('图片大小不能超过10MB！');
+      messageApi.error('图片大小不能超过10MB！');
       return false;
     }
     return false; // 阻止自动上传，手动处理
@@ -445,11 +448,11 @@ export default function FinanceManagementPage() {
           editingBill.qianniuhuaPurchaseNumber,
           billData
         );
-        message.success('更新成功');
+        messageApi.success('更新成功');
       } else {
         // 新增
         await financeManagementApi.create(billData);
-        message.success('创建成功');
+        messageApi.success('创建成功');
       }
 
       setModalVisible(false);
@@ -466,7 +469,7 @@ export default function FinanceManagementPage() {
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      message.error((editingBill ? '更新' : '创建') + '失败: ' + errorMessage);
+      messageApi.error((editingBill ? '更新' : '创建') + '失败: ' + errorMessage);
     }
   };
 
@@ -474,10 +477,10 @@ export default function FinanceManagementPage() {
   const handleDelete = async (transactionNumber: string, qianniuhuaPurchaseNumber?: string) => {
     try {
       await financeManagementApi.delete(transactionNumber, qianniuhuaPurchaseNumber);
-      message.success('删除成功');
+      messageApi.success('删除成功');
       refreshBills();
     } catch (error: any) {
-      message.error(error.message || '删除失败');
+      messageApi.error(error.message || '删除失败');
       console.error(error);
     }
   };
@@ -485,7 +488,7 @@ export default function FinanceManagementPage() {
   // 批量删除
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) {
-      message.warning('请选择要删除的记录');
+      messageApi.warning('请选择要删除的记录');
       return;
     }
 
@@ -502,11 +505,11 @@ export default function FinanceManagementPage() {
       });
 
       const result = await financeManagementApi.batchDelete(billsToDelete);
-      message.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
+      messageApi.success(`成功删除 ${result.success} 条记录${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
       setSelectedRowKeys([]);
       refreshBills();
     } catch (error: any) {
-      message.error(error.message || '批量删除失败');
+      messageApi.error(error.message || '批量删除失败');
       console.error(error);
     }
   };
@@ -556,9 +559,9 @@ export default function FinanceManagementPage() {
     try {
       const result = await financeManagementApi.batchCreate(validItems);
       if (result.errors && result.errors.length > 0) {
-        message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+        messageApi.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
       }
-      message.success('账单手动绑定采购单-批量新增数据已完成');
+      messageApi.success('账单手动绑定采购单-批量新增数据已完成');
       refreshBills();
     } catch (e: any) {
       let errorMessage = '未知错误';
@@ -567,7 +570,7 @@ export default function FinanceManagementPage() {
       } else if (e?.message) {
         errorMessage = e.message;
       }
-      message.error('批量创建失败: ' + errorMessage);
+      messageApi.error('批量创建失败: ' + errorMessage);
     }
   }, []);
 
@@ -586,11 +589,11 @@ export default function FinanceManagementPage() {
           setPreviewVisible(true);
         } else {
           console.log('[FinanceManagementPage] 该记录没有图片或图片为空, fullBill.image:', fullBill?.image);
-          message.info('该记录没有图片');
+          messageApi.info('该记录没有图片');
         }
       } catch (error) {
         console.error('[FinanceManagementPage] 获取图片失败:', error);
-        message.error('获取图片失败');
+        messageApi.error('获取图片失败');
       }
     }
   };

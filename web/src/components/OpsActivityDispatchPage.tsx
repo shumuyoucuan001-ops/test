@@ -5,7 +5,7 @@ import { OpsActivityDispatchItem, opsActivityDispatchApi, productMasterApi } fro
 import { formatDateTime } from "@/lib/dateUtils";
 import { showErrorBoth } from "@/lib/errorUtils";
 import { DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag, message } from "antd";
+import { App, Button, Card, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag } from "antd";
 import { ColumnType } from "antd/es/table";
 import dayjs, { Dayjs } from "dayjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +37,9 @@ const fieldLabels: Record<keyof OpsActivityDispatchItem, string> = {
 const PAGE_KEY = 'ops-activity-dispatch';
 
 export default function OpsActivityDispatchPage() {
+    // 使用 App.useApp() 获取 message 和 modal API（支持动态主题）
+    const { message: messageApi, modal: modalApi } = App.useApp();
+
     // 定义默认状态
     const defaultState = {
         currentPage: 1,
@@ -221,7 +224,7 @@ export default function OpsActivityDispatchPage() {
             }
             setSelectedRowKeys([]);
         } catch (e) {
-            message.error("加载失败");
+            messageApi.error("加载失败");
             console.error(e);
         } finally {
             setLoading(false);
@@ -237,7 +240,7 @@ export default function OpsActivityDispatchPage() {
                 setStoreNames(names);
             } catch (error) {
                 console.error('加载门店名称列表失败:', error);
-                message.error('加载门店名称列表失败');
+                messageApi.error('加载门店名称列表失败');
             } finally {
                 setLoadingStoreNames(false);
             }
@@ -312,10 +315,10 @@ export default function OpsActivityDispatchPage() {
             };
             if (editing) {
                 await opsActivityDispatchApi.update(editing, submitData);
-                message.success("更新成功");
+                messageApi.success("更新成功");
             } else {
                 await opsActivityDispatchApi.create(submitData);
-                message.success("新增成功");
+                messageApi.success("新增成功");
             }
             setModalOpen(false);
             load();
@@ -333,7 +336,7 @@ export default function OpsActivityDispatchPage() {
 
             // 使用增强的错误提示（方式1：message + Modal弹框）
             try {
-                showErrorBoth(e, '保存失败');
+                showErrorBoth(e, '保存失败', messageApi, modalApi);
             } catch (showError) {
                 console.error('[OpsActivityDispatchPage] 显示错误提示失败:', showError);
                 // 最后的备用方案：使用原生 alert
@@ -345,10 +348,10 @@ export default function OpsActivityDispatchPage() {
     const handleDelete = async (record: OpsActivityDispatchItem) => {
         try {
             await opsActivityDispatchApi.remove(record);
-            message.success("删除成功");
+            messageApi.success("删除成功");
             load();
         } catch (e) {
-            message.error("删除失败");
+            messageApi.error("删除失败");
             console.error(e);
         }
     };
@@ -359,18 +362,18 @@ export default function OpsActivityDispatchPage() {
 
     const handleBatchDelete = async () => {
         if (selectedRowKeys.length === 0) {
-            message.warning('请至少选择一条记录');
+            messageApi.warning('请至少选择一条记录');
             return;
         }
 
         try {
             const selectedItems = data.filter(item => selectedRowKeys.includes(getRowKey(item)));
             const result = await opsActivityDispatchApi.batchDelete(selectedItems);
-            message.success(result.message || `成功删除 ${result.deletedCount} 条记录`);
+            messageApi.success(result.message || `成功删除 ${result.deletedCount} 条记录`);
             setSelectedRowKeys([]);
             load();
         } catch (error: any) {
-            message.error(error?.response?.data?.message || error?.message || '批量删除失败');
+            messageApi.error(error?.response?.data?.message || error?.message || '批量删除失败');
             console.error(error);
         }
     };
@@ -547,7 +550,7 @@ export default function OpsActivityDispatchPage() {
             return [];
         } catch (error) {
             console.error('获取全部数据失败:', error);
-            message.error('获取全部数据失败');
+            messageApi.error('获取全部数据失败');
             return [];
         }
     }, [searchFilters, searchText]);
@@ -590,13 +593,13 @@ export default function OpsActivityDispatchPage() {
 
         try {
             const result = await opsActivityDispatchApi.batchCreate(processedItems);
-            message.success('手动强制活动分发-批量新增数据已完成');
+            messageApi.success('手动强制活动分发-批量新增数据已完成');
             if (result.errors && result.errors.length > 0) {
-                message.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
+                messageApi.warning(`部分数据创建失败: ${result.errors.join('; ')}`);
             }
             load();
         } catch (e: any) {
-            showErrorBoth(e, '批量创建失败');
+            showErrorBoth(e, '批量创建失败', messageApi, modalApi);
             console.error('批量创建失败:', e);
         }
     }, []);
