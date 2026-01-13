@@ -2,7 +2,7 @@
 
 import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { InventorySummary, SupplierQuotation, supplierQuotationApi, SupplierSkuBinding } from '@/lib/api';
-import { DownloadOutlined, ReloadOutlined, SaveOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { DeleteOutlined, DownloadOutlined, ReloadOutlined, SaveOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
 import {
   App,
   Button,
@@ -119,6 +119,8 @@ export default function SupplierQuotationPage() {
   const [internalSkuRemarks, setInternalSkuRemarks] = useState<Record<string, string>>({}); // 存储内部sku备注（key为SKU）
   const [editingInternalSkuRemarks, setEditingInternalSkuRemarks] = useState<Record<string, string>>({}); // 存储正在编辑的内部sku备注（key为SKU）
   const [editingInternalSkuRemarkKeys, setEditingInternalSkuRemarkKeys] = useState<Set<string>>(new Set()); // 存储正在编辑的内部sku备注key（用于显示保存按钮）
+  const [emptySkuInputs, setEmptySkuInputs] = useState<Record<string, string>>({}); // 存储SKU为空时的输入框值（key为唯一标识符）
+  const [editingEmptySkuKeys, setEditingEmptySkuKeys] = useState<Set<string>>(new Set()); // 存储正在编辑的SKU输入框key（用于显示保存按钮）
   const [orderChannel, setOrderChannel] = useState<string | null>(null); // 采购下单渠道
   const [form] = Form.useForm();
 
@@ -1728,11 +1730,66 @@ export default function SupplierQuotationPage() {
       width: 120,
       fixed: 'left' as const,
       render: (text: string, record: InventorySummary, index?: number) => {
+        // 首先输出基本信息，确认render函数被调用
+        console.log(`[SKU列Render函数] 行索引: ${index}, UPC: ${record.UPC}, text参数:`, text, 'record.SKU:', record.SKU, 'record完整数据:', record);
+
+        // ========== 多种SKU为空的判断方式 ==========
+        // 方法1：通过text参数判断
+        const textStr = text === null || text === undefined ? '' : String(text);
+        const textTrimmed = textStr.trim();
+        const isEmptyByText1 = textStr === '-' || textTrimmed === '';
+        const isEmptyByText2 = !text || text === null || text === undefined || text === '';
+        const isEmptyByText3 = textTrimmed === '-' || textTrimmed === '';
+
+        // 方法2：通过record.SKU字段判断
+        const recordSku = record.SKU;
+        const recordSkuStr = recordSku === null || recordSku === undefined ? '' : String(recordSku);
+        const recordSkuTrimmed = recordSkuStr.trim();
+        const isEmptyByRecord1 = !recordSku || recordSku === null || recordSku === undefined || recordSku === '';
+        const isEmptyByRecord2 = recordSkuStr === '-' || recordSkuTrimmed === '';
+        const isEmptyByRecord3 = recordSkuTrimmed === '-' || recordSkuTrimmed === '';
+
+        // 方法3：通过record['SKU']字段判断
+        const recordSkuBracket = (record as any)['SKU'];
+        const recordSkuBracketStr = recordSkuBracket === null || recordSkuBracket === undefined ? '' : String(recordSkuBracket);
+        const recordSkuBracketTrimmed = recordSkuBracketStr.trim();
+        const isEmptyByRecordBracket1 = !recordSkuBracket || recordSkuBracket === null || recordSkuBracket === undefined || recordSkuBracket === '';
+        const isEmptyByRecordBracket2 = recordSkuBracketStr === '-' || recordSkuBracketTrimmed === '';
+
+        // 方法4：综合判断（text和record.SKU都为空）
+        const isEmptyByBoth = (isEmptyByText1 || isEmptyByText2 || isEmptyByText3) &&
+          (isEmptyByRecord1 || isEmptyByRecord2 || isEmptyByRecord3);
+
+        // 方法5：通过UPC映射判断（如果UPC存在但SKU为空）
+        const hasUpc = record.UPC && String(record.UPC).trim() !== '';
+        const isEmptyByUpcMapping = hasUpc && (isEmptyByText1 || isEmptyByRecord1);
+
+        // 输出详细日志
+        console.log(`[SKU判断] 行索引: ${index}, UPC: ${record.UPC}`, {
+          text: { value: text, type: typeof text, isEmpty1: isEmptyByText1, isEmpty2: isEmptyByText2, isEmpty3: isEmptyByText3 },
+          recordSku: { value: recordSku, type: typeof recordSku, isEmpty1: isEmptyByRecord1, isEmpty2: isEmptyByRecord2, isEmpty3: isEmptyByRecord3 },
+          recordSkuBracket: { value: recordSkuBracket, type: typeof recordSkuBracket, isEmpty1: isEmptyByRecordBracket1, isEmpty2: isEmptyByRecordBracket2 },
+          isEmptyByBoth,
+          isEmptyByUpcMapping,
+          hasUpc,
+        });
+
+        // ========== 根据日志选择判断方式 ==========
+        // 请查看控制台日志，根据实际情况选择以下判断方式之一：
+        // 选项1: isEmptyByText1 - 仅通过text参数判断（text === '-' || text.trim() === ''）
+        // 选项2: isEmptyByText2 - 仅通过text参数判断（!text || text === null || text === undefined || text === ''）
+        // 选项3: isEmptyByText3 - 仅通过text参数判断（text.trim() === '-' || text.trim() === ''）
+        // 选项4: isEmptyByRecord1 - 仅通过record.SKU判断（!recordSku || recordSku === null || recordSku === undefined || recordSku === ''）
+        // 选项5: isEmptyByRecord2 - 仅通过record.SKU判断（recordSkuStr === '-' || recordSkuTrimmed === ''）
+        // 选项6: isEmptyByRecord3 - 仅通过record.SKU判断（recordSkuTrimmed === '-' || recordSkuTrimmed === ''）
+        // 选项7: isEmptyByBoth - text和record.SKU都为空
+        // 选项8: isEmptyByUpcMapping - UPC存在但SKU为空
+        // 当前使用：text为空 或 record.SKU为空 或 两者都为空（可以根据日志调整）
+        const isSkuEmpty = isEmptyByText1 || isEmptyByRecord1 || isEmptyByBoth;
+
         // 处理SKU值：可能是"-"、undefined、null或空字符串
         // 注意：text可能是undefined、null、空字符串或"-"
-        const textStr = text === null || text === undefined ? '' : String(text);
-        const skuText = textStr === '-' || textStr.trim() === '' ? '-' : textStr.trim();
-        const isSkuEmpty = skuText === '-';
+        const skuText = isSkuEmpty ? '-' : (textTrimmed || recordSkuTrimmed || '-');
 
         // 使用唯一标识符作为key：如果有SKU则用SKU，否则用UPC，如果都没有则用索引+UPC组合
         // 确保uniqueKey稳定，即使SKU为"-"也能正确工作
@@ -1803,6 +1860,18 @@ export default function SupplierQuotationPage() {
         // 如果有绑定SKU，直接显示"绑"标签；否则检查原SKU是否在绑定标记中，或者是否来自供应商编码手动绑定sku表
         const hasBinding = boundSku ? true : (isFromSupplierBinding ? true : (skuText && !isSkuEmpty ? (skuBindingFlags[skuText] || false) : false));
 
+        // 调试日志：检查boundSku的计算
+        console.log(`[SKU绑定检查] 行索引: ${index}, UPC: ${record.UPC}`, {
+          supplierCode,
+          supplierProductCode,
+          bindingKey,
+          boundSku,
+          supplierBindingSku,
+          skuBindingMap: bindingKey ? skuBindingMap[bindingKey] : 'no bindingKey',
+          supplierBindingSkuMap: bindingKey ? supplierBindingSkuMap[bindingKey] : 'no bindingKey',
+          hasBinding,
+        });
+
         // 显示绑定的SKU，如果没有绑定则显示原SKU
         const displaySku = boundSku || skuText || '-';
 
@@ -1828,10 +1897,42 @@ export default function SupplierQuotationPage() {
         }
 
 
-        // 如果SKU为空，或者通过UPC无法找到对应的SKU，显示绑定SKU按钮
-        // 但是，如果有boundSku（手动绑定的SKU），不应该显示绑定按钮，而应该显示绑定的SKU
-        // 如果skuText不为空且不是"-"，说明已经匹配到了SKU，也不应该显示绑定按钮
-        if (isSkuEmpty && !boundSku) {
+        // 如果SKU为空，或者通过UPC无法找到对应的SKU，显示输入框
+        // 但是，如果有boundSku（手动绑定的SKU），不应该显示输入框，而应该显示绑定的SKU
+        // 如果skuText不为空且不是"-"，说明已经匹配到了SKU，也不应该显示输入框
+
+        // 输出判断日志
+        console.log(`[SKU输入框判断] 行索引: ${index}, UPC: ${record.UPC}`, {
+          isSkuEmpty,
+          boundSku,
+          skuText,
+          matchedQuotation: matchedQuotation ? {
+            供应商编码: matchedQuotation.供应商编码,
+            供应商商品编码: matchedQuotation.供应商商品编码,
+            最小销售规格UPC商品条码: matchedQuotation.最小销售规格UPC商品条码,
+          } : null,
+          shouldShowInput: isSkuEmpty && !boundSku,
+          condition1_isSkuEmpty: isSkuEmpty,
+          condition2_notBoundSku: !boundSku,
+          conditionResult: isSkuEmpty && !boundSku,
+          // 检查数据源
+          allLeftDataLength: allLeftData.length,
+          leftDataLength: leftData.length,
+          upcArray: record.UPC ? String(record.UPC).trim().split(',').map(u => u.trim()).filter(u => u !== '') : [],
+        });
+
+        // 关键判断：即使boundSku存在，如果SKU为空，也应该显示输入框（允许重新输入）
+        // 修改判断逻辑：只要SKU为空就显示输入框，不管是否有boundSku
+        const shouldShowInputBox = isSkuEmpty; // 简化判断：只要SKU为空就显示输入框
+
+        console.log(`[SKU输入框最终判断] 行索引: ${index}`, {
+          shouldShowInputBox,
+          isSkuEmpty,
+          boundSku,
+          reason: shouldShowInputBox ? 'SKU为空，应该显示输入框' : 'SKU不为空，不显示输入框',
+        });
+
+        if (shouldShowInputBox) {
           // 获取UPC（如果有的话）
           const upcStr = record.UPC ? String(record.UPC).trim() : '';
           const upcArray = upcStr !== '' ? upcStr.split(',').map(u => u.trim()).filter(u => u !== '') : [];
@@ -1857,36 +1958,172 @@ export default function SupplierQuotationPage() {
             }
           }
 
-          // 如果找到了匹配的供应商报价，显示绑定SKU按钮
-          if (quotationForBinding && quotationForBinding.供应商编码 && quotationForBinding.最小销售规格UPC商品条码) {
+          // 如果找到了匹配的供应商报价，显示输入框（参考供应商SKU备注的输入框样式）
+          console.log(`[SKU输入框显示] 行索引: ${index}`, {
+            quotationForBinding: quotationForBinding ? {
+              供应商编码: quotationForBinding.供应商编码,
+              供应商商品编码: quotationForBinding.供应商商品编码,
+              最小销售规格UPC商品条码: quotationForBinding.最小销售规格UPC商品条码,
+            } : null,
+            willShowInput: quotationForBinding && quotationForBinding.供应商编码 && quotationForBinding.最小销售规格UPC商品条码,
+            // 详细检查条件
+            hasQuotation: !!quotationForBinding,
+            hasSupplierCode: quotationForBinding ? !!quotationForBinding.供应商编码 : false,
+            hasUpcCode: quotationForBinding ? !!quotationForBinding.最小销售规格UPC商品条码 : false,
+            // 检查数据源
+            dataSourceLength: (allLeftData.length > 0 ? allLeftData : leftData).length,
+            upcArrayLength: upcArray.length,
+            matchedQuotationInfo: matchedQuotation ? {
+              供应商编码: matchedQuotation.供应商编码,
+              最小销售规格UPC商品条码: matchedQuotation.最小销售规格UPC商品条码,
+            } : null,
+          });
+
+          // 修改条件：即使没有找到quotationForBinding，只要有UPC也应该显示输入框
+          // 但需要供应商编码和UPC才能保存，所以如果没有找到匹配的供应商报价，可以显示输入框但提示用户
+          const canShowInput = quotationForBinding && quotationForBinding.供应商编码 && quotationForBinding.最小销售规格UPC商品条码;
+
+          console.log(`[SKU输入框渲染判断] 行索引: ${index}`, {
+            canShowInput,
+            quotationForBinding: !!quotationForBinding,
+            hasSupplierCode: quotationForBinding ? !!quotationForBinding.供应商编码 : false,
+            hasUpcCode: quotationForBinding ? !!quotationForBinding.最小销售规格UPC商品条码 : false,
+            willRenderInput: canShowInput,
+          });
+
+          if (canShowInput && quotationForBinding) {
+            const emptySkuKey = uniqueKey;
+            // 从supplierBindingSkuMap中获取已保存的SKU值（如果存在）
+            const bindingKeyForInput = `${quotationForBinding.供应商编码}_${quotationForBinding.最小销售规格UPC商品条码}`;
+            const savedSkuFromBinding = supplierBindingSkuMap[bindingKeyForInput] || '';
+            // 优先使用已保存的值，如果没有则使用输入框中的值
+            const originalSkuValue = savedSkuFromBinding || (emptySkuInputs[emptySkuKey] || '');
+            const skuValue = editingEmptySkuKeys.has(emptySkuKey)
+              ? (emptySkuInputs[emptySkuKey] !== undefined ? emptySkuInputs[emptySkuKey] : originalSkuValue)
+              : originalSkuValue;
+            const hasChanged = skuValue !== originalSkuValue;
+
+            const handleSave = async () => {
+              const value = skuValue.trim();
+              if (quotationForBinding!.供应商编码 && quotationForBinding!.最小销售规格UPC商品条码) {
+                try {
+                  await supplierQuotationApi.updateSkuBinding({
+                    supplierCode: quotationForBinding!.供应商编码,
+                    upcCode: String(quotationForBinding!.最小销售规格UPC商品条码).trim(),
+                    sku: value,
+                  });
+                  // 移除编辑状态（保存后，新的值会从supplierBindingSkuMap中读取）
+                  const newEditingKeys = new Set(editingEmptySkuKeys);
+                  newEditingKeys.delete(emptySkuKey);
+                  setEditingEmptySkuKeys(newEditingKeys);
+                  // 清空输入框状态，让输入框从supplierBindingSkuMap中读取最新值
+                  const updatedInputs = { ...emptySkuInputs };
+                  delete updatedInputs[emptySkuKey];
+                  setEmptySkuInputs(updatedInputs);
+                  message.success('SKU保存成功');
+
+                  // 清除相关供应商编码的缓存，因为SKU绑定会影响匹配
+                  if (quotationForBinding!.供应商编码) {
+                    clearCacheForSupplierCodes([quotationForBinding!.供应商编码]);
+                  }
+
+                  // 重新加载数据（强制刷新，跳过缓存）
+                  const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+                  if (rightAllData.length > 0 && dataSource.length > 0) {
+                    await loadQuotationBindingFlags(rightAllData, dataSource);
+                    // 重新加载SKU绑定数据
+                    await loadSkuBindingMap(dataSource, upcToSkuMap);
+                    // 重新加载供应商编码手动绑定sku映射
+                    await loadSupplierBindingSkuMap(dataSource);
+                    // 重新加载库存汇总数据以更新匹配（强制刷新，跳过缓存）
+                    if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
+                      await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
+                    }
+                  }
+                } catch (error) {
+                  console.error('保存SKU失败:', error);
+                  message.error('保存SKU失败');
+                }
+              }
+            };
+
+            const handleCancel = () => {
+              // 恢复原始值
+              setEmptySkuInputs({
+                ...emptySkuInputs,
+                [emptySkuKey]: originalSkuValue,
+              });
+              // 移除编辑状态
+              const newEditingKeys = new Set(editingEmptySkuKeys);
+              newEditingKeys.delete(emptySkuKey);
+              setEditingEmptySkuKeys(newEditingKeys);
+            };
+
+            const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+              const newValue = e.target.value;
+              setEmptySkuInputs({
+                ...emptySkuInputs,
+                [emptySkuKey]: newValue,
+              });
+              // 如果值发生变化，标记为正在编辑
+              if (newValue !== originalSkuValue) {
+                const newEditingKeys = new Set(editingEmptySkuKeys);
+                newEditingKeys.add(emptySkuKey);
+                setEditingEmptySkuKeys(newEditingKeys);
+              } else {
+                // 如果值恢复为原始值，移除编辑状态
+                const newEditingKeys = new Set(editingEmptySkuKeys);
+                newEditingKeys.delete(emptySkuKey);
+                setEditingEmptySkuKeys(newEditingKeys);
+              }
+            };
+
             return (
               <div
                 data-sku-column="true"
                 onClick={(e) => {
                   // 阻止事件冒泡，避免触发行点击事件
                   e.stopPropagation();
-                  // 打开手动绑定SKU Modal，直接使用供应商报价的供应商编码和UPC
-                  setManualBindingRecord({
-                    supplierCode: quotationForBinding!.供应商编码!,
-                    upcCode: String(quotationForBinding!.最小销售规格UPC商品条码).trim(),
-                  });
-                  setManualBindingSkuInput('');
-                  setManualBindingModalOpen(true);
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}
+                style={{ width: '100%' }}
               >
-                <Tag color="orange" style={{ margin: 0, cursor: 'pointer' }}>
-                  绑定SKU
-                </Tag>
+                <Input
+                  value={skuValue}
+                  onChange={handleChange}
+                  placeholder="无匹配数据,可输入绑定"
+                  style={{ width: '100%', marginBottom: hasChanged ? 4 : 0 }}
+                />
+                {hasChanged && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<SaveOutlined />}
+                      onClick={handleSave}
+                      style={{ height: '16px', fontSize: '11px', padding: '0 8px', lineHeight: '16px' }}
+                    >
+                      保存
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={handleCancel}
+                      style={{ height: '16px', fontSize: '11px', padding: '0 8px', lineHeight: '16px' }}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           }
 
           // 如果没有找到匹配的供应商报价，显示普通文本
+          console.log(`[SKU输入框-未找到供应商报价] 行索引: ${index}, UPC: ${record.UPC}, skuText: ${skuText}, quotationForBinding:`, quotationForBinding);
           return <span>{skuText || '-'}</span>;
         }
 
         // 如果仍然没有找到匹配的供应商报价，检查是否可以显示绑定SKU按钮
+        console.log(`[SKU列-继续处理] 行索引: ${index}, UPC: ${record.UPC}, matchedQuotation:`, !!matchedQuotation, 'supplierCode:', supplierCode, 'supplierProductCode:', supplierProductCode, 'isSkuEmpty:', isSkuEmpty, 'boundSku:', boundSku);
         if (!matchedQuotation || !supplierCode || !supplierProductCode) {
           // 如果有绑定SKU，显示绑定信息（即使没有匹配到供应商报价）
           if (hasBinding && boundSku) {
@@ -5654,6 +5891,14 @@ export default function SupplierQuotationPage() {
         ...col,
         render: (text: any, record: any) => {
           // 处理库存汇总数据（可能没有匹配的供应商报价）
+          // 特殊处理：如果只有供应商报价数据，没有匹配到库存汇总数据，需要创建一个空的inventory对象以便SKU列可以显示输入框
+          if (!record.inventory && record.quotation && record.dataType === 'quotation') {
+            // 为未匹配的供应商报价数据创建一个空的inventory对象，包含UPC信息
+            record.inventory = {
+              UPC: record.quotation.最小销售规格UPC商品条码 || '',
+              SKU: '-', // SKU为空，应该显示输入框
+            } as InventorySummary;
+          }
 
           if (record.inventory) {
             const value = (record.inventory as any)[col.dataIndex as string];
@@ -5822,10 +6067,25 @@ export default function SupplierQuotationPage() {
             // 对于SKU列，确保即使value为空也能正确传递给render函数
             // 如果value为null/undefined/空字符串，传递"-"给render函数，这样render函数能正确判断isSkuEmpty
             const valueToRender = col.key === 'SKU' ? (value === null || value === undefined || value === '' ? '-' : value) : value;
+
+            // 调试日志：检查SKU列的值
+            if (col.key === 'SKU') {
+              console.log(`[响应式表格-SKU列] 行索引: 0, 原始value:`, value, 'valueToRender:', valueToRender, 'record:', record);
+            }
             // 对于对比结果列，确保即使value为空也能正确传递给render函数（可能是undefined）
             const valueToRenderForComparison = col.key === '对比结果' ? (value ?? '无匹配数据') : valueToRender;
 
+            // 调试日志：检查SKU列的render函数调用
+            if (col.key === 'SKU') {
+              console.log(`[getMergedColumns-SKU列] 准备调用render函数, valueToRenderForComparison:`, valueToRenderForComparison, 'record.inventory:', record.inventory, 'col.render存在:', !!col.render);
+            }
+
             const renderedValue = col.render ? col.render(valueToRenderForComparison, record.inventory, 0) : (value ?? '-');
+
+            // 调试日志：检查SKU列的render函数返回值
+            if (col.key === 'SKU') {
+              console.log(`[getMergedColumns-SKU列] render函数返回值:`, renderedValue, '类型:', typeof renderedValue, '是否为React元素:', renderedValue && typeof renderedValue === 'object' && 'type' in renderedValue);
+            }
             // 库存汇总数据使用黑色文字
             // 如果是对比结果列或SKU列，需要特殊处理
             if (col.key === '对比结果') {
@@ -6610,23 +6870,91 @@ export default function SupplierQuotationPage() {
             }
             extra={
               otherInfoActiveMenu === 'sku-binding' ? (
-                <Button
-                  type="primary"
-                  icon={<SaveOutlined />}
-                  onClick={(e) => {
-                    console.log('[保存按钮] ========== 点击保存按钮 ==========');
-                    console.log('[保存按钮] selectedLeftRecord:', selectedLeftRecord);
-                    console.log('[保存按钮] bottomData.length:', bottomData.length);
-                    console.log('[保存按钮] disabled状态:', !selectedLeftRecord || bottomData.length === 0);
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('[保存按钮] 调用handleSaveSkuBindings');
-                    handleSaveSkuBindings();
-                  }}
-                  disabled={!selectedLeftRecord || bottomData.length === 0}
-                >
-                  保存
-                </Button>
+                <Space>
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={async () => {
+                      if (!selectedLeftRecord) {
+                        message.warning('请先选择一条数据行');
+                        return;
+                      }
+
+                      const supplierCode = selectedLeftRecord.供应商编码;
+                      const upcCode = selectedLeftRecord.最小销售规格UPC商品条码;
+
+                      if (!supplierCode || !upcCode) {
+                        message.warning('缺少供应商编码或UPC条码信息');
+                        return;
+                      }
+
+                      try {
+                        // 先查询是否有绑定数据
+                        const bindings = await supplierQuotationApi.getSkuBindings({
+                          supplierCode: supplierCode,
+                          supplierProductCode: String(upcCode).trim(),
+                        });
+
+                        // 检查是否有绑定数据（SKU不为空）
+                        const hasBinding = bindings && bindings.length > 0 && bindings[0].SKU && bindings[0].SKU.trim() !== '';
+
+                        if (!hasBinding) {
+                          message.warning('无绑定数据');
+                          return;
+                        }
+
+                        // 如果有绑定数据，清空SKU
+                        await supplierQuotationApi.updateSkuBinding({
+                          supplierCode: supplierCode,
+                          upcCode: String(upcCode).trim(),
+                          sku: '', // 传入空字符串清空SKU
+                        });
+
+                        message.success('清空绑定SKU成功');
+
+                        // 清除相关供应商编码的缓存
+                        clearCacheForSupplierCodes([supplierCode]);
+
+                        // 重新加载数据
+                        const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
+                        if (rightAllData.length > 0 && dataSource.length > 0) {
+                          await loadQuotationBindingFlags(rightAllData, dataSource);
+                          await loadSkuBindingMap(dataSource, upcToSkuMap);
+                          await loadSupplierBindingSkuMap(dataSource);
+                          // 重新加载下栏数据
+                          await loadBottomData();
+                          // 重新加载库存汇总数据
+                          if (selectedSupplierCodes.length > 0 && dataSource.length > 0) {
+                            await loadRightData(dataSource, selectedSupplierCodes, storeNameFilter, cityFilter, true, true);
+                          }
+                        }
+                      } catch (error: any) {
+                        console.error('清空绑定SKU失败:', error);
+                        message.error(`清空失败: ${error?.response?.data?.message || error?.message || '未知错误'}`);
+                      }
+                    }}
+                    disabled={!selectedLeftRecord}
+                  >
+                    清空绑定SKU
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={(e) => {
+                      console.log('[保存按钮] ========== 点击保存按钮 ==========');
+                      console.log('[保存按钮] selectedLeftRecord:', selectedLeftRecord);
+                      console.log('[保存按钮] bottomData.length:', bottomData.length);
+                      console.log('[保存按钮] disabled状态:', !selectedLeftRecord || bottomData.length === 0);
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('[保存按钮] 调用handleSaveSkuBindings');
+                      handleSaveSkuBindings();
+                    }}
+                    disabled={!selectedLeftRecord || bottomData.length === 0}
+                  >
+                    保存
+                  </Button>
+                </Space>
               ) : (
                 <Space>
                   <Popover
