@@ -98,7 +98,7 @@ export default function SupplierQuotationPage() {
   const [supplierBindingSkuMap, setSupplierBindingSkuMap] = useState<Record<string, string>>({}); // 从供应商编码手动绑定sku表查询到的SKU映射（key为"供应商编码_供应商商品编码"，value为SKU）
   const [supplierNameFields, setSupplierNameFields] = useState<string[]>([]); // 需要查询的供应商名称字段（默认空数组）
   const [supplierNameData, setSupplierNameData] = useState<Record<string, string>>({}); // 存储查询到的供应商名称数据
-  const [supplierStoreRelationMap, setSupplierStoreRelationMap] = useState<Record<string, number | string>>({}); // 存储供应商-门店关系映射（key为供应商编码，value为关系数量或"是/否"）
+  const [supplierStoreRelationMap, setSupplierStoreRelationMap] = useState<Record<string, number | string | any>>({}); // 存储供应商-门店关系映射（key为供应商编码，value为关系数量或"是/否"或包含详细信息的对象）
   const [editingRatioQuotation, setEditingRatioQuotation] = useState<string | null>(null); // 当前正在编辑比例的供应商报价（使用"供应商编码_UPC"作为key）
   const [ratioData, setRatioData] = useState<Record<string, { supplierRatio?: number; qianniuhuaRatio?: number }>>({}); // 存储报价比例数据（key为"供应商编码_UPC"）
   const [quotationBindingFlags, setQuotationBindingFlags] = useState<Record<string, boolean>>({}); // 存储哪些供应商报价有绑定标记（key为"供应商编码_供应商商品编码"）
@@ -3309,12 +3309,76 @@ export default function SupplierQuotationPage() {
 
       if (supplierCodesToQuery.length > 0) {
         try {
+          // 从库存汇总数据和供应商报价数据中提取供应商编码和SKU的映射
+          // 用于查询默认供货关系
+          const skuSupplierMap: Array<{ supplierCode: string; sku: string }> = [];
+          const skuSupplierSet = new Set<string>(); // 用于去重
+
+          if (quotationDataToUse && quotationDataToUse.length > 0 && result && result.length > 0) {
+            // 遍历库存汇总数据，找到匹配的供应商报价
+            result.forEach(item => {
+              if (!item.SKU) return;
+
+              // 通过UPC找到匹配的供应商报价
+              const matchedUpcCodes: string[] = [];
+              Object.entries(upcToSkuMapLocal).forEach(([upc, skuCodes]) => {
+                if (item.SKU && skuCodes.includes(item.SKU)) {
+                  matchedUpcCodes.push(upc);
+                }
+              });
+
+              if (matchedUpcCodes.length === 0 && item.UPC) {
+                const itemUpc = item.UPC.trim();
+                if (itemUpc) {
+                  Object.keys(upcToSkuMapLocal).forEach(upc => {
+                    if (upc.trim() === itemUpc) {
+                      matchedUpcCodes.push(upc);
+                    }
+                  });
+                }
+              }
+
+              // 找到匹配的供应商报价
+              const matchedQuotations = quotationDataToUse.filter(quotation => {
+                if (!quotation.最小销售规格UPC商品条码) return false;
+                return matchedUpcCodes.includes(quotation.最小销售规格UPC商品条码);
+              });
+
+              matchedQuotations.forEach(quotation => {
+                if (quotation.供应商编码) {
+                  // 优先使用绑定的SKU，如果没有绑定则使用原始SKU
+                  const bindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
+                  const boundSku = skuBindingMapLocal[bindingKey];
+                  const originalSku = item.SKU;
+                  const skuToUse = boundSku && boundSku.trim() ? boundSku : originalSku;
+
+                  // 调试日志：记录SKU绑定情况
+                  if (boundSku && boundSku.trim() && boundSku !== originalSku) {
+                    console.log(`[供应商-门店关系] 使用绑定SKU - 供应商编码: ${quotation.供应商编码}, 原始SKU: ${originalSku}, 绑定SKU: ${boundSku}`);
+                  }
+
+                  if (skuToUse) {
+                    const key = `${quotation.供应商编码}_${skuToUse}`;
+                    if (!skuSupplierSet.has(key)) {
+                      skuSupplierSet.add(key);
+                      skuSupplierMap.push({
+                        supplierCode: quotation.供应商编码,
+                        sku: skuToUse,
+                      });
+                    }
+                  }
+                }
+              });
+            });
+          }
+
           // 仓店维度需要传递门店名称，城市维度需要传递城市名称
           const requestData: {
             supplierCodes: string[];
             type: '全部' | '仓店' | '城市';
             storeName?: string;
             city?: string;
+            skuSupplierMap?: Array<{ supplierCode: string; sku: string }>;
           } = {
             supplierCodes: supplierCodesToQuery,
             type: inventoryType,
@@ -3328,9 +3392,25 @@ export default function SupplierQuotationPage() {
             requestData.city = cityToUse;
           }
 
-          console.log('[供应商-门店关系] 开始查询，供应商编码数量:', supplierCodesToQuery.length, '维度:', inventoryType, '门店名称:', requestData.storeName || '无', '城市:', requestData.city || '无');
+          if (skuSupplierMap.length > 0) {
+            requestData.skuSupplierMap = skuSupplierMap;
+            // 调试日志：记录SKU-供应商映射详情（前5条）
+            const sampleMap = skuSupplierMap.slice(0, 5);
+            console.log('[供应商-门店关系] SKU-供应商映射示例（前5条）:', sampleMap);
+            console.log('[供应商-门店关系] SKU-供应商映射总数:', skuSupplierMap.length);
+          }
+
+          console.log('[供应商-门店关系] 开始查询，供应商编码数量:', supplierCodesToQuery.length, '维度:', inventoryType, '门店名称:', requestData.storeName || '无', '城市:', requestData.city || '无', 'SKU-供应商映射数量:', skuSupplierMap.length);
           supplierStoreRelationMapLocal = await supplierQuotationApi.getSupplierStoreRelations(requestData);
           console.log('[供应商-门店关系] 查询完成，返回数据:', supplierStoreRelationMapLocal);
+
+          // 调试日志：检查返回数据中的skuStats
+          Object.keys(supplierStoreRelationMapLocal).forEach(supplierCode => {
+            const relationData = supplierStoreRelationMapLocal[supplierCode];
+            if (typeof relationData === 'object' && relationData !== null && 'skuStats' in relationData) {
+              console.log(`[供应商-门店关系] 供应商编码 ${supplierCode} 的skuStats:`, (relationData as any).skuStats);
+            }
+          });
           setSupplierStoreRelationMap(supplierStoreRelationMapLocal);
         } catch (error) {
           console.error('查询供应商-门店关系失败:', error);
@@ -3522,7 +3602,15 @@ export default function SupplierQuotationPage() {
 
         // 添加供应商-门店关系数据
         if (matchedQuotation.供应商编码 && supplierStoreRelationMapLocal[matchedQuotation.供应商编码] !== undefined) {
-          resultItem['供应商-门店关系'] = supplierStoreRelationMapLocal[matchedQuotation.供应商编码];
+          const relationData = supplierStoreRelationMapLocal[matchedQuotation.供应商编码];
+          // 如果返回的是对象，提取 relationValue；否则直接使用原值
+          if (typeof relationData === 'object' && relationData !== null && 'relationValue' in relationData) {
+            resultItem['供应商-门店关系'] = (relationData as any).relationValue;
+            // 保存完整的数据结构，供后续显示使用
+            (resultItem as any)['供应商-门店关系数据'] = relationData;
+          } else {
+            resultItem['供应商-门店关系'] = relationData;
+          }
         }
 
         return resultItem;
@@ -4926,10 +5014,20 @@ export default function SupplierQuotationPage() {
 
         // 添加供应商-门店关系数据
         if (quotation.供应商编码 && supplierStoreRelationMap[quotation.供应商编码] !== undefined) {
-          matchedInventory = {
-            ...matchedInventory,
-            '供应商-门店关系': supplierStoreRelationMap[quotation.供应商编码],
-          };
+          const relationData = supplierStoreRelationMap[quotation.供应商编码];
+          // 如果返回的是对象，提取 relationValue；否则直接使用原值
+          if (typeof relationData === 'object' && relationData !== null && 'relationValue' in relationData) {
+            matchedInventory = {
+              ...matchedInventory,
+              '供应商-门店关系': (relationData as any).relationValue,
+            } as any;
+            (matchedInventory as any)['供应商-门店关系数据'] = relationData;
+          } else {
+            matchedInventory = {
+              ...matchedInventory,
+              '供应商-门店关系': relationData,
+            };
+          }
         }
       }
 
@@ -5240,33 +5338,126 @@ export default function SupplierQuotationPage() {
               const supplierCode = record.quotation?.供应商编码;
               if (!supplierCode) return String(value);
 
+              // 获取完整的关系数据（包含默认供货关系统计）
+              const relationData = (record.inventory as any)?.['供应商-门店关系数据'];
+
+              // 获取SKU：优先使用绑定的SKU，如果没有绑定则使用原始SKU
+              const originalSku = (record.inventory as InventorySummary)?.SKU;
+              let sku = originalSku;
+              let skuToDisplay = originalSku; // 用于显示的SKU
+              if (record.quotation?.供应商编码 && record.quotation?.供应商商品编码) {
+                const bindingKey = `${record.quotation.供应商编码}_${record.quotation.供应商商品编码}`;
+                const boundSku = supplierBindingSkuMap[bindingKey];
+                console.log(`[供应商-门店关系显示] 供应商编码: ${supplierCode}, bindingKey: ${bindingKey}, 原始SKU: ${originalSku}, 绑定SKU: ${boundSku || '无'}, supplierBindingSkuMap keys:`, Object.keys(supplierBindingSkuMap).slice(0, 5));
+                if (boundSku && boundSku.trim()) {
+                  sku = boundSku; // 使用绑定SKU查找统计数据
+                  skuToDisplay = boundSku; // 显示时也使用绑定SKU
+                  console.log(`[供应商-门店关系显示] 使用绑定SKU: ${boundSku} 查找统计数据`);
+                }
+              }
+
+              // 调试日志：检查relationData和skuStats
+              console.log(`[供应商-门店关系显示] 供应商编码: ${supplierCode}, SKU: ${sku}, relationData存在:`, !!relationData);
+              if (relationData) {
+                const relationDataAny = relationData as any;
+                console.log(`[供应商-门店关系显示] relationData.skuStats存在:`, !!relationDataAny.skuStats);
+                if (relationDataAny.skuStats && sku) {
+                  console.log(`[供应商-门店关系显示] skuStats keys:`, Object.keys(relationDataAny.skuStats));
+                  console.log(`[供应商-门店关系显示] 查找SKU ${sku} 的统计数据:`, relationDataAny.skuStats[sku]);
+                }
+              }
+
               // 定义特殊颜色
               const highlightColor = '#FF6A00';
 
               // 根据维度显示不同的文本格式，特殊字段使用高亮颜色
               if (inventoryType === '全部') {
-                return (
-                  <span>
+                const parts: React.ReactNode[] = [
+                  <span key="supplier">
                     <span style={{ color: highlightColor }}>{supplierCode}</span>
                     在全国有
                     <span style={{ color: highlightColor }}>{value}</span>
                     家门店为默认供应
                   </span>
-                );
+                ];
+
+                // 如果有SKU和统计数据，显示详细信息（使用绑定SKU查找，如果找不到则尝试原始SKU）
+                let skuStat = null;
+                const relationDataAny = relationData as any;
+                if (sku && relationDataAny?.skuStats && relationDataAny.skuStats[sku]) {
+                  skuStat = relationDataAny.skuStats[sku];
+                } else if (originalSku && originalSku !== sku && relationDataAny?.skuStats && relationDataAny.skuStats[originalSku]) {
+                  // 如果绑定SKU找不到，尝试使用原始SKU
+                  skuStat = relationDataAny.skuStats[originalSku];
+                  skuToDisplay = originalSku;
+                }
+
+                if (skuStat) {
+                  parts.push(
+                    <span key="sku-detail" style={{ display: 'block', marginTop: 4, fontSize: '12px', color: '#666' }}>
+                      (其中<span style={{ color: highlightColor }}>{skuToDisplay}</span>的默认数量为:{skuStat.defaultCount},非默认数量为:{skuStat.nonDefaultCount})
+                    </span>
+                  );
+                }
+
+                return <div>{parts}</div>;
               } else if (inventoryType === '城市') {
                 // 获取城市信息（从 inventory 中）
                 const city = (record.inventory as InventorySummary)?.城市 || '';
-                return (
-                  <span>
+                const parts: React.ReactNode[] = [
+                  <span key="supplier">
                     <span style={{ color: highlightColor }}>{supplierCode}</span>
                     在'<span style={{ color: highlightColor }}>{city}</span>'有
                     <span style={{ color: highlightColor }}>{value}</span>
                     家门店为默认供应
                   </span>
-                );
+                ];
+
+                // 如果有SKU和统计数据，显示详细信息（使用绑定SKU查找，如果找不到则尝试原始SKU）
+                let skuStat = null;
+                const relationDataAny = relationData as any;
+                if (sku && relationDataAny?.skuStats && relationDataAny.skuStats[sku]) {
+                  skuStat = relationDataAny.skuStats[sku];
+                } else if (originalSku && originalSku !== sku && relationDataAny?.skuStats && relationDataAny.skuStats[originalSku]) {
+                  // 如果绑定SKU找不到，尝试使用原始SKU
+                  skuStat = relationDataAny.skuStats[originalSku];
+                  skuToDisplay = originalSku;
+                }
+
+                if (skuStat) {
+                  parts.push(
+                    <span key="sku-detail" style={{ display: 'block', marginTop: 4, fontSize: '12px', color: '#666' }}>
+                      (其中<span style={{ color: highlightColor }}>{skuToDisplay}</span>的默认数量为:{skuStat.defaultCount},非默认数量为:{skuStat.nonDefaultCount})
+                    </span>
+                  );
+                }
+
+                return <div>{parts}</div>;
               } else if (inventoryType === '仓店') {
                 // 获取门店/仓库名称（从 inventory 中）
                 const storeName = (record.inventory as InventorySummary)?.['门店/仓库名称'] || '';
+
+                // 如果有SKU和状态数据，显示详细信息（使用绑定SKU查找，如果找不到则尝试原始SKU）
+                let storeStatus = null;
+                if (sku && relationData?.skuStoreStatus?.[sku] !== undefined) {
+                  storeStatus = relationData.skuStoreStatus[sku];
+                } else if (originalSku && originalSku !== sku && relationData?.skuStoreStatus?.[originalSku] !== undefined) {
+                  // 如果绑定SKU找不到，尝试使用原始SKU
+                  storeStatus = relationData.skuStoreStatus[originalSku];
+                  skuToDisplay = originalSku;
+                }
+
+                if (storeStatus !== null) {
+                  const isDefault = storeStatus.isDefault;
+                  return (
+                    <span>
+                      <span style={{ color: highlightColor }}>{skuToDisplay}</span>
+                      在该门店{isDefault ? '是' : '不是'}默认供应
+                    </span>
+                  );
+                }
+
+                // 如果没有详细数据，显示原有格式
                 return (
                   <span>
                     <span style={{ color: highlightColor }}>{supplierCode}</span>
@@ -6401,7 +6592,7 @@ export default function SupplierQuotationPage() {
                     <Table
                       columns={getFilteredProductInfoColumns()}
                       dataSource={productInfoData}
-                      rowKey={(record, index) => `${record.供应商编码}_${index}`}
+                      rowKey={(record) => `${record.供应商编码}_${record.供货关系编码 || record.SKU编码 || Math.random()}`}
                       loading={productInfoLoading}
                       pagination={false}
                       scroll={{

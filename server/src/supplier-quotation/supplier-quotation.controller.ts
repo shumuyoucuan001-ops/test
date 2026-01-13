@@ -122,6 +122,7 @@ export class SupplierQuotationController {
             type: '全部' | '仓店' | '城市';
             storeName?: string; // 仓店维度时需要传递门店名称
             city?: string; // 城市维度时需要传递城市名称
+            skuSupplierMap?: Array<{ supplierCode: string; sku: string }>; // 供应商编码和SKU的映射，用于查询默认供货关系
         },
     ) {
         try {
@@ -130,6 +131,7 @@ export class SupplierQuotationController {
                 body.type || '全部',
                 body.storeName,
                 body.city,
+                body.skuSupplierMap || [],
             );
         } catch (error) {
             throw new HttpException(

@@ -1436,7 +1436,8 @@ export const supplierQuotationApi = {
     type: '全部' | '仓店' | '城市';
     storeName?: string; // 仓店维度时需要传递门店名称
     city?: string; // 城市维度时需要传递城市名称
-  }): Promise<Record<string, number | string>> =>
+    skuSupplierMap?: Array<{ supplierCode: string; sku: string }>; // 供应商编码和SKU的映射，用于查询默认供货关系
+  }): Promise<Record<string, number | string | any>> =>
     api.post('/supplier-quotation/supplier-store-relations', data).then(res => res.data),
 
   // 获取SKU绑定信息
