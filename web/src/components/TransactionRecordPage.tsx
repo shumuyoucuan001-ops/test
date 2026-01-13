@@ -575,68 +575,27 @@ export default function TransactionRecordPage() {
 
       const finalSearch = searchParams.length > 0 ? searchParams.join(' ') : undefined;
 
+      // 准备时间范围参数（YYYY-MM-DD格式）
+      const startDate = currentSearch账单交易时间范围 && currentSearch账单交易时间范围[0]
+        ? currentSearch账单交易时间范围[0].format('YYYY-MM-DD')
+        : undefined;
+      const endDate = currentSearch账单交易时间范围 && currentSearch账单交易时间范围[1]
+        ? currentSearch账单交易时间范围[1].format('YYYY-MM-DD')
+        : undefined;
+
       const result = await transactionRecordApi.getAll({
         channel,
         page,
         limit: currentSize,
         search: finalSearch,
         bindingStatuses: selectedBindingStatuses.length > 0 ? selectedBindingStatuses.join(',') : undefined,
+        startDate,
+        endDate,
       });
 
-      // 如果有时间范围筛选，在前端过滤
-      let filteredData = result.data;
-      let filteredTotal = result.total;
-      console.log('[TransactionRecordPage] loadRecords: result.data.length=', result.data.length, 'currentSearch账单交易时间范围=', currentSearch账单交易时间范围);
-      if (currentSearch账单交易时间范围 && currentSearch账单交易时间范围[0] && currentSearch账单交易时间范围[1]) {
-        // 使用与 FinanceReconciliationDifferencePage 相同的格式：YYYY-MM-DD 00:00:00 和 YYYY-MM-DD 23:59:59
-        const startTimeStr = currentSearch账单交易时间范围[0].format('YYYY-MM-DD 00:00:00');
-        const endTimeStr = currentSearch账单交易时间范围[1].format('YYYY-MM-DD 23:59:59');
-        const startTime = dayjs(startTimeStr);
-        const endTime = dayjs(endTimeStr);
-        console.log('[TransactionRecordPage] Time filter: startTime=', startTimeStr, 'endTime=', endTimeStr);
-        console.log('[TransactionRecordPage] Before filter: result.data.length=', result.data.length);
-        if (result.data.length > 0) {
-          console.log('[TransactionRecordPage] First record 账单交易时间=', result.data[0].账单交易时间);
-          const firstRecordTime = dayjs(result.data[0].账单交易时间);
-          console.log('[TransactionRecordPage] First record parsed time=', firstRecordTime.format('YYYY-MM-DD HH:mm:ss'), 'isValid=', firstRecordTime.isValid());
-          const firstStartDiff = firstRecordTime.diff(startTime);
-          const firstEndDiff = firstRecordTime.diff(endTime);
-          console.log('[TransactionRecordPage] First record: startDiff=', firstStartDiff, 'endDiff=', firstEndDiff, 'inRange=', firstStartDiff >= 0 && firstEndDiff <= 0);
-        }
-        filteredData = result.data.filter((record: any) => {
-          if (!record.账单交易时间) return false;
-          const recordTime = dayjs(record.账单交易时间);
-          if (!recordTime.isValid()) {
-            console.log('[TransactionRecordPage] Invalid time:', record.账单交易时间);
-            return false;
-          }
-          // 包含边界值：大于等于开始时间（00:00:00）且小于等于结束时间（23:59:59）
-          // 使用 diff 方法比较时间戳：>= 0 表示 >=，<= 0 表示 <=
-          const startDiff = recordTime.diff(startTime);
-          const endDiff = recordTime.diff(endTime);
-          return startDiff >= 0 && endDiff <= 0;
-        });
-        console.log('[TransactionRecordPage] After filter: filteredData.length=', filteredData.length);
-        // 如果前端过滤了数据，总数应该使用过滤后的数量
-        // 但为了准确，应该重新查询总数，这里先用过滤后的数据长度
-        filteredTotal = filteredData.length;
-      } else {
-        console.log('[TransactionRecordPage] No time range filter, using all data');
-      }
-
-      setRecords(filteredData);
-      // 在异步分页模式下，如果前端过滤导致数据长度变化
-      // 确保 total 合理设置：如果过滤后数据少于 pageSize，total 应该等于数据长度
-      // 如果过滤后数据等于 pageSize，total 应该使用后端返回的值
-      if (filteredData.length < currentSize) {
-        // 如果过滤后数据少于 pageSize，说明已经是最后的数据了
-        // total 应该等于实际数据长度
-        setTotal(filteredData.length);
-      } else {
-        // 如果过滤后数据等于 pageSize，使用后端返回的 total
-        // 但确保 total 至少等于当前数据长度
-        setTotal(Math.max(filteredTotal, filteredData.length));
-      }
+      // 直接使用后端返回的数据和total（时间范围过滤已在后端SQL层面完成）
+      setRecords(result.data);
+      setTotal(result.total);
     } catch (error: any) {
       messageApi.error(error.message || '加载记录列表失败');
       console.error(error);

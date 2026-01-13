@@ -415,9 +415,23 @@ export class SupplierQuotationService {
   async getSupplierStoreRelations(
     supplierCodes: string[],
     type: '全部' | '仓店' | '城市',
-  ): Promise<Record<string, number>> {
+    storeName?: string, // 仓店维度时需要传递门店名称
+    city?: string, // 城市维度时需要传递城市名称
+  ): Promise<Record<string, number | string>> {
+    Logger.log(`[SupplierQuotationService] 开始查询供应商-门店关系，供应商编码数量: ${supplierCodes?.length || 0}, 维度: ${type}, 门店名称: ${storeName || '无'}, 城市: ${city || '无'}`);
+
     if (!supplierCodes || supplierCodes.length === 0) {
+      Logger.log('[SupplierQuotationService] 供应商编码为空，返回空结果');
       return {};
+    }
+
+    // 全部/城市维度：对供应商编码去重
+    const uniqueSupplierCodes = type === '全部' || type === '城市'
+      ? Array.from(new Set(supplierCodes))
+      : supplierCodes;
+
+    if (type === '全部' || type === '城市') {
+      Logger.log(`[SupplierQuotationService] 去重后供应商编码数量: ${uniqueSupplierCodes.length} (原始: ${supplierCodes.length})`);
     }
 
     const shangpingConnection = await this.getShangpingConnection();
@@ -439,27 +453,93 @@ export class SupplierQuotationService {
           relationField = '全部维度数量';
       }
 
-      // 构建查询条件
-      const placeholders = supplierCodes.map(() => '?').join(',');
-      const query = `
-        SELECT 
-          供应商编码,
-          \`${relationField}\` AS relationValue
-        FROM \`多维度供应商编码对应数量\`
-        WHERE 供应商编码 IN (${placeholders})
-      `;
+      Logger.log(`[SupplierQuotationService] 查询字段: ${relationField}, 供应商编码: ${uniqueSupplierCodes.slice(0, 5).join(',')}${uniqueSupplierCodes.length > 5 ? '...' : ''}`);
 
-      const [relationData]: any = await shangpingConnection.execute(query, supplierCodes);
+      // 构建查询条件
+      const placeholders = uniqueSupplierCodes.map(() => '?').join(',');
+      let query = '';
+      let queryParams: any[] = [];
+
+      if (type === '仓店') {
+        // 仓店维度：需要匹配门店名称
+        if (!storeName || storeName.trim() === '') {
+          Logger.log('[SupplierQuotationService] 仓店维度缺少门店名称，返回空结果');
+          return {};
+        }
+        query = `
+          SELECT 
+            供应商编码,
+            \`${relationField}\` AS relationValue
+          FROM \`多维度供应商编码对应数量\`
+          WHERE 供应商编码 IN (${placeholders})
+            AND \`门店/仓名称\` = ?
+        `;
+        queryParams = [...uniqueSupplierCodes, storeName.trim()];
+      } else if (type === '城市') {
+        // 城市维度：需要匹配门店/仓名称 LIKE 城市名称，然后对城市维度数量去重
+        // 对于同一个供应商编码，如果有多条记录，取第一条（使用MIN确保一致性）
+        if (!city || city.trim() === '') {
+          Logger.log('[SupplierQuotationService] 城市维度缺少城市名称，返回空结果');
+          return {};
+        }
+        query = `
+          SELECT 
+            供应商编码,
+            MIN(\`${relationField}\`) AS relationValue
+          FROM \`多维度供应商编码对应数量\`
+          WHERE 供应商编码 IN (${placeholders})
+            AND \`门店/仓名称\` LIKE ?
+          GROUP BY 供应商编码
+        `;
+        queryParams = [...uniqueSupplierCodes, `%${city.trim()}%`];
+      } else {
+        // 全部维度：只需要去重后的供应商编码
+        query = `
+          SELECT DISTINCT
+            供应商编码,
+            \`${relationField}\` AS relationValue
+          FROM \`多维度供应商编码对应数量\`
+          WHERE 供应商编码 IN (${placeholders})
+        `;
+        queryParams = uniqueSupplierCodes;
+      }
+
+      Logger.log(`[SupplierQuotationService] 执行SQL查询: ${query.substring(0, 200)}...`);
+      const [relationData]: any = await shangpingConnection.execute(query, queryParams);
+      Logger.log(`[SupplierQuotationService] 查询结果数量: ${(relationData || []).length}`);
 
       // 构建供应商编码到关系值的映射
-      const supplierRelationMap: Record<string, number> = {};
+      // 对于全部/城市维度，如果同一个供应商编码有多条记录，取第一条（因为已经去重）
+      const supplierRelationMap: Record<string, number | string> = {};
+
+      // 对于仓店维度，先初始化所有供应商编码为"否"（如果查询不到数据，默认为"否"）
+      if (type === '仓店') {
+        uniqueSupplierCodes.forEach(code => {
+          supplierRelationMap[code] = '否';
+        });
+      }
+
       (relationData || []).forEach((row: any) => {
         const supplierCode = row['供应商编码'];
         const relationValue = row['relationValue'];
         if (supplierCode && relationValue !== null && relationValue !== undefined) {
-          supplierRelationMap[supplierCode] = Number(relationValue) || 0;
+          // 如果已经存在，跳过（确保每个供应商编码只保留一条记录）
+          if (!supplierRelationMap[supplierCode] || supplierRelationMap[supplierCode] === '否') {
+            if (type === '仓店') {
+              // 仓店维度：保持原始值（可能是"是"/"否"字符串）
+              supplierRelationMap[supplierCode] = String(relationValue);
+            } else {
+              // 全部/城市维度：转换为数字
+              supplierRelationMap[supplierCode] = Number(relationValue) || 0;
+            }
+          }
         }
       });
+
+      Logger.log(`[SupplierQuotationService] 供应商-门店关系查询完成，返回 ${Object.keys(supplierRelationMap).length} 条记录`);
+      if (Object.keys(supplierRelationMap).length > 0) {
+        Logger.log(`[SupplierQuotationService] 示例数据: ${JSON.stringify(Object.entries(supplierRelationMap).slice(0, 3))}`);
+      }
 
       return supplierRelationMap;
     } catch (error: any) {

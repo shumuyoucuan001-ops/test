@@ -14,8 +14,10 @@ export class TransactionRecordController {
         @Query('limit') limit: string = '20',
         @Query('search') search?: string,
         @Query('bindingStatuses') bindingStatuses?: string, // 逗号分隔的绑定状态列表
+        @Query('startDate') startDate?: string, // 账单交易时间范围开始日期 (YYYY-MM-DD)
+        @Query('endDate') endDate?: string, // 账单交易时间范围结束日期 (YYYY-MM-DD)
     ) {
-        Logger.log(`[TransactionRecordController] getAll called with channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses}`);
+        Logger.log(`[TransactionRecordController] getAll called with channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses}, startDate=${startDate}, endDate=${endDate}`);
 
         const pageNum = parseInt(page, 10) || 1;
         const limitNum = parseInt(limit, 10) || 20;
@@ -37,6 +39,8 @@ export class TransactionRecordController {
             limitNum,
             search,
             bindingStatusArray,
+            startDate,
+            endDate,
         );
 
         Logger.log(`[TransactionRecordController] getAll result: data.length=${result.data.length}, total=${result.total}`);

@@ -120,12 +120,16 @@ export class SupplierQuotationController {
         @Body() body: {
             supplierCodes: string[];
             type: '全部' | '仓店' | '城市';
+            storeName?: string; // 仓店维度时需要传递门店名称
+            city?: string; // 城市维度时需要传递城市名称
         },
     ) {
         try {
             return await this.service.getSupplierStoreRelations(
                 body.supplierCodes || [],
                 body.type || '全部',
+                body.storeName,
+                body.city,
             );
         } catch (error) {
             throw new HttpException(

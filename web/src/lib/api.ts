@@ -1264,6 +1264,8 @@ export const transactionRecordApi = {
     limit?: number;
     search?: string;
     bindingStatuses?: string;
+    startDate?: string; // 账单交易时间范围开始日期 (YYYY-MM-DD)
+    endDate?: string; // 账单交易时间范围结束日期 (YYYY-MM-DD)
   }): Promise<{ data: any[]; total: number }> =>
     api.get('/transaction-record', { params }).then(res => res.data),
 
@@ -1362,7 +1364,7 @@ export interface InventorySummary {
   差价?: number; // 差价 = 对比价格 - 供货价格
   '门店/仓库名称'?: string; // 仓店维度专用
   城市?: string; // 城市维度专用
-  '供应商-门店关系'?: number; // 供应商-门店关系数量
+  '供应商-门店关系'?: number | string; // 供应商-门店关系数量（全部/城市维度为数字，仓店维度为"是"/"否"字符串）
 }
 
 export interface SupplierSkuBinding {
@@ -1432,7 +1434,9 @@ export const supplierQuotationApi = {
   getSupplierStoreRelations: (data: {
     supplierCodes: string[];
     type: '全部' | '仓店' | '城市';
-  }): Promise<Record<string, number>> =>
+    storeName?: string; // 仓店维度时需要传递门店名称
+    city?: string; // 城市维度时需要传递城市名称
+  }): Promise<Record<string, number | string>> =>
     api.post('/supplier-quotation/supplier-store-relations', data).then(res => res.data),
 
   // 获取SKU绑定信息

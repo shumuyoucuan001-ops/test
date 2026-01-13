@@ -51,8 +51,10 @@ export class TransactionRecordService {
         limit: number = 20,
         search?: string,
         bindingStatuses?: string[], // 绑定状态筛选：['已绑定采购单', '已生成对账单', '非采购单流水']
+        startDate?: string, // 账单交易时间范围开始日期 (YYYY-MM-DD)
+        endDate?: string, // 账单交易时间范围结束日期 (YYYY-MM-DD)
     ): Promise<{ data: TransactionRecord[]; total: number }> {
-        Logger.log(`[TransactionRecordService] getAll called: channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses?.join(',') || 'none'}`);
+        Logger.log(`[TransactionRecordService] getAll called: channel=${channel}, page=${page}, limit=${limit}, search=${search}, bindingStatuses=${bindingStatuses?.join(',') || 'none'}, startDate=${startDate}, endDate=${endDate}`);
 
         const connection = await this.getConnection();
         const tableName = this.getTableName(channel);
@@ -62,6 +64,18 @@ export class TransactionRecordService {
             const offset = (page - 1) * limit;
             let whereClause = '1=1';
             const queryParams: any[] = [];
+
+            // 时间范围筛选（在SQL层面进行，确保分页准确）
+            if (startDate && endDate) {
+                whereClause += ' AND 账单交易时间 >= ? AND 账单交易时间 < ?';
+                queryParams.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+            } else if (startDate) {
+                whereClause += ' AND 账单交易时间 >= ?';
+                queryParams.push(`${startDate} 00:00:00`);
+            } else if (endDate) {
+                whereClause += ' AND 账单交易时间 < ?';
+                queryParams.push(`${endDate} 23:59:59`);
+            }
 
             // 搜索条件（支持多种搜索格式）
             if (search) {
@@ -402,10 +416,12 @@ export class TransactionRecordService {
             }
 
             // 查询数据（现在SQL层面已经进行了初步筛选）
+            // 如果有绑定状态筛选，需要查询更多数据以便后续过滤，否则只查询需要的数据量
+            const queryLimit = (bindingStatuses && bindingStatuses.length > 0) ? limit * 3 : limit;
             const dataQuery = `SELECT * FROM \`${tableName}\` WHERE ${whereClause} ORDER BY 账单交易时间 DESC LIMIT ? OFFSET ?`;
             Logger.log(`[TransactionRecordService] Executing query: ${dataQuery.substring(0, 200)}...`);
-            Logger.log(`[TransactionRecordService] Query params: ${JSON.stringify([...queryParams, limit * 3, offset])}`);
-            const [rows]: any = await connection.execute(dataQuery, [...queryParams, limit * 3, offset]); // 查询3倍数据以确保筛选后有足够数据
+            Logger.log(`[TransactionRecordService] Query params: ${JSON.stringify([...queryParams, queryLimit, offset])}`);
+            const [rows]: any = await connection.execute(dataQuery, [...queryParams, queryLimit, offset]);
             Logger.log(`[TransactionRecordService] Query returned ${rows.length} rows from database`);
 
             // 批量查询绑定状态信息（性能优化）
@@ -415,7 +431,17 @@ export class TransactionRecordService {
             // 转换日期格式并应用绑定状态信息
             const data = rows.map((row: any) => {
                 if (row.账单交易时间) {
-                    row.账单交易时间 = new Date(row.账单交易时间).toISOString();
+                    // 将Date对象转换为本地时间字符串（格式：YYYY-MM-DD HH:mm:ss），避免时区转换
+                    const date = new Date(row.账单交易时间);
+                    if (!isNaN(date.getTime())) {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        const seconds = String(date.getSeconds()).padStart(2, '0');
+                        row.账单交易时间 = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                    }
                 }
 
                 // 从批量查询结果中获取绑定状态
@@ -1256,7 +1282,17 @@ export class TransactionRecordService {
             // 转换日期格式
             return rows.map((row: any) => {
                 if (row.账单交易时间) {
-                    row.账单交易时间 = new Date(row.账单交易时间).toISOString();
+                    // 将Date对象转换为本地时间字符串（格式：YYYY-MM-DD HH:mm:ss），避免时区转换
+                    const date = new Date(row.账单交易时间);
+                    if (!isNaN(date.getTime())) {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        const seconds = String(date.getSeconds()).padStart(2, '0');
+                        row.账单交易时间 = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                    }
                 }
                 return row;
             });
