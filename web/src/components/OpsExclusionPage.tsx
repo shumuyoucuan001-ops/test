@@ -585,26 +585,8 @@ export default function OpsExclusionPage() {
     };
 
 
-    const columns = useMemo(() => {
-        const selectionCol = {
-            title: (
-                <Checkbox
-                    checked={selectedRowKeys.length > 0 && selectedRowKeys.length === data.length}
-                    indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < data.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                />
-            ),
-            key: 'selection',
-            width: 60,
-            fixed: 'left' as const,
-            render: (_: any, record: OpsExclusionItem) => (
-                <Checkbox
-                    checked={selectedRowKeys.includes(getRowKey(record))}
-                    onChange={(e) => handleSelect(record, e.target.checked)}
-                />
-            ),
-        };
-
+    // 获取所有列定义（不过滤，用于ColumnSettings）
+    const allColumns = useMemo(() => {
         const baseCols: ColumnType<OpsExclusionItem>[] = [
             {
                 title: '视图名称',
@@ -699,14 +681,36 @@ export default function OpsExclusionPage() {
                 ellipsis: true,
             },
         ];
+        return baseCols;
+    }, []);
+
+    const columns = useMemo(() => {
+        const selectionCol = {
+            title: (
+                <Checkbox
+                    checked={selectedRowKeys.length > 0 && selectedRowKeys.length === data.length}
+                    indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < data.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                />
+            ),
+            key: 'selection',
+            width: 60,
+            fixed: 'left' as const,
+            render: (_: any, record: OpsExclusionItem) => (
+                <Checkbox
+                    checked={selectedRowKeys.includes(getRowKey(record))}
+                    onChange={(e) => handleSelect(record, e.target.checked)}
+                />
+            ),
+        };
 
         // 根据列顺序和隐藏状态过滤列
         const getDefaultOrder = (): string[] => {
-            return baseCols.map(col => col.key as string);
+            return allColumns.map(col => col.key as string);
         };
         const currentOrder = columnOrder.length > 0 ? columnOrder : getDefaultOrder();
         const orderedCols = currentOrder
-            .map(key => baseCols.find(col => col.key === key))
+            .map(key => allColumns.find(col => col.key === key))
             .filter((col): col is ColumnType<OpsExclusionItem> => col !== undefined && !hiddenColumns.has(col.key as string));
 
         const actionCol = {
@@ -729,7 +733,7 @@ export default function OpsExclusionPage() {
             ),
         };
         return [selectionCol, ...orderedCols, actionCol];
-    }, [data, selectedRowKeys, hiddenColumns, columnOrder, openEdit, handleDelete, getRowKey, handleSelectAll, handleSelect]);
+    }, [data, selectedRowKeys, hiddenColumns, columnOrder, allColumns, openEdit, handleDelete, getRowKey, handleSelectAll, handleSelect]);
 
     return (
         <div style={{ padding: 24 }}>
@@ -826,7 +830,7 @@ export default function OpsExclusionPage() {
                             <Popover
                                 content={
                                     <ColumnSettings
-                                        columns={columns}
+                                        columns={allColumns}
                                         hiddenColumns={hiddenColumns}
                                         columnOrder={columnOrder}
                                         onToggleVisibility={toggleColumnVisibility}
@@ -947,7 +951,7 @@ export default function OpsExclusionPage() {
                             <Popover
                                 content={
                                     <ColumnSettings
-                                        columns={columns}
+                                        columns={allColumns}
                                         hiddenColumns={hiddenColumns}
                                         columnOrder={columnOrder}
                                         onToggleVisibility={toggleColumnVisibility}

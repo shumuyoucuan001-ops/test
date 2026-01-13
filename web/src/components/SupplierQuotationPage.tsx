@@ -1829,7 +1829,9 @@ export default function SupplierQuotationPage() {
 
 
         // 如果SKU为空，或者通过UPC无法找到对应的SKU，显示绑定SKU按钮
-        if (isSkuEmpty || !hasUpcToSkuMapping) {
+        // 但是，如果有boundSku（手动绑定的SKU），不应该显示绑定按钮，而应该显示绑定的SKU
+        // 如果skuText不为空且不是"-"，说明已经匹配到了SKU，也不应该显示绑定按钮
+        if (isSkuEmpty && !boundSku) {
           // 获取UPC（如果有的话）
           const upcStr = record.UPC ? String(record.UPC).trim() : '';
           const upcArray = upcStr !== '' ? upcStr.split(',').map(u => u.trim()).filter(u => u !== '') : [];
@@ -2135,7 +2137,7 @@ export default function SupplierQuotationPage() {
                 }}
               >
                 {displaySku || '-'}
-                {hasBinding && (
+                {(hasBinding || boundSku) && (
                   <Tag color="green" style={{ margin: 0 }}>绑</Tag>
                 )}
               </span>
@@ -5763,32 +5765,54 @@ export default function SupplierQuotationPage() {
                 // 获取门店/仓库名称（从 inventory 中）
                 const storeName = (record.inventory as InventorySummary)?.['门店/仓库名称'] || '';
 
+                // 获取供应商编码在该门店的默认关系（从relationValue获取，可能是"是"/"否"字符串）
+                const relationDataAny = relationData as any;
+                const supplierRelationValue = relationDataAny?.relationValue;
+                const isSupplierDefault = supplierRelationValue === '是' || supplierRelationValue === true;
+
                 // 如果有SKU和状态数据，显示详细信息（使用绑定SKU查找，如果找不到则尝试原始SKU）
                 let storeStatus = null;
-                if (sku && relationData?.skuStoreStatus?.[sku] !== undefined) {
-                  storeStatus = relationData.skuStoreStatus[sku];
-                } else if (originalSku && originalSku !== sku && relationData?.skuStoreStatus?.[originalSku] !== undefined) {
+                if (sku && relationDataAny?.skuStoreStatus?.[sku] !== undefined) {
+                  storeStatus = relationDataAny.skuStoreStatus[sku];
+                } else if (originalSku && originalSku !== sku && relationDataAny?.skuStoreStatus?.[originalSku] !== undefined) {
                   // 如果绑定SKU找不到，尝试使用原始SKU
-                  storeStatus = relationData.skuStoreStatus[originalSku];
+                  storeStatus = relationDataAny.skuStoreStatus[originalSku];
                   skuToDisplay = originalSku;
                 }
 
+                const parts: React.ReactNode[] = [];
+
+                // 如果有SKU状态数据，显示SKU信息
                 if (storeStatus !== null) {
                   const isDefault = storeStatus.isDefault;
-                  return (
-                    <span>
+                  parts.push(
+                    <span key="sku-info">
                       <span style={{ color: highlightColor }}>{skuToDisplay}</span>
-                      在该门店{isDefault ? '是' : '不是'}默认供应
+                      在该门店<span style={{ color: highlightColor }}>{isDefault ? '是' : '不是'}</span>默认供应
                     </span>
                   );
                 }
 
-                // 如果没有详细数据，显示原有格式
+                // 显示供应商编码的默认关系信息
+                if (supplierRelationValue !== undefined && supplierRelationValue !== null) {
+                  if (parts.length > 0) {
+                    parts.push(<br key="separator" />);
+                  }
+                  parts.push(
+                    <span key="supplier-info">
+                      '<span style={{ color: highlightColor }}>{supplierCode}</span>'在该门店<span style={{ color: highlightColor }}>({isSupplierDefault ? '是' : '不是'})</span>默认关系
+                    </span>
+                  );
+                }
+
+                if (parts.length > 0) {
+                  return <div>{parts}</div>;
+                }
+
+                // 如果没有详细数据，显示原有格式（修改话术并添加颜色）
                 return (
                   <span>
-                    <span style={{ color: highlightColor }}>{supplierCode}</span>
-                    在该门店是否默认:
-                    <span style={{ color: highlightColor }}>{value}</span>
+                    '<span style={{ color: highlightColor }}>{supplierCode}</span>'在该门店<span style={{ color: highlightColor }}>({isSupplierDefault ? '是' : '不是'})</span>默认关系
                   </span>
                 );
               }
