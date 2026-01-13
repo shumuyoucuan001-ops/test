@@ -25,6 +25,7 @@ import type { ColumnType } from 'antd/es/table';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ColumnSettings from './ColumnSettings';
+import ResponsiveTable from './ResponsiveTable';
 
 const { Search } = Input;
 
@@ -115,6 +116,9 @@ export default function SupplierQuotationPage() {
   const [supplierProductRemarks, setSupplierProductRemarks] = useState<Record<string, string>>({}); // 存储供应商商品供应信息备注（key为"供应商编码_供应商商品编码"）
   const [editingRemarks, setEditingRemarks] = useState<Record<string, string>>({}); // 存储正在编辑的备注（key为"供应商编码_供应商商品编码"）
   const [editingRemarkKeys, setEditingRemarkKeys] = useState<Set<string>>(new Set()); // 存储正在编辑的备注key（用于显示保存按钮）
+  const [internalSkuRemarks, setInternalSkuRemarks] = useState<Record<string, string>>({}); // 存储内部sku备注（key为SKU）
+  const [editingInternalSkuRemarks, setEditingInternalSkuRemarks] = useState<Record<string, string>>({}); // 存储正在编辑的内部sku备注（key为SKU）
+  const [editingInternalSkuRemarkKeys, setEditingInternalSkuRemarkKeys] = useState<Set<string>>(new Set()); // 存储正在编辑的内部sku备注key（用于显示保存按钮）
   const [orderChannel, setOrderChannel] = useState<string | null>(null); // 采购下单渠道
   const [form] = Form.useForm();
 
@@ -328,14 +332,15 @@ export default function SupplierQuotationPage() {
   // 左栏默认显示的字段（按顺序）
   const defaultVisibleColumns = ['序号', '供应商名称', '供应商编码', '商品名称', '商品规格', '供货价格'];
 
-  // 右栏默认显示的字段（全部类型）：SKU, 成本单价, 最低采购价, 最近采购价, 对比字段类型, 差价, 供应商SKU备注, 对比结果
-  const defaultRightVisibleColumns = ['SKU', '成本单价', '最低采购价', '最近采购价', '对比字段类型', '差价', '供应商SKU备注', '对比结果'];
+  // 右栏默认显示的字段（全部类型）：SKU, 成本单价, 最低采购价, 最近采购价, 对比字段类型, 差价, 供应商SKU备注, 内部sku备注, 对比结果
+  const defaultRightVisibleColumns = ['SKU', '成本单价', '最低采购价', '最近采购价', '对比字段类型', '差价', '供应商SKU备注', '内部sku备注', '对比结果'];
 
-  // 右栏默认显示的字段（仓店/城市类型）：SKU, 成本单价, 最近采购价, 对比字段类型, 差价, 供应商SKU备注, 对比结果
-  const defaultRightVisibleColumnsStoreCity = ['SKU', '成本单价', '最近采购价', '对比字段类型', '差价', '供应商SKU备注', '对比结果'];
+  // 右栏默认显示的字段（仓店/城市类型）：SKU, 成本单价, 最近采购价, 对比字段类型, 差价, 供应商SKU备注, 内部sku备注, 对比结果
+  const defaultRightVisibleColumnsStoreCity = ['SKU', '成本单价', '最近采购价', '对比字段类型', '差价', '供应商SKU备注', '内部sku备注', '对比结果'];
 
-  // 初始化左栏列设置（参考Refund1688FollowUpPage的实现方式）
+  // 初始化左栏列设置（优先使用用户保存的设置）
   useEffect(() => {
+    // 优先加载用户保存的隐藏列设置
     const savedHidden = localStorage.getItem('supplier-quotation-left-hidden-columns');
     if (savedHidden) {
       try {
@@ -343,14 +348,30 @@ export default function SupplierQuotationPage() {
         setLeftHiddenColumns(new Set(parsed));
       } catch (error) {
         console.error('加载列显示偏好失败:', error);
+        // 如果解析失败，设置为空Set
+        setLeftHiddenColumns(new Set());
       }
+    } else {
+      // 如果没有保存的设置，设置为空Set（所有列默认显示）
+      setLeftHiddenColumns(new Set());
     }
 
+    // 优先加载用户保存的列顺序
     const savedOrder = localStorage.getItem('supplier-quotation-left-column-order');
     if (savedOrder) {
       try {
         const parsed = JSON.parse(savedOrder);
-        setLeftColumnOrder(parsed);
+        // 验证保存的列顺序是否包含所有列，如果不包含，补充缺失的列
+        const allColumnKeys = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
+        const validOrder = parsed.filter((key: string) => allColumnKeys.includes(key));
+        const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
+        // 将缺失的列添加到末尾
+        const finalOrder = [...validOrder, ...missingKeys];
+        setLeftColumnOrder(finalOrder);
+        // 如果顺序有变化，立即保存
+        if (finalOrder.join(',') !== parsed.join(',')) {
+          localStorage.setItem('supplier-quotation-left-column-order', JSON.stringify(finalOrder));
+        }
       } catch (error) {
         console.error('加载列顺序失败:', error);
       }
@@ -376,17 +397,14 @@ export default function SupplierQuotationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 初始化右栏列设置（参考Refund1688FollowUpPage的实现方式）
+  // 初始化右栏列设置（优先使用用户保存的设置）
   useEffect(() => {
+    // 优先加载用户保存的隐藏列设置
     const savedHidden = localStorage.getItem('supplier-quotation-right-hidden-columns');
     if (savedHidden) {
       try {
         const parsed = JSON.parse(savedHidden) as string[];
         const hiddenSet = new Set<string>(parsed);
-        // 确保"供应商-门店关系"列默认隐藏（如果用户没有手动显示过）
-        if (!hiddenSet.has('供应商-门店关系') && !parsed.includes('供应商-门店关系')) {
-          hiddenSet.add('供应商-门店关系');
-        }
         setRightHiddenColumns(hiddenSet);
       } catch (error) {
         console.error('加载列显示偏好失败:', error);
@@ -398,28 +416,39 @@ export default function SupplierQuotationPage() {
       setRightHiddenColumns(new Set<string>(['供应商-门店关系']));
     }
 
+    // 优先加载用户保存的列顺序
     const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
     if (savedOrder) {
       try {
         const parsed = JSON.parse(savedOrder);
-        setRightColumnOrder(parsed);
+        // 验证保存的列顺序是否包含所有列，如果不包含，补充缺失的列
+        const allColumnKeys = getAllRightColumns().map(col => col.key as string).filter(Boolean);
+        const validOrder = parsed.filter((key: string) => allColumnKeys.includes(key));
+        const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
+        // 将缺失的列添加到末尾（但固定列要保持在正确位置）
+        const fixedColumns = ['供应商SKU备注', '内部sku备注', '对比结果'];
+        const orderWithoutFixed = validOrder.filter((key: string) => !fixedColumns.includes(key));
+        const missingWithoutFixed = missingKeys.filter(key => !fixedColumns.includes(key));
+        const finalOrder = [...orderWithoutFixed, ...missingWithoutFixed, ...fixedColumns.filter(key => allColumnKeys.includes(key))];
+        setRightColumnOrder(finalOrder);
+        // 如果顺序有变化，立即保存
+        if (finalOrder.join(',') !== parsed.join(',')) {
+          localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify(finalOrder));
+        }
       } catch (error) {
         console.error('加载列顺序失败:', error);
       }
     }
   }, []);
 
-  // 如果列顺序为空，初始化默认顺序（仅在首次加载时）
+  // 如果列顺序为空，初始化默认顺序（仅在首次加载且没有保存的设置时）
   useEffect(() => {
     if (rightColumnOrder.length === 0) {
       const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
       if (!savedOrder) {
         // 首次加载，保存默认顺序
-        // 按照要求的顺序：SKU 商品名称 SKU商品标签 规格 总部零售价 成本单价 最低采购价 最近采购价 对比字段类型 差价 供应商SKU备注 对比结果
+        // 按照要求的顺序：SKU 商品名称 SKU商品标签 规格 总部零售价 成本单价 最低采购价 最近采购价 对比字段类型 差价 供应商SKU备注 内部sku备注 对比结果
         const allColumns = getAllRightColumns().map(col => col.key as string).filter(Boolean);
-        const defaultVisible = inventoryType === '全部'
-          ? defaultRightVisibleColumns
-          : defaultRightVisibleColumnsStoreCity;
 
         // 定义完整的列顺序（包括隐藏的列）
         const fullColumnOrder = [
@@ -440,8 +469,9 @@ export default function SupplierQuotationPage() {
           // 供应商名称列（根据维度动态添加，默认隐藏）
           ...(inventoryType === '仓店' ? ['供应商名称'] : []),
           ...(inventoryType === '城市' || inventoryType === '全部' ? ['供应商名称(最低价)', '供应商名称(最近时间)'] : []),
-          // 固定列
+          // 固定列（确保这些列在最后，且顺序固定）
           '供应商SKU备注',
+          '内部sku备注',
           '对比结果',
         ].filter(key => allColumns.includes(key));
 
@@ -461,22 +491,26 @@ export default function SupplierQuotationPage() {
       const allColumnKeys = getAllRightColumns().map(col => col.key as string).filter(Boolean);
       // 过滤掉不存在的列，保留存在的列的顺序（完全保持用户保存的顺序）
       const validOrder = rightColumnOrder.filter(key => allColumnKeys.includes(key));
-      // 添加新出现的列到末尾（排除供应商SKU备注列和对比结果列）
-      const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key) && key !== '对比结果' && key !== '供应商SKU备注');
-      // 确保供应商SKU备注列和对比结果列的顺序：供应商SKU备注列在对比结果列之前，对比结果列在最后
+      // 添加新出现的列到末尾（排除供应商SKU备注列、内部sku备注列和对比结果列）
+      const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key) && key !== '对比结果' && key !== '供应商SKU备注' && key !== '内部sku备注');
+      // 确保供应商SKU备注列、内部sku备注列和对比结果列的顺序：供应商SKU备注列在内部sku备注列之前，内部sku备注列在对比结果列之前，对比结果列在最后
       let finalOrder: string[];
       const hasRemark = validOrder.includes('供应商SKU备注');
+      const hasInternalRemark = validOrder.includes('内部sku备注');
       const hasComparison = validOrder.includes('对比结果');
 
-      // 先移除供应商SKU备注列和对比结果列
-      const orderWithoutFixed = validOrder.filter(key => key !== '供应商SKU备注' && key !== '对比结果');
+      // 先移除供应商SKU备注列、内部sku备注列和对比结果列
+      const orderWithoutFixed = validOrder.filter(key => key !== '供应商SKU备注' && key !== '内部sku备注' && key !== '对比结果');
 
       // 添加缺失的列
       finalOrder = [...orderWithoutFixed, ...missingKeys];
 
-      // 最后添加供应商SKU备注列和对比结果列（供应商SKU备注列在对比结果列之前）
+      // 最后添加供应商SKU备注列、内部sku备注列和对比结果列（供应商SKU备注列在内部sku备注列之前，内部sku备注列在对比结果列之前）
       if (hasRemark || allColumnKeys.includes('供应商SKU备注')) {
         finalOrder.push('供应商SKU备注');
+      }
+      if (hasInternalRemark || allColumnKeys.includes('内部sku备注')) {
+        finalOrder.push('内部sku备注');
       }
       if (hasComparison || allColumnKeys.includes('对比结果')) {
         finalOrder.push('对比结果');
@@ -484,7 +518,8 @@ export default function SupplierQuotationPage() {
       // 只有在顺序确实有变化时才更新（避免不必要的更新）
       if (finalOrder.join(',') !== rightColumnOrder.join(',')) {
         setRightColumnOrder(finalOrder);
-        // 不自动保存，只有在用户手动修改时才保存
+        // 保存用户的最后一次选择（包括inventoryType改变时的调整）
+        saveRightColumnSettings();
       }
     } else {
       // 如果列顺序为空，重新初始化（按照要求的顺序）
@@ -511,6 +546,7 @@ export default function SupplierQuotationPage() {
         ...(inventoryType === '城市' || inventoryType === '全部' ? ['供应商名称(最低价)', '供应商名称(最近时间)'] : []),
         // 固定列
         '供应商SKU备注',
+        '内部sku备注',
         '对比结果',
       ].filter(key => allColumnKeys.includes(key));
 
@@ -527,7 +563,8 @@ export default function SupplierQuotationPage() {
       const validHidden = Array.from(rightHiddenColumns).filter(key => allColumnKeys.includes(key));
       if (validHidden.length !== rightHiddenColumns.size) {
         setRightHiddenColumns(new Set(validHidden));
-        // 不自动保存，只有在用户手动修改时才保存
+        // 保存用户的最后一次选择（包括inventoryType改变时的调整）
+        saveRightColumnSettings();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -558,6 +595,7 @@ export default function SupplierQuotationPage() {
   };
 
   // 右栏切换列显示/隐藏
+  // 允许供应商名称相关列、供应商SKU备注、内部sku备注、对比结果调整显示/隐藏
   const handleRightToggleVisibility = (columnKey: string) => {
     const newHidden = new Set(rightHiddenColumns);
     if (newHidden.has(columnKey)) {
@@ -586,10 +624,26 @@ export default function SupplierQuotationPage() {
   };
 
   // 右栏移动列
+  // 禁止供应商SKU备注、内部sku备注和对比结果调整顺序
   const handleRightMoveColumn = (columnKey: string, direction: 'up' | 'down') => {
+    // 禁止调整顺序的列
+    const fixedColumns = ['供应商SKU备注', '内部sku备注', '对比结果'];
+    if (fixedColumns.includes(columnKey)) {
+      return; // 不允许调整这些列的顺序
+    }
+
     const currentOrder = rightColumnOrder.length > 0 ? rightColumnOrder : getAllRightColumns().map(col => col.key as string).filter(Boolean);
     const index = currentOrder.indexOf(columnKey);
     if (index === -1) return;
+
+    // 检查移动方向是否会被固定列阻挡
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
+
+    const targetColumnKey = currentOrder[targetIndex];
+    if (fixedColumns.includes(targetColumnKey)) {
+      return; // 不能移动到固定列的位置
+    }
 
     const newOrder = [...currentOrder];
     if (direction === 'up' && index > 0) {
@@ -608,8 +662,37 @@ export default function SupplierQuotationPage() {
   };
 
   // 右栏直接设置列顺序
+  // 禁止供应商SKU备注、内部sku备注和对比结果调整顺序
   const handleRightColumnOrderChange = (newOrder: string[]) => {
-    setRightColumnOrder(newOrder);
+    // 禁止调整顺序的列
+    const fixedColumns = ['供应商SKU备注', '内部sku备注', '对比结果'];
+
+    // 确保固定列保持在正确的位置：供应商SKU备注在内部sku备注之前，内部sku备注在对比结果之前，对比结果在最后
+    const fixedOrder = ['供应商SKU备注', '内部sku备注', '对比结果'];
+
+    // 从新顺序中移除固定列
+    const orderWithoutFixed = newOrder.filter(key => !fixedColumns.includes(key));
+
+    // 找到固定列在新顺序中的位置（如果存在）
+    const fixedColsInNewOrder = fixedOrder.filter(key => newOrder.includes(key));
+
+    // 确保所有列都在顺序中（包括可能缺失的列）
+    const allColumnKeys = getAllRightColumns().map(col => col.key as string).filter(Boolean);
+    const missingKeys = allColumnKeys.filter(key => !newOrder.includes(key) && !fixedColumns.includes(key));
+
+    // 如果新顺序中包含固定列，需要确保它们的顺序正确
+    // 否则，在最后添加固定列
+    let finalOrder: string[];
+    if (fixedColsInNewOrder.length > 0) {
+      // 移除新顺序中的固定列，然后在最后按正确顺序添加
+      finalOrder = [...orderWithoutFixed, ...missingKeys, ...fixedColsInNewOrder];
+    } else {
+      // 如果新顺序中没有固定列，需要添加缺失的列和固定列
+      finalOrder = [...newOrder, ...missingKeys, ...fixedOrder.filter(key => allColumnKeys.includes(key))];
+    }
+
+    setRightColumnOrder(finalOrder);
+    // 立即保存用户的选择
     saveRightColumnSettings();
   };
 
@@ -1192,11 +1275,14 @@ export default function SupplierQuotationPage() {
       .map(key => allColumns.find(col => col.key === key))
       .filter((col): col is ColumnType<SupplierQuotation> => col !== undefined);
 
-    // 获取隐藏列（如果状态为空，尝试从 localStorage 读取）
+    // 获取隐藏列（优先使用状态中的值，如果状态为空则从 localStorage 读取）
+    // 这样可以确保在状态初始化完成前也能正确读取保存的设置
     let hiddenSet: Set<string>;
     if (leftHiddenColumns.size > 0) {
+      // 如果状态中有值，使用状态中的值
       hiddenSet = leftHiddenColumns;
     } else {
+      // 如果状态为空，从 localStorage 读取（用于在状态初始化完成前）
       const savedHidden = localStorage.getItem('supplier-quotation-left-hidden-columns');
       if (savedHidden) {
         try {
@@ -1252,17 +1338,23 @@ export default function SupplierQuotationPage() {
         if (skuTagIndex >= 0) {
           currentOrder.splice(skuTagIndex + 1, 0, key);
         } else {
-          // 如果没有SKU商品标签列，添加到供应商SKU备注列之前（供应商SKU备注列在对比结果列之前）
+          // 如果没有SKU商品标签列，添加到供应商SKU备注列之前（供应商SKU备注列在内部sku备注列之前，内部sku备注列在对比结果列之前）
           const remarkIndex = currentOrder.indexOf('供应商SKU备注');
           if (remarkIndex >= 0) {
             currentOrder.splice(remarkIndex, 0, key);
           } else {
-            // 如果没有供应商SKU备注列，添加到对比结果列之前
-            const comparisonIndex = currentOrder.indexOf('对比结果');
-            if (comparisonIndex >= 0) {
-              currentOrder.splice(comparisonIndex, 0, key);
+            // 如果没有供应商SKU备注列，添加到内部sku备注列之前
+            const internalRemarkIndex = currentOrder.indexOf('内部sku备注');
+            if (internalRemarkIndex >= 0) {
+              currentOrder.splice(internalRemarkIndex, 0, key);
             } else {
-              currentOrder.push(key);
+              // 如果没有内部sku备注列，添加到对比结果列之前
+              const comparisonIndex = currentOrder.indexOf('对比结果');
+              if (comparisonIndex >= 0) {
+                currentOrder.splice(comparisonIndex, 0, key);
+              } else {
+                currentOrder.push(key);
+              }
             }
           }
         }
@@ -1286,12 +1378,18 @@ export default function SupplierQuotationPage() {
           if (remarkIndex >= 0) {
             currentOrder.splice(remarkIndex, 0, '供应商-门店关系');
           } else {
-            // 如果没有供应商SKU备注列，添加到对比结果列之前
-            const comparisonIndex = currentOrder.indexOf('对比结果');
-            if (comparisonIndex >= 0) {
-              currentOrder.splice(comparisonIndex, 0, '供应商-门店关系');
+            // 如果没有供应商SKU备注列，添加到内部sku备注列之前
+            const internalRemarkIndex = currentOrder.indexOf('内部sku备注');
+            if (internalRemarkIndex >= 0) {
+              currentOrder.splice(internalRemarkIndex, 0, '供应商-门店关系');
             } else {
-              currentOrder.push('供应商-门店关系');
+              // 如果没有内部sku备注列，添加到对比结果列之前
+              const comparisonIndex = currentOrder.indexOf('对比结果');
+              if (comparisonIndex >= 0) {
+                currentOrder.splice(comparisonIndex, 0, '供应商-门店关系');
+              } else {
+                currentOrder.push('供应商-门店关系');
+              }
             }
           }
         }
@@ -1300,12 +1398,26 @@ export default function SupplierQuotationPage() {
 
     // 确保供应商SKU备注列在顺序中（如果allColumns中有供应商SKU备注列）
     if (allColumnKeys.includes('供应商SKU备注') && !currentOrder.includes('供应商SKU备注')) {
-      // 如果供应商SKU备注列不在顺序中，添加到对比结果列之前
+      // 如果供应商SKU备注列不在顺序中，添加到内部sku备注列之前（如果内部sku备注列存在），否则添加到对比结果列之前
+      const internalRemarkIndex = currentOrder.indexOf('内部sku备注');
       const comparisonIndex = currentOrder.indexOf('对比结果');
-      if (comparisonIndex >= 0) {
+      if (internalRemarkIndex >= 0) {
+        currentOrder.splice(internalRemarkIndex, 0, '供应商SKU备注');
+      } else if (comparisonIndex >= 0) {
         currentOrder.splice(comparisonIndex, 0, '供应商SKU备注');
       } else {
         currentOrder.push('供应商SKU备注');
+      }
+    }
+
+    // 确保内部sku备注列在顺序中（如果allColumns中有内部sku备注列）
+    if (allColumnKeys.includes('内部sku备注') && !currentOrder.includes('内部sku备注')) {
+      // 如果内部sku备注列不在顺序中，添加到对比结果列之前
+      const comparisonIndex = currentOrder.indexOf('对比结果');
+      if (comparisonIndex >= 0) {
+        currentOrder.splice(comparisonIndex, 0, '内部sku备注');
+      } else {
+        currentOrder.push('内部sku备注');
       }
     }
 
@@ -1327,7 +1439,7 @@ export default function SupplierQuotationPage() {
         if (comparisonFieldTypeIndex >= 0) {
           orderedColumns.splice(comparisonFieldTypeIndex + 1, 0, supplierStoreRelationCol);
         } else {
-          // 如果都没有，添加到末尾（在供应商SKU备注和对比结果之前）
+          // 如果都没有，添加到末尾（在供应商SKU备注、内部sku备注和对比结果之前）
           orderedColumns.push(supplierStoreRelationCol);
         }
       }
@@ -1351,31 +1463,29 @@ export default function SupplierQuotationPage() {
       }
     }
 
-    // 过滤隐藏的列，但供应商名称相关列和备注列、对比结果列不能隐藏（如果已选择）
+    // 过滤隐藏的列
+    // 允许供应商名称相关列、供应商SKU备注、内部sku备注、对比结果调整显示/隐藏
     orderedColumns = orderedColumns.filter(col => {
       const key = col.key as string;
-      // 如果列是供应商名称相关列，且已选择，则始终显示
-      if (supplierNameKeys.includes(key) && supplierNameFields.includes(key)) {
-        return true;
-      }
-      // 供应商SKU备注列和对比结果列始终显示（不能隐藏）
-      if (key === '供应商SKU备注' || key === '对比结果') {
-        return true;
-      }
-      // 其他列按隐藏列表过滤
+      // 所有列都可以通过隐藏列表控制显示/隐藏
+      // 如果列在隐藏列表中，则隐藏；否则显示
       return !hiddenSet.has(key);
     });
 
-    // 确保供应商SKU备注列和对比结果列的顺序：供应商SKU备注列在对比结果列之前，对比结果列在最后
+    // 确保供应商SKU备注列、内部sku备注列和对比结果列的顺序：供应商SKU备注列在内部sku备注列之前，内部sku备注列在对比结果列之前，对比结果列在最后
     const remarkCol = orderedColumns.find(col => col.key === '供应商SKU备注');
+    const internalRemarkCol = orderedColumns.find(col => col.key === '内部sku备注');
     const comparisonResultCol = orderedColumns.find(col => col.key === '对比结果');
 
-    // 先移除这两个列
-    orderedColumns = orderedColumns.filter(col => col.key !== '供应商SKU备注' && col.key !== '对比结果');
+    // 先移除这三个列
+    orderedColumns = orderedColumns.filter(col => col.key !== '供应商SKU备注' && col.key !== '内部sku备注' && col.key !== '对比结果');
 
-    // 然后按顺序添加：供应商SKU备注列（如果存在），对比结果列（如果存在）
+    // 然后按顺序添加：供应商SKU备注列（如果存在），内部sku备注列（如果存在），对比结果列（如果存在）
     if (remarkCol) {
       orderedColumns.push(remarkCol);
+    }
+    if (internalRemarkCol) {
+      orderedColumns.push(internalRemarkCol);
     }
     if (comparisonResultCol) {
       orderedColumns.push(comparisonResultCol);
@@ -1559,6 +1669,15 @@ export default function SupplierQuotationPage() {
       title: '供应商SKU备注',
       dataIndex: '供应商SKU备注',
       key: '供应商SKU备注',
+      width: 200,
+      render: () => '-',
+    });
+
+    // 内部sku备注列
+    columns.push({
+      title: '内部sku备注',
+      dataIndex: '内部sku备注',
+      key: '内部sku备注',
       width: 200,
       render: () => '-',
     });
@@ -2341,6 +2460,156 @@ export default function SupplierQuotationPage() {
       },
     });
 
+    // 内部sku备注列 - 固定在右侧，放在供应商SKU备注和对比结果之间
+    columns.push({
+      title: '内部sku备注',
+      dataIndex: '内部sku备注',
+      key: '内部sku备注',
+      width: 200,
+      fixed: 'right' as const,
+      render: (_: any, record: InventorySummary) => {
+        // 通过SKU从alignedData中找到匹配的供应商报价
+        // 注意：这里需要使用当前的alignedData或filteredAlignedData
+        const dataToSearch = (comparisonResultFilter.length > 0 || inventorySkuSearch.trim()
+          ? currentFilteredAlignedData
+          : currentAlignedData) || [];
+
+        const matchedItem = dataToSearch.find((item: any) => {
+          return item.inventory && item.inventory.SKU === record.SKU;
+        });
+
+        let skuToUse = '';
+
+        if (!matchedItem || !matchedItem.quotation) {
+          // 如果没有匹配的供应商报价，直接使用库存汇总的SKU
+          skuToUse = record.SKU || '';
+        } else {
+          const quotation = matchedItem.quotation as SupplierQuotation;
+          if (!quotation.供应商编码) {
+            // 如果没有供应商编码，直接使用库存汇总的SKU
+            skuToUse = record.SKU || '';
+          } else {
+            // 获取SKU：优先使用手动绑定的SKU，如果没有则使用库存汇总里匹配出来的SKU
+            // 一定要是数据行显示的SKU，如果显示的是手动绑定的SKU就用手动绑定的去匹配
+            const bindingKey = quotation.供应商编码 && quotation.供应商商品编码
+              ? `${quotation.供应商编码}_${quotation.供应商商品编码}`
+              : null;
+            const boundSku = bindingKey ? skuBindingMap[bindingKey] : null;
+            skuToUse = boundSku || record.SKU || '';
+          }
+        }
+
+        if (!skuToUse) {
+          return '-';
+        }
+
+        const originalRemark = internalSkuRemarks[skuToUse] || '';
+        const remark = editingInternalSkuRemarks[skuToUse] !== undefined
+          ? editingInternalSkuRemarks[skuToUse]
+          : originalRemark;
+        const hasChanged = remark !== originalRemark;
+
+        const handleSave = async () => {
+          const value = remark.trim();
+          if (skuToUse) {
+            try {
+              await supplierQuotationApi.saveInternalSkuRemark({
+                sku: skuToUse,
+                remark: value,
+              });
+              // 更新本地状态
+              setInternalSkuRemarks({
+                ...internalSkuRemarks,
+                [skuToUse]: value,
+              });
+              setEditingInternalSkuRemarks({
+                ...editingInternalSkuRemarks,
+                [skuToUse]: value,
+              });
+              // 移除编辑状态
+              const newEditingKeys = new Set(editingInternalSkuRemarkKeys);
+              newEditingKeys.delete(skuToUse);
+              setEditingInternalSkuRemarkKeys(newEditingKeys);
+              message.success('内部sku备注保存成功');
+            } catch (error) {
+              console.error('保存内部sku备注失败:', error);
+              message.error('保存内部sku备注失败');
+            }
+          }
+        };
+
+        const handleCancel = () => {
+          // 恢复原始值
+          setEditingInternalSkuRemarks({
+            ...editingInternalSkuRemarks,
+            [skuToUse]: originalRemark,
+          });
+          // 移除编辑状态
+          const newEditingKeys = new Set(editingInternalSkuRemarkKeys);
+          newEditingKeys.delete(skuToUse);
+          setEditingInternalSkuRemarkKeys(newEditingKeys);
+        };
+
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const newValue = e.target.value;
+          // 限制100字
+          if (newValue.length > 100) {
+            return;
+          }
+          setEditingInternalSkuRemarks({
+            ...editingInternalSkuRemarks,
+            [skuToUse]: newValue,
+          });
+          // 如果值发生变化，标记为正在编辑
+          if (newValue !== originalRemark) {
+            const newEditingKeys = new Set(editingInternalSkuRemarkKeys);
+            newEditingKeys.add(skuToUse);
+            setEditingInternalSkuRemarkKeys(newEditingKeys);
+          } else {
+            // 如果值恢复为原始值，移除编辑状态
+            const newEditingKeys = new Set(editingInternalSkuRemarkKeys);
+            newEditingKeys.delete(skuToUse);
+            setEditingInternalSkuRemarkKeys(newEditingKeys);
+          }
+        };
+
+        const remainingChars = 100 - remark.length;
+
+        return (
+          <div style={{ width: '100%' }}>
+            <Input
+              value={remark}
+              onChange={handleChange}
+              placeholder="请输入内部sku备注"
+              maxLength={100}
+              style={{ width: '100%', marginBottom: hasChanged ? 4 : 0 }}
+              suffix={<span style={{ fontSize: '12px', color: remainingChars < 20 ? '#ff4d4f' : '#999' }}>{remainingChars}</span>}
+            />
+            {hasChanged && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<SaveOutlined />}
+                  onClick={handleSave}
+                  style={{ height: '16px', fontSize: '11px', padding: '0 8px', lineHeight: '16px' }}
+                >
+                  保存
+                </Button>
+                <Button
+                  size="small"
+                  onClick={handleCancel}
+                  style={{ height: '16px', fontSize: '11px', padding: '0 8px', lineHeight: '16px' }}
+                >
+                  取消
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      },
+    });
+
     // 对比结果列 - 固定在右侧，放在所有列的最后
     // 使用与筛选框一致的渲染方式
     columns.push({
@@ -2423,9 +2692,10 @@ export default function SupplierQuotationPage() {
       },
     });
 
-    // 确保供应商SKU备注列和对比结果列都在columns中
+    // 确保供应商SKU备注列、内部sku备注列和对比结果列都在columns中
     // 检查供应商SKU备注列是否存在
     const hasRemarkCol = columns.some(col => col.key === '供应商SKU备注');
+    const hasInternalRemarkCol = columns.some(col => col.key === '内部sku备注');
     const hasComparisonCol = columns.some(col => col.key === '对比结果');
 
     if (!hasRemarkCol) {
@@ -3677,6 +3947,62 @@ export default function SupplierQuotationPage() {
       }
       // 更新状态
       setSupplierProductRemarks(supplierProductRemarksLocal);
+
+      // 批量加载内部sku备注数据
+      let internalSkuRemarksLocal: Record<string, string> = {};
+      if (dataWithComparison.length > 0) {
+        try {
+          // 收集所有需要查询的SKU（包括手动绑定的SKU和库存汇总的SKU）
+          // 一定要是数据行显示的SKU，如果显示的是手动绑定的SKU就用手动绑定的去匹配
+          const skusToQuery = new Set<string>();
+
+          dataWithComparison.forEach(item => {
+            if (item.SKU) {
+              // 如果有匹配的供应商报价，检查是否有手动绑定的SKU
+              if (quotationDataToUse && quotationDataToUse.length > 0) {
+                // 通过SKU找到匹配的供应商报价
+                const matchedQuotation = quotationDataToUse.find(q => {
+                  if (!q.最小销售规格UPC商品条码 || !item.SKU) return false;
+                  const skuCodes = upcToSkuMapLocal[q.最小销售规格UPC商品条码] || [];
+                  return skuCodes.includes(item.SKU);
+                });
+
+                if (matchedQuotation && matchedQuotation.供应商编码 && matchedQuotation.供应商商品编码) {
+                  // 获取SKU：优先使用手动绑定的SKU，如果没有则使用库存汇总里匹配出来的SKU
+                  const bindingKey = `${matchedQuotation.供应商编码}_${matchedQuotation.供应商商品编码}`;
+                  const boundSku = skuBindingMapLocal[bindingKey];
+                  const skuToUse = boundSku || item.SKU;
+                  if (skuToUse) {
+                    skusToQuery.add(skuToUse);
+                  }
+                } else {
+                  // 如果没有匹配的供应商报价，直接使用库存汇总的SKU
+                  skusToQuery.add(item.SKU);
+                }
+              } else {
+                // 如果没有供应商报价数据，直接使用库存汇总的SKU
+                skusToQuery.add(item.SKU);
+              }
+            }
+          });
+
+          if (skusToQuery.size > 0) {
+            // 批量查询内部sku备注
+            const skusArray = Array.from(skusToQuery);
+            const internalRemarksResult = await supplierQuotationApi.getInternalSkuRemarks({
+              skus: skusArray,
+            });
+
+            if (internalRemarksResult) {
+              internalSkuRemarksLocal = internalRemarksResult;
+            }
+          }
+        } catch (error) {
+          console.error('批量加载内部sku备注失败:', error);
+        }
+      }
+
+      setInternalSkuRemarks(internalSkuRemarksLocal);
 
       // 保存所有数据（用于匹配和筛选）
       // 使用展开运算符创建新数组，确保引用变化，触发useEffect
@@ -5932,6 +6258,7 @@ export default function SupplierQuotationPage() {
                         onToggleVisibility={handleRightToggleVisibility}
                         onMoveColumn={handleRightMoveColumn}
                         onColumnOrderChange={handleRightColumnOrderChange}
+                        fixedColumns={['供应商SKU备注', '内部sku备注', '对比结果']}
                       />
                     }
                     title="列设置"
@@ -6058,13 +6385,16 @@ export default function SupplierQuotationPage() {
         >
           <div ref={mergedTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <Table
+              <ResponsiveTable
+                tableId="supplier-quotation-merged"
                 columns={getFilteredMergedColumns()}
                 dataSource={mergedData}
                 rowKey={(record) => record.key}
                 loading={leftLoading || rightLoading}
                 scroll={{ x: 'max-content', y: mergedTableHeight }}
                 pagination={false}
+                isMobile={false}
+                resizable={true}
                 onRow={(record) => {
                   const isSelected = selectedMergedRowKey === record.key;
 
@@ -6589,10 +6919,13 @@ export default function SupplierQuotationPage() {
                   )
                 ) : (
                   <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-                    <Table
+                    <ResponsiveTable
+                      tableId="supplier-quotation-product-info"
                       columns={getFilteredProductInfoColumns()}
                       dataSource={productInfoData}
                       rowKey={(record) => `${record.供应商编码}_${record.供货关系编码 || record.SKU编码 || Math.random()}`}
+                      isMobile={false}
+                      resizable={true}
                       loading={productInfoLoading}
                       pagination={false}
                       scroll={{

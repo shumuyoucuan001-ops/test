@@ -1528,6 +1528,19 @@ export const supplierQuotationApi = {
     remark: string;
   }): Promise<boolean> =>
     api.post('/supplier-quotation/supplier-product-remark', data).then(res => res.data),
+
+  // 批量查询内部sku备注
+  getInternalSkuRemarks: (data: {
+    skus: string[];
+  }): Promise<Record<string, string>> =>
+    api.post('/supplier-quotation/internal-sku-remarks', data).then(res => res.data),
+
+  // 保存或更新内部sku备注
+  saveInternalSkuRemark: (data: {
+    sku: string;
+    remark: string;
+  }): Promise<boolean> =>
+    api.post('/supplier-quotation/internal-sku-remark', data).then(res => res.data),
 };
 
 export default api;

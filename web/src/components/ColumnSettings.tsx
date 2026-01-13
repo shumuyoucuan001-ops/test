@@ -12,6 +12,7 @@ interface ColumnSettingsProps<T = any> {
     onToggleVisibility: (columnKey: string) => void;
     onMoveColumn: (columnKey: string, direction: 'up' | 'down') => void;
     onColumnOrderChange?: (newOrder: string[]) => void; // 可选的直接设置列顺序回调
+    fixedColumns?: string[]; // 不能调整顺序的列（只能显示/隐藏）
 }
 
 export default function ColumnSettings<T = any>({
@@ -21,6 +22,7 @@ export default function ColumnSettings<T = any>({
     onToggleVisibility,
     onMoveColumn,
     onColumnOrderChange,
+    fixedColumns = [], // 默认没有固定列
 }: ColumnSettingsProps<T>) {
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -37,11 +39,23 @@ export default function ColumnSettings<T = any>({
     };
 
     // 使用传入的列顺序，如果为空则使用默认顺序
+    // 但是要确保所有可配置的列都在顺序中（合并columnOrder和configurableColumns）
     const defaultOrder = getDefaultOrder();
-    const currentColumnOrder = columnOrder.length > 0 ? columnOrder : defaultOrder;
+    const baseOrder = columnOrder.length > 0 ? columnOrder : defaultOrder;
+
+    // 确保所有可配置的列都在顺序中（合并缺失的列）
+    const allColumnKeys = configurableColumns.map(col => col.key as string).filter(Boolean);
+    const missingKeys = allColumnKeys.filter(key => !baseOrder.includes(key));
+    const currentColumnOrder = [...baseOrder, ...missingKeys];
 
     // 处理拖拽开始
     const handleDragStart = (e: React.DragEvent, index: number) => {
+        const columnKey = currentColumnOrder[index];
+        // 如果是固定列，禁止拖拽
+        if (fixedColumns.includes(columnKey)) {
+            e.preventDefault();
+            return;
+        }
         setDraggedIndex(index);
         e.dataTransfer.effectAllowed = 'move';
         // 设置拖拽时的视觉效果
@@ -91,7 +105,16 @@ export default function ColumnSettings<T = any>({
         }
 
         const sourceColumnKey = currentColumnOrder[draggedIndex];
+        const targetColumnKey = currentColumnOrder[dropIndex];
+
         if (!sourceColumnKey) {
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+            return;
+        }
+
+        // 如果源列或目标列是固定列，禁止移动
+        if (fixedColumns.includes(sourceColumnKey) || fixedColumns.includes(targetColumnKey)) {
             setDraggedIndex(null);
             setDragOverIndex(null);
             return;
@@ -136,10 +159,12 @@ export default function ColumnSettings<T = any>({
                     const isDragging = draggedIndex === index;
                     const isDragOver = dragOverIndex === index;
 
+                    const isFixed = fixedColumns.includes(columnKey);
+
                     return (
                         <div
                             key={columnKey}
-                            draggable
+                            draggable={!isFixed}
                             onDragStart={(e) => handleDragStart(e, index)}
                             onDragEnd={handleDragEnd}
                             onDragOver={(e) => handleDragOver(e, index)}
@@ -153,19 +178,23 @@ export default function ColumnSettings<T = any>({
                                 borderRadius: 4,
                                 backgroundColor: isDragOver ? '#e6f7ff' : isDragging ? '#f0f0f0' : '#f5f5f5',
                                 border: isDragOver ? '2px dashed #1890ff' : '2px solid transparent',
-                                cursor: 'move',
+                                cursor: isFixed ? 'default' : 'move',
                                 transition: 'all 0.2s',
                                 opacity: isDragging ? 0.5 : 1,
                             }}
                         >
-                            <MenuOutlined
-                                style={{
-                                    color: '#999',
-                                    cursor: 'grab',
-                                    fontSize: 14,
-                                }}
-                                onMouseDown={(e) => e.stopPropagation()}
-                            />
+                            {isFixed ? (
+                                <span style={{ color: '#999', fontSize: 14, width: 14 }}>🔒</span>
+                            ) : (
+                                <MenuOutlined
+                                    style={{
+                                        color: '#999',
+                                        cursor: 'grab',
+                                        fontSize: 14,
+                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                />
+                            )}
                             <Checkbox
                                 checked={isVisible}
                                 onChange={(e) => {

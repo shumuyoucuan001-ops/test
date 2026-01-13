@@ -389,5 +389,43 @@ export class SupplierQuotationController {
             );
         }
     }
+
+    // 批量查询内部sku备注
+    @Post('internal-sku-remarks')
+    async getInternalSkuRemarks(
+        @Body() body: {
+            skus: string[];
+        },
+    ) {
+        try {
+            return await this.service.getInternalSkuRemarks(body.skus || []);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '查询内部sku备注失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 保存或更新内部sku备注
+    @Post('internal-sku-remark')
+    async saveInternalSkuRemark(
+        @Body() body: {
+            sku: string;
+            remark: string;
+        },
+    ) {
+        try {
+            return await this.service.saveInternalSkuRemark(
+                body.sku,
+                body.remark,
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '保存内部sku备注失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 }
 

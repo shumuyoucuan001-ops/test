@@ -1959,5 +1959,85 @@ export class SupplierQuotationService {
       await connection.end();
     }
   }
+
+  // 批量查询内部sku备注
+  // 根据SKU从sm_shangping.内部sku备注表中查询备注
+  async getInternalSkuRemarks(
+    skus: string[],
+  ): Promise<Record<string, string>> {
+    const shangpingConnection = await this.getShangpingConnection();
+
+    try {
+      if (!skus || skus.length === 0) {
+        return {};
+      }
+
+      // 过滤掉空值
+      const validSkus = skus.filter(sku => sku && sku.trim() !== '');
+      if (validSkus.length === 0) {
+        return {};
+      }
+
+      // 构建查询条件
+      const placeholders = validSkus.map(() => '?').join(',');
+      const query = `
+        SELECT \`SKU\`, \`备注\`
+        FROM \`内部sku备注\`
+        WHERE \`SKU\` IN (${placeholders})
+      `;
+
+      const [result]: any = await shangpingConnection.execute(query, validSkus);
+
+      const remarks: Record<string, string> = {};
+      if (result && result.length > 0) {
+        result.forEach((row: any) => {
+          const sku = row['SKU'];
+          if (sku) {
+            remarks[sku] = row['备注'] || '';
+          }
+        });
+      }
+
+      return remarks;
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 批量查询内部sku备注失败', error);
+      throw error;
+    } finally {
+      await shangpingConnection.end();
+    }
+  }
+
+  // 保存或更新内部sku备注（使用REPLACE INTO）
+  async saveInternalSkuRemark(
+    sku: string,
+    remark: string,
+  ): Promise<boolean> {
+    const shangpingConnection = await this.getShangpingConnection();
+
+    try {
+      // 使用REPLACE INTO，如果记录存在则更新，不存在则插入
+      const query = `
+        REPLACE INTO \`内部sku备注\`
+        (\`SKU\`, \`备注\`)
+        VALUES (?, ?)
+      `;
+
+      await shangpingConnection.execute(query, [sku, remark || '']);
+
+      Logger.log(
+        `[SupplierQuotationService] 保存内部sku备注成功，SKU: ${sku}`,
+      );
+
+      return true;
+    } catch (error) {
+      Logger.error(
+        `[SupplierQuotationService] 保存内部sku备注失败，SKU: ${sku}`,
+        error,
+      );
+      throw error;
+    } finally {
+      await shangpingConnection.end();
+    }
+  }
 }
 
