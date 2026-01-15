@@ -1514,12 +1514,14 @@ export default function SupplierQuotationPage() {
       return !hiddenSet.has(key);
     });
 
-    // 确保供应商SKU备注列、内部sku备注列和对比结果列的顺序：供应商SKU备注列在内部sku备注列之前，内部sku备注列在对比结果列之前，对比结果列在最后
+    // 确保供应商SKU备注列、内部sku备注列和对比结果列的顺序：
+    // 供应商SKU备注列在内部sku备注列之前，内部sku备注列在对比结果列之前，对比结果列在最后
+    // 注意：安差价加率列不在这里处理，它应该放在差价列旁边
     const remarkCol = orderedColumns.find(col => col.key === '供应商SKU备注');
     const internalRemarkCol = orderedColumns.find(col => col.key === '内部sku备注');
     const comparisonResultCol = orderedColumns.find(col => col.key === '对比结果');
 
-    // 先移除这三个列
+    // 先移除这三个列（不包括安差价加率）
     orderedColumns = orderedColumns.filter(col => col.key !== '供应商SKU备注' && col.key !== '内部sku备注' && col.key !== '对比结果');
 
     // 然后按顺序添加：供应商SKU备注列（如果存在），内部sku备注列（如果存在），对比结果列（如果存在）
@@ -5028,7 +5030,7 @@ export default function SupplierQuotationPage() {
       const rightColumns = getFilteredRightColumns();
 
       // 需要排除的字段（导出时不包含这些字段）
-      const excludedFields = ['最低采购价', '最近采购价', '成本单价', '差价', '总部零售价'];
+      const excludedFields = ['最低采购价', '最近采购价', '成本单价', '差价', '总部零售价', '安差价加率', '供应商-门店关系', '供应商SKU备注', '内部sku备注'];
 
       // 构建表头：供应商报价字段 + 分隔列 + 库存汇总字段（排除指定字段）
       const headers: string[] = [];
@@ -5455,8 +5457,8 @@ export default function SupplierQuotationPage() {
     const timer = setTimeout(() => {
       if (mergedTableContainerRef.current) {
         const containerHeight = mergedTableContainerRef.current.clientHeight;
-        // 减去分页器高度（约64px）和padding（32px）
-        const calculatedHeight = containerHeight - 96;
+        // 减去分页器高度（约64px）、padding（32px）和滚动条高度（约12px）
+        const calculatedHeight = containerHeight - 96 - 12;
         setMergedTableHeight(Math.max(300, calculatedHeight));
       }
     }, 200);
@@ -5471,8 +5473,8 @@ export default function SupplierQuotationPage() {
       setTimeout(() => {
         if (mergedTableContainerRef.current) {
           const containerHeight = mergedTableContainerRef.current.clientHeight;
-          // 减去分页器高度（约64px）和padding（32px）
-          const calculatedHeight = containerHeight - 96;
+          // 减去分页器高度（约64px）、padding（32px）和滚动条高度（约12px）
+          const calculatedHeight = containerHeight - 96 - 12;
           setMergedTableHeight(Math.max(300, calculatedHeight));
         }
       }, 100);
@@ -6113,14 +6115,14 @@ export default function SupplierQuotationPage() {
                 }
 
                 // 直接显示"是"或"不是"
+                // 匹配逻辑：如果匹配到数据（hasRecord为true），显示"是"，否则显示"不是"
                 let displayText = '不是';
-                if (storeStatus !== null) {
-                  const isDefault = storeStatus.isDefault;
-                  displayText = isDefault ? '是' : '不是';
+                if (storeStatus !== null && storeStatus.hasRecord) {
+                  displayText = '是';
                 }
 
                 return (
-                  <span style={{ color: highlightColor }}>{displayText}</span>
+                  <span>{displayText}</span>
                 );
               }
               return String(value);
@@ -6226,6 +6228,112 @@ export default function SupplierQuotationPage() {
           /* 确保Popover不会被表格遮挡 */
           .ant-popover[data-sku-binding="true"] {
             z-index: 2000 !important;
+          }
+          
+          /* 确保横向滚动条始终显示在容器底部 */
+          #merged-table-scroll-container {
+            overflow-x: scroll !important;
+            overflow-y: hidden !important;
+            /* 确保滚动条始终可见，即使内容未超出 */
+            scrollbar-gutter: stable;
+            /* 强制显示滚动条（IE/Edge） */
+            -ms-overflow-style: scrollbar;
+            /* 确保滚动条区域可见 */
+            padding-bottom: 0 !important;
+          }
+          
+          /* 为滚动条预留空间，确保滚动条在容器内且始终显示 */
+          #merged-table-scroll-container::-webkit-scrollbar {
+            height: 12px !important;
+            width: 12px !important;
+            background-color: #f5f5f5 !important;
+            display: block !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            /* 确保滚动条在容器底部 */
+            position: relative;
+          }
+          
+          #merged-table-scroll-container::-webkit-scrollbar-track {
+            background-color: #f5f5f5 !important;
+            border-radius: 0;
+            display: block !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            /* 确保轨道在容器底部 */
+            margin-top: auto;
+            width: 100% !important;
+          }
+          
+          #merged-table-scroll-container::-webkit-scrollbar-thumb {
+            background-color: #888 !important;
+            border-radius: 6px !important;
+            min-height: 12px !important;
+            min-width: 40px !important;
+            display: block !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            /* 确保滑块始终可见，即使内容未超出容器 */
+            opacity: 1 !important;
+            visibility: visible !important;
+            width: auto !important;
+            height: 12px !important;
+            /* 确保滑块有足够的对比度 */
+            border: 1px solid #666 !important;
+          }
+          
+          #merged-table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background-color: #555 !important;
+            border-color: #444 !important;
+          }
+          
+          #merged-table-scroll-container::-webkit-scrollbar-thumb:active {
+            background-color: #333 !important;
+          }
+          
+          /* 确保滚动条在内容未超出时也显示 */
+          #merged-table-scroll-container::-webkit-scrollbar:horizontal {
+            display: block !important;
+            height: 12px !important;
+          }
+          
+          /* Firefox滚动条样式 - 始终显示 */
+          #merged-table-scroll-container {
+            scrollbar-width: thin;
+            scrollbar-color: #888 #f5f5f5;
+          }
+          
+          /* 确保表格内容可以横向滚动 */
+          #merged-table-scroll-container .ant-table-wrapper {
+            width: 100%;
+            min-width: 100%;
+            max-width: 100%;
+            overflow: visible;
+          }
+          
+          #merged-table-scroll-container .ant-table {
+            min-width: 100%;
+          }
+          
+          /* 确保表格内容可以横向滚动，但不影响外层容器的滚动条 */
+          #merged-table-scroll-container .ant-table-body {
+            overflow-x: visible !important;
+            overflow-y: auto !important;
+          }
+          
+          /* 确保表格内容区域可以超出容器宽度，触发横向滚动 */
+          #merged-table-scroll-container .ant-table-content {
+            overflow-x: visible !important;
+          }
+          
+          /* 确保滚动条区域在容器底部，不超出容器范围 */
+          #merged-table-scroll-container .ant-table-body-outer {
+            padding-bottom: 0 !important;
+          }
+          
+          /* 确保表格容器高度计算时考虑滚动条 */
+          #merged-table-scroll-container .ant-table {
+            margin-bottom: 0 !important;
           }
         `
       }} />
@@ -6732,8 +6840,20 @@ export default function SupplierQuotationPage() {
           style={{ flex: `0 0 ${topPanelHeight}%`, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', boxSizing: 'border-box' }}
           styles={{ body: { flex: 1, overflow: 'hidden', padding: 8, display: 'flex', flexDirection: 'column' } }}
         >
-          <div ref={mergedTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div ref={mergedTableContainerRef} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            <div
+              id="merged-table-scroll-container"
+              style={{
+                flex: 1,
+                overflowX: 'scroll',
+                overflowY: 'hidden',
+                minWidth: 0,
+                position: 'relative',
+                // 确保滚动条始终显示在容器底部
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
               <ResponsiveTable
                 tableId="supplier-quotation-merged"
                 columns={getFilteredMergedColumns()}

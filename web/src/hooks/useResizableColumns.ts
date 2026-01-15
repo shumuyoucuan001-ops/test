@@ -96,11 +96,11 @@ export function useResizableColumns<T = any>(
             ? originalOnHeaderCell(column as any)
             : {};
 
-          // 如果是固定列，不添加调整功能
-          const isFixed = col.fixed === "left" || col.fixed === "right";
-          if (isFixed) {
-            return originalProps;
-          }
+          // 允许固定列也可以调整列宽（移除这个限制）
+          // const isFixed = col.fixed === "left" || col.fixed === "right";
+          // if (isFixed) {
+          //   return originalProps;
+          // }
 
           return {
             ...originalProps,

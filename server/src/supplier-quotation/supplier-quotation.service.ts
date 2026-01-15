@@ -723,10 +723,12 @@ export class SupplierQuotationService {
                 });
               });
             } else if (type === '仓店') {
-              // 仓店维度：查询具体门店的SKU默认供应状态
+              // 仓店维度：查询具体门店的SKU供货关系
               // 已经在SQL层面过滤了该门店的记录，这里直接处理
+              // 匹配逻辑：获取供应商报价.供应商编码,匹配出的SKU和筛选的仓店参数去'商品供货关系'表匹配一致的'供应商编码'和'SKU编码'和'门店/仓名称'
+              // 匹配出数据就显示是,否则显示否
               if (storeName) {
-                // 查询每个SKU在该门店的默认供应状态
+                // 查询每个SKU在该门店的供货关系状态
                 const skuStoreStatus: Record<string, Record<string, { isDefault: boolean | null; hasRecord: boolean }>> = {};
 
                 (supplyRelationData || []).forEach((row: any) => {
@@ -745,16 +747,13 @@ export class SupplierQuotationService {
                     };
                   }
 
+                  // 只要匹配到数据就标记为有记录（显示"是"）
+                  skuStoreStatus[supplierCode][sku].hasRecord = true;
                   // 如果找到默认供货关系的记录，标记为默认
                   if (row['是否默认供货关系'] === '默认') {
                     skuStoreStatus[supplierCode][sku].isDefault = true;
-                    skuStoreStatus[supplierCode][sku].hasRecord = true;
-                  } else if (row['是否默认供货关系'] === null || row['是否默认供货关系'] === undefined) {
-                    // 如果是NULL且之前没有设置为默认，则标记为非默认
-                    if (skuStoreStatus[supplierCode][sku].isDefault === null) {
-                      skuStoreStatus[supplierCode][sku].isDefault = false;
-                    }
-                    skuStoreStatus[supplierCode][sku].hasRecord = true;
+                  } else {
+                    skuStoreStatus[supplierCode][sku].isDefault = false;
                   }
                 });
 
