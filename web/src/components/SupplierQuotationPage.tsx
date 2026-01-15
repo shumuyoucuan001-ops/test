@@ -6067,35 +6067,10 @@ export default function SupplierQuotationPage() {
                   }
                 }
 
-                const parts: React.ReactNode[] = [
-                  <span key="supplier">
-                    该供应商商品在全国有
-                    <span style={{ color: highlightColor }}>{displayValue}</span>
-                    家门店存在供货关系
-                  </span>
-                ];
-
-                // 注释掉详细信息显示
-                // 如果有SKU和统计数据，显示详细信息（使用绑定SKU查找，如果找不到则尝试原始SKU）
-                // let skuStoreCount = null;
-                // const relationDataAny = relationData as any;
-                // if (sku && relationDataAny?.skuStoreCount && relationDataAny.skuStoreCount[sku]) {
-                //   skuStoreCount = relationDataAny.skuStoreCount[sku];
-                // } else if (originalSku && originalSku !== sku && relationDataAny?.skuStoreCount && relationDataAny.skuStoreCount[originalSku]) {
-                //   // 如果绑定SKU找不到，尝试使用原始SKU
-                //   skuStoreCount = relationDataAny.skuStoreCount[originalSku];
-                //   skuToDisplay = originalSku;
-                // }
-
-                // if (skuStoreCount !== null && skuStoreCount !== undefined) {
-                //   parts.push(
-                //     <span key="sku-detail" style={{ display: 'block', marginTop: 4, fontSize: '12px', color: '#666' }}>
-                //       (其中<span style={{ color: highlightColor }}>{skuToDisplay}</span>有<span style={{ color: highlightColor }}>{skuStoreCount}</span>家门店存在供货关系)
-                //     </span>
-                //   );
-                // }
-
-                return <div>{parts}</div>;
+                // 直接显示数量
+                return (
+                  <span>{displayValue}</span>
+                );
               } else if (inventoryType === '城市') {
                 // 获取城市信息（从 inventory 中）
                 const city = (record.inventory as InventorySummary)?.城市 || '';
@@ -6114,35 +6089,10 @@ export default function SupplierQuotationPage() {
                   }
                 }
 
-                const parts: React.ReactNode[] = [
-                  <span key="supplier">
-                    该供应商商品在'<span style={{ color: highlightColor }}>{city}</span>'有
-                    <span style={{ color: highlightColor }}>{displayValue}</span>
-                    家门店存在供货关系
-                  </span>
-                ];
-
-                // 注释掉详细信息显示
-                // 如果有SKU和统计数据，显示详细信息（使用绑定SKU查找，如果找不到则尝试原始SKU）
-                // let skuStoreCount = null;
-                // const relationDataAny = relationData as any;
-                // if (sku && relationDataAny?.skuStoreCount && relationDataAny.skuStoreCount[sku]) {
-                //   skuStoreCount = relationDataAny.skuStoreCount[sku];
-                // } else if (originalSku && originalSku !== sku && relationDataAny?.skuStoreCount && relationDataAny.skuStoreCount[originalSku]) {
-                //   // 如果绑定SKU找不到，尝试使用原始SKU
-                //   skuStoreCount = relationDataAny.skuStoreCount[originalSku];
-                //   skuToDisplay = originalSku;
-                // }
-
-                // if (skuStoreCount !== null && skuStoreCount !== undefined) {
-                //   parts.push(
-                //     <span key="sku-detail" style={{ display: 'block', marginTop: 4, fontSize: '12px', color: '#666' }}>
-                //       (其中<span style={{ color: highlightColor }}>{skuToDisplay}</span>有<span style={{ color: highlightColor }}>{skuStoreCount}</span>家门店存在供货关系)
-                //     </span>
-                //   );
-                // }
-
-                return <div>{parts}</div>;
+                // 直接显示数量
+                return (
+                  <span>{displayValue}</span>
+                );
               } else if (inventoryType === '仓店') {
                 // 获取门店/仓库名称（从 inventory 中）
                 const storeName = (record.inventory as InventorySummary)?.['门店/仓库名称'] || '';
@@ -6162,46 +6112,15 @@ export default function SupplierQuotationPage() {
                   skuToDisplay = originalSku;
                 }
 
-                const parts: React.ReactNode[] = [];
-
-                // 如果有SKU状态数据，显示该供应商商品信息
+                // 直接显示"是"或"不是"
+                let displayText = '不是';
                 if (storeStatus !== null) {
                   const isDefault = storeStatus.isDefault;
-                  parts.push(
-                    <span key="sku-info">
-                      该供应商商品在该门店<span style={{ color: highlightColor }}>{isDefault ? '是' : '不是'}</span>默认供应
-                    </span>
-                  );
-                } else {
-                  // 如果没查询到数据，说明不是默认供应
-                  parts.push(
-                    <span key="sku-info">
-                      该供应商商品在该门店<span style={{ color: highlightColor }}>不是</span>默认供应
-                    </span>
-                  );
+                  displayText = isDefault ? '是' : '不是';
                 }
 
-                // 注释掉供应商编码的默认关系信息
-                // if (supplierRelationValue !== undefined && supplierRelationValue !== null) {
-                //   if (parts.length > 0) {
-                //     parts.push(<br key="separator" />);
-                //   }
-                //   parts.push(
-                //     <span key="supplier-info">
-                //       '<span style={{ color: highlightColor }}>{supplierCode}</span>'在该门店<span style={{ color: highlightColor }}>({isSupplierDefault ? '是' : '不是'})</span>默认关系
-                //     </span>
-                //   );
-                // }
-
-                if (parts.length > 0) {
-                  return <div>{parts}</div>;
-                }
-
-                // 如果没有详细数据，说明不是默认供应
                 return (
-                  <span>
-                    该供应商商品在该门店<span style={{ color: highlightColor }}>不是</span>默认供应
-                  </span>
+                  <span style={{ color: highlightColor }}>{displayText}</span>
                 );
               }
               return String(value);
