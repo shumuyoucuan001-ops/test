@@ -438,111 +438,64 @@ export class SupplierQuotationService {
     const shangpingConnection = await this.getShangpingConnection();
 
     try {
-      // 根据维度选择查询字段
-      let relationField = '';
-      switch (type) {
-        case '全部':
-          relationField = '全部维度数量';
-          break;
-        case '城市':
-          relationField = '城市维度数量';
-          break;
-        case '仓店':
-          relationField = '仓店维度结果';
-          break;
-        default:
-          relationField = '全部维度数量';
-      }
-
-      Logger.log(`[SupplierQuotationService] 查询字段: ${relationField}, 供应商编码: ${uniqueSupplierCodes.slice(0, 5).join(',')}${uniqueSupplierCodes.length > 5 ? '...' : ''}`);
-
-      // 构建查询条件
-      const placeholders = uniqueSupplierCodes.map(() => '?').join(',');
-      let query = '';
-      let queryParams: any[] = [];
+      // 构建供应商编码到关系值的映射
+      // 对于全部维度和城市维度，完全基于商品供货关系表统计，不再查询多维度供应商编码对应数量表
+      // 对于仓店维度，仍然使用多维度供应商编码对应数量表
+      const supplierRelationMap: Record<string, number | string | any> = {};
 
       if (type === '仓店') {
-        // 仓店维度：需要匹配门店名称
+        // 仓店维度：需要匹配门店名称，使用多维度供应商编码对应数量表
         if (!storeName || storeName.trim() === '') {
           Logger.log('[SupplierQuotationService] 仓店维度缺少门店名称，返回空结果');
           return {};
         }
-        query = `
+
+        const placeholders = uniqueSupplierCodes.map(() => '?').join(',');
+        const query = `
           SELECT 
             供应商编码,
-            \`${relationField}\` AS relationValue
+            \`仓店维度结果\` AS relationValue
           FROM \`多维度供应商编码对应数量\`
           WHERE 供应商编码 IN (${placeholders})
             AND \`门店/仓名称\` = ?
         `;
-        queryParams = [...uniqueSupplierCodes, storeName.trim()];
-      } else if (type === '城市') {
-        // 城市维度：需要匹配门店/仓名称 LIKE 城市名称，然后对城市维度数量去重
-        // 对于同一个供应商编码，如果有多条记录，取第一条（使用MIN确保一致性）
-        if (!city || city.trim() === '') {
-          Logger.log('[SupplierQuotationService] 城市维度缺少城市名称，返回空结果');
-          return {};
-        }
-        query = `
-          SELECT 
-            供应商编码,
-            MIN(\`${relationField}\`) AS relationValue
-          FROM \`多维度供应商编码对应数量\`
-          WHERE 供应商编码 IN (${placeholders})
-            AND \`门店/仓名称\` LIKE ?
-          GROUP BY 供应商编码
-        `;
-        queryParams = [...uniqueSupplierCodes, `%${city.trim()}%`];
-      } else {
-        // 全部维度：只需要去重后的供应商编码
-        query = `
-          SELECT DISTINCT
-            供应商编码,
-            \`${relationField}\` AS relationValue
-          FROM \`多维度供应商编码对应数量\`
-          WHERE 供应商编码 IN (${placeholders})
-        `;
-        queryParams = uniqueSupplierCodes;
-      }
+        const queryParams = [...uniqueSupplierCodes, storeName.trim()];
 
-      Logger.log(`[SupplierQuotationService] 执行SQL查询: ${query.substring(0, 200)}...`);
-      const [relationData]: any = await shangpingConnection.execute(query, queryParams);
-      Logger.log(`[SupplierQuotationService] 查询结果数量: ${(relationData || []).length}`);
+        Logger.log(`[SupplierQuotationService] 执行SQL查询: ${query.substring(0, 200)}...`);
+        const [relationData]: any = await shangpingConnection.execute(query, queryParams);
+        Logger.log(`[SupplierQuotationService] 查询结果数量: ${(relationData || []).length}`);
 
-      // 构建供应商编码到关系值的映射
-      // 对于全部/城市维度，如果同一个供应商编码有多条记录，取第一条（因为已经去重）
-      const supplierRelationMap: Record<string, number | string | any> = {};
-
-      // 对于仓店维度，先初始化所有供应商编码为"否"（如果查询不到数据，默认为"否"）
-      if (type === '仓店') {
+        // 对于仓店维度，先初始化所有供应商编码为"否"（如果查询不到数据，默认为"否"）
         uniqueSupplierCodes.forEach(code => {
           supplierRelationMap[code] = '否';
         });
-      }
 
-      (relationData || []).forEach((row: any) => {
-        const supplierCode = row['供应商编码'];
-        const relationValue = row['relationValue'];
-        if (supplierCode && relationValue !== null && relationValue !== undefined) {
-          // 如果已经存在，跳过（确保每个供应商编码只保留一条记录）
-          if (!supplierRelationMap[supplierCode] || supplierRelationMap[supplierCode] === '否') {
-            if (type === '仓店') {
+        (relationData || []).forEach((row: any) => {
+          const supplierCode = row['供应商编码'];
+          const relationValue = row['relationValue'];
+          if (supplierCode && relationValue !== null && relationValue !== undefined) {
+            // 如果已经存在，跳过（确保每个供应商编码只保留一条记录）
+            if (!supplierRelationMap[supplierCode] || supplierRelationMap[supplierCode] === '否') {
               // 仓店维度：保持原始值（可能是"是"/"否"字符串）
               supplierRelationMap[supplierCode] = String(relationValue);
-            } else {
-              // 全部/城市维度：转换为数字
-              supplierRelationMap[supplierCode] = Number(relationValue) || 0;
             }
           }
-        }
-      });
+        });
 
-      Logger.log(`[SupplierQuotationService] 供应商-门店关系查询完成，返回 ${Object.keys(supplierRelationMap).length} 条记录`);
-      if (Object.keys(supplierRelationMap).length > 0) {
-        Logger.log(`[SupplierQuotationService] 示例数据: ${JSON.stringify(Object.entries(supplierRelationMap).slice(0, 3))}`);
+        Logger.log(`[SupplierQuotationService] 仓店维度供应商-门店关系查询完成，返回 ${Object.keys(supplierRelationMap).length} 条记录`);
+      } else {
+        // 全部维度和城市维度：初始化所有供应商编码为0（将在后续基于商品供货关系表统计）
+        uniqueSupplierCodes.forEach(code => {
+          supplierRelationMap[code] = {
+            relationValue: 0,
+            skuStoreCount: {},
+          };
+        });
+        Logger.log(`[SupplierQuotationService] ${type}维度初始化供应商编码数量: ${uniqueSupplierCodes.length}`);
       }
 
-      // 如果提供了SKU和供应商编码的映射，查询默认供货关系
+      // 如果提供了SKU和供应商编码的映射，查询商品供货关系
+      // 对于全部维度和城市维度，必须要有SKU映射才能查询商品供货关系表
       if (skuSupplierMap && skuSupplierMap.length > 0) {
         Logger.log(`[SupplierQuotationService] 开始查询默认供货关系，SKU-供应商映射数量: ${skuSupplierMap.length}`);
         // 调试日志：记录前5条映射数据
@@ -566,16 +519,15 @@ export class SupplierQuotationService {
           if (skuSupplierConditions.length > 0) {
             // 查询商品供货关系
             // 根据维度决定是否查询门店字段和添加过滤条件
-            let selectFields = '供应商编码, SKU编码, 是否默认供货关系';
+            // 全部维度和城市维度都需要门店字段来统计去重后的门店数量
+            let selectFields = '供应商编码, SKU编码, `门店/仓名称`';
             let whereConditions = `(${skuSupplierConditions.join(' OR ')})`;
 
             if (type === '城市' && city) {
               // 城市维度：需要门店字段来过滤，并在SQL层面过滤
-              selectFields += ', `门店/仓名称`';
               whereConditions += ' AND `门店/仓名称` LIKE ?';
             } else if (type === '仓店' && storeName) {
               // 仓店维度：需要门店字段来过滤，并在SQL层面过滤
-              selectFields += ', `门店/仓名称`';
               whereConditions += ' AND `门店/仓名称` = ?';
             }
 
@@ -606,167 +558,169 @@ export class SupplierQuotationService {
               Logger.log(`[SupplierQuotationService] 查询结果示例（前3条）: ${JSON.stringify(sampleResults.map((r: any) => ({
                 供应商编码: r['供应商编码'],
                 SKU编码: r['SKU编码'],
-                是否默认供货关系: r['是否默认供货关系'],
                 门店仓名称: r['门店/仓名称'] || '无',
               })))}`);
             }
 
-            // 根据维度处理默认供货关系数据
+            // 根据维度处理供货关系数据
             if (type === '全部') {
-              // 全部维度：统计每个供应商编码和SKU组合的默认供货关系数量
-              // 同一个供应商编码和SKU可能在不同门店有多条记录，需要统计所有记录
-              const supplierSkuStats: Record<string, Record<string, { defaultCount: number; nonDefaultCount: number }>> = {};
+              // 全部维度：统计每个供应商编码和SKU组合的去重门店数量
+              // 通过门店/仓名称去重后统计数量
+              const supplierSkuStoreCount: Record<string, Record<string, number>> = {};
 
               (supplyRelationData || []).forEach((row: any) => {
                 const supplierCode = row['供应商编码'];
                 const sku = row['SKU编码'];
-                const key = `${supplierCode}_${sku}`;
+                const storeName = row['门店/仓名称'];
 
-                if (!supplierSkuStats[supplierCode]) {
-                  supplierSkuStats[supplierCode] = {};
+                if (!supplierCode || !sku || !storeName) return;
+
+                if (!supplierSkuStoreCount[supplierCode]) {
+                  supplierSkuStoreCount[supplierCode] = {};
                 }
 
-                if (!supplierSkuStats[supplierCode][sku]) {
-                  supplierSkuStats[supplierCode][sku] = { defaultCount: 0, nonDefaultCount: 0 };
+                // 使用Set来去重门店名称
+                if (!supplierSkuStoreCount[supplierCode][sku]) {
+                  supplierSkuStoreCount[supplierCode][sku] = 0;
+                }
+              });
+
+              // 对每个供应商编码和SKU组合，统计去重后的门店数量
+              const supplierSkuStoreSet: Record<string, Record<string, Set<string>>> = {};
+              (supplyRelationData || []).forEach((row: any) => {
+                const supplierCode = row['供应商编码'];
+                const sku = row['SKU编码'];
+                const storeName = row['门店/仓名称'];
+
+                if (!supplierCode || !sku || !storeName) return;
+
+                if (!supplierSkuStoreSet[supplierCode]) {
+                  supplierSkuStoreSet[supplierCode] = {};
                 }
 
-                // 统计默认和非默认的数量
-                if (row['是否默认供货关系'] === '默认') {
-                  supplierSkuStats[supplierCode][sku].defaultCount++;
-                } else if (row['是否默认供货关系'] === null || row['是否默认供货关系'] === undefined) {
-                  supplierSkuStats[supplierCode][sku].nonDefaultCount++;
+                if (!supplierSkuStoreSet[supplierCode][sku]) {
+                  supplierSkuStoreSet[supplierCode][sku] = new Set<string>();
                 }
+
+                supplierSkuStoreSet[supplierCode][sku].add(storeName);
+              });
+
+              // 计算每个供应商编码和SKU组合的门店数量
+              Object.keys(supplierSkuStoreSet).forEach(supplierCode => {
+                Object.keys(supplierSkuStoreSet[supplierCode]).forEach(sku => {
+                  supplierSkuStoreCount[supplierCode][sku] = supplierSkuStoreSet[supplierCode][sku].size;
+                });
+              });
+
+              // 计算每个供应商编码的门店数量（所有SKU的门店去重后的总数）
+              const supplierStoreCount: Record<string, number> = {};
+              Object.keys(supplierSkuStoreSet).forEach(supplierCode => {
+                const allStores = new Set<string>();
+                Object.values(supplierSkuStoreSet[supplierCode]).forEach((storeSet: Set<string>) => {
+                  storeSet.forEach(store => allStores.add(store));
+                });
+                supplierStoreCount[supplierCode] = allStores.size;
               });
 
               // 调试日志：记录统计结果
-              Logger.log(`[SupplierQuotationService] 全部维度 - 统计到的供应商编码数量: ${Object.keys(supplierSkuStats).length}`);
-              Object.keys(supplierSkuStats).forEach(supplierCode => {
-                const skuKeys = Object.keys(supplierSkuStats[supplierCode]);
-                Logger.log(`[SupplierQuotationService] 供应商编码 ${supplierCode} 的SKU数量: ${skuKeys.length}, SKU列表: ${skuKeys.slice(0, 5).join(', ')}${skuKeys.length > 5 ? '...' : ''}`);
+              Logger.log(`[SupplierQuotationService] 全部维度 - 统计到的供应商编码数量: ${Object.keys(supplierStoreCount).length}`);
+              Object.keys(supplierStoreCount).forEach(supplierCode => {
+                Logger.log(`[SupplierQuotationService] 供应商编码 ${supplierCode} 的门店数量: ${supplierStoreCount[supplierCode]}`);
+                const skuKeys = Object.keys(supplierSkuStoreCount[supplierCode] || {});
                 skuKeys.forEach(sku => {
-                  const stat = supplierSkuStats[supplierCode][sku];
-                  Logger.log(`[SupplierQuotationService] 供应商编码 ${supplierCode}, SKU ${sku}: 默认数量=${stat.defaultCount}, 非默认数量=${stat.nonDefaultCount}`);
+                  Logger.log(`[SupplierQuotationService] 供应商编码 ${supplierCode}, SKU ${sku}: 门店数量=${supplierSkuStoreCount[supplierCode][sku]}`);
                 });
-              });
-
-              // 计算每个供应商编码的总体统计信息（所有SKU的汇总）
-              const supplierStats: Record<string, { defaultCount: number; nonDefaultCount: number }> = {};
-              Object.keys(supplierSkuStats).forEach(supplierCode => {
-                let defaultCount = 0;
-                let nonDefaultCount = 0;
-
-                Object.values(supplierSkuStats[supplierCode]).forEach((stat: any) => {
-                  defaultCount += stat.defaultCount;
-                  nonDefaultCount += stat.nonDefaultCount;
-                });
-
-                supplierStats[supplierCode] = { defaultCount, nonDefaultCount };
               });
 
               // 将统计信息添加到返回结果中
-              Object.keys(supplierStats).forEach(supplierCode => {
-                if (supplierRelationMap[supplierCode] !== undefined) {
-                  // 如果supplierRelationMap中已经有该供应商编码，扩展数据
-                  const existingValue = supplierRelationMap[supplierCode];
-                  const finalData = typeof existingValue === 'object' && existingValue !== null && !Array.isArray(existingValue)
-                    ? {
-                      ...(existingValue as any),
-                      skuStats: supplierSkuStats[supplierCode],
-                      stats: supplierStats[supplierCode],
-                    }
-                    : {
-                      relationValue: existingValue,
-                      skuStats: supplierSkuStats[supplierCode],
-                      stats: supplierStats[supplierCode],
-                    };
+              Object.keys(supplierStoreCount).forEach(supplierCode => {
+                const storeCount = supplierStoreCount[supplierCode];
+                const skuStats = supplierSkuStoreCount[supplierCode] || {};
 
-                  supplierRelationMap[supplierCode] = finalData;
+                const finalData = {
+                  relationValue: storeCount,
+                  skuStoreCount: skuStats,
+                };
 
-                  // 调试日志：记录最终返回的数据结构
-                  Logger.log(`[SupplierQuotationService] 全部维度 - 供应商编码 ${supplierCode} 的最终数据:`, {
-                    relationValue: finalData.relationValue,
-                    skuStatsKeys: Object.keys(finalData.skuStats || {}),
-                    stats: finalData.stats,
-                  });
-                }
+                supplierRelationMap[supplierCode] = finalData;
+
+                // 调试日志：记录最终返回的数据结构
+                Logger.log(`[SupplierQuotationService] 全部维度 - 供应商编码 ${supplierCode} 的最终数据:`, {
+                  relationValue: finalData.relationValue,
+                  skuStoreCountKeys: Object.keys(finalData.skuStoreCount || {}),
+                });
               });
             } else if (type === '城市') {
               // 城市维度：只查询门店/仓名称LIKE城市的记录
-              // 已经在SQL层面过滤了，这里直接统计所有返回的记录
-              // 统计每个供应商编码和SKU在该城市门店中的默认供货关系数量
-              const supplierSkuStats: Record<string, Record<string, { defaultCount: number; nonDefaultCount: number }>> = {};
+              // 已经在SQL层面过滤了，这里统计去重后的门店数量
+              // 统计每个供应商编码和SKU在该城市门店中的去重门店数量
+              const supplierSkuStoreSet: Record<string, Record<string, Set<string>>> = {};
 
               (supplyRelationData || []).forEach((row: any) => {
                 const supplierCode = row['供应商编码'];
                 const sku = row['SKU编码'];
+                const storeName = row['门店/仓名称'];
 
-                if (!supplierSkuStats[supplierCode]) {
-                  supplierSkuStats[supplierCode] = {};
+                if (!supplierCode || !sku || !storeName) return;
+
+                if (!supplierSkuStoreSet[supplierCode]) {
+                  supplierSkuStoreSet[supplierCode] = {};
                 }
 
-                if (!supplierSkuStats[supplierCode][sku]) {
-                  supplierSkuStats[supplierCode][sku] = { defaultCount: 0, nonDefaultCount: 0 };
+                if (!supplierSkuStoreSet[supplierCode][sku]) {
+                  supplierSkuStoreSet[supplierCode][sku] = new Set<string>();
                 }
 
-                // 统计默认和非默认的数量（同一供应商编码和SKU可能有多条记录，对应不同门店）
-                if (row['是否默认供货关系'] === '默认') {
-                  supplierSkuStats[supplierCode][sku].defaultCount++;
-                } else if (row['是否默认供货关系'] === null || row['是否默认供货关系'] === undefined) {
-                  supplierSkuStats[supplierCode][sku].nonDefaultCount++;
-                }
+                supplierSkuStoreSet[supplierCode][sku].add(storeName);
               });
 
-              Logger.log(`[SupplierQuotationService] 城市维度 - 城市: ${city}, 查询结果数量: ${(supplyRelationData || []).length}, 统计到的供应商编码数量: ${Object.keys(supplierSkuStats).length}`);
+              // 计算每个供应商编码和SKU组合的门店数量
+              const supplierSkuStoreCount: Record<string, Record<string, number>> = {};
+              Object.keys(supplierSkuStoreSet).forEach(supplierCode => {
+                supplierSkuStoreCount[supplierCode] = {};
+                Object.keys(supplierSkuStoreSet[supplierCode]).forEach(sku => {
+                  supplierSkuStoreCount[supplierCode][sku] = supplierSkuStoreSet[supplierCode][sku].size;
+                });
+              });
+
+              // 计算每个供应商编码的门店数量（所有SKU的门店去重后的总数）
+              const supplierStoreCount: Record<string, number> = {};
+              Object.keys(supplierSkuStoreSet).forEach(supplierCode => {
+                const allStores = new Set<string>();
+                Object.values(supplierSkuStoreSet[supplierCode]).forEach((storeSet: Set<string>) => {
+                  storeSet.forEach(store => allStores.add(store));
+                });
+                supplierStoreCount[supplierCode] = allStores.size;
+              });
+
+              Logger.log(`[SupplierQuotationService] 城市维度 - 城市: ${city}, 查询结果数量: ${(supplyRelationData || []).length}, 统计到的供应商编码数量: ${Object.keys(supplierStoreCount).length}`);
 
               // 调试日志：记录每个供应商编码和SKU的统计详情
-              Object.keys(supplierSkuStats).forEach(supplierCode => {
-                const skuKeys = Object.keys(supplierSkuStats[supplierCode]);
-                Logger.log(`[SupplierQuotationService] 城市维度 - 供应商编码 ${supplierCode} 的SKU数量: ${skuKeys.length}`);
+              Object.keys(supplierStoreCount).forEach(supplierCode => {
+                Logger.log(`[SupplierQuotationService] 城市维度 - 供应商编码 ${supplierCode} 的门店数量: ${supplierStoreCount[supplierCode]}`);
+                const skuKeys = Object.keys(supplierSkuStoreCount[supplierCode] || {});
                 skuKeys.forEach(sku => {
-                  const stat = supplierSkuStats[supplierCode][sku];
-                  Logger.log(`[SupplierQuotationService] 城市维度 - 供应商编码 ${supplierCode}, SKU ${sku}: 默认数量=${stat.defaultCount}, 非默认数量=${stat.nonDefaultCount}`);
+                  Logger.log(`[SupplierQuotationService] 城市维度 - 供应商编码 ${supplierCode}, SKU ${sku}: 门店数量=${supplierSkuStoreCount[supplierCode][sku]}`);
                 });
-              });
-
-              // 计算每个供应商编码的总体统计信息（所有SKU的汇总）
-              const supplierStats: Record<string, { defaultCount: number; nonDefaultCount: number }> = {};
-              Object.keys(supplierSkuStats).forEach(supplierCode => {
-                let defaultCount = 0;
-                let nonDefaultCount = 0;
-
-                Object.values(supplierSkuStats[supplierCode]).forEach((stat: any) => {
-                  defaultCount += stat.defaultCount;
-                  nonDefaultCount += stat.nonDefaultCount;
-                });
-
-                supplierStats[supplierCode] = { defaultCount, nonDefaultCount };
               });
 
               // 将统计信息添加到返回结果中
-              Object.keys(supplierStats).forEach(supplierCode => {
-                if (supplierRelationMap[supplierCode] !== undefined) {
-                  const existingValue = supplierRelationMap[supplierCode];
-                  const finalData = typeof existingValue === 'object' && existingValue !== null && !Array.isArray(existingValue)
-                    ? {
-                      ...(existingValue as any),
-                      skuStats: supplierSkuStats[supplierCode],
-                      stats: supplierStats[supplierCode],
-                    }
-                    : {
-                      relationValue: existingValue,
-                      skuStats: supplierSkuStats[supplierCode],
-                      stats: supplierStats[supplierCode],
-                    };
+              Object.keys(supplierStoreCount).forEach(supplierCode => {
+                const storeCount = supplierStoreCount[supplierCode];
+                const skuStats = supplierSkuStoreCount[supplierCode] || {};
 
-                  supplierRelationMap[supplierCode] = finalData;
+                const finalData = {
+                  relationValue: storeCount,
+                  skuStoreCount: skuStats,
+                };
 
-                  // 调试日志：记录最终返回的数据结构
-                  Logger.log(`[SupplierQuotationService] 城市维度 - 供应商编码 ${supplierCode} 的最终数据:`, {
-                    relationValue: finalData.relationValue,
-                    skuStatsKeys: Object.keys(finalData.skuStats || {}),
-                    stats: finalData.stats,
-                  });
-                }
+                supplierRelationMap[supplierCode] = finalData;
+
+                // 调试日志：记录最终返回的数据结构
+                Logger.log(`[SupplierQuotationService] 城市维度 - 供应商编码 ${supplierCode} 的最终数据:`, {
+                  relationValue: finalData.relationValue,
+                  skuStoreCountKeys: Object.keys(finalData.skuStoreCount || {}),
+                });
               });
             } else if (type === '仓店') {
               // 仓店维度：查询具体门店的SKU默认供应状态
@@ -827,9 +781,30 @@ export class SupplierQuotationService {
             }
           }
         } catch (error: any) {
-          Logger.error('[SupplierQuotationService] 查询默认供货关系失败:', error);
+          Logger.error('[SupplierQuotationService] 查询商品供货关系失败:', error);
           // 不抛出错误，避免影响主流程
         }
+      } else if (type === '全部' || type === '城市') {
+        // 对于全部维度和城市维度，如果没有SKU映射，将供应商编码的门店数量设置为0
+        // 因为无法查询商品供货关系表
+        Logger.log(`[SupplierQuotationService] ${type}维度没有SKU映射，将供应商编码的门店数量设置为0`);
+        uniqueSupplierCodes.forEach(supplierCode => {
+          if (!supplierRelationMap[supplierCode]) {
+            supplierRelationMap[supplierCode] = {
+              relationValue: 0,
+              skuStoreCount: {},
+            };
+          } else {
+            // 如果已经有值，确保是对象格式
+            const existingValue = supplierRelationMap[supplierCode];
+            if (typeof existingValue !== 'object' || existingValue === null || Array.isArray(existingValue)) {
+              supplierRelationMap[supplierCode] = {
+                relationValue: 0,
+                skuStoreCount: {},
+              };
+            }
+          }
+        });
       }
 
       return supplierRelationMap;
