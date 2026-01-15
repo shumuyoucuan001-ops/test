@@ -138,6 +138,7 @@ export default function SupplierQuotationPage() {
   // 左栏列设置相关状态
   const [leftHiddenColumns, setLeftHiddenColumns] = useState<Set<string>>(new Set());
   const [leftColumnOrder, setLeftColumnOrder] = useState<string[]>([]);
+  const [leftLockedColumns, setLeftLockedColumns] = useState<Set<string>>(new Set());
 
   // 表格容器ref，用于计算滚动高度和同步滚动
   const leftTableContainerRef = useRef<HTMLDivElement>(null);
@@ -309,6 +310,7 @@ export default function SupplierQuotationPage() {
   // 右栏列设置相关状态
   const [rightHiddenColumns, setRightHiddenColumns] = useState<Set<string>>(new Set());
   const [rightColumnOrder, setRightColumnOrder] = useState<string[]>([]);
+  const [rightLockedColumns, setRightLockedColumns] = useState<Set<string>>(new Set());
   const [rightColumnSettingsOpen, setRightColumnSettingsOpen] = useState(false);
 
   // 右栏搜索
@@ -378,6 +380,20 @@ export default function SupplierQuotationPage() {
         console.error('加载列顺序失败:', error);
       }
     }
+
+    // 加载锁定列设置
+    const savedLocked = localStorage.getItem('supplier-quotation-left-locked-columns');
+    if (savedLocked) {
+      try {
+        const parsed = JSON.parse(savedLocked);
+        setLeftLockedColumns(new Set(parsed));
+      } catch (error) {
+        console.error('加载锁定列设置失败:', error);
+        setLeftLockedColumns(new Set());
+      }
+    } else {
+      setLeftLockedColumns(new Set());
+    }
   }, []);
 
   // 如果列顺序为空，初始化默认顺序（仅在首次加载时）
@@ -427,11 +443,8 @@ export default function SupplierQuotationPage() {
         const allColumnKeys = getAllRightColumns().map(col => col.key as string).filter(Boolean);
         const validOrder = parsed.filter((key: string) => allColumnKeys.includes(key));
         const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
-        // 将缺失的列添加到末尾（但固定列要保持在正确位置）
-        const fixedColumns = ['供应商SKU备注', '内部sku备注', '对比结果'];
-        const orderWithoutFixed = validOrder.filter((key: string) => !fixedColumns.includes(key));
-        const missingWithoutFixed = missingKeys.filter(key => !fixedColumns.includes(key));
-        const finalOrder = [...orderWithoutFixed, ...missingWithoutFixed, ...fixedColumns.filter(key => allColumnKeys.includes(key))];
+        // 将缺失的列添加到末尾
+        const finalOrder = [...validOrder, ...missingKeys];
         setRightColumnOrder(finalOrder);
         // 如果顺序有变化，立即保存
         if (finalOrder.join(',') !== parsed.join(',')) {
@@ -440,6 +453,22 @@ export default function SupplierQuotationPage() {
       } catch (error) {
         console.error('加载列顺序失败:', error);
       }
+    }
+
+    // 加载锁定列设置
+    const savedLocked = localStorage.getItem('supplier-quotation-right-locked-columns');
+    if (savedLocked) {
+      try {
+        const parsed = JSON.parse(savedLocked);
+        setRightLockedColumns(new Set(parsed));
+      } catch (error) {
+        console.error('加载锁定列设置失败:', error);
+        // 如果解析失败，默认锁定原本固定锁定的列（供应商SKU备注、内部sku备注、对比结果）
+        setRightLockedColumns(new Set(['供应商SKU备注', '内部sku备注', '对比结果']));
+      }
+    } else {
+      // 如果没有保存的设置，默认锁定原本固定锁定的列（供应商SKU备注、内部sku备注、对比结果）
+      setRightLockedColumns(new Set(['供应商SKU备注', '内部sku备注', '对比结果']));
     }
   }, []);
 
@@ -576,12 +605,14 @@ export default function SupplierQuotationPage() {
   const saveLeftColumnSettings = () => {
     localStorage.setItem('supplier-quotation-left-hidden-columns', JSON.stringify(Array.from(leftHiddenColumns)));
     localStorage.setItem('supplier-quotation-left-column-order', JSON.stringify(leftColumnOrder));
+    localStorage.setItem('supplier-quotation-left-locked-columns', JSON.stringify(Array.from(leftLockedColumns)));
   };
 
   // 保存右栏列设置
   const saveRightColumnSettings = () => {
     localStorage.setItem('supplier-quotation-right-hidden-columns', JSON.stringify(Array.from(rightHiddenColumns)));
     localStorage.setItem('supplier-quotation-right-column-order', JSON.stringify(rightColumnOrder));
+    localStorage.setItem('supplier-quotation-right-locked-columns', JSON.stringify(Array.from(rightLockedColumns)));
   };
 
   // 左栏切换列显示/隐藏
@@ -609,6 +640,30 @@ export default function SupplierQuotationPage() {
     saveRightColumnSettings();
   };
 
+  // 左栏切换锁定状态
+  const handleLeftToggleLock = (columnKey: string) => {
+    const newLocked = new Set(leftLockedColumns);
+    if (newLocked.has(columnKey)) {
+      newLocked.delete(columnKey);
+    } else {
+      newLocked.add(columnKey);
+    }
+    setLeftLockedColumns(newLocked);
+    saveLeftColumnSettings();
+  };
+
+  // 右栏切换锁定状态
+  const handleRightToggleLock = (columnKey: string) => {
+    const newLocked = new Set(rightLockedColumns);
+    if (newLocked.has(columnKey)) {
+      newLocked.delete(columnKey);
+    } else {
+      newLocked.add(columnKey);
+    }
+    setRightLockedColumns(newLocked);
+    saveRightColumnSettings();
+  };
+
   // 左栏移动列
   const handleLeftMoveColumn = (columnKey: string, direction: 'up' | 'down') => {
     const currentOrder = leftColumnOrder.length > 0 ? leftColumnOrder : getAllLeftColumns().map(col => col.key as string).filter(Boolean);
@@ -626,25 +681,24 @@ export default function SupplierQuotationPage() {
   };
 
   // 右栏移动列
-  // 禁止供应商SKU备注、内部sku备注和对比结果调整顺序
+  // 如果列被锁定，禁止调整顺序
   const handleRightMoveColumn = (columnKey: string, direction: 'up' | 'down') => {
-    // 禁止调整顺序的列
-    const fixedColumns = ['供应商SKU备注', '内部sku备注', '对比结果'];
-    if (fixedColumns.includes(columnKey)) {
-      return; // 不允许调整这些列的顺序
+    // 如果列被锁定，不允许调整顺序
+    if (rightLockedColumns.has(columnKey)) {
+      return;
     }
 
     const currentOrder = rightColumnOrder.length > 0 ? rightColumnOrder : getAllRightColumns().map(col => col.key as string).filter(Boolean);
     const index = currentOrder.indexOf(columnKey);
     if (index === -1) return;
 
-    // 检查移动方向是否会被固定列阻挡
+    // 检查移动方向是否会被锁定列阻挡
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
 
     const targetColumnKey = currentOrder[targetIndex];
-    if (fixedColumns.includes(targetColumnKey)) {
-      return; // 不能移动到固定列的位置
+    if (rightLockedColumns.has(targetColumnKey)) {
+      return; // 不能移动到锁定列的位置
     }
 
     const newOrder = [...currentOrder];
@@ -664,33 +718,19 @@ export default function SupplierQuotationPage() {
   };
 
   // 右栏直接设置列顺序
-  // 禁止供应商SKU备注、内部sku备注和对比结果调整顺序
+  // 锁定列可以被被动挤开，但保持在新顺序中的相对位置
   const handleRightColumnOrderChange = (newOrder: string[]) => {
-    // 禁止调整顺序的列
-    const fixedColumns = ['供应商SKU备注', '内部sku备注', '对比结果'];
-
-    // 确保固定列保持在正确的位置：供应商SKU备注在内部sku备注之前，内部sku备注在对比结果之前，对比结果在最后
-    const fixedOrder = ['供应商SKU备注', '内部sku备注', '对比结果'];
-
-    // 从新顺序中移除固定列
-    const orderWithoutFixed = newOrder.filter(key => !fixedColumns.includes(key));
-
-    // 找到固定列在新顺序中的位置（如果存在）
-    const fixedColsInNewOrder = fixedOrder.filter(key => newOrder.includes(key));
-
-    // 确保所有列都在顺序中（包括可能缺失的列）
+    // 锁定列应该保持在新顺序中的位置，不需要移除和重新添加
+    // 只需要确保所有列都在顺序中（包括可能缺失的列）
     const allColumnKeys = getAllRightColumns().map(col => col.key as string).filter(Boolean);
-    const missingKeys = allColumnKeys.filter(key => !newOrder.includes(key) && !fixedColumns.includes(key));
+    const missingKeys = allColumnKeys.filter(key => !newOrder.includes(key));
 
-    // 如果新顺序中包含固定列，需要确保它们的顺序正确
-    // 否则，在最后添加固定列
+    // 如果新顺序中缺少某些列，在末尾添加
     let finalOrder: string[];
-    if (fixedColsInNewOrder.length > 0) {
-      // 移除新顺序中的固定列，然后在最后按正确顺序添加
-      finalOrder = [...orderWithoutFixed, ...missingKeys, ...fixedColsInNewOrder];
+    if (missingKeys.length > 0) {
+      finalOrder = [...newOrder, ...missingKeys];
     } else {
-      // 如果新顺序中没有固定列，需要添加缺失的列和固定列
-      finalOrder = [...newOrder, ...missingKeys, ...fixedOrder.filter(key => allColumnKeys.includes(key))];
+      finalOrder = newOrder;
     }
 
     setRightColumnOrder(finalOrder);
@@ -1628,6 +1668,15 @@ export default function SupplierQuotationPage() {
       render: () => '-',
     });
 
+    // 安差价加率列
+    columns.push({
+      title: '安差价加率',
+      dataIndex: '安差价加率',
+      key: '安差价加率',
+      width: 120,
+      render: () => '-',
+    });
+
     // 供应商-门店关系列
     columns.push({
       title: '供应商-门店关系',
@@ -2484,6 +2533,19 @@ export default function SupplierQuotationPage() {
         if (text === undefined || text === null) return '-';
         const sign = text >= 0 ? '+' : '';
         return `${sign}¥${Number(text).toFixed(2)}`;
+      },
+    });
+
+    // 安差价加率列
+    columns.push({
+      title: '安差价加率',
+      dataIndex: '安差价加率',
+      key: '安差价加率',
+      width: 120,
+      render: (text: number, record: InventorySummary) => {
+        if (text === undefined || text === null) return '-';
+        const sign = text >= 0 ? '+' : '';
+        return `${sign}${(Number(text) * 100).toFixed(2)}%`;
       },
     });
 
@@ -4052,6 +4114,7 @@ export default function SupplierQuotationPage() {
             对比结果: '无供货价信息',
             对比字段类型: undefined,
             差价: undefined,
+            安差价加率: undefined,
           };
         }
 
@@ -4107,13 +4170,18 @@ export default function SupplierQuotationPage() {
           };
         }
 
-        // 供货价格 < 采购价，显示'价格优势'（供应商报价更便宜）
-        const diff = comparePrice - supplierPrice;
+        // 供货价格 - 采购价，显示'价格优势'（供应商报价更便宜）
+        const diff = supplierPrice - comparePrice;
+        // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
+        const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
+          ? diff / comparePrice
+          : undefined;
         const resultItem = {
           ...item,
-          对比结果: diff > 0 ? '价格优势' : diff < 0 ? '价格偏高' : '价格相同',
+          对比结果: diff < 0 ? '价格优势' : diff > 0 ? '价格偏高' : '价格相同',
           对比字段类型: compareFieldType,
           差价: diff,
+          安差价加率: priceDiffRate,
         };
 
         // 添加供应商-门店关系数据
@@ -4802,6 +4870,7 @@ export default function SupplierQuotationPage() {
               对比结果: '无供货价信息',
               对比字段类型: undefined,
               差价: undefined,
+              安差价加率: undefined,
             };
           } else {
             // 根据选择的采购价类型或默认逻辑选择对比价格
@@ -4853,15 +4922,21 @@ export default function SupplierQuotationPage() {
                 对比结果: '无采购价信息',
                 对比字段类型: undefined,
                 差价: undefined,
+                安差价加率: undefined,
               };
             } else {
-              // 供货价格 < 采购价，显示'价格优势'（供应商报价更便宜）
-              const diff = comparePrice - supplierPrice;
+              // 供货价格 - 采购价，显示'价格优势'（供应商报价更便宜）
+              const diff = supplierPrice - comparePrice;
+              // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
+              const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
+                ? diff / comparePrice
+                : undefined;
               matchedInventory = {
                 ...matchedInventory,
-                对比结果: diff > 0 ? '价格优势' : diff < 0 ? '价格偏高' : '价格相同',
+                对比结果: diff < 0 ? '价格优势' : diff > 0 ? '价格偏高' : '价格相同',
                 对比字段类型: compareFieldType,
                 差价: diff,
+                安差价加率: priceDiffRate,
               };
             }
           }
@@ -5573,13 +5648,18 @@ export default function SupplierQuotationPage() {
               差价: undefined,
             };
           } else {
-            // 供货价格 < 采购价，显示'价格优势'（供应商报价更便宜）
-            const diff = comparePrice - supplierPrice;
+            // 供货价格 - 采购价，显示'价格优势'（供应商报价更便宜）
+            const diff = supplierPrice - comparePrice;
+            // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
+            const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
+              ? diff / comparePrice
+              : undefined;
             matchedInventory = {
               ...matchedInventory,
-              对比结果: diff > 0 ? '价格优势' : diff < 0 ? '价格偏高' : '价格相同',
+              对比结果: diff < 0 ? '价格优势' : diff > 0 ? '价格偏高' : '价格相同',
               对比字段类型: compareFieldType,
               差价: diff,
+              安差价加率: priceDiffRate,
             };
           }
         }
@@ -6363,6 +6443,8 @@ export default function SupplierQuotationPage() {
                         onToggleVisibility={handleLeftToggleVisibility}
                         onMoveColumn={handleLeftMoveColumn}
                         onColumnOrderChange={handleLeftColumnOrderChange}
+                        lockedColumns={leftLockedColumns}
+                        onToggleLock={handleLeftToggleLock}
                       />
                     }
                     title="列设置"
@@ -6549,7 +6631,8 @@ export default function SupplierQuotationPage() {
                         onToggleVisibility={handleRightToggleVisibility}
                         onMoveColumn={handleRightMoveColumn}
                         onColumnOrderChange={handleRightColumnOrderChange}
-                        fixedColumns={['供应商SKU备注', '内部sku备注', '对比结果']}
+                        lockedColumns={rightLockedColumns}
+                        onToggleLock={handleRightToggleLock}
                       />
                     }
                     title="列设置"

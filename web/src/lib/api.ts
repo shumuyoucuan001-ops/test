@@ -1349,6 +1349,7 @@ export interface SupplierQuotation {
 }
 
 export interface InventorySummary {
+  安差价加率?: number;
   SKU?: string;
   商品名称?: string;
   规格?: string;
