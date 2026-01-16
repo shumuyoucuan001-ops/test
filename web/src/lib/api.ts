@@ -1542,6 +1542,31 @@ export const supplierQuotationApi = {
     remark: string;
   }): Promise<boolean> =>
     api.post('/supplier-quotation/internal-sku-remark', data).then(res => res.data),
+
+  // 批量创建供应商报价
+  batchCreate: (data: {
+    items: Array<{
+      序号?: number;
+      供应商编码: string;
+      商品名称?: string;
+      商品规格?: string;
+      最小销售单位?: string;
+      商品型号?: string;
+      供应商商品编码: string;
+      最小销售规格UPC商品条码?: string;
+      中包或整件销售规格条码?: string;
+      供货价格?: number;
+      供应商商品备注?: string;
+    }>;
+  }): Promise<{ success: number; failed: number; errors: string[] }> =>
+    api.post('/supplier-quotation/batch', data).then(res => res.data),
+
+  // 根据SKU搜索供应商报价（新逻辑）
+  searchBySku: (sku: string): Promise<{
+    data: SupplierQuotation[];
+    matchedSku?: string;
+  }> =>
+    api.get(`/supplier-quotation/search-by-sku/${encodeURIComponent(sku)}`).then(res => res.data),
 };
 
 export default api;

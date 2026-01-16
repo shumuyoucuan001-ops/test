@@ -2013,5 +2013,312 @@ export class SupplierQuotationService {
       await shangpingConnection.end();
     }
   }
+
+  // 批量创建供应商报价
+  async batchCreateSupplierQuotations(
+    items: Array<{
+      序号?: number;
+      供应商编码: string;
+      商品名称?: string;
+      商品规格?: string;
+      最小销售单位?: string;
+      商品型号?: string;
+      供应商商品编码: string;
+      最小销售规格UPC商品条码?: string;
+      中包或整件销售规格条码?: string;
+      供货价格?: number;
+      供应商商品备注?: string;
+    }>,
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
+    const connection = await this.getConnection();
+
+    try {
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const item of items) {
+        try {
+          // 验证必填字段
+          if (!item.供应商编码 || !item.供应商商品编码) {
+            failed++;
+            errors.push(`供应商编码和供应商商品编码为必填项`);
+            continue;
+          }
+
+          // 插入数据
+          const insertQuery = `
+            INSERT INTO \`供应商报价\` (
+              \`序号\`,
+              \`供应商编码\`,
+              \`商品名称\`,
+              \`商品规格\`,
+              \`最小销售单位\`,
+              \`商品型号\`,
+              \`供应商商品编码\`,
+              \`最小销售规格UPC商品条码\`,
+              \`中包或整件销售规格条码\`,
+              \`供货价格\`,
+              \`供应商商品备注\`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+
+          await connection.execute(insertQuery, [
+            item.序号 || null,
+            item.供应商编码,
+            item.商品名称 || null,
+            item.商品规格 || null,
+            item.最小销售单位 || null,
+            item.商品型号 || null,
+            item.供应商商品编码,
+            item.最小销售规格UPC商品条码 || null,
+            item.中包或整件销售规格条码 || null,
+            item.供货价格 || null,
+            item.供应商商品备注 || null,
+          ]);
+
+          success++;
+        } catch (error: any) {
+          failed++;
+          let errorMessage = error?.message || '未知错误';
+          // 处理重复键错误
+          if (errorMessage.includes("for key 'PRIMARY'")) {
+            errorMessage = errorMessage.replace(/for key 'PRIMARY'/g, '已存在');
+          }
+          // 清理其他可能包含'for key'的错误信息
+          errorMessage = errorMessage.replace(/for key '[^']*'/g, '已存在');
+          errors.push(
+            `供应商编码: ${item.供应商编码}, 供应商商品编码: ${item.供应商商品编码} - ${errorMessage}`,
+          );
+          Logger.error(
+            `[SupplierQuotationService] 批量创建供应商报价失败:`,
+            error,
+          );
+        }
+      }
+
+      return { success, failed, errors };
+    } catch (error) {
+      Logger.error(
+        '[SupplierQuotationService] 批量创建供应商报价失败:',
+        error,
+      );
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 根据SKU搜索供应商报价（新逻辑）
+  // 1. 先搜索供应商编码手动绑定sku表的SKU字段
+  // 2. 如果没找到，搜索商品主档销售规格表的SKU编码，然后用商品条码搜索
+  async searchSupplierQuotationBySku(sku: string): Promise<{
+    data: SupplierQuotation[];
+    matchedSku?: string; // 匹配到的SKU（用于显示在右栏）
+  }> {
+    const connection = await this.getConnection();
+
+    try {
+      // 第一步：搜索供应商编码手动绑定sku表的SKU字段
+      const bindingQuery = `
+        SELECT 
+          供应商编码,
+          供应商商品编码,
+          SKU
+        FROM \`供应商编码手动绑定sku\`
+        WHERE SKU = ?
+        LIMIT 100
+      `;
+
+      const [bindingData]: any = await connection.execute(bindingQuery, [sku]);
+
+      Logger.log(`[SupplierQuotationService] 查询供应商编码手动绑定sku表，SKU: ${sku}, 查询结果数量: ${bindingData ? bindingData.length : 0}`);
+
+      // 收集从绑定表查询到的供应商报价数据
+      let bindingQuotationData: any[] = [];
+      let hasBindingData = false;
+
+      if (bindingData && bindingData.length > 0) {
+        hasBindingData = true;
+        Logger.log(`[SupplierQuotationService] 在供应商编码手动绑定sku表中找到 ${bindingData.length} 条记录`);
+        // 找到绑定记录，使用供应商编码和最小销售规格UPC商品条码查询供应商报价
+        // 查询条件：供应商报价.供应商编码 = 供应商编码手动绑定sku.供应商编码 
+        // AND 供应商报价.最小销售规格UPC商品条码 = 供应商编码手动绑定sku.供应商商品编码
+        const supplierCodes = [...new Set(bindingData.map((row: any) => row['供应商编码']))];
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        for (const row of bindingData) {
+          conditions.push('(q.供应商编码 = ? AND q.最小销售规格UPC商品条码 = ?)');
+          params.push(row['供应商编码'], row['供应商商品编码']);
+        }
+
+        const quotationQuery = `
+          SELECT 
+            q.序号,
+            q.供应商编码,
+            COALESCE(s.\`供应商名称\`, '') as \`供应商名称\`,
+            q.商品名称,
+            q.商品规格,
+            q.最小销售单位,
+            q.商品型号,
+            q.供应商商品编码,
+            q.最小销售规格UPC商品条码,
+            q.中包或整件销售规格条码,
+            q.供货价格,
+            COALESCE(b.\`计算后供货价格\`, NULL) as \`计算后供货价格\`,
+            q.供应商商品备注,
+            q.数据更新时间
+          FROM \`供应商报价\` q
+          LEFT JOIN \`供应商属性信息\` s ON q.\`供应商编码\` = s.\`供应商编码\`
+          LEFT JOIN \`供应商编码手动绑定sku\` b ON q.\`供应商编码\` = b.\`供应商编码\` AND q.\`供应商商品编码\` = b.\`供应商商品编码\`
+          WHERE (${conditions.join(' OR ')})
+          ORDER BY q.\`供应商编码\` ASC, q.序号 ASC
+        `;
+
+        const [quotationDataFromBinding]: any = await connection.execute(
+          quotationQuery,
+          params,
+        );
+
+        bindingQuotationData = quotationDataFromBinding || [];
+        Logger.log(`[SupplierQuotationService] 从供应商编码手动绑定sku匹配到的供应商报价数量: ${bindingQuotationData.length}`);
+        if (bindingQuotationData.length === 0 && bindingData.length > 0) {
+          Logger.warn(`[SupplierQuotationService] 警告: 在供应商编码手动绑定sku表中找到 ${bindingData.length} 条记录，但在供应商报价表中未找到匹配的数据`);
+          Logger.log(`[SupplierQuotationService] 绑定表查询到的数据示例:`, bindingData.slice(0, 3).map((row: any) => ({
+            供应商编码: row['供应商编码'],
+            供应商商品编码: row['供应商商品编码'],
+            SKU: row['SKU']
+          })));
+          Logger.log(`[SupplierQuotationService] 使用的查询条件: 供应商编码 = ? AND 最小销售规格UPC商品条码 = ?`);
+        }
+      }
+
+      // 第二步：无论是否在绑定表找到数据，都去搜索商品主档销售规格表
+      const shangpingConnection = await this.getShangpingConnection();
+      let masterQuotationData: any[] = [];
+
+      try {
+        const skuQuery = `
+          SELECT 
+            SKU编码,
+            商品条码
+          FROM \`商品主档销售规格\`
+          WHERE SKU编码 = ?
+          LIMIT 1
+        `;
+
+        const [skuData]: any = await shangpingConnection.execute(skuQuery, [
+          sku,
+        ]);
+
+        if (skuData && skuData.length > 0) {
+          const productBarcode = skuData[0]['商品条码'];
+          if (productBarcode) {
+            // 商品条码可能有多个值，用逗号或中文逗号分隔，需要拆开逐个搜索
+            const barcodes = String(productBarcode)
+              .split(/[,，]/)
+              .map((b) => b.trim())
+              .filter((b) => b.length > 0);
+
+            if (barcodes.length > 0) {
+              // 构建查询条件：使用LIKE匹配，因为商品条码可能包含多个值
+              const conditions: string[] = [];
+              const params: any[] = [];
+
+              for (const barcode of barcodes) {
+                // 使用LIKE匹配，因为供应商报价的最小销售规格UPC商品条码可能包含这个条码
+                conditions.push('最小销售规格UPC商品条码 LIKE ?');
+                params.push(`%${barcode}%`);
+              }
+
+              const quotationQuery = `
+                SELECT 
+                  q.序号,
+                  q.供应商编码,
+                  COALESCE(s.\`供应商名称\`, '') as \`供应商名称\`,
+                  q.商品名称,
+                  q.商品规格,
+                  q.最小销售单位,
+                  q.商品型号,
+                  q.供应商商品编码,
+                  q.最小销售规格UPC商品条码,
+                  q.中包或整件销售规格条码,
+                  q.供货价格,
+                  COALESCE(b.\`计算后供货价格\`, NULL) as \`计算后供货价格\`,
+                  q.供应商商品备注,
+                  q.数据更新时间
+                FROM \`供应商报价\` q
+                LEFT JOIN \`供应商属性信息\` s ON q.\`供应商编码\` = s.\`供应商编码\`
+                LEFT JOIN \`供应商编码手动绑定sku\` b ON q.\`供应商编码\` = b.\`供应商编码\` AND q.\`供应商商品编码\` = b.\`供应商商品编码\`
+                WHERE (${conditions.join(' OR ')})
+                ORDER BY q.\`供应商编码\` ASC, q.序号 ASC
+              `;
+
+              const [quotationDataFromMaster]: any = await connection.execute(
+                quotationQuery,
+                params,
+              );
+
+              masterQuotationData = quotationDataFromMaster || [];
+              Logger.log(`[SupplierQuotationService] 从商品主档销售规格匹配到的供应商报价数量: ${masterQuotationData.length}`);
+            }
+          }
+        }
+      } catch (error) {
+        Logger.error(
+          '[SupplierQuotationService] 查询商品主档销售规格失败:',
+          error,
+        );
+        // 如果主档查询失败，不影响绑定表的结果
+      } finally {
+        await shangpingConnection.end();
+      }
+
+      // 合并两个查询结果，去重（根据供应商编码和供应商商品编码去重）
+      const allQuotationData = [...bindingQuotationData];
+      const existingKeys = new Set<string>();
+
+      // 添加绑定表的数据的key
+      bindingQuotationData.forEach((item: any) => {
+        const key = `${item.供应商编码}_${item.供应商商品编码}`;
+        existingKeys.add(key);
+      });
+
+      // 添加主档数据，排除重复项
+      if (masterQuotationData && masterQuotationData.length > 0) {
+        masterQuotationData.forEach((item: any) => {
+          const key = `${item.供应商编码}_${item.供应商商品编码}`;
+          if (!existingKeys.has(key)) {
+            allQuotationData.push(item);
+            existingKeys.add(key);
+          }
+        });
+      }
+
+      // 对合并后的数据进行排序
+      allQuotationData.sort((a, b) => {
+        if (a.供应商编码 !== b.供应商编码) {
+          return (a.供应商编码 || '').localeCompare(b.供应商编码 || '');
+        }
+        return (a.序号 || 0) - (b.序号 || 0);
+      });
+
+      Logger.log(`[SupplierQuotationService] 合并后的供应商报价总数: ${allQuotationData.length} (绑定表: ${bindingQuotationData.length}, 主档表: ${masterQuotationData.length})`);
+
+      return {
+        data: allQuotationData,
+        matchedSku: sku, // 显示搜索的SKU
+      };
+    } catch (error) {
+      Logger.error(
+        '[SupplierQuotationService] 根据SKU搜索供应商报价失败:',
+        error,
+      );
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
 }
 

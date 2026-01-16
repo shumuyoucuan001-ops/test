@@ -427,5 +427,49 @@ export class SupplierQuotationController {
             );
         }
     }
+
+    // 批量创建供应商报价
+    @Post('batch')
+    async batchCreateSupplierQuotations(
+        @Body() body: {
+            items: Array<{
+                序号?: number;
+                供应商编码: string;
+                商品名称?: string;
+                商品规格?: string;
+                最小销售单位?: string;
+                商品型号?: string;
+                供应商商品编码: string;
+                最小销售规格UPC商品条码?: string;
+                中包或整件销售规格条码?: string;
+                供货价格?: number;
+                供应商商品备注?: string;
+            }>;
+        },
+    ) {
+        try {
+            return await this.service.batchCreateSupplierQuotations(
+                body.items || [],
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '批量创建供应商报价失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 根据SKU搜索供应商报价（新逻辑）
+    @Get('search-by-sku/:sku')
+    async searchSupplierQuotationBySku(@Param('sku') sku: string) {
+        try {
+            return await this.service.searchSupplierQuotationBySku(sku);
+        } catch (error) {
+            throw new HttpException(
+                error.message || '根据SKU搜索供应商报价失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 }
 
