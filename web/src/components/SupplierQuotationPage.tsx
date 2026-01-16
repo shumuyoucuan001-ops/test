@@ -1854,14 +1854,27 @@ export default function SupplierQuotationPage() {
         // 使用quotation的UPC可以确保uniqueKey的唯一性
         const recordInventory = record.inventory || record;
         const recordQuotation = record.quotation;
+
         // 优先使用quotation的UPC，确保uniqueKey的唯一性
-        const recordUpc = recordQuotation?.最小销售规格UPC商品条码
-          ? String(recordQuotation.最小销售规格UPC商品条码).trim()
-          : (recordInventory.UPC ? String(recordInventory.UPC).trim() : null);
+        // 如果quotation不存在，尝试从record.key中提取UPC（格式：quotation-供应商编码_UPC_索引）
+        let quotationUpc: string | null = null;
+        if (recordQuotation?.最小销售规格UPC商品条码) {
+          quotationUpc = String(recordQuotation.最小销售规格UPC商品条码).trim();
+        } else if (record.key && typeof record.key === 'string' && record.key.startsWith('quotation-')) {
+          // 从record.key中提取UPC：quotation-供应商编码_UPC_索引
+          const keyParts = record.key.split('_');
+          if (keyParts.length >= 2) {
+            // 跳过第一个部分（quotation-供应商编码），取第二个部分（UPC）
+            quotationUpc = keyParts[1] || null;
+          }
+        }
+
+        const inventoryUpc = recordInventory.UPC ? String(recordInventory.UPC).trim() : null;
+        const recordUpc = quotationUpc || inventoryUpc;
         const recordSku = recordInventory.SKU;
 
         // 首先输出基本信息，确认render函数被调用
-        console.log(`[SKU列Render函数] 行索引: ${index}, UPC: ${recordUpc}, text参数:`, text, 'record.SKU:', recordSku, 'record完整数据:', record);
+        console.log(`[SKU列Render函数] 行索引: ${index}, quotationUpc: ${quotationUpc}, inventoryUpc: ${inventoryUpc}, recordUpc: ${recordUpc}, text参数:`, text, 'record.SKU:', recordSku, 'record.key:', record.key, 'hasQuotation:', !!recordQuotation);
 
         // ========== 多种SKU为空的判断方式 ==========
         // 方法1：通过text参数判断
@@ -2012,9 +2025,11 @@ export default function SupplierQuotationPage() {
         // 因为即使多个供应商报价显示相同的SKU，它们的UPC一定不同（用户说的：供应商编码和UPC一定不一样）
         // 组合方式：供应商编码_quotation的UPC（如果供应商编码存在）
         // 或者：quotation的UPC_SKU_索引（如果供应商编码不存在，使用UPC+SKU+索引确保唯一性）
+        // 关键：必须优先使用quotationUpc，而不是inventoryUpc，确保uniqueKey的唯一性
         let recordUpcForKey: string | null = null;
-        if (recordUpc) {
-          const upcStr = String(recordUpc).trim();
+        const upcToUse = quotationUpc || inventoryUpc; // 优先使用quotationUpc
+        if (upcToUse) {
+          const upcStr = String(upcToUse).trim();
           if (upcStr !== '') {
             // 如果UPC包含多个值（逗号分隔），使用第一个值
             const upcArray = upcStr.split(',').map(u => u.trim()).filter(u => u !== '');
@@ -2041,13 +2056,16 @@ export default function SupplierQuotationPage() {
         const currentSkuInput = skuBindingInput[uniqueKey] || '';
 
         // 调试日志：输出uniqueKey的计算过程
-        console.log(`[uniqueKey计算] 行索引: ${index}, SKU: ${skuText}, UPC: ${recordUpc}`, {
+        console.log(`[uniqueKey计算] 行索引: ${index}, SKU: ${skuText}, quotationUpc: ${quotationUpc}, inventoryUpc: ${inventoryUpc}, recordUpc: ${recordUpc}, recordUpcForKey: ${recordUpcForKey}`, {
           supplierCode,
           supplierProductCode,
           recordUpcForKey,
           uniqueKey,
           editingSkuQuotation,
           isEditing,
+          recordKey: record.key,
+          hasQuotation: !!recordQuotation,
+          quotationUpcRaw: recordQuotation?.最小销售规格UPC商品条码,
           matchedQuotation: matchedQuotation ? {
             供应商编码: matchedQuotation.供应商编码,
             供应商商品编码: matchedQuotation.供应商商品编码,
@@ -5996,16 +6014,14 @@ export default function SupplierQuotationPage() {
         let skuCodes = upcToSkuMap[quotationUpc] || [];
         let isFromBinding = false; // 标记SKU是否来自手动绑定
 
-        // 2. 优先检查供应商编码手动绑定sku表（即使upcToSkuMap中有数据，也优先使用手动绑定的SKU）
-        // 这样可以确保手动绑定的SKU能够正确匹配到inventory数据
-        if (quotation.供应商编码 && quotation.供应商商品编码) {
+        // 2. 如果SKU列没有匹配到数据，检查供应商编码手动绑定sku表
+        if (skuCodes.length === 0 && quotation.供应商编码 && quotation.供应商商品编码) {
           const bindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
           const bindingSku = supplierBindingSkuMap[bindingKey];
           if (bindingSku) {
-            // 如果找到绑定的SKU，优先使用该SKU（覆盖upcToSkuMap中的数据）
+            // 如果找到绑定的SKU，使用该SKU
             skuCodes = [bindingSku];
             isFromBinding = true; // 标记为手动绑定
-            console.log(`[数据对齐-使用手动绑定SKU] 供应商编码: ${quotation.供应商编码}, 供应商商品编码: ${quotation.供应商商品编码}, 绑定SKU: ${bindingSku}`);
           }
         }
 
@@ -6047,19 +6063,14 @@ export default function SupplierQuotationPage() {
             // 即使UPC不匹配，也应该尝试匹配，因为手动绑定的SKU可能对应不同的UPC
             // 注意：uniqueKey的计算会使用quotation的UPC，而不是inventory的UPC，所以不会导致uniqueKey冲突
             console.log(`[数据对齐-精确匹配失败] SKU来自手动绑定，尝试通过绑定的SKU匹配inventory（忽略UPC）`);
-            console.log(`[数据对齐-查找inventory] 查找SKU: ${skuCodes[0]}, rightAllData长度: ${rightAllData.length}`);
             foundItem = rightAllData.find(item => {
               if (!item.SKU) return false;
-              const skuMatch = skuCodes.includes(item.SKU);
-              if (skuMatch) {
-                console.log(`[数据对齐-找到匹配的inventory] UPC: ${item.UPC}, SKU: ${item.SKU}, 商品名称: ${item.商品名称}`);
-              }
-              return skuMatch;
+              return skuCodes.includes(item.SKU);
             });
             if (foundItem) {
-              console.log(`[数据对齐-手动绑定SKU匹配成功] UPC: ${foundItem.UPC}, SKU: ${foundItem.SKU}, 商品名称: ${foundItem.商品名称}`);
+              console.log(`[数据对齐-手动绑定SKU匹配成功] UPC: ${foundItem.UPC}, SKU: ${foundItem.SKU}`);
             } else {
-              console.log(`[数据对齐-手动绑定SKU匹配失败] 在rightAllData中未找到SKU为 ${skuCodes[0]} 的inventory`);
+              console.log(`[数据对齐-手动绑定SKU匹配失败] 返回null`);
             }
           }
 
@@ -6676,7 +6687,9 @@ export default function SupplierQuotationPage() {
               console.log(`[getMergedColumns-SKU列] 准备调用render函数, valueToRenderForComparison:`, valueToRenderForComparison, 'record.inventory:', record.inventory, 'col.render存在:', !!col.render);
             }
 
-            const renderedValue = col.render ? col.render(valueToRenderForComparison, record.inventory, 0) : (value ?? '-');
+            // 关键修复：传递完整的record，而不是只传递record.inventory
+            // 这样render函数可以访问record.key和record.quotation，用于计算uniqueKey
+            const renderedValue = col.render ? col.render(valueToRenderForComparison, record, 0) : (value ?? '-');
 
             // 调试日志：检查SKU列的render函数返回值
             if (col.key === 'SKU') {
