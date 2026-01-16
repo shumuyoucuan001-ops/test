@@ -3764,12 +3764,13 @@ export default function SupplierQuotationPage() {
         (inventoryType === '仓店' && storeNameToUse && storeNameToUse.trim() !== '') ||
         (inventoryType === '城市' && cityToUse && cityToUse.trim() !== '');
 
-      // 即使不需要完整匹配且没有筛选条件，也需要加载库存汇总数据以匹配当前页的SKU和供应商-门店关系
-      // 只有在没有任何供应商报价数据时才不加载
-      if (!needMatch && !hasAnyFilter && (!quotationDataToUse || quotationDataToUse.length === 0)) {
+      // 如果没有任何筛选条件，不需要加载库存汇总数据（只显示左栏供应商报价数据）
+      // 只有在有筛选条件或需要完整匹配时，才加载库存汇总数据以匹配SKU和供应商-门店关系
+      if (!needMatch && !hasAnyFilter) {
         setRightAllData([]);
         setRightData([]);
         setRightTotal(0);
+        setUpcToSkuMap({});
         setRightLoading(false);
         return;
       }
@@ -3903,10 +3904,11 @@ export default function SupplierQuotationPage() {
       // 第二步：加载SKU绑定数据（在计算对比结果前，需要先获取SKU绑定信息）
       // 注意：需要在这里加载SKU绑定数据，以便在计算对比结果时使用绑定SKU
       // 如果shouldMatchData为false，只匹配当前页的数据；如果为true，匹配所有数据
+      // 注意：使用传入的 quotationDataToUse 参数，而不是依赖状态 leftData（避免异步状态更新问题）
       let skuBindingMapLocal: Record<string, string> = {}; // key为"供应商编码_供应商商品编码"，value为绑定的SKU
-      const quotationsForSkuBinding = shouldMatchData
-        ? (quotationDataToUse || []) // 如果需要完整匹配，使用所有报价数据
-        : leftData.slice(0, leftPageSize); // 如果不需要完整匹配，只使用当前页的数据
+      const quotationsForSkuBinding = (shouldMatchData && comparisonResultFilter.length > 0)
+        ? (quotationDataToUse || []) // 如果需要完整匹配且有对比结果筛选，使用所有报价数据
+        : (quotationDataToUse && quotationDataToUse.length > 0 ? quotationDataToUse.slice(0, leftPageSize) : leftData.slice(0, leftPageSize)); // 其他情况，使用当前页的数据
 
       if (quotationsForSkuBinding && quotationsForSkuBinding.length > 0) {
         try {
@@ -3951,9 +3953,10 @@ export default function SupplierQuotationPage() {
       let supplierStoreRelationMapLocal: Record<string, number | string> = {};
       const supplierCodesFromQuotations = new Set<string>();
       // 根据shouldMatchData决定使用哪些报价数据
-      const quotationsForRelation = shouldMatchData
-        ? (quotationDataToUse || []) // 如果需要完整匹配，使用所有报价数据
-        : leftData.slice(0, leftPageSize); // 如果不需要完整匹配，只使用当前页的数据
+      // 注意：使用传入的 quotationDataToUse 参数，而不是依赖状态 leftData（避免异步状态更新问题）
+      const quotationsForRelation = (shouldMatchData && comparisonResultFilter.length > 0)
+        ? (quotationDataToUse || []) // 如果需要完整匹配且有对比结果筛选，使用所有报价数据
+        : (quotationDataToUse && quotationDataToUse.length > 0 ? quotationDataToUse.slice(0, leftPageSize) : leftData.slice(0, leftPageSize)); // 其他情况，使用当前页的数据
 
       if (quotationsForRelation && quotationsForRelation.length > 0) {
         quotationsForRelation.forEach(quotation => {
@@ -4100,10 +4103,12 @@ export default function SupplierQuotationPage() {
       // 这样可以避免在有大量数据时（如21265条）创建大量并发请求导致超时和性能问题
       // 计算对比结果时直接使用供应商报价数据中的"计算后供货价格"，这个价格已经在后端计算好了
       // 现在使用SKU编码进行匹配，并考虑SKU绑定
-      // 如果shouldMatchData为false，只匹配当前页的数据；如果为true，匹配所有数据
-      const quotationsForComparison = shouldMatchData
-        ? (quotationDataToUse || []) // 如果需要完整匹配，使用所有报价数据
-        : leftData.slice(0, leftPageSize); // 如果不需要完整匹配，只使用当前页的数据
+      // 如果shouldMatchData为true且有对比结果筛选，使用所有数据匹配所有列
+      // 如果shouldMatchData为true但没有对比结果筛选，或shouldMatchData为false，使用当前页数据匹配所有列
+      // 注意：使用传入的 quotationDataToUse 参数，而不是依赖状态 leftData（避免异步状态更新问题）
+      const quotationsForComparison = (shouldMatchData && comparisonResultFilter.length > 0)
+        ? (quotationDataToUse || []) // 如果需要完整匹配且有对比结果筛选，使用所有报价数据
+        : (quotationDataToUse && quotationDataToUse.length > 0 ? quotationDataToUse.slice(0, leftPageSize) : leftData.slice(0, leftPageSize)); // 其他情况，使用当前页的数据（包括点击搜索和切换页数的情况）
 
       const dataWithComparison = result.map(item => {
         // 如果没有供应商报价数据，直接返回库存汇总数据（不显示对比结果）
@@ -6810,8 +6815,9 @@ export default function SupplierQuotationPage() {
                     onClick={async () => {
                       // 标记用户已点击过搜索按钮
                       hasClickedSearchRef.current = true;
-                      setLeftCurrentPage(1);
-                      setRightCurrentPage(1);
+                      // 不重置页码，保持当前页（用户可能在非第一页时点击搜索）
+                      // setLeftCurrentPage(1);
+                      // setRightCurrentPage(1);
 
                       // 如果有对比结果筛选，需要先匹配所有数据
                       if (comparisonResultFilter.length > 0) {
@@ -6867,13 +6873,28 @@ export default function SupplierQuotationPage() {
                           }
 
                           // 同时更新 leftData 和 leftTotal（用于分页器显示）
-                          setLeftData(allQuotationData.slice(0, leftPageSize));
+                          // 根据当前页更新 leftData（保持当前页）
+                          const start = (leftCurrentPage - 1) * leftPageSize;
+                          const end = start + leftPageSize;
+                          setLeftData(allQuotationData.slice(start, end));
                           setLeftTotal(allQuotationData.length);
 
                           if (allQuotationData.length > 0) {
                             // 加载所有库存汇总数据（不进行SKU过滤），筛选逻辑会在前端基于所有数据执行
                             // 注意：即使有SKU搜索，也要先加载所有数据，计算对比结果，然后再在 filteredAlignedData 中进行SKU过滤和筛选对比结果过滤
-                            await loadRightData(allQuotationData, codesToUse || [], storeNameFilter, cityFilter, true);
+                            // 如果有对比结果筛选，需要匹配所有数据（shouldMatchData: true）
+                            // 如果没有对比结果筛选，只匹配当前页的所有列数据（shouldMatchData: true，但只匹配当前页）
+                            // 点击搜索后，对当前页的所有列数据进行匹配
+                            const shouldMatchAllData = comparisonResultFilter.length > 0;
+                            await loadRightData(
+                              allQuotationData,
+                              codesToUse || [],
+                              storeNameFilter,
+                              cityFilter,
+                              true, // skipSkuFilter
+                              false, // forceRefresh
+                              shouldMatchAllData // shouldMatchData: 只有对比结果筛选时才匹配所有数据，否则只匹配当前页
+                            );
                           } else {
                             // 如果没有数据，清空库存汇总
                             setRightData([]);
@@ -6891,15 +6912,41 @@ export default function SupplierQuotationPage() {
                         }
                       } else {
                         // 如果没有对比结果筛选和SKU搜索，正常加载数据
-                        // 先加载供应商报价数据（第一页，用于显示）
-                        await loadLeftData(undefined, storeNameFilter, cityFilter, 1, leftPageSize);
-                        // 加载库存汇总数据（不进行SKU过滤，因为SKU过滤会在 filteredAlignedData 中进行）
-                        if (leftData.length > 0) {
-                          await loadRightData(leftData, selectedSupplierCodes.length > 0 ? selectedSupplierCodes : [], storeNameFilter, cityFilter, true);
-                        }
-                        // 如果选择了供应商名称字段，查询供应商名称
-                        if (supplierNameFields.length > 0 && rightData.length > 0) {
-                          await loadSupplierNames(rightData, supplierNameFields);
+                        // 先加载供应商报价数据（使用当前页，保持用户所在的页码）
+                        await loadLeftData(undefined, storeNameFilter, cityFilter, leftCurrentPage, leftPageSize);
+                        // 检查是否有任何库存汇总相关的筛选条件
+                        const hasRightFilter =
+                          inventorySkuSearch.trim() !== '' ||
+                          comparisonResultFilter.length > 0 ||
+                          priceTypeFilter !== undefined ||
+                          supplierNameFields.length > 0 ||
+                          (inventoryType === '仓店' && storeNameFilter && storeNameFilter.trim() !== '') ||
+                          (inventoryType === '城市' && cityFilter && cityFilter.trim() !== '');
+
+                        // 只有在有库存汇总相关的筛选条件时，才加载库存汇总数据
+                        if (hasRightFilter && leftData.length > 0) {
+                          // 加载库存汇总数据（不进行SKU过滤，因为SKU过滤会在 filteredAlignedData 中进行）
+                          // 点击搜索后，对当前页的所有列数据进行匹配（shouldMatchData: false，但会通过修改loadRightData逻辑，匹配当前页的所有列）
+                          await loadRightData(
+                            leftData,
+                            selectedSupplierCodes.length > 0 ? selectedSupplierCodes : [],
+                            storeNameFilter,
+                            cityFilter,
+                            true, // skipSkuFilter
+                            false, // forceRefresh
+                            false // shouldMatchData: false，但会通过修改loadRightData逻辑，匹配当前页的所有列
+                          );
+                          // 如果选择了供应商名称字段，查询供应商名称
+                          if (supplierNameFields.length > 0 && rightData.length > 0) {
+                            await loadSupplierNames(rightData, supplierNameFields);
+                          }
+                        } else {
+                          // 如果没有库存汇总相关的筛选条件，清空右栏数据
+                          setRightData([]);
+                          setRightAllData([]);
+                          setRightTotal(0);
+                          setUpcToSkuMap({});
+                          setRightLoading(false);
                         }
                         // 清空 allLeftData（因为没有筛选条件，不需要所有数据）
                         setAllLeftData([]);
