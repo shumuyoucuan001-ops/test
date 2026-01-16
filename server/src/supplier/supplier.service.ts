@@ -165,7 +165,9 @@ export class SupplierService {
           sm.供应商起订金额 as minOrderAmount,
           sm.供应商起订数量 as minOrderQuantity,
           sm.供应商下单备注 as orderRemarks,
-          sm.旺旺消息 as wangwangMessage
+          sm.旺旺消息 as wangwangMessage,
+          sm.供应商下单策略 as orderStrategy,
+          sm.内部供应商维护备注信息 as internalRemarks
         FROM \`供应商基础资料\` sb
         LEFT JOIN \`供应商管理\` sm ON sb.供应商编码 = sm.供应商编码
         WHERE ${whereClause}
@@ -190,6 +192,8 @@ export class SupplierService {
           minOrderQuantity: row.minOrderQuantity,
           orderRemarks: row.orderRemarks,
           wangwangMessage: row.wangwangMessage,
+          orderStrategy: row.orderStrategy,
+          internalRemarks: row.internalRemarks,
         })),
         total,
       };
@@ -213,7 +217,9 @@ export class SupplierService {
           sm.供应商起订金额 as minOrderAmount,
           sm.供应商起订数量 as minOrderQuantity,
           sm.供应商下单备注 as orderRemarks,
-          sm.旺旺消息 as wangwangMessage
+          sm.旺旺消息 as wangwangMessage,
+          sm.供应商下单策略 as orderStrategy,
+          sm.内部供应商维护备注信息 as internalRemarks
         FROM \`供应商基础资料\` sb
         LEFT JOIN \`供应商管理\` sm ON sb.供应商编码 = sm.供应商编码
         WHERE sb.供应商编码 = ?
@@ -237,6 +243,8 @@ export class SupplierService {
         minOrderQuantity: row.minOrderQuantity,
         orderRemarks: row.orderRemarks,
         wangwangMessage: row.wangwangMessage,
+        orderStrategy: row.orderStrategy,
+        internalRemarks: row.internalRemarks,
       };
     } finally {
       await connection.end();
@@ -315,6 +323,8 @@ export class SupplierService {
           minOrderQuantity: '供应商起订数量',
           orderRemarks: '供应商下单备注',
           wangwangMessage: '旺旺消息',
+          orderStrategy: '供应商下单策略',
+          internalRemarks: '内部供应商维护备注信息',
         };
 
         for (const [key, dbField] of Object.entries(fieldMap)) {
@@ -332,7 +342,9 @@ export class SupplierService {
             供应商起订金额 = ?,
             供应商起订数量 = ?,
             供应商下单备注 = ?,
-            旺旺消息 = ?
+            旺旺消息 = ?,
+            供应商下单策略 = ?,
+            内部供应商维护备注信息 = ?
           WHERE 供应商编码 = ?
         `;
         await connection.execute(
@@ -342,6 +354,8 @@ export class SupplierService {
             data.minOrderQuantity || null,
             data.orderRemarks || null,
             data.wangwangMessage || null,
+            data.orderStrategy || null,
+            data.internalRemarks || null,
             data.supplierCode
           ]
         );
@@ -349,8 +363,8 @@ export class SupplierService {
         // 插入
         const insertQuery = `
           INSERT INTO \`供应商管理\` 
-          (供应商编码, 供应商起订金额, 供应商起订数量, 供应商下单备注, 旺旺消息)
-          VALUES (?, ?, ?, ?, ?)
+          (供应商编码, 供应商起订金额, 供应商起订数量, 供应商下单备注, 旺旺消息, 供应商下单策略, 内部供应商维护备注信息)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         await connection.execute(
           insertQuery,
@@ -359,7 +373,9 @@ export class SupplierService {
             data.minOrderAmount || null,
             data.minOrderQuantity || null,
             data.orderRemarks || null,
-            data.wangwangMessage || null
+            data.wangwangMessage || null,
+            data.orderStrategy || null,
+            data.internalRemarks || null
           ]
         );
       }

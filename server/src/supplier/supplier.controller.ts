@@ -16,6 +16,8 @@ export interface SupplierManagement {
   minOrderQuantity?: number;
   orderRemarks?: string;
   wangwangMessage?: string;
+  orderStrategy?: string;
+  internalRemarks?: string;
 }
 
 export interface SupplierFullInfo extends SupplierBasicInfo {
@@ -23,6 +25,8 @@ export interface SupplierFullInfo extends SupplierBasicInfo {
   minOrderQuantity?: number;
   orderRemarks?: string;
   wangwangMessage?: string;
+  orderStrategy?: string;
+  internalRemarks?: string;
 }
 
 @Controller('suppliers')

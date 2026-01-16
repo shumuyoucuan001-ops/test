@@ -23,6 +23,7 @@ import {
   Popconfirm,
   Popover,
   Row,
+  Select,
   Space,
   Tabs,
   Tag,
@@ -54,6 +55,8 @@ interface SupplierFullInfo extends SupplierBasicInfo {
   minOrderQuantity?: number;
   orderRemarks?: string;
   wangwangMessage?: string;
+  orderStrategy?: string;
+  internalRemarks?: string;
 }
 
 interface SupplierManagement {
@@ -62,6 +65,8 @@ interface SupplierManagement {
   minOrderQuantity?: number;
   orderRemarks?: string;
   wangwangMessage?: string;
+  orderStrategy?: string;
+  internalRemarks?: string;
 }
 
 interface Statistics {
@@ -173,7 +178,7 @@ const supplierApi = {
 export default function SupplierManagementPage() {
   // 使用 App.useApp() 获取 message API（支持动态主题）
   const { message: messageApi } = App.useApp();
-  
+
   // 定义默认状态
   const defaultState = {
     currentPage: 1,
@@ -360,6 +365,8 @@ export default function SupplierManagementPage() {
       minOrderQuantity: supplier.minOrderQuantity,
       orderRemarks: supplier.orderRemarks,
       wangwangMessage: supplier.wangwangMessage,
+      orderStrategy: supplier.orderStrategy,
+      internalRemarks: supplier.internalRemarks,
     });
     setModalVisible(true);
     // 加载修改日志
@@ -527,6 +534,31 @@ export default function SupplierManagementPage() {
       ),
       dataIndex: 'wangwangMessage',
       key: 'wangwangMessage',
+      width: 200,
+      ellipsis: true,
+      render: (text: string) => text || '-',
+    },
+    {
+      title: (
+        <span>
+          供应商下单策略
+          <ManagementTag />
+        </span>
+      ),
+      dataIndex: 'orderStrategy',
+      key: 'orderStrategy',
+      width: 150,
+      render: (text: string) => text || '-',
+    },
+    {
+      title: (
+        <span>
+          内部供应商维护备注信息
+          <ManagementTag />
+        </span>
+      ),
+      dataIndex: 'internalRemarks',
+      key: 'internalRemarks',
       width: 200,
       ellipsis: true,
       render: (text: string) => text || '-',
@@ -724,6 +756,8 @@ export default function SupplierManagementPage() {
                     minOrderQuantity: undefined,
                     orderRemarks: '',
                     wangwangMessage: '',
+                    orderStrategy: undefined,
+                    internalRemarks: '',
                   }}
                 >
                   <Form.Item name="supplierCode" hidden>
@@ -787,6 +821,31 @@ export default function SupplierManagementPage() {
                     />
                   </Form.Item>
 
+                  <Form.Item
+                    label="供应商下单策略"
+                    name="orderStrategy"
+                  >
+                    <Select
+                      placeholder="请选择下单策略"
+                      allowClear
+                    >
+                      <Select.Option value="合并下单">合并下单</Select.Option>
+                      <Select.Option value="按需下单">按需下单</Select.Option>
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item
+                    label="内部供应商维护备注信息"
+                    name="internalRemarks"
+                  >
+                    <TextArea
+                      rows={4}
+                      placeholder="请输入内部维护备注信息"
+                      maxLength={258}
+                      showCount
+                    />
+                  </Form.Item>
+
                   {editingSupplier && (
                     <Card size="small" title="供应商基础信息" style={{ marginTop: 16 }}>
                       <Row gutter={16}>
@@ -828,6 +887,8 @@ export default function SupplierManagementPage() {
                           minOrderQuantity: '最小订货数量',
                           orderRemarks: '供应商下单备注',
                           wangwangMessage: '下单后联系供应商话术',
+                          orderStrategy: '供应商下单策略',
+                          internalRemarks: '内部供应商维护备注信息',
                         };
 
                         return {
