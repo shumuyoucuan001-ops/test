@@ -1943,13 +1943,15 @@ export default function SupplierQuotationPage() {
         let supplierProductCode: string | undefined = undefined;
 
         // 方法1：通过SKU找到对应的UPC条码，再找到供应商报价（只有当SKU不为空时才执行）
-        // 关键修复：优先使用record.inventory.UPC来匹配，避免多个供应商报价有相同SKU时匹配到错误的供应商报价
-        if (!isSkuEmpty && skuText && upcToSkuMap && recordUpc) {
-          // 首先尝试使用record.inventory.UPC直接匹配
-          const recordUpcStr = String(recordUpc).trim();
+        // 关键修复：优先使用quotation的UPC来匹配，确保匹配到正确的供应商报价
+        // 使用quotationUpc（从quotation或record.key中获取），而不是inventoryUpc，确保匹配到正确的供应商报价
+        const upcForMatching = quotationUpc || inventoryUpc; // 优先使用quotation的UPC
+        if (!isSkuEmpty && skuText && upcToSkuMap && upcForMatching) {
+          // 首先尝试使用quotation的UPC直接匹配
+          const recordUpcStr = String(upcForMatching).trim();
           if (recordUpcStr !== '') {
             const recordUpcArray = recordUpcStr.split(',').map(u => u.trim()).filter(u => u !== '');
-            console.log(`[SKU匹配-方法1] 行索引: ${index}, record.inventory.UPC: ${recordUpc}, recordUpcArray:`, recordUpcArray, 'skuText:', skuText);
+            console.log(`[SKU匹配-方法1] 行索引: ${index}, quotationUpc: ${quotationUpc}, inventoryUpc: ${inventoryUpc}, upcForMatching: ${upcForMatching}, recordUpcArray:`, recordUpcArray, 'skuText:', skuText);
             // 遍历record的所有UPC值，优先匹配当前行的UPC
             for (const recordUpc of recordUpcArray) {
               // 检查这个UPC是否在upcToSkuMap中，并且对应的SKU列表包含当前SKU
@@ -1992,8 +1994,9 @@ export default function SupplierQuotationPage() {
 
         // 方法2：即使SKU为空（显示"-"），也可以通过UPC直接匹配供应商报价
         // 处理UPC字段可能包含多个值（用逗号分隔）的情况
-        if (!matchedQuotation && recordUpc) {
-          const upcStr = recordUpc ? String(recordUpc).trim() : '';
+        // 关键修复：使用quotation的UPC，而不是inventory的UPC，确保匹配到正确的供应商报价
+        if (!matchedQuotation && upcForMatching) {
+          const upcStr = upcForMatching ? String(upcForMatching).trim() : '';
           if (upcStr !== '') {
             const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
             // 处理UPC字段可能包含多个值（用逗号分隔）的情况
@@ -2074,7 +2077,26 @@ export default function SupplierQuotationPage() {
         });
 
         // 检查是否有SKU绑定
-        const bindingKey = supplierCode && supplierProductCode ? `${supplierCode}_${supplierProductCode}` : null;
+        // 关键修复：bindingKey必须使用供应商编码_最小销售规格UPC商品条码，与后端updateSkuBinding的保存方式一致
+        // 后端updateSkuBinding将upcCode当作供应商商品编码保存，所以前端也需要使用UPC来构建bindingKey
+        // 这样可以确保即使多个供应商报价显示相同的SKU，它们的bindingKey也是不同的（因为UPC不同）
+        let finalSupplierCode = supplierCode;
+        let finalUpcForBinding: string | null = null;
+
+        // 优先使用quotation的UPC，确保bindingKey的唯一性
+        if (recordQuotation && recordQuotation.供应商编码 && recordQuotation.最小销售规格UPC商品条码) {
+          finalSupplierCode = recordQuotation.供应商编码;
+          finalUpcForBinding = String(recordQuotation.最小销售规格UPC商品条码).trim();
+        } else if (matchedQuotation && matchedQuotation.供应商编码 && matchedQuotation.最小销售规格UPC商品条码) {
+          finalSupplierCode = matchedQuotation.供应商编码;
+          finalUpcForBinding = String(matchedQuotation.最小销售规格UPC商品条码).trim();
+        } else if (quotationUpc) {
+          // 如果quotation不存在，使用quotationUpc（从record.key中提取的）
+          finalUpcForBinding = quotationUpc;
+        }
+
+        // bindingKey使用供应商编码_UPC，与后端updateSkuBinding的保存方式一致
+        const bindingKey = finalSupplierCode && finalUpcForBinding ? `${finalSupplierCode}_${finalUpcForBinding}` : null;
         const boundSku = bindingKey ? skuBindingMap[bindingKey] : null;
         // 检查SKU是否来自供应商编码手动绑定sku表
         const supplierBindingSku = bindingKey ? supplierBindingSkuMap[bindingKey] : null;
@@ -2084,8 +2106,8 @@ export default function SupplierQuotationPage() {
 
         // 调试日志：检查boundSku的计算
         console.log(`[SKU绑定检查] 行索引: ${index}, UPC: ${recordUpc}`, {
-          supplierCode,
-          supplierProductCode,
+          supplierCode: finalSupplierCode,
+          upcForBinding: finalUpcForBinding,
           bindingKey,
           boundSku,
           supplierBindingSku,
@@ -3517,12 +3539,13 @@ export default function SupplierQuotationPage() {
     }
 
     try {
-      // 收集所有唯一的供应商编码和供应商商品编码组合
+      // 收集所有唯一的供应商编码和最小销售规格UPC商品条码组合
+      // 关键修复：后端updateSkuBinding将upcCode当作供应商商品编码保存，所以这里也需要使用UPC
       const items = quotationData
-        .filter(quotation => quotation.供应商编码 && quotation.供应商商品编码)
+        .filter(quotation => quotation.供应商编码 && quotation.最小销售规格UPC商品条码)
         .map(quotation => ({
           supplierCode: quotation.供应商编码!,
-          supplierProductCode: quotation.供应商商品编码!,
+          supplierProductCode: String(quotation.最小销售规格UPC商品条码!).trim(), // 使用UPC作为supplierProductCode
         }));
 
       if (items.length === 0) {
@@ -6015,8 +6038,9 @@ export default function SupplierQuotationPage() {
         let isFromBinding = false; // 标记SKU是否来自手动绑定
 
         // 2. 如果SKU列没有匹配到数据，检查供应商编码手动绑定sku表
-        if (skuCodes.length === 0 && quotation.供应商编码 && quotation.供应商商品编码) {
-          const bindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
+        // 关键修复：bindingKey必须使用供应商编码_UPC，与后端updateSkuBinding的保存方式一致
+        if (skuCodes.length === 0 && quotation.供应商编码 && quotation.最小销售规格UPC商品条码) {
+          const bindingKey = `${quotation.供应商编码}_${String(quotation.最小销售规格UPC商品条码).trim()}`;
           const bindingSku = supplierBindingSkuMap[bindingKey];
           if (bindingSku) {
             // 如果找到绑定的SKU，使用该SKU
@@ -6239,9 +6263,10 @@ export default function SupplierQuotationPage() {
         const quotation = item.quotation;
 
         // 检查是否有手动绑定的SKU
+        // 关键修复：bindingKey必须使用供应商编码_UPC，与后端updateSkuBinding的保存方式一致
         let bindingSku: string | undefined;
-        if (quotation?.供应商编码 && quotation?.供应商商品编码) {
-          const bindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
+        if (quotation?.供应商编码 && quotation?.最小销售规格UPC商品条码) {
+          const bindingKey = `${quotation.供应商编码}_${String(quotation.最小销售规格UPC商品条码).trim()}`;
           bindingSku = supplierBindingSkuMap[bindingKey];
         }
 
@@ -6562,8 +6587,9 @@ export default function SupplierQuotationPage() {
               let sku = originalSku;
               let skuToDisplay = originalSku; // 用于显示的SKU
               let hasBinding = false;
-              if (record.quotation?.供应商编码 && record.quotation?.供应商商品编码) {
-                const bindingKey = `${record.quotation.供应商编码}_${record.quotation.供应商商品编码}`;
+              // 关键修复：bindingKey必须使用供应商编码_UPC，与后端updateSkuBinding的保存方式一致
+              if (record.quotation?.供应商编码 && record.quotation?.最小销售规格UPC商品条码) {
+                const bindingKey = `${record.quotation.供应商编码}_${String(record.quotation.最小销售规格UPC商品条码).trim()}`;
                 const boundSku = supplierBindingSkuMap[bindingKey];
                 console.log(`[供应商-门店关系显示] 供应商编码: ${supplierCode}, bindingKey: ${bindingKey}, 原始SKU: ${originalSku}, 绑定SKU: ${boundSku || '无'}, supplierBindingSkuMap keys:`, Object.keys(supplierBindingSkuMap).slice(0, 5));
                 // 如果存在绑定记录（即使值为空），必须使用绑定的SKU
@@ -6677,7 +6703,7 @@ export default function SupplierQuotationPage() {
 
             // 调试日志：检查SKU列的值
             if (col.key === 'SKU') {
-              console.log(`[响应式表格-SKU列] 行索引: 0, 原始value:`, value, 'valueToRender:', valueToRender, 'record:', record);
+              console.log(`[响应式表格-SKU列] 行索引: 0, 原始value:`, value, 'valueToRender:', valueToRender, 'record.key:', record.key, 'record.quotation:', record.quotation ? { 供应商编码: record.quotation.供应商编码, 供应商商品编码: record.quotation.供应商商品编码, 最小销售规格UPC商品条码: record.quotation.最小销售规格UPC商品条码 } : null);
             }
             // 对于对比结果列，确保即使value为空也能正确传递给render函数（可能是undefined）
             const valueToRenderForComparison = col.key === '对比结果' ? (value ?? '无匹配数据') : valueToRender;
