@@ -53,6 +53,8 @@ export interface BatchAddModalProps<T = any> {
     validateItem?: (item: Partial<T>) => string[];
     /** 模态框宽度 */
     width?: number;
+    /** 是否禁用粘贴功能（隐藏粘贴输入框） */
+    disablePaste?: boolean;
 }
 
 export default function BatchAddModal<T = any>({
@@ -67,6 +69,7 @@ export default function BatchAddModal<T = any>({
     createItem,
     validateItem,
     width = 900,
+    disablePaste = false,
 }: BatchAddModalProps<T>) {
     const [batchItems, setBatchItems] = useState<T[]>([]);
     const [invalidItems, setInvalidItems] = useState<Array<{ item: Partial<T>; reasons: string[] }>>([]);
@@ -334,7 +337,7 @@ export default function BatchAddModal<T = any>({
     // 批量保存
     const handleBatchSave = async () => {
         if (batchItems.length === 0 && invalidItems.length === 0) {
-            message.warning('请先粘贴或导入数据');
+            message.warning(disablePaste ? '请先导入数据' : '请先粘贴或导入数据');
             return;
         }
 
@@ -557,7 +560,8 @@ export default function BatchAddModal<T = any>({
                 if (index === operationFieldIndex) {
                     return '只能填入新增/删除,不填默认为新增(导入前删除此行)';
                 }
-                return '';
+                // 其他列统一设置为'---'
+                return '---';
             });
 
             // 创建工作表数据（表头行 + 提示行）
@@ -626,17 +630,19 @@ export default function BatchAddModal<T = any>({
                         {hint}
                     </div>
                 )}
-                <div style={{ marginBottom: 8 }}>
-                    <TextArea
-                        placeholder={buildFormatHint()}
-                        rows={4}
-                        onPaste={handlePaste}
-                        style={{
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                        }}
-                    />
-                </div>
+                {!disablePaste && (
+                    <div style={{ marginBottom: 8 }}>
+                        <TextArea
+                            placeholder={buildFormatHint()}
+                            rows={4}
+                            onPaste={handlePaste}
+                            style={{
+                                fontFamily: 'monospace',
+                                fontSize: 14,
+                            }}
+                        />
+                    </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                     <Upload
                         accept=".xlsx,.xls"
@@ -647,7 +653,7 @@ export default function BatchAddModal<T = any>({
                         showUploadList={false}
                     >
                         <Button icon={<UploadOutlined />} loading={uploading}>
-                            导入Excel文件(可选)
+                            {disablePaste ? '导入Excel文件' : '导入Excel文件(可选)'}
                         </Button>
                     </Upload>
                     <Button
@@ -700,7 +706,7 @@ export default function BatchAddModal<T = any>({
                     color: '#999',
                     fontSize: 14
                 }}>
-                    暂无数据，请粘贴数据到上方输入框或导入Excel文件
+                    {disablePaste ? '暂无数据，请导入Excel文件' : '暂无数据，请粘贴数据到上方输入框或导入Excel文件'}
                 </div>
             )}
         </Modal>

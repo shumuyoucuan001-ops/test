@@ -349,11 +349,11 @@ export default function SupplierQuotationPage() {
   // 左栏默认显示的字段（按顺序）
   const defaultVisibleColumns = ['序号', '供应商名称', '供应商编码', '商品名称', '商品规格', '供货价格'];
 
-  // 右栏默认显示的字段（全部类型）：SKU, 成本单价, 最低采购价, 最近采购价, 对比字段类型, 差价, 差价率, 供应商SKU备注, 内部sku备注, 对比结果
-  const defaultRightVisibleColumns = ['SKU', '成本单价', '最低采购价', '最近采购价', '对比字段类型', '差价', '差价率', '供应商SKU备注', '内部sku备注', '对比结果'];
+  // 右栏默认显示的字段（全部类型）：SKU, 成本单价, 最低采购价, 最近采购价, 采购价对比类型, 差价, 差价率, 供应商SKU备注, 内部sku备注, 对比结果
+  const defaultRightVisibleColumns = ['SKU', '成本单价', '最低采购价', '最近采购价', '采购价对比类型', '差价', '差价率', '供应商SKU备注', '内部sku备注', '对比结果'];
 
-  // 右栏默认显示的字段（仓店/城市类型）：SKU, 成本单价, 最近采购价, 对比字段类型, 差价, 差价率, 供应商SKU备注, 内部sku备注, 对比结果
-  const defaultRightVisibleColumnsStoreCity = ['SKU', '成本单价', '最近采购价', '对比字段类型', '差价', '差价率', '供应商SKU备注', '内部sku备注', '对比结果'];
+  // 右栏默认显示的字段（仓店/城市类型）：SKU, 成本单价, 最近采购价, 采购价对比类型, 差价, 差价率, 供应商SKU备注, 内部sku备注, 对比结果
+  const defaultRightVisibleColumnsStoreCity = ['SKU', '成本单价', '最近采购价', '采购价对比类型', '差价', '差价率', '供应商SKU备注', '内部sku备注', '对比结果'];
 
   // 初始化左栏列设置（优先使用用户保存的设置）
   useEffect(() => {
@@ -491,7 +491,7 @@ export default function SupplierQuotationPage() {
       const savedOrder = localStorage.getItem('supplier-quotation-right-column-order');
       if (!savedOrder) {
         // 首次加载，保存默认顺序
-        // 按照要求的顺序：SKU 商品名称 SKU商品标签 规格 总部零售价 成本单价 最低采购价 最近采购价 对比字段类型 差价 供应商SKU备注 内部sku备注 对比结果
+        // 按照要求的顺序：SKU 商品名称 SKU商品标签 规格 总部零售价 成本单价 最低采购价 最近采购价 采购价对比类型 差价 供应商SKU备注 内部sku备注 对比结果
         const allColumns = getAllRightColumns().map(col => col.key as string).filter(Boolean);
 
         // 定义完整的列顺序（包括隐藏的列）
@@ -507,7 +507,7 @@ export default function SupplierQuotationPage() {
           '总部零售价',
           '成本单价',
           ...(inventoryType === '全部' ? ['最低采购价', '最近采购价'] : ['最近采购价']),
-          '对比字段类型',
+          '采购价对比类型',
           '差价',
           '供应商-门店关系', // 供应商-门店关系列（默认隐藏）
           // 供应商名称列（根据维度动态添加，默认隐藏）
@@ -582,7 +582,7 @@ export default function SupplierQuotationPage() {
         '总部零售价',
         '成本单价',
         ...(inventoryType === '全部' ? ['最低采购价', '最近采购价'] : ['最近采购价']),
-        '对比字段类型',
+        '采购价对比类型',
         '差价',
         '供应商-门店关系', // 供应商-门店关系列（默认隐藏）
         // 供应商名称列（根据维度动态添加，默认隐藏）
@@ -1441,8 +1441,8 @@ export default function SupplierQuotationPage() {
       if (diffIndex >= 0) {
         currentOrder.splice(diffIndex + 1, 0, '差价率');
       } else {
-        // 如果没有差价列，添加到对比字段类型列之后
-        const comparisonFieldTypeIndex = currentOrder.indexOf('对比字段类型');
+        // 如果没有差价列，添加到采购价对比类型列之后
+        const comparisonFieldTypeIndex = currentOrder.indexOf('采购价对比类型');
         if (comparisonFieldTypeIndex >= 0) {
           currentOrder.splice(comparisonFieldTypeIndex + 1, 0, '差价率');
         } else {
@@ -1467,8 +1467,8 @@ export default function SupplierQuotationPage() {
       } else if (diffIndex >= 0) {
         currentOrder.splice(diffIndex + 1, 0, '供应商-门店关系');
       } else {
-        // 如果没有差价列，添加到对比字段类型列之后
-        const comparisonFieldTypeIndex = currentOrder.indexOf('对比字段类型');
+        // 如果没有差价列，添加到采购价对比类型列之后
+        const comparisonFieldTypeIndex = currentOrder.indexOf('采购价对比类型');
         if (comparisonFieldTypeIndex >= 0) {
           currentOrder.splice(comparisonFieldTypeIndex + 1, 0, '供应商-门店关系');
         } else {
@@ -1533,8 +1533,8 @@ export default function SupplierQuotationPage() {
       if (diffIndex >= 0) {
         orderedColumns.splice(diffIndex + 1, 0, priceDiffRateCol);
       } else {
-        // 如果没有差价列，添加到对比字段类型列之后
-        const comparisonFieldTypeIndex = orderedColumns.findIndex(col => col.key === '对比字段类型');
+        // 如果没有差价列，添加到采购价对比类型列之后
+        const comparisonFieldTypeIndex = orderedColumns.findIndex(col => col.key === '采购价对比类型');
         if (comparisonFieldTypeIndex >= 0) {
           orderedColumns.splice(comparisonFieldTypeIndex + 1, 0, priceDiffRateCol);
         } else {
@@ -1555,8 +1555,8 @@ export default function SupplierQuotationPage() {
       } else if (diffIndex >= 0) {
         orderedColumns.splice(diffIndex + 1, 0, supplierStoreRelationCol);
       } else {
-        // 如果没有差价列和差价率列，添加到对比字段类型列之后
-        const comparisonFieldTypeIndex = orderedColumns.findIndex(col => col.key === '对比字段类型');
+        // 如果没有差价列和差价率列，添加到采购价对比类型列之后
+        const comparisonFieldTypeIndex = orderedColumns.findIndex(col => col.key === '采购价对比类型');
         if (comparisonFieldTypeIndex >= 0) {
           orderedColumns.splice(comparisonFieldTypeIndex + 1, 0, supplierStoreRelationCol);
         } else {
@@ -1741,11 +1741,11 @@ export default function SupplierQuotationPage() {
       });
     }
 
-    // 对比字段类型列
+    // 采购价对比类型列
     columns.push({
-      title: '对比字段类型',
+      title: '采购价对比类型',
       dataIndex: '对比字段类型',
-      key: '对比字段类型',
+      key: '采购价对比类型',
       width: 120,
       render: () => '-',
     });
@@ -2560,7 +2560,7 @@ export default function SupplierQuotationPage() {
       },
     });
 
-    // 按照要求的顺序添加列：SKU 商品名称 SKU商品标签 规格 总部零售价 成本单价 最低采购价 最近采购价 对比字段类型 差价 供应商SKU备注 对比结果
+    // 按照要求的顺序添加列：SKU 商品名称 SKU商品标签 规格 总部零售价 成本单价 最低采购价 最近采购价 采购价对比类型 差价 供应商SKU备注 对比结果
 
     // 商品名称列
     columns.push({
@@ -2634,11 +2634,11 @@ export default function SupplierQuotationPage() {
       });
     }
 
-    // 对比字段类型列
+    // 采购价对比类型列
     columns.push({
-      title: '对比字段类型',
+      title: '采购价对比类型',
       dataIndex: '对比字段类型',
-      key: '对比字段类型',
+      key: '采购价对比类型',
       width: 120,
       render: (text: string) => text || '-',
     });
@@ -7436,7 +7436,7 @@ export default function SupplierQuotationPage() {
                     }))}
                   />
                   <Select
-                    placeholder="采购价类型"
+                    placeholder="采购价对比类型"
                     value={priceTypeFilter}
                     onChange={(value) => {
                       // 只更新状态，不自动筛选，需要点击搜索按钮才执行
@@ -8449,7 +8449,8 @@ export default function SupplierQuotationPage() {
       <BatchAddModal<SupplierQuotation>
         open={batchModalVisible}
         title="批量新增供应商报价"
-        hint="您可以从 Excel 中复制数据（包含序号、供应商编码、商品名称、商品规格、最小销售单位、商品型号、供应商商品编码、最小销售规格UPC商品条码、中包或整件销售规格条码、供货价格、供应商商品备注、操作列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。操作列的值：新增（插入新数据或更新现有数据）、删除（删除现有数据）。"
+        hint="请使用Excel文件导入数据。操作列的值：新增（插入新数据或更新现有数据）、删除（删除现有数据）。"
+        disablePaste={true}
         fields={useMemo<FieldConfig<SupplierQuotation & { 操作?: string }>[]>(() => ([
           { key: '序号', label: '序号', excelHeaderName: '序号', required: false, index: 0, transform: (v) => v ? Number(v) : null },
           { key: '供应商编码', label: '供应商编码', excelHeaderName: '供应商编码', required: true, index: 1 },
