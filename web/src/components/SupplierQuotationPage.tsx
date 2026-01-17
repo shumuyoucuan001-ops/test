@@ -379,7 +379,7 @@ export default function SupplierQuotationPage() {
       try {
         const parsed = JSON.parse(savedOrder);
         // 验证保存的列顺序是否包含所有列，如果不包含，补充缺失的列
-        const allColumnKeys = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
+        const allColumnKeys = getAllLeftColumns.map(col => col.key as string).filter(Boolean);
         const validOrder = parsed.filter((key: string) => allColumnKeys.includes(key));
         const missingKeys = allColumnKeys.filter(key => !validOrder.includes(key));
         // 将缺失的列添加到末尾
@@ -415,7 +415,7 @@ export default function SupplierQuotationPage() {
       const savedOrder = localStorage.getItem('supplier-quotation-left-column-order');
       if (!savedOrder) {
         // 首次加载，保存默认顺序
-        const allColumns = getAllLeftColumns().map(col => col.key as string).filter(Boolean);
+        const allColumns = getAllLeftColumns.map(col => col.key as string).filter(Boolean);
         // 先添加默认显示的列（按顺序）
         const defaultOrder = defaultVisibleColumns.filter(key => allColumns.includes(key));
         // 然后添加其他列
@@ -685,7 +685,7 @@ export default function SupplierQuotationPage() {
 
   // 左栏移动列
   const handleLeftMoveColumn = (columnKey: string, direction: 'up' | 'down') => {
-    const currentOrder = leftColumnOrder.length > 0 ? leftColumnOrder : getAllLeftColumns().map(col => col.key as string).filter(Boolean);
+    const currentOrder = leftColumnOrder.length > 0 ? leftColumnOrder : getAllLeftColumns.map(col => col.key as string).filter(Boolean);
     const index = currentOrder.indexOf(columnKey);
     if (index === -1) return;
 
@@ -981,8 +981,8 @@ export default function SupplierQuotationPage() {
     }
   };
 
-  // 获取左栏所有列定义（按默认显示顺序）
-  const getAllLeftColumns = (): ColumnType<SupplierQuotation>[] => {
+  // 获取左栏所有列定义（按默认显示顺序，使用 useMemo 确保列定义稳定）
+  const getAllLeftColumns = useMemo((): ColumnType<SupplierQuotation>[] => {
     return [
       {
         title: '序号',
@@ -1322,12 +1322,23 @@ export default function SupplierQuotationPage() {
         },
       },
     ];
-  };
+  }, [
+    // 供货价格列render函数使用的状态
+    quotationBindingFlags,
+    editingRatioQuotation,
+    ratioData,
+    allLeftData,
+    leftData,
+    rightAllData,
+    selectedSupplierCodes,
+    storeNameFilter,
+    cityFilter,
+  ]);
 
   // 获取过滤后的左栏列
   // 获取过滤后的左栏列（使用 useMemo 确保状态变化时重新计算）
   const getFilteredLeftColumns = useMemo((): ColumnType<SupplierQuotation>[] => {
-    const allColumns = getAllLeftColumns();
+    const allColumns = getAllLeftColumns;
 
     // 如果状态为空，尝试从 localStorage 读取（参考Refund1688FollowUpPage的实现方式）
     let currentOrder: string[];
@@ -1378,7 +1389,11 @@ export default function SupplierQuotationPage() {
 
     // 过滤隐藏的列
     return orderedColumns.filter(col => !hiddenSet.has(col.key as string));
-  }, [leftColumnOrder, leftHiddenColumns]);
+  }, [
+    getAllLeftColumns,
+    leftColumnOrder,
+    leftHiddenColumns,
+  ]);
 
 
   // 对比结果的所有可能值（提前定义，供getRightColumns使用）
@@ -7349,7 +7364,7 @@ export default function SupplierQuotationPage() {
                   <Popover
                     content={
                       <ColumnSettings
-                        columns={getAllLeftColumns()}
+                        columns={getAllLeftColumns}
                         hiddenColumns={leftHiddenColumns}
                         columnOrder={leftColumnOrder}
                         onToggleVisibility={handleLeftToggleVisibility}
