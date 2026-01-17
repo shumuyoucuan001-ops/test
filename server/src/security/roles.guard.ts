@@ -35,12 +35,41 @@ export class RolesGuard implements CanActivate {
     if (path.startsWith('/acl')) return true;
     if (!userId) return true; // 未携带用户ID时默认放行（前后端联调阶段）
     try {
-      const rows: any[] = await this.prisma.$queryRawUnsafe(`
-        SELECT p.path FROM sm_xitongkaifa.sys_permissions p
+      // 查询通过角色获取的权限
+      const rolePermissionRows: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT DISTINCT p.path FROM sm_xitongkaifa.sys_permissions p
         JOIN sm_xitongkaifa.sys_role_permissions rp ON rp.permission_id = p.id
         JOIN sm_xitongkaifa.sys_user_roles ur ON ur.role_id = rp.role_id
-        WHERE ur.user_id = ?
+        WHERE ur.user_id = ? AND ur.role_id > 0
       `, userId);
+
+      // 查询通过 smallrole_id 直接分配的权限（smallrole_id 是逗号分隔的权限ID字符串）
+      const userRoleRows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT smallrole_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=? AND smallrole_id IS NOT NULL AND smallrole_id != ''`,
+        userId
+      );
+
+      // 解析所有权限ID
+      const permissionIds: number[] = [];
+      userRoleRows.forEach(r => {
+        if (r.smallrole_id) {
+          const ids = String(r.smallrole_id).split(',').map(id => Number(id.trim())).filter(id => !isNaN(id));
+          permissionIds.push(...ids);
+        }
+      });
+
+      // 查询这些权限的路径
+      let directPermissionRows: any[] = [];
+      if (permissionIds.length > 0) {
+        const placeholders = permissionIds.map(() => '?').join(',');
+        directPermissionRows = await this.prisma.$queryRawUnsafe(
+          `SELECT DISTINCT path FROM sm_xitongkaifa.sys_permissions WHERE id IN (${placeholders})`,
+          ...permissionIds
+        );
+      }
+
+      // 合并权限路径
+      const rows = [...rolePermissionRows, ...directPermissionRows];
       const allowed = new Set(rows.map(r => String(r.path)));
       // 只对 /acl /products ... 这些后端接口做路径级校验
       if (allowed.size === 0) return true; // 未配置权限时默认放行

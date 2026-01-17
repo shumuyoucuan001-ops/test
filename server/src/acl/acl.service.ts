@@ -824,19 +824,62 @@ export class AclService {
       }
     }
   }
-  async setUserRoles(userId: number, roleIds: number[], operatorUserId?: number) {
-    // 获取原始角色列表
+  async setUserRoles(userId: number, roleIds: number[], permissionIds: number[] = [], operatorUserId?: number) {
+    // 获取原始角色和权限列表
     const originalRoleRows: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT role_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`,
+      `SELECT role_id, smallrole_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`,
       userId
     ) || [];
     const originalRoleIds = originalRoleRows.map((r: any) => Number(r.role_id));
+    // 解析原始权限ID（从逗号分隔的字符串中提取）
+    const originalPermissionIds: number[] = [];
+    originalRoleRows.forEach((r: any) => {
+      if (r.smallrole_id != null && r.smallrole_id !== '') {
+        const ids = String(r.smallrole_id).split(',').map(id => Number(id.trim())).filter(id => !isNaN(id));
+        originalPermissionIds.push(...ids);
+      }
+    });
 
-    await this.prisma.$transaction([
-      this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`, userId),
-      this.prisma.$executeRawUnsafe(`INSERT INTO sm_xitongkaifa.sys_user_roles(user_id,role_id) VALUES ${roleIds.map(() => '(?,?)').join(',')}`,
-        ...roleIds.flatMap(rid => [userId, rid]))
-    ]);
+    // 确保 smallrole_id 字段存在（VARCHAR 类型以支持逗号分隔的多个权限ID）
+    await this.ensureSmallRoleIdColumn();
+
+    // 构建要插入的记录
+    // 由于主键是 (user_id, role_id)，我们需要为每个 role_id 创建一条记录
+    // smallrole_id 存储所有权限ID，用逗号分隔（如 "1,2,3"）
+    // 如果有多个角色，将权限ID字符串存储到第一个角色的 smallrole_id 中
+
+    const insertValues: any[] = [];
+
+    // 将权限ID数组转换为逗号分隔的字符串
+    const smallroleIdStr = permissionIds.length > 0 ? permissionIds.join(',') : null;
+
+    // 为每个角色创建记录
+    roleIds.forEach((roleId, index) => {
+      // 如果是第一个角色且有权限，将权限ID字符串存储到 smallrole_id
+      // 其他角色的 smallrole_id 为 NULL
+      const smallroleId = (index === 0 && permissionIds.length > 0) ? smallroleIdStr : null;
+      insertValues.push([userId, roleId, smallroleId]);
+    });
+
+    // 如果只有权限没有角色，我们无法创建记录（因为 role_id 是必需的）
+    // 这种情况下，我们需要至少有一个角色才能保存权限
+    // 如果用户只选择了权限而没有选择角色，我们提示用户至少选择一个角色
+
+    // 执行删除和插入
+    const transactionPromises: any[] = [
+      this.prisma.$executeRawUnsafe(`DELETE FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`, userId)
+    ];
+
+    if (insertValues.length > 0) {
+      transactionPromises.push(
+        this.prisma.$executeRawUnsafe(
+          `INSERT INTO sm_xitongkaifa.sys_user_roles(user_id, role_id, smallrole_id) VALUES ${insertValues.map(() => '(?,?,?)').join(',')}`,
+          ...insertValues.flat()
+        )
+      );
+    }
+
+    await this.prisma.$transaction(transactionPromises);
 
     // 记录操作日志
     if (operatorUserId) {
@@ -847,8 +890,16 @@ export class AclService {
           targetDatabase: 'sm_xitongkaifa',
           targetTable: 'sys_user_roles',
           recordIdentifier: { user_id: userId },
-          changes: { role_ids: { old: originalRoleIds, new: roleIds } },
-          operationDetails: { original_role_ids: originalRoleIds, new_role_ids: roleIds },
+          changes: {
+            role_ids: { old: originalRoleIds, new: roleIds },
+            permission_ids: { old: originalPermissionIds, new: permissionIds }
+          },
+          operationDetails: {
+            original_role_ids: originalRoleIds,
+            new_role_ids: roleIds,
+            original_permission_ids: originalPermissionIds,
+            new_permission_ids: permissionIds
+          },
         });
       } catch (error) {
         Logger.error('[AclService] 记录操作日志失败:', error);
@@ -856,21 +907,119 @@ export class AclService {
     }
   }
 
+  // 确保 smallrole_id 字段存在（VARCHAR 类型以支持逗号分隔的多个权限ID）
+  private async ensureSmallRoleIdColumn() {
+    const hasSmallRoleId = await this.hasSysUserRolesColumn('smallrole_id');
+    if (!hasSmallRoleId) {
+      try {
+        await this.prisma.$executeRawUnsafe(
+          `ALTER TABLE sm_xitongkaifa.sys_user_roles ADD COLUMN smallrole_id VARCHAR(500) NULL`
+        );
+        Logger.log('[AclService] ✓ 已创建 smallrole_id 字段（VARCHAR类型）');
+      } catch (e: any) {
+        Logger.error('[AclService] ✗ 创建 smallrole_id 字段失败:', e.message);
+      }
+    } else {
+      // 如果字段已存在，检查是否为 VARCHAR 类型，如果不是则修改
+      try {
+        const columnInfo: any[] = await this.prisma.$queryRawUnsafe(
+          `SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='sm_xitongkaifa' AND TABLE_NAME='sys_user_roles' AND COLUMN_NAME='smallrole_id'`
+        );
+        if (columnInfo.length > 0 && columnInfo[0].DATA_TYPE !== 'varchar') {
+          // 如果类型不是 VARCHAR，修改为 VARCHAR
+          await this.prisma.$executeRawUnsafe(
+            `ALTER TABLE sm_xitongkaifa.sys_user_roles MODIFY COLUMN smallrole_id VARCHAR(500) NULL`
+          );
+          Logger.log('[AclService] ✓ 已修改 smallrole_id 字段类型为 VARCHAR');
+        }
+      } catch (e: any) {
+        Logger.warn('[AclService] 检查 smallrole_id 字段类型失败:', e.message);
+      }
+    }
+  }
+
+  // 检查 sys_user_roles 表的列是否存在
+  private async hasSysUserRolesColumn(columnName: string): Promise<boolean> {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='sm_xitongkaifa' AND TABLE_NAME='sys_user_roles' AND COLUMN_NAME=? LIMIT 1`,
+      columnName
+    );
+    return rows.length > 0;
+  }
+
   // 查询用户已分配的角色ID集合（用于前端展示与预勾选）
   async getUserRoleIds(userId: number) {
-    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT role_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=?`, userId);
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT DISTINCT role_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=? AND role_id > 0`,
+      userId
+    );
     return rows.map(r => Number(r.role_id));
+  }
+
+  // 查询用户已分配的权限ID集合（用于前端展示与预勾选）
+  async getUserPermissionIds(userId: number) {
+    await this.ensureSmallRoleIdColumn();
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT smallrole_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=? AND smallrole_id IS NOT NULL AND smallrole_id != ''`,
+      userId
+    );
+    // 解析逗号分隔的权限ID字符串
+    const permissionIds: number[] = [];
+    rows.forEach(r => {
+      if (r.smallrole_id) {
+        const ids = String(r.smallrole_id).split(',').map(id => Number(id.trim())).filter(id => !isNaN(id));
+        permissionIds.push(...ids);
+      }
+    });
+    // 去重并返回
+    return Array.from(new Set(permissionIds));
   }
 
   // 查询用户全部权限（用于前端菜单授权）
   async getUserPermissions(userId: number) {
-    const rows: any[] = await this.prisma.$queryRawUnsafe(`
-      SELECT p.* FROM sm_xitongkaifa.sys_permissions p
+    await this.ensureSmallRoleIdColumn();
+
+    // 查询通过角色获取的权限
+    const rolePermissions: any[] = await this.prisma.$queryRawUnsafe(`
+      SELECT DISTINCT p.* FROM sm_xitongkaifa.sys_permissions p
       JOIN sm_xitongkaifa.sys_role_permissions rp ON rp.permission_id = p.id
       JOIN sm_xitongkaifa.sys_user_roles ur ON ur.role_id = rp.role_id
-      WHERE ur.user_id = ?
+      WHERE ur.user_id = ? AND ur.role_id > 0
     `, userId);
-    return rows;
+
+    // 查询通过 smallrole_id 直接分配的权限（smallrole_id 是逗号分隔的权限ID字符串）
+    const userRoleRows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT smallrole_id FROM sm_xitongkaifa.sys_user_roles WHERE user_id=? AND smallrole_id IS NOT NULL AND smallrole_id != ''`,
+      userId
+    );
+
+    // 解析所有权限ID
+    const permissionIds: number[] = [];
+    userRoleRows.forEach(r => {
+      if (r.smallrole_id) {
+        const ids = String(r.smallrole_id).split(',').map(id => Number(id.trim())).filter(id => !isNaN(id));
+        permissionIds.push(...ids);
+      }
+    });
+
+    // 查询这些权限的详细信息
+    let directPermissions: any[] = [];
+    if (permissionIds.length > 0) {
+      const placeholders = permissionIds.map(() => '?').join(',');
+      directPermissions = await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT * FROM sm_xitongkaifa.sys_permissions WHERE id IN (${placeholders})`,
+        ...permissionIds
+      );
+    }
+
+    // 合并权限并去重
+    const allPermissions = [...rolePermissions, ...directPermissions];
+    const uniquePermissions = new Map();
+    allPermissions.forEach(p => {
+      uniquePermissions.set(p.id, p);
+    });
+
+    return Array.from(uniquePermissions.values());
   }
 
   // 登录：简单用户名/密码校验，返回用户基本信息

@@ -96,9 +96,10 @@ export class AclController {
   }
   @Post('users/assign') setUserRoles(@Body() b: any, @Headers('x-user-id') userId?: string) { 
     const userIdNum = userId ? parseInt(userId, 10) : undefined;
-    return this.service.setUserRoles(Number(b.userId), (b.roleIds || []).map(Number), userIdNum); 
+    return this.service.setUserRoles(Number(b.userId), (b.roleIds || []).map(Number), (b.permissionIds || []).map(Number), userIdNum); 
   }
   @Get('users/assigned') getUserRoleIds(@Query('userId') userId: string) { return this.service.getUserRoleIds(Number(userId)); }
+  @Get('users/assigned-permissions') getUserPermissionIds(@Query('userId') userId: string) { return this.service.getUserPermissionIds(Number(userId)); }
   @Get('users/edit-count') getUserEditCount(@Query('userId') userId: string) { return this.service.getUserEditCount(Number(userId)); }
 
   // user permission list

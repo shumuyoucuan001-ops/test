@@ -916,11 +916,15 @@ export const aclApi = {
   createUser: (u: Partial<SysUser>) => api.post('/acl/users/create', u).then(res => res.data),
   updateUser: (id: number, u: Partial<SysUser>) => api.post('/acl/users/update', { id, ...u }).then(res => res.data),
   deleteUser: (id: number) => api.post('/acl/users/delete', { id }).then(res => res.data),
-  assignUserRoles: (userId: number, roleIds: number[]) => api.post('/acl/users/assign', { userId, roleIds }).then(res => res.data),
+  assignUserRoles: (userId: number, roleIds: number[], permissionIds?: number[]) => api.post('/acl/users/assign', { userId, roleIds, permissionIds: permissionIds || [] }).then(res => res.data),
 
   // user assigned role ids (用于列表展示与弹窗预勾选)
   userAssignedRoleIds: (userId: number): Promise<number[]> =>
     api.get('/acl/users/assigned', { params: { userId } }).then(res => res.data),
+
+  // user assigned permission ids (用于列表展示与弹窗预勾选)
+  userAssignedPermissionIds: (userId: number): Promise<number[]> =>
+    api.get('/acl/users/assigned-permissions', { params: { userId } }).then(res => res.data),
 
   // user permissions
   userPermissions: (userId: number): Promise<SysPermission[]> => api.get('/acl/user-permissions', { params: { userId } }).then(res => res.data),

@@ -21,6 +21,7 @@ export default function UserPage() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [editing, setEditing] = useState<SysUser | null>(null);
   const [checked, setChecked] = useState<number[]>([]);
+  const [checkedPermissions, setCheckedPermissions] = useState<number[]>([]);
   const [form] = Form.useForm();
 
   const [q, setQ] = useState('');
@@ -145,11 +146,22 @@ export default function UserPage() {
     // 加载权限数据和角色权限映射
     await loadPermissions();
     await loadRolePermissions(roleIds);
+    
+    // 加载用户已选的具体权限
+    try {
+      const permissionIds = await aclApi.userAssignedPermissionIds(r.id);
+      console.log('获取用户已选权限ID:', permissionIds);
+      setCheckedPermissions(permissionIds);
+    } catch (error) {
+      console.error('获取用户已选权限失败:', error);
+      setCheckedPermissions([]);
+    }
   };
   const saveAssign = async () => {
     try {
-      await aclApi.assignUserRoles(editing!.id, checked);
+      await aclApi.assignUserRoles(editing!.id, checked, checkedPermissions);
       setAssignOpen(false);
+      setCheckedPermissions([]);
       await load(currentPage, q); // 重新加载用户列表以更新角色显示
       message.success("角色分配成功");
     } catch {
@@ -256,6 +268,7 @@ export default function UserPage() {
         onCancel={() => {
           setAssignOpen(false);
           setRolePermissionsMap({});
+          setCheckedPermissions([]);
         }}
         title={`分配角色 - ${editing?.username || ''}`}
         destroyOnHidden
@@ -317,6 +330,9 @@ export default function UserPage() {
           <div style={{ fontSize: '14px', color: '#666' }}>
             <strong>已选择角色数量：</strong> {checked.length} / {roles.length}
           </div>
+          <div style={{ fontSize: '14px', color: '#666', marginTop: 8 }}>
+            <strong>已选择具体权限数量：</strong> {checkedPermissions.length} / {permissions.length}
+          </div>
           {checked.length > 0 && (
             <div style={{ marginTop: 8 }}>
               <strong>选中的角色：</strong>
@@ -327,6 +343,42 @@ export default function UserPage() {
               ))}
             </div>
           )}
+        </div>
+        
+        <div style={{ marginTop: 16 }}>
+          <Divider />
+          <div style={{ marginBottom: 12 }}>
+            <strong style={{ fontSize: '14px' }}>具体权限选择（可多选）</strong>
+          </div>
+          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+            <Checkbox.Group
+              style={{ width: '100%' }}
+              value={checkedPermissions}
+              onChange={(vals) => {
+                setCheckedPermissions(vals as number[]);
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                {permissions.map(p => (
+                  <div key={p.id} style={{ padding: '8px', border: '1px solid #f0f0f0', borderRadius: '4px' }}>
+                    <Checkbox value={p.id}>
+                      <span style={{ fontWeight: checkedPermissions.includes(p.id) ? 'bold' : 'normal' }}>
+                        {p.name}
+                      </span>
+                      {checkedPermissions.includes(p.id) && (
+                        <Tag color="green" style={{ marginLeft: 8, fontSize: '12px' }}>
+                          已选择
+                        </Tag>
+                      )}
+                    </Checkbox>
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: '4px', marginLeft: '24px' }}>
+                      {p.code} - {p.path}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Checkbox.Group>
+          </div>
         </div>
 
         {checked.length > 0 && (
