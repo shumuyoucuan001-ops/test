@@ -1623,6 +1623,7 @@ export default function SupplierQuotationPage() {
       width: 120,
       fixed: 'left' as const,
       render: (text: string, record: any, index?: number) => {
+        console.log('[SKU列render] 开始渲染', { text, record: record?.key, editingSkuQuotation, skuBindingInputKeys: Object.keys(skuBindingInput), emptySkuInputsKeys: Object.keys(emptySkuInputs) });
         // 关键修复：优先使用record.quotation的UPC，如果没有则使用record.inventory.UPC
         // 因为record是alignedData中的项，当有手动绑定的SKU时，inventory可能为空或不正确
         // 使用quotation的UPC可以确保uniqueKey的唯一性
@@ -1978,6 +1979,7 @@ export default function SupplierQuotationPage() {
 
             const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               const newValue = e.target.value;
+              console.log('[SKU输入框] handleChange', { emptySkuKey, newValue, originalSkuValue, currentEmptySkuInputs: emptySkuInputs });
               // 总是更新输入框的值（与供应商SKU备注的逻辑一致）
               setEmptySkuInputs({
                 ...emptySkuInputs,
@@ -1988,6 +1990,7 @@ export default function SupplierQuotationPage() {
                 const newEditingKeys = new Set(editingEmptySkuKeys);
                 newEditingKeys.add(emptySkuKey);
                 setEditingEmptySkuKeys(newEditingKeys);
+                console.log('[SKU输入框] 添加编辑状态', { emptySkuKey, newEditingKeys: Array.from(newEditingKeys) });
               } else {
                 // 如果值恢复为原始值，移除编辑状态并清除输入框状态
                 const newEditingKeys = new Set(editingEmptySkuKeys);
@@ -1997,6 +2000,7 @@ export default function SupplierQuotationPage() {
                 const updatedInputs = { ...emptySkuInputs };
                 delete updatedInputs[emptySkuKey];
                 setEmptySkuInputs(updatedInputs);
+                console.log('[SKU输入框] 移除编辑状态', { emptySkuKey, newEditingKeys: Array.from(newEditingKeys) });
               }
             };
 
@@ -6188,7 +6192,31 @@ export default function SupplierQuotationPage() {
     const finalColumns = [...unlockedColumns, ...lockedColumns];
 
     return finalColumns;
-  }, [alignedData, filteredAlignedData, supplierNameFields, rightColumnOrder, rightHiddenColumns, rightLockedColumns]);
+  }, [
+    alignedData,
+    filteredAlignedData,
+    supplierNameFields,
+    rightColumnOrder,
+    rightHiddenColumns,
+    rightLockedColumns,
+    // SKU列render函数使用的状态
+    editingSkuQuotation,
+    skuBindingInput,
+    emptySkuInputs,
+    editingEmptySkuKeys,
+    upcToSkuMap,
+    supplierBindingSkuMap,
+    skuBindingMap,
+    skuBindingFlags,
+    allLeftData,
+    leftData,
+    matchedSkuSearch,
+    rightAllData,
+    selectedSupplierCodes,
+    storeNameFilter,
+    cityFilter,
+    inventoryType,
+  ]);
 
   // 左栏筛选后的数据（与右栏对齐），并应用分页
   // 注意：如果有SKU搜索或对比结果筛选，需要基于 filteredAlignedData 进行分页
@@ -6416,8 +6444,8 @@ export default function SupplierQuotationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mergedData, rightLoading, supplierNameFields, supplierBindingSkuMap, skuBindingMap]);
 
-  // 获取合并后的表格列定义
-  const getMergedColumns = (): ColumnType<any>[] => {
+  // 获取合并后的表格列定义（使用 useMemo 确保列定义稳定）
+  const getMergedColumns = useMemo((): ColumnType<any>[] => {
     // 获取过滤后的左栏列（应用列设置）
     const filteredLeftColumns = getFilteredLeftColumns;
     // 获取过滤后的右栏列（应用列设置）
@@ -6934,14 +6962,32 @@ export default function SupplierQuotationPage() {
     });
 
     return merged;
-  };
+  }, [
+    getFilteredLeftColumns,
+    getFilteredRightColumns,
+    supplierBindingSkuMap,
+    skuBindingMap,
+    supplierProductRemarks,
+    editingRemarks,
+    editingRemarkKeys,
+    internalSkuRemarks,
+    editingInternalSkuRemarks,
+    editingInternalSkuRemarkKeys,
+    supplierNameData,
+    inventoryType,
+    editingSkuQuotation,
+    skuBindingInput,
+    emptySkuInputs,
+    editingEmptySkuKeys,
+    upcToSkuMap,
+  ]);
 
   // 获取过滤后的合并列
-  const getFilteredMergedColumns = (): ColumnType<any>[] => {
-    const allColumns = getMergedColumns();
+  const getFilteredMergedColumns = useMemo((): ColumnType<any>[] => {
+    const allColumns = getMergedColumns;
     // 过滤掉数据来源列（隐藏列）
     return allColumns.filter(col => col.key !== 'dataType');
-  };
+  }, [getMergedColumns]);
 
   return (
     <React.Fragment>
@@ -7712,7 +7758,7 @@ export default function SupplierQuotationPage() {
             >
               <ResponsiveTable
                 tableId="supplier-quotation-merged"
-                columns={getFilteredMergedColumns()}
+                columns={getFilteredMergedColumns}
                 dataSource={mergedData}
                 rowKey={(record) => record.key}
                 loading={leftLoading || rightLoading}
