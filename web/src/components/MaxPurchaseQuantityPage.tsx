@@ -2,10 +2,10 @@
 
 import { usePageStateRestore, usePageStateSave } from '@/hooks/usePageState';
 import { MaxPurchaseQuantityItem, maxPurchaseQuantityApi, productMasterApi } from "@/lib/api";
-import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, FilterOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, SettingOutlined } from "@ant-design/icons";
 import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Popover, Select, Space, Tag } from "antd";
 import { ColumnType } from "antd/es/table";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BatchAddModal, { FieldConfig } from "./BatchAddModal";
 import ColumnSettings from "./ColumnSettings";
 import ExcelExportModal, { ExcelExportField } from "./ExcelExportModal";
@@ -19,7 +19,6 @@ const fieldLabels: Record<keyof MaxPurchaseQuantityItem, string> = {
     "修改人": "修改人",
     "商品名称": "商品名称",
     "商品UPC": "商品UPC",
-    "SPU编码": "SPU编码",
     "规格": "规格",
     "采购单价 (基础单位)": "采购单价 (基础单位)",
     "采购单价 (采购单位)": "采购单价 (采购单位)",
@@ -28,154 +27,10 @@ const fieldLabels: Record<keyof MaxPurchaseQuantityItem, string> = {
 // 页面唯一标识符
 const PAGE_KEY = 'max-purchase-quantity';
 
-// 搜索框筛选组件
-const SearchFilterDropdown = ({
-    columnKey,
-    columnTitle,
-    searchText,
-    onSearchChange,
-    onConfirm,
-    onClear,
-    setSelectedKeys,
-    confirm,
-    clearFilters,
-}: {
-    columnKey: string;
-    columnTitle: string;
-    searchText: string;
-    onSearchChange: (text: string) => void;
-    onConfirm: (text: string) => void;
-    onClear: () => void;
-    setSelectedKeys: (keys: string[]) => void;
-    confirm: () => void;
-    clearFilters?: () => void;
-}) => {
-    const [localSearchText, setLocalSearchText] = useState(searchText);
-
-    // 当外部 searchText 变化时，同步到本地状态
-    useEffect(() => {
-        setLocalSearchText(searchText);
-    }, [searchText]);
-
-    const handleConfirm = () => {
-        onSearchChange(localSearchText);
-        onConfirm(localSearchText);
-        if (localSearchText) {
-            setSelectedKeys([localSearchText]);
-        } else {
-            setSelectedKeys([]);
-        }
-        confirm();
-    };
-
-    const handleClear = () => {
-        setLocalSearchText('');
-        onSearchChange('');
-        onClear();
-        setSelectedKeys([]);
-        if (clearFilters) {
-            clearFilters();
-        }
-        confirm();
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            handleConfirm();
-        }
-    };
-
-    return (
-        <div style={{ padding: 12, minWidth: 300 }}>
-            <div style={{ marginBottom: 12 }}>
-                <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500, color: '#333' }}>
-                    搜索 {columnTitle}
-                </div>
-                <Input
-                    placeholder={`请输入${columnTitle}关键词进行搜索`}
-                    allowClear
-                    value={localSearchText}
-                    onChange={(e) => setLocalSearchText(e.target.value)}
-                    onPressEnter={handleKeyPress}
-                    size="small"
-                    prefix={<SearchOutlined />}
-                    autoFocus
-                />
-                <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-                    将在数据库中搜索该列的所有匹配数据
-                </div>
-            </div>
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-                <Button
-                    size="small"
-                    onClick={handleClear}
-                >
-                    清空
-                </Button>
-                <Button
-                    type="primary"
-                    size="small"
-                    onClick={handleConfirm}
-                >
-                    搜索
-                </Button>
-            </Space>
-        </div>
-    );
-};
-
-// 为列添加搜索筛选功能（只对非自动匹配的列）
-const addSearchFiltersToColumns = (
-    columns: any[],
-    columnSearchKeywords: Record<string, string>,
-    onSearchChange: (columnKey: string, keyword: string) => void,
-    onSearchClear: (columnKey: string) => void
-): any[] => {
-    // 自动匹配的列（不需要添加筛选）
-    const autoMatchColumns = ['商品名称', '采购单价 (基础单位)', '采购单价 (采购单位)', '商品UPC', '规格'];
-
-    return columns.map(col => {
-        const columnKey = col.key as string;
-        const columnTitle = col.title as string;
-
-        // 如果是操作列或自动匹配的列，不添加筛选
-        if (!columnKey || columnKey === 'action' || autoMatchColumns.includes(columnKey)) {
-            return col;
-        }
-
-        const searchKeyword = columnSearchKeywords[columnKey] || '';
-
-        return {
-            ...col,
-            filteredValue: searchKeyword ? [searchKeyword] : null,
-            filterIcon: (filtered: boolean) => (
-                <FilterOutlined style={{ color: filtered ? '#1890ff' : undefined }} />
-            ),
-            filterDropdown: ({ setSelectedKeys, confirm, clearFilters }: any) => (
-                <SearchFilterDropdown
-                    columnKey={columnKey}
-                    columnTitle={typeof columnTitle === 'string' ? columnTitle : columnKey}
-                    searchText={searchKeyword}
-                    onSearchChange={(text) => onSearchChange(columnKey, text)}
-                    onConfirm={(text) => {
-                        onSearchChange(columnKey, text);
-                    }}
-                    onClear={() => {
-                        onSearchClear(columnKey);
-                    }}
-                    setSelectedKeys={setSelectedKeys}
-                    confirm={confirm}
-                    clearFilters={clearFilters}
-                />
-            ),
-        };
-    });
-};
-
 export default function MaxPurchaseQuantityPage() {
     const { message, modal } = App.useApp();
     const [form] = Form.useForm();
-
+    
     // 定义默认状态
     const defaultState = {
         currentPage: 1,
@@ -187,10 +42,10 @@ export default function MaxPurchaseQuantityPage() {
             modifier?: string;
         },
     };
-
+    
     // 恢复保存的状态
     const restoredState = usePageStateRestore(PAGE_KEY, defaultState);
-
+    
     const [data, setData] = useState<MaxPurchaseQuantityItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -204,7 +59,7 @@ export default function MaxPurchaseQuantityPage() {
     }>(restoredState?.filters ?? defaultState.filters);
     const [currentPage, setCurrentPage] = useState(restoredState?.currentPage ?? defaultState.currentPage);
     const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? defaultState.pageSize);
-
+    
     // 保存状态（自动保存，防抖 300ms）
     usePageStateSave(PAGE_KEY, {
         currentPage,
@@ -219,9 +74,6 @@ export default function MaxPurchaseQuantityPage() {
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
     const [batchModalVisible, setBatchModalVisible] = useState(false);
     const [exportModalVisible, setExportModalVisible] = useState(false);
-
-    // 列搜索关键词（每列的搜索关键词）
-    const [columnSearchKeywords, setColumnSearchKeywords] = useState<Record<string, string>>({});
 
     // 从 localStorage 加载列显示偏好和顺序
     useEffect(() => {
@@ -418,18 +270,6 @@ export default function MaxPurchaseQuantityPage() {
         loadStoreNames();
     }, [loadStoreNames]);
 
-    // 将列搜索关键词转换为搜索参数
-    const buildColumnSearchParams = useCallback((): string[] => {
-        const searchParams: string[] = [];
-        Object.entries(columnSearchKeywords).forEach(([columnKey, keyword]) => {
-            if (keyword && keyword.trim()) {
-                // 将搜索关键词转换为搜索格式：列名:关键词
-                searchParams.push(`${columnKey}:${keyword.trim()}`);
-            }
-        });
-        return searchParams;
-    }, [columnSearchKeywords]);
-
     const load = useCallback(async (
         searchFilters?: {
             storeName?: string;
@@ -446,62 +286,15 @@ export default function MaxPurchaseQuantityPage() {
             const activeFilters = searchFilters ? Object.fromEntries(
                 Object.entries(searchFilters).filter(([_, v]) => v && v.trim())
             ) : undefined;
-
-            // 检查是否有列搜索
-            const columnSearchParams = buildColumnSearchParams();
-            const hasColumnSearch = columnSearchParams.length > 0;
-
-            // 如果有列搜索，需要获取更多数据以便在前端进行过滤
-            // 否则使用正常的分页
-            const fetchLimit = hasColumnSearch ? 10000 : limit;
-            const fetchPage = hasColumnSearch ? 1 : page;
-
-            const res = await maxPurchaseQuantityApi.list(activeFilters, fetchPage, fetchLimit);
-            let filteredData = res?.data || [];
-
-            // 在前端进行列搜索过滤
-            if (hasColumnSearch) {
-                Object.entries(columnSearchKeywords).forEach(([columnKey, keyword]) => {
-                    if (keyword && keyword.trim()) {
-                        filteredData = filteredData.filter((item: MaxPurchaseQuantityItem) => {
-                            const value = item[columnKey as keyof MaxPurchaseQuantityItem];
-                            if (value === null || value === undefined) return false;
-                            return String(value).toLowerCase().includes(keyword.toLowerCase());
-                        });
-                    }
-                });
-
-                // 前端分页
-                const startIndex = (page - 1) * limit;
-                const endIndex = startIndex + limit;
-                filteredData = filteredData.slice(startIndex, endIndex);
-            }
-
-            setData(filteredData);
-            // 如果有列搜索，total使用过滤后的数据总长度，否则使用后端返回的total
-            if (hasColumnSearch) {
-                // 需要重新获取所有数据来计算总数（这里简化处理，使用一个较大的limit）
-                const totalRes = await maxPurchaseQuantityApi.list(activeFilters, 1, 10000);
-                let totalFilteredData = totalRes?.data || [];
-                Object.entries(columnSearchKeywords).forEach(([columnKey, keyword]) => {
-                    if (keyword && keyword.trim()) {
-                        totalFilteredData = totalFilteredData.filter((item: MaxPurchaseQuantityItem) => {
-                            const value = item[columnKey as keyof MaxPurchaseQuantityItem];
-                            if (value === null || value === undefined) return false;
-                            return String(value).toLowerCase().includes(keyword.toLowerCase());
-                        });
-                    }
-                });
-                setTotal(totalFilteredData.length);
-            } else {
-                setTotal(res?.total || 0);
-            }
+            const res = await maxPurchaseQuantityApi.list(activeFilters, page, limit);
+            setData(res?.data || []);
+            setTotal(res?.total || 0);
         } catch (e: any) {
             message.error("加载失败: " + (e?.message || '未知错误'));
         } finally {
             setLoading(false);
         }
-    }, [currentPage, pageSize, message, buildColumnSearchParams, columnSearchKeywords]);
+    }, [currentPage, pageSize, message]);
 
     // 使用 ref 标记是否已经初始加载
     const hasInitialLoadRef = useRef(false);
@@ -523,25 +316,23 @@ export default function MaxPurchaseQuantityPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, pageSize]);
 
-    // 当列搜索关键词改变时，重新加载数据
-    useEffect(() => {
-        if (hasInitialLoadRef.current) {
-            setCurrentPage(1);
-            load(filters, 1, pageSize);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [columnSearchKeywords]);
+    const handleSearch = () => {
+        setCurrentPage(1);
+        load(filters, 1, pageSize);
+    };
 
     const handleReset = () => {
         setFilters({});
         setCurrentPage(1);
-        // 清除所有列搜索关键词
-        setColumnSearchKeywords({});
         load(undefined, 1, pageSize);
     };
 
-    // 检查是否有列搜索条件
-    const hasActiveColumnFilters = Object.values(columnSearchKeywords).some(keyword => keyword && keyword.trim());
+    const updateFilter = (key: keyof typeof filters, value: string) => {
+        setFilters(prev => ({
+            ...prev,
+            [key]: value,
+        }));
+    };
 
     const handleAdd = () => {
         setEditingRecord(null);
@@ -755,27 +546,8 @@ export default function MaxPurchaseQuantityPage() {
             ),
         };
 
-        const colsWithAction = [...orderedCols, actionColumn];
-
-        // 为列添加搜索筛选功能（只对非自动匹配的列）
-        return addSearchFiltersToColumns(
-            colsWithAction,
-            columnSearchKeywords,
-            (columnKey: string, keyword: string) => {
-                setColumnSearchKeywords(prev => ({
-                    ...prev,
-                    [columnKey]: keyword,
-                }));
-            },
-            (columnKey: string) => {
-                setColumnSearchKeywords(prev => {
-                    const newKeywords = { ...prev };
-                    delete newKeywords[columnKey];
-                    return newKeywords;
-                });
-            }
-        );
-    }, [hiddenColumns, columnOrder, baseColumns, columnSearchKeywords]);
+        return [...orderedCols, actionColumn];
+    }, [hiddenColumns, columnOrder, baseColumns]);
 
     return (
         <div style={{ padding: 24 }}>
@@ -790,6 +562,7 @@ export default function MaxPurchaseQuantityPage() {
                             批量新增
                         </Button>
                         <Button onClick={() => setExportModalVisible(true)}>导出数据</Button>
+                        <Button icon={<SearchOutlined />} onClick={handleSearch}>搜索</Button>
                         <Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>
                         <Popover
                             content={
@@ -813,6 +586,48 @@ export default function MaxPurchaseQuantityPage() {
                     </Space>
                 }
             >
+                <div style={{ marginBottom: 16, padding: '16px', background: '#f5f5f5', borderRadius: '4px' }}>
+                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                        <Space wrap>
+                            <Input
+                                allowClear
+                                placeholder="仓店名称"
+                                value={filters.storeName || ''}
+                                onChange={e => updateFilter('storeName', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="SKU"
+                                value={filters.sku || ''}
+                                onChange={e => updateFilter('sku', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="单次最高采购量(基本单位)"
+                                value={filters.maxQuantity || ''}
+                                onChange={e => updateFilter('maxQuantity', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 200 }}
+                                prefix={<SearchOutlined />}
+                            />
+                            <Input
+                                allowClear
+                                placeholder="修改人"
+                                value={filters.modifier || ''}
+                                onChange={e => updateFilter('modifier', e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ width: 180 }}
+                                prefix={<SearchOutlined />}
+                            />
+                        </Space>
+                    </Space>
+                </div>
                 <ResponsiveTable<MaxPurchaseQuantityItem>
                     tableId="max-purchase-quantity"
                     columns={columns as any}
@@ -826,10 +641,7 @@ export default function MaxPurchaseQuantityPage() {
                         total: total,
                         showSizeChanger: true,
                         pageSizeOptions: ['20', '50'],
-                        showTotal: (total, range) => {
-                            const filterHint = hasActiveColumnFilters ? '（已筛选）' : '';
-                            return `第 ${range[0]}-${range[1]} 条，共 ${total} 条${filterHint}`;
-                        },
+                        showTotal: (total) => `共 ${total} 条记录`,
                         onChange: (page, size) => {
                             setCurrentPage(page);
                             if (size && size !== pageSize) {

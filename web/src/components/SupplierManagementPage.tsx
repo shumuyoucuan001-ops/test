@@ -385,9 +385,18 @@ export default function SupplierManagementPage() {
         localStorage.getItem('display_name')
       ) : null;
 
+      // 处理空值：将空字符串转换为undefined，确保清空功能正常工作
+      const processedValues = {
+        ...values,
+        orderStrategy: values.orderStrategy === '' || values.orderStrategy === null ? undefined : values.orderStrategy,
+        internalRemarks: values.internalRemarks === '' || values.internalRemarks === null ? undefined : values.internalRemarks,
+        orderRemarks: values.orderRemarks === '' || values.orderRemarks === null ? undefined : values.orderRemarks,
+        wangwangMessage: values.wangwangMessage === '' || values.wangwangMessage === null ? undefined : values.wangwangMessage,
+      };
+
       // 调用原有的API（包含用户信息）
       await supplierApi.upsertSupplierManagement({
-        ...values,
+        ...processedValues,
         userId: userId ? parseInt(userId) : undefined,
         userName: displayName || undefined,
       });
@@ -567,11 +576,19 @@ export default function SupplierManagementPage() {
       title: '管理状态',
       key: 'managementStatus',
       width: 100,
-      render: (record: SupplierFullInfo) => (
-        <Tag color={record.minOrderAmount || record.minOrderQuantity ? 'blue' : 'default'}>
-          {record.minOrderAmount || record.minOrderQuantity ? '已管理' : '未管理'}
-        </Tag>
-      ),
+      render: (record: SupplierFullInfo) => {
+        const isManaged = record.minOrderAmount ||
+          record.minOrderQuantity ||
+          record.orderStrategy ||
+          record.internalRemarks ||
+          record.orderRemarks ||
+          record.wangwangMessage;
+        return (
+          <Tag color={isManaged ? 'blue' : 'default'}>
+            {isManaged ? '已管理' : '未管理'}
+          </Tag>
+        );
+      },
     },
     {
       title: '操作',
@@ -579,7 +596,7 @@ export default function SupplierManagementPage() {
       width: 150,
       fixed: 'right' as const,
       render: (record: SupplierFullInfo) => (
-        <Space size="small">
+        <Space size="small" direction="vertical">
           <Button
             type="link"
             size="small"
@@ -588,23 +605,28 @@ export default function SupplierManagementPage() {
           >
             编辑
           </Button>
-          {(record.minOrderAmount || record.minOrderQuantity) && (
-            <Popconfirm
-              title="确定要清空这个供应商的管理信息吗？"
-              onConfirm={() => handleDelete(record.supplierCode)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button
-                type="link"
-                size="small"
-                danger
-                icon={<DeleteOutlined />}
+          {(record.minOrderAmount ||
+            record.minOrderQuantity ||
+            record.orderStrategy ||
+            record.internalRemarks ||
+            record.orderRemarks ||
+            record.wangwangMessage) && (
+              <Popconfirm
+                title="确定要清空这个供应商的管理信息吗？"
+                onConfirm={() => handleDelete(record.supplierCode)}
+                okText="确定"
+                cancelText="取消"
               >
-                清空管理信息
-              </Button>
-            </Popconfirm>
-          )}
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                >
+                  清空管理信息
+                </Button>
+              </Popconfirm>
+            )}
         </Space>
       ),
     },
@@ -828,6 +850,8 @@ export default function SupplierManagementPage() {
                     <Select
                       placeholder="请选择下单策略"
                       allowClear
+                      showSearch={false}
+                      style={{ width: '100%' }}
                     >
                       <Select.Option value="合并下单">合并下单</Select.Option>
                       <Select.Option value="按需下单">按需下单</Select.Option>

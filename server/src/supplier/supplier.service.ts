@@ -282,11 +282,6 @@ export class SupplierService {
     userId?: number,
     userName?: string
   ): Promise<SupplierManagement> {
-    // 验证至少有一个不为空
-    if (!data.minOrderAmount && !data.minOrderQuantity) {
-      throw new Error('供应商起订金额和供应商起订数量至少需要填写一个');
-    }
-
     const connection = await this.getConnection();
 
     try {

@@ -1608,9 +1608,8 @@ export default function SupplierQuotationPage() {
 
   // 对比结果的所有可能值（提前定义，供getRightColumns使用）
   const comparisonResultOptions = [
-    { label: '价格优势', value: '价格优势', color: 'green' },
+    { label: '默认供应', value: '默认供应', color: 'green' },
     { label: '价格偏高', value: '价格偏高', color: 'red' },
-    { label: '价格相同', value: '价格相同', color: 'default' },
     { label: '无供货价信息', value: '无供货价信息', color: 'orange' },
     { label: '无采购价信息', value: '无采购价信息', color: 'orange' },
     { label: '无匹配数据', value: '无匹配数据', color: 'default' },
@@ -4254,7 +4253,7 @@ export default function SupplierQuotationPage() {
           };
         }
 
-        // 供货价格 - 采购价，显示'价格优势'（供应商报价更便宜）
+        // 供货价格 - 采购价，显示'默认供应'（供应商报价不高于采购价）
         const diff = supplierPrice - comparePrice;
         // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
         const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
@@ -4262,7 +4261,7 @@ export default function SupplierQuotationPage() {
           : undefined;
         const resultItem = {
           ...item,
-          对比结果: diff < 0 ? '价格优势' : diff > 0 ? '价格偏高' : '价格相同',
+          对比结果: diff <= 0 ? '默认供应' : '价格偏高',
           对比字段类型: compareFieldType,
           差价: diff,
           安差价加率: priceDiffRate,
@@ -5008,7 +5007,7 @@ export default function SupplierQuotationPage() {
                 安差价加率: undefined,
               };
             } else {
-              // 供货价格 - 采购价，显示'价格优势'（供应商报价更便宜）
+              // 供货价格 - 采购价，显示'默认供应'（供应商报价不高于采购价）
               const diff = supplierPrice - comparePrice;
               // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
               const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
@@ -5016,7 +5015,7 @@ export default function SupplierQuotationPage() {
                 : undefined;
               matchedInventory = {
                 ...matchedInventory,
-                对比结果: diff < 0 ? '价格优势' : diff > 0 ? '价格偏高' : '价格相同',
+                对比结果: diff <= 0 ? '默认供应' : '价格偏高',
                 对比字段类型: compareFieldType,
                 差价: diff,
                 安差价加率: priceDiffRate,
@@ -5997,7 +5996,7 @@ export default function SupplierQuotationPage() {
               差价: undefined,
             };
           } else {
-            // 供货价格 - 采购价，显示'价格优势'（供应商报价更便宜）
+            // 供货价格 - 采购价，显示'默认供应'（供应商报价不高于采购价）
             const diff = supplierPrice - comparePrice;
             // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
             const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
@@ -6005,7 +6004,7 @@ export default function SupplierQuotationPage() {
               : undefined;
             matchedInventory = {
               ...matchedInventory,
-              对比结果: diff < 0 ? '价格优势' : diff > 0 ? '价格偏高' : '价格相同',
+              对比结果: diff <= 0 ? '默认供应' : '价格偏高',
               对比字段类型: compareFieldType,
               差价: diff,
               安差价加率: priceDiffRate,
