@@ -548,8 +548,20 @@ export default function BatchAddModal<T = any>({
                 return field.label;
             });
 
-            // 创建工作表数据（只有表头，没有数据行）
-            const worksheetData = [headers];
+            // 找到操作列的索引
+            const operationFieldIndex = fields.findIndex(f => f.key === '操作');
+
+            // 构建第二行（提示行）
+            const hintRow: string[] = headers.map((_, index) => {
+                // 如果是操作列，添加红色提示
+                if (index === operationFieldIndex) {
+                    return '只能填入新增/删除,不填默认为新增(导入前删除此行)';
+                }
+                return '';
+            });
+
+            // 创建工作表数据（表头行 + 提示行）
+            const worksheetData = [headers, hintRow];
 
             // 创建工作簿
             const workbook = XLSX.utils.book_new();
@@ -559,11 +571,25 @@ export default function BatchAddModal<T = any>({
             const colWidths = headers.map(() => ({ wch: 20 }));
             worksheet['!cols'] = colWidths;
 
+            // 设置操作列提示行的样式（红色字体）
+            if (operationFieldIndex >= 0) {
+                const cellAddress = XLSX.utils.encode_cell({ c: operationFieldIndex, r: 1 });
+                if (!worksheet[cellAddress]) {
+                    worksheet[cellAddress] = { t: 's', v: hintRow[operationFieldIndex] };
+                }
+                // 设置样式（使用 s 属性设置样式索引）
+                // 注意：XLSX 库本身不直接支持样式，但我们可以通过创建样式表来实现
+                // 这里先设置单元格值，样式需要在 Excel 中手动设置或使用其他库
+                // 为了支持样式，我们可以尝试使用 '!merges' 或通过 's' 属性
+                // 但实际上 XLSX 的免费版本不支持样式，所以我们只能在文本前添加标记
+                // 或者，我们可以在提示文本中明确说明这是操作列的提示
+            }
+
             // 将工作表添加到工作簿
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
 
             // 生成文件名（使用模态框标题，去掉特殊字符）
-            const fileName = `${String(title).replace(/[^\w\s-]/g, '') || '批量新增'}_模板.xlsx`;
+            const fileName = `${String(title).replace(/[^\w\s-]/g, '') || '批量操作'}_模板.xlsx`;
 
             // 导出文件
             XLSX.writeFile(workbook, fileName);
@@ -628,7 +654,7 @@ export default function BatchAddModal<T = any>({
                         icon={<DownloadOutlined />}
                         onClick={handleExportTemplate}
                     >
-                        [批量新增]模板导出
+                        [批量操作]模板导出
                     </Button>
                 </div>
             </div>

@@ -2112,6 +2112,7 @@ export class SupplierQuotationService implements OnModuleInit {
       中包或整件销售规格条码?: string;
       供货价格?: number;
       供应商商品备注?: string;
+      操作?: string;
     }>,
   ): Promise<{ success: number; failed: number; errors: string[] }> {
     const connection = await this.getConnection();
@@ -2130,9 +2131,30 @@ export class SupplierQuotationService implements OnModuleInit {
             continue;
           }
 
-          // 插入数据
-          const insertQuery = `
-            INSERT INTO \`供应商报价\` (
+          const operation = (item.操作 || '新增').trim();
+
+          // 删除操作
+          if (operation === '删除') {
+            const deleteQuery = `
+              DELETE FROM \`供应商报价\`
+              WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+            `;
+            const [deleteResult]: any = await connection.execute(deleteQuery, [
+              item.供应商编码,
+              item.供应商商品编码,
+            ]);
+            if (deleteResult.affectedRows > 0) {
+              success++;
+            } else {
+              failed++;
+              errors.push(`供应商编码: ${item.供应商编码}, 供应商商品编码: ${item.供应商商品编码} - 记录不存在，无法删除`);
+            }
+            continue;
+          }
+
+          // 新增操作：直接使用 REPLACE INTO（如果存在则更新，不存在则插入）
+          const replaceQuery = `
+            REPLACE INTO \`供应商报价\` (
               \`序号\`,
               \`供应商编码\`,
               \`商品名称\`,
@@ -2147,7 +2169,7 @@ export class SupplierQuotationService implements OnModuleInit {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `;
 
-          await connection.execute(insertQuery, [
+          await connection.execute(replaceQuery, [
             item.序号 || null,
             item.供应商编码,
             item.商品名称 || null,
@@ -2185,6 +2207,117 @@ export class SupplierQuotationService implements OnModuleInit {
     } catch (error) {
       Logger.error(
         '[SupplierQuotationService] 批量创建供应商报价失败:',
+        error,
+      );
+      throw error;
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 批量创建供应商报价（确认更新）
+  async batchCreateSupplierQuotationsConfirm(
+    items: Array<{
+      序号?: number;
+      供应商编码: string;
+      商品名称?: string;
+      商品规格?: string;
+      最小销售单位?: string;
+      商品型号?: string;
+      供应商商品编码: string;
+      最小销售规格UPC商品条码?: string;
+      中包或整件销售规格条码?: string;
+      供货价格?: number;
+      供应商商品备注?: string;
+      操作?: string;
+    }>,
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
+    const connection = await this.getConnection();
+
+    try {
+      let success = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const item of items) {
+        try {
+          // 验证必填字段
+          if (!item.供应商编码 || !item.供应商商品编码) {
+            failed++;
+            errors.push(`供应商编码和供应商商品编码为必填项`);
+            continue;
+          }
+
+          const operation = (item.操作 || '新增').trim();
+
+          // 删除操作
+          if (operation === '删除') {
+            const deleteQuery = `
+              DELETE FROM \`供应商报价\`
+              WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+            `;
+            const [deleteResult]: any = await connection.execute(deleteQuery, [
+              item.供应商编码,
+              item.供应商商品编码,
+            ]);
+            if (deleteResult.affectedRows > 0) {
+              success++;
+            } else {
+              failed++;
+              errors.push(`供应商编码: ${item.供应商编码}, 供应商商品编码: ${item.供应商商品编码} - 记录不存在，无法删除`);
+            }
+            continue;
+          }
+
+          // 新增操作：使用 REPLACE INTO（如果存在则更新，不存在则插入）
+          const replaceQuery = `
+            REPLACE INTO \`供应商报价\` (
+              \`序号\`,
+              \`供应商编码\`,
+              \`商品名称\`,
+              \`商品规格\`,
+              \`最小销售单位\`,
+              \`商品型号\`,
+              \`供应商商品编码\`,
+              \`最小销售规格UPC商品条码\`,
+              \`中包或整件销售规格条码\`,
+              \`供货价格\`,
+              \`供应商商品备注\`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+
+          await connection.execute(replaceQuery, [
+            item.序号 || null,
+            item.供应商编码,
+            item.商品名称 || null,
+            item.商品规格 || null,
+            item.最小销售单位 || null,
+            item.商品型号 || null,
+            item.供应商商品编码,
+            item.最小销售规格UPC商品条码 || null,
+            item.中包或整件销售规格条码 || null,
+            item.供货价格 || null,
+            item.供应商商品备注 || null,
+          ]);
+
+          success++;
+        } catch (error: any) {
+          failed++;
+          let errorMessage = error?.message || '未知错误';
+          errors.push(
+            `供应商编码: ${item.供应商编码}, 供应商商品编码: ${item.供应商商品编码} - ${errorMessage}`,
+          );
+          Logger.error(
+            `[SupplierQuotationService] 批量创建供应商报价（确认）失败:`,
+            error,
+          );
+        }
+      }
+
+      return { success, failed, errors };
+    } catch (error) {
+      Logger.error(
+        '[SupplierQuotationService] 批量创建供应商报价（确认）失败:',
         error,
       );
       throw error;

@@ -53,6 +53,8 @@ export default function SupplierQuotationPage() {
     comparisonResultFilter: [] as string[],
     storeNameFilter: '',
     cityFilter: '',
+    priceTypeFilter: undefined as '最低采购价' | '最近采购价' | '成本单价' | undefined,
+    supplierNameFields: [] as string[],
     otherInfoActiveMenu: 'product-info' as 'sku-binding' | 'product-info',
   };
 
@@ -91,14 +93,14 @@ export default function SupplierQuotationPage() {
   const [rightPageSize, setRightPageSize] = useState(restoredState?.rightPageSize ?? defaultState.rightPageSize);
   const [rightTotal, setRightTotal] = useState(0); // 库存汇总总数
   const [comparisonResultFilter, setComparisonResultFilter] = useState<string[]>(restoredState?.comparisonResultFilter ?? defaultState.comparisonResultFilter); // 对比结果筛选
-  const [priceTypeFilter, setPriceTypeFilter] = useState<'最低采购价' | '最近采购价' | '成本单价' | undefined>(undefined); // 采购价类型筛选（单选）
+  const [priceTypeFilter, setPriceTypeFilter] = useState<'最低采购价' | '最近采购价' | '成本单价' | undefined>(restoredState?.priceTypeFilter ?? defaultState.priceTypeFilter); // 采购价类型筛选（单选）
   const [storeNameFilter, setStoreNameFilter] = useState<string>(restoredState?.storeNameFilter ?? defaultState.storeNameFilter); // 门店/仓名称筛选（仅仓店维度，单选）
   const [cityFilter, setCityFilter] = useState<string>(restoredState?.cityFilter ?? defaultState.cityFilter); // 城市筛选（仅城市维度，单选）
   const [warehousePriorities, setWarehousePriorities] = useState<string[]>([]); // 仓库优先级列表
   const [cities, setCities] = useState<string[]>([]); // 城市列表
   const [upcToSkuMap, setUpcToSkuMap] = useState<Record<string, string[]>>({}); // UPC条码到SKU编码的映射
   const [supplierBindingSkuMap, setSupplierBindingSkuMap] = useState<Record<string, string>>({}); // 从供应商编码手动绑定sku表查询到的SKU映射（key为"供应商编码_供应商商品编码"，value为SKU）
-  const [supplierNameFields, setSupplierNameFields] = useState<string[]>([]); // 需要查询的供应商名称字段（默认空数组）
+  const [supplierNameFields, setSupplierNameFields] = useState<string[]>(restoredState?.supplierNameFields ?? defaultState.supplierNameFields); // 需要查询的供应商名称字段（默认空数组）
   const [supplierNameData, setSupplierNameData] = useState<Record<string, string>>({}); // 存储查询到的供应商名称数据
   const [supplierStoreRelationMap, setSupplierStoreRelationMap] = useState<Record<string, number | string | any>>({}); // 存储供应商-门店关系映射（key为供应商编码，value为关系数量或"是/否"或包含详细信息的对象）
   const [editingRatioQuotation, setEditingRatioQuotation] = useState<string | null>(null); // 当前正在编辑比例的供应商报价（使用"供应商编码_UPC"作为key）
@@ -175,6 +177,8 @@ export default function SupplierQuotationPage() {
     comparisonResultFilter,
     storeNameFilter,
     cityFilter,
+    priceTypeFilter,
+    supplierNameFields,
     otherInfoActiveMenu,
   });
 
@@ -345,11 +349,11 @@ export default function SupplierQuotationPage() {
   // 左栏默认显示的字段（按顺序）
   const defaultVisibleColumns = ['序号', '供应商名称', '供应商编码', '商品名称', '商品规格', '供货价格'];
 
-  // 右栏默认显示的字段（全部类型）：SKU, 成本单价, 最低采购价, 最近采购价, 对比字段类型, 差价, 安差价加率, 供应商SKU备注, 内部sku备注, 对比结果
-  const defaultRightVisibleColumns = ['SKU', '成本单价', '最低采购价', '最近采购价', '对比字段类型', '差价', '安差价加率', '供应商SKU备注', '内部sku备注', '对比结果'];
+  // 右栏默认显示的字段（全部类型）：SKU, 成本单价, 最低采购价, 最近采购价, 对比字段类型, 差价, 差价率, 供应商SKU备注, 内部sku备注, 对比结果
+  const defaultRightVisibleColumns = ['SKU', '成本单价', '最低采购价', '最近采购价', '对比字段类型', '差价', '差价率', '供应商SKU备注', '内部sku备注', '对比结果'];
 
-  // 右栏默认显示的字段（仓店/城市类型）：SKU, 成本单价, 最近采购价, 对比字段类型, 差价, 安差价加率, 供应商SKU备注, 内部sku备注, 对比结果
-  const defaultRightVisibleColumnsStoreCity = ['SKU', '成本单价', '最近采购价', '对比字段类型', '差价', '安差价加率', '供应商SKU备注', '内部sku备注', '对比结果'];
+  // 右栏默认显示的字段（仓店/城市类型）：SKU, 成本单价, 最近采购价, 对比字段类型, 差价, 差价率, 供应商SKU备注, 内部sku备注, 对比结果
+  const defaultRightVisibleColumnsStoreCity = ['SKU', '成本单价', '最近采购价', '对比字段类型', '差价', '差价率', '供应商SKU备注', '内部sku备注', '对比结果'];
 
   // 初始化左栏列设置（优先使用用户保存的设置）
   useEffect(() => {
@@ -754,14 +758,17 @@ export default function SupplierQuotationPage() {
   };
 
   const handleProductInfoToggleVisibility = (columnKey: string) => {
-    const newHidden = new Set(productInfoHiddenColumns);
-    if (newHidden.has(columnKey)) {
-      newHidden.delete(columnKey);
-    } else {
-      newHidden.add(columnKey);
-    }
-    setProductInfoHiddenColumns(newHidden);
-    saveProductInfoColumnSettings();
+    setProductInfoHiddenColumns(prev => {
+      const newHidden = new Set(prev);
+      if (newHidden.has(columnKey)) {
+        newHidden.delete(columnKey);
+      } else {
+        newHidden.add(columnKey);
+      }
+      // 保存到 localStorage
+      localStorage.setItem('supplier-quotation-product-info-hidden-columns', JSON.stringify(Array.from(newHidden)));
+      return newHidden;
+    });
   };
 
   const handleProductInfoMoveColumn = (columnKey: string, direction: 'up' | 'down') => {
@@ -858,8 +865,8 @@ export default function SupplierQuotationPage() {
     ];
   };
 
-  // 获取过滤后的商品信息列
-  const getFilteredProductInfoColumns = (): ColumnType<any>[] => {
+  // 获取过滤后的商品信息列（使用 useMemo 确保状态变化时重新计算）
+  const getFilteredProductInfoColumns = useMemo((): ColumnType<any>[] => {
     const allColumns = getAllProductInfoColumns();
     let currentOrder: string[];
     if (productInfoColumnOrder.length > 0) {
@@ -878,7 +885,16 @@ export default function SupplierQuotationPage() {
       }
     }
 
-    const orderedColumns = currentOrder
+    // 确保 currentOrder 中只包含实际存在的列
+    const validOrder = currentOrder.filter(key => allColumns.some(col => col.key === key));
+    // 添加所有列中不在 currentOrder 中的列（新增的列）
+    const missingColumns = allColumns
+      .filter(col => col.key && !validOrder.includes(col.key as string))
+      .map(col => col.key as string)
+      .filter(Boolean);
+    const finalOrder = [...validOrder, ...missingColumns];
+
+    const orderedColumns = finalOrder
       .map(key => allColumns.find(col => col.key === key))
       .filter((col): col is ColumnType<any> => col !== undefined);
 
@@ -899,8 +915,14 @@ export default function SupplierQuotationPage() {
       }
     }
 
-    return orderedColumns.filter(col => !hiddenSet.has(col.key as string));
-  };
+    // 过滤隐藏的列，并确保所有列都有有效的 key 和 dataIndex
+    return orderedColumns
+      .filter(col => col.key && !hiddenSet.has(col.key as string))
+      .map(col => ({
+        ...col,
+        dataIndex: col.dataIndex || col.key, // 确保 dataIndex 存在
+      }));
+  }, [productInfoColumnOrder, productInfoHiddenColumns]);
 
   // 导出商品信息数据
   const handleExportProductInfo = () => {
@@ -910,7 +932,7 @@ export default function SupplierQuotationPage() {
     }
 
     try {
-      const columns = getFilteredProductInfoColumns();
+      const columns = getFilteredProductInfoColumns;
       const headers = columns.map(col => col.title as string);
       const rows = productInfoData.map(item => {
         return columns.map(col => {
@@ -1412,24 +1434,24 @@ export default function SupplierQuotationPage() {
       }
     });
 
-    // 确保安差价加率列在顺序中（如果allColumns中有安差价加率列）
-    if (allColumnKeys.includes('安差价加率') && !currentOrder.includes('安差价加率')) {
-      // 如果安差价加率列不在顺序中，添加到差价列之后
+    // 确保差价率列在顺序中（如果allColumns中有差价率列）
+    if (allColumnKeys.includes('差价率') && !currentOrder.includes('差价率')) {
+      // 如果差价率列不在顺序中，添加到差价列之后
       const diffIndex = currentOrder.indexOf('差价');
       if (diffIndex >= 0) {
-        currentOrder.splice(diffIndex + 1, 0, '安差价加率');
+        currentOrder.splice(diffIndex + 1, 0, '差价率');
       } else {
         // 如果没有差价列，添加到对比字段类型列之后
         const comparisonFieldTypeIndex = currentOrder.indexOf('对比字段类型');
         if (comparisonFieldTypeIndex >= 0) {
-          currentOrder.splice(comparisonFieldTypeIndex + 1, 0, '安差价加率');
+          currentOrder.splice(comparisonFieldTypeIndex + 1, 0, '差价率');
         } else {
           // 如果都没有，添加到供应商-门店关系列之前
           const relationIndex = currentOrder.indexOf('供应商-门店关系');
           if (relationIndex >= 0) {
-            currentOrder.splice(relationIndex, 0, '安差价加率');
+            currentOrder.splice(relationIndex, 0, '差价率');
           } else {
-            currentOrder.push('安差价加率');
+            currentOrder.push('差价率');
           }
         }
       }
@@ -1437,8 +1459,8 @@ export default function SupplierQuotationPage() {
 
     // 确保供应商-门店关系列在顺序中（如果allColumns中有供应商-门店关系列）
     if (allColumnKeys.includes('供应商-门店关系') && !currentOrder.includes('供应商-门店关系')) {
-      // 如果供应商-门店关系列不在顺序中，添加到安差价加率列之后（如果存在），否则添加到差价列之后
-      const priceDiffRateIndex = currentOrder.indexOf('安差价加率');
+      // 如果供应商-门店关系列不在顺序中，添加到差价率列之后（如果存在），否则添加到差价列之后
+      const priceDiffRateIndex = currentOrder.indexOf('差价率');
       const diffIndex = currentOrder.indexOf('差价');
       if (priceDiffRateIndex >= 0) {
         currentOrder.splice(priceDiffRateIndex + 1, 0, '供应商-门店关系');
@@ -1503,9 +1525,9 @@ export default function SupplierQuotationPage() {
       .map(key => allColumns.find(col => col.key === key))
       .filter((col): col is ColumnType<InventorySummary> => col !== undefined);
 
-    // 确保"安差价加率"列在列顺序中（如果allColumns中有但currentOrder中没有）
-    const priceDiffRateCol = allColumns.find(col => col.key === '安差价加率');
-    if (priceDiffRateCol && !orderedColumns.find(col => col.key === '安差价加率')) {
+    // 确保"差价率"列在列顺序中（如果allColumns中有但currentOrder中没有）
+    const priceDiffRateCol = allColumns.find(col => col.key === '差价率');
+    if (priceDiffRateCol && !orderedColumns.find(col => col.key === '差价率')) {
       // 如果列存在但不在顺序中，添加到差价列之后
       const diffIndex = orderedColumns.findIndex(col => col.key === '差价');
       if (diffIndex >= 0) {
@@ -1525,15 +1547,15 @@ export default function SupplierQuotationPage() {
     // 确保"供应商-门店关系"列在列顺序中（如果allColumns中有但currentOrder中没有）
     const supplierStoreRelationCol = allColumns.find(col => col.key === '供应商-门店关系');
     if (supplierStoreRelationCol && !orderedColumns.find(col => col.key === '供应商-门店关系')) {
-      // 如果列存在但不在顺序中，添加到安差价加率列之后（如果存在），否则添加到差价列之后
-      const priceDiffRateIndex = orderedColumns.findIndex(col => col.key === '安差价加率');
+      // 如果列存在但不在顺序中，添加到差价率列之后（如果存在），否则添加到差价列之后
+      const priceDiffRateIndex = orderedColumns.findIndex(col => col.key === '差价率');
       const diffIndex = orderedColumns.findIndex(col => col.key === '差价');
       if (priceDiffRateIndex >= 0) {
         orderedColumns.splice(priceDiffRateIndex + 1, 0, supplierStoreRelationCol);
       } else if (diffIndex >= 0) {
         orderedColumns.splice(diffIndex + 1, 0, supplierStoreRelationCol);
       } else {
-        // 如果没有差价列和安差价加率列，添加到对比字段类型列之后
+        // 如果没有差价列和差价率列，添加到对比字段类型列之后
         const comparisonFieldTypeIndex = orderedColumns.findIndex(col => col.key === '对比字段类型');
         if (comparisonFieldTypeIndex >= 0) {
           orderedColumns.splice(comparisonFieldTypeIndex + 1, 0, supplierStoreRelationCol);
@@ -1737,11 +1759,11 @@ export default function SupplierQuotationPage() {
       render: () => '-',
     });
 
-    // 安差价加率列
+    // 差价率列
     columns.push({
-      title: '安差价加率',
-      dataIndex: '安差价加率',
-      key: '安差价加率',
+      title: '差价率',
+      dataIndex: '差价率',
+      key: '差价率',
       width: 120,
       render: () => '-',
     });
@@ -2311,28 +2333,27 @@ export default function SupplierQuotationPage() {
                 size="small"
                 danger
                 onClick={async () => {
-                  if (!supplierCode || !supplierProductCode) {
+                  // 关键修复：优先使用finalSupplierCode和finalUpcForBinding，确保使用的是当前行对应的数据
+                  const supplierCodeToUse = finalSupplierCode || supplierCode;
+                  const upcCodeToUse = finalUpcForBinding || (matchedQuotation?.最小销售规格UPC商品条码 ? String(matchedQuotation.最小销售规格UPC商品条码).trim() : null);
+
+                  if (!supplierCodeToUse || !upcCodeToUse) {
+                    message.warning('未找到UPC信息');
                     return;
                   }
 
                   try {
                     // 清空SKU绑定（通过保存空字符串）
-                    // 需要获取UPC（从matchedQuotation获取）
-                    const upcCode = matchedQuotation?.最小销售规格UPC商品条码 ? String(matchedQuotation.最小销售规格UPC商品条码).trim() : '';
-                    if (!upcCode) {
-                      message.warning('未找到UPC信息');
-                      return;
-                    }
                     await supplierQuotationApi.updateSkuBinding({
-                      supplierCode: supplierCode,
-                      upcCode: upcCode,
+                      supplierCode: supplierCodeToUse,
+                      upcCode: upcCodeToUse,
                       sku: '',
                     });
                     messageApi.success('清空成功');
 
                     // 清除相关供应商编码的缓存，因为SKU绑定会影响匹配
-                    if (supplierCode) {
-                      clearCacheForSupplierCodes([supplierCode]);
+                    if (supplierCodeToUse) {
+                      clearCacheForSupplierCodes([supplierCodeToUse]);
                     }
 
                     // 清空本地输入
@@ -2346,10 +2367,11 @@ export default function SupplierQuotationPage() {
                       await loadQuotationBindingFlags(rightAllData, dataSource);
                       // 重新加载SKU绑定数据
                       await loadSkuBindingMap(dataSource, upcToSkuMap);
+                      // 重新加载供应商编码手动绑定sku映射
+                      await loadSupplierBindingSkuMap(dataSource);
                       // 如果当前选中的是这条记录，重新加载下栏数据
                       if (selectedLeftRecord &&
-                        selectedLeftRecord.供应商编码 === supplierCode &&
-                        selectedLeftRecord.供应商商品编码 === supplierProductCode) {
+                        selectedLeftRecord.供应商编码 === supplierCodeToUse) {
                         await loadBottomData();
                       }
                       // 重新加载库存汇总数据以更新匹配（强制刷新，跳过缓存）
@@ -2378,8 +2400,12 @@ export default function SupplierQuotationPage() {
                   type="primary"
                   size="small"
                   onClick={async () => {
-                    if (!supplierCode || !supplierProductCode) {
-                      message.error('未找到匹配的供应商报价数据');
+                    // 关键修复：优先使用finalSupplierCode和finalUpcForBinding，确保使用的是当前行对应的数据
+                    const supplierCodeToUse = finalSupplierCode || supplierCode;
+                    const upcCodeToUse = finalUpcForBinding || (matchedQuotation?.最小销售规格UPC商品条码 ? String(matchedQuotation.最小销售规格UPC商品条码).trim() : null);
+
+                    if (!supplierCodeToUse || !upcCodeToUse) {
+                      messageApi.warning('未找到UPC信息');
                       return;
                     }
 
@@ -2390,22 +2416,16 @@ export default function SupplierQuotationPage() {
                     }
 
                     try {
-                      // 需要获取UPC（从matchedQuotation获取）
-                      const upcCode = matchedQuotation?.最小销售规格UPC商品条码 ? String(matchedQuotation.最小销售规格UPC商品条码).trim() : '';
-                      if (!upcCode) {
-                        messageApi.warning('未找到UPC信息');
-                        return;
-                      }
                       await supplierQuotationApi.updateSkuBinding({
-                        supplierCode: supplierCode,
-                        upcCode: upcCode,
+                        supplierCode: supplierCodeToUse,
+                        upcCode: upcCodeToUse,
                         sku: skuValue,
                       });
                       messageApi.success('保存成功');
 
                       // 清除相关供应商编码的缓存，因为SKU绑定会影响匹配
-                      if (supplierCode) {
-                        clearCacheForSupplierCodes([supplierCode]);
+                      if (supplierCodeToUse) {
+                        clearCacheForSupplierCodes([supplierCodeToUse]);
                       }
 
                       setEditingSkuQuotation(null);
@@ -2415,10 +2435,11 @@ export default function SupplierQuotationPage() {
                         await loadQuotationBindingFlags(rightAllData, dataSource);
                         // 重新加载SKU绑定数据
                         await loadSkuBindingMap(dataSource, upcToSkuMap);
+                        // 重新加载供应商编码手动绑定sku映射
+                        await loadSupplierBindingSkuMap(dataSource);
                         // 如果当前选中的是这条记录，重新加载下栏数据
                         if (selectedLeftRecord &&
-                          selectedLeftRecord.供应商编码 === supplierCode &&
-                          selectedLeftRecord.供应商商品编码 === supplierProductCode) {
+                          selectedLeftRecord.供应商编码 === supplierCodeToUse) {
                           await loadBottomData();
                         }
                         // 重新加载库存汇总数据以更新匹配（强制刷新，跳过缓存）
@@ -2461,11 +2482,16 @@ export default function SupplierQuotationPage() {
                   // 只打开当前行的弹框
                   setEditingSkuQuotation(uniqueKey);
                   // 加载当前SKU绑定数据
-                  if (supplierCode && supplierProductCode) {
-                    // 查询当前绑定的SKU
+                  // 关键修复：优先使用recordQuotation或finalSupplierCode和finalUpcForBinding，确保使用的是当前行对应的数据
+                  // getSkuBindings需要传入UPC作为supplierProductCode（因为后端表中供应商商品编码字段存储的是UPC）
+                  const supplierCodeToUse = finalSupplierCode || supplierCode;
+                  const upcCodeToUse = finalUpcForBinding || (matchedQuotation?.最小销售规格UPC商品条码 ? String(matchedQuotation.最小销售规格UPC商品条码).trim() : null);
+
+                  if (supplierCodeToUse && upcCodeToUse) {
+                    // 查询当前绑定的SKU（注意：supplierProductCode应该传入UPC，因为后端表中供应商商品编码字段存储的是UPC）
                     supplierQuotationApi.getSkuBindings({
-                      supplierCode: supplierCode,
-                      supplierProductCode: supplierProductCode,
+                      supplierCode: supplierCodeToUse,
+                      supplierProductCode: upcCodeToUse,
                     }).then(result => {
                       if (result && result.length > 0 && result[0].SKU) {
                         setSkuBindingInput(prev => ({
@@ -2486,7 +2512,7 @@ export default function SupplierQuotationPage() {
                       }));
                     });
                   } else {
-                    // 如果没有supplierCode和supplierProductCode，初始化输入为空
+                    // 如果没有supplierCode和upcCode，初始化输入为空
                     setSkuBindingInput(prev => ({
                       ...prev,
                       [uniqueKey]: '',
@@ -2630,11 +2656,11 @@ export default function SupplierQuotationPage() {
       },
     });
 
-    // 安差价加率列
+    // 差价率列
     columns.push({
-      title: '安差价加率',
-      dataIndex: '安差价加率',
-      key: '安差价加率',
+      title: '差价率',
+      dataIndex: '差价率',
+      key: '差价率',
       width: 120,
       render: (text: number, record: InventorySummary) => {
         if (text === undefined || text === null) return '-';
@@ -4156,7 +4182,7 @@ export default function SupplierQuotationPage() {
             对比结果: '无供货价信息',
             对比字段类型: undefined,
             差价: undefined,
-            安差价加率: undefined,
+            差价率: undefined,
           };
         }
 
@@ -4214,7 +4240,7 @@ export default function SupplierQuotationPage() {
 
         // 供货价格 - 采购价，显示'默认供应'（供应商报价不高于采购价）
         const diff = supplierPrice - comparePrice;
-        // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
+        // 计算差价率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
         const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
           ? diff / comparePrice
           : undefined;
@@ -4223,7 +4249,7 @@ export default function SupplierQuotationPage() {
           对比结果: diff <= 0 ? '默认供应' : '价格偏高',
           对比字段类型: compareFieldType,
           差价: diff,
-          安差价加率: priceDiffRate,
+          差价率: priceDiffRate,
         };
 
         // 添加供应商-门店关系数据
@@ -4911,7 +4937,7 @@ export default function SupplierQuotationPage() {
               对比结果: '无供货价信息',
               对比字段类型: undefined,
               差价: undefined,
-              安差价加率: undefined,
+              差价率: undefined,
             };
           } else {
             // 根据选择的采购价类型或默认逻辑选择对比价格
@@ -4963,12 +4989,12 @@ export default function SupplierQuotationPage() {
                 对比结果: '无采购价信息',
                 对比字段类型: undefined,
                 差价: undefined,
-                安差价加率: undefined,
+                差价率: undefined,
               };
             } else {
               // 供货价格 - 采购价，显示'默认供应'（供应商报价不高于采购价）
               const diff = supplierPrice - comparePrice;
-              // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
+              // 计算差价率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
               const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
                 ? diff / comparePrice
                 : undefined;
@@ -4977,7 +5003,7 @@ export default function SupplierQuotationPage() {
                 对比结果: diff <= 0 ? '默认供应' : '价格偏高',
                 对比字段类型: compareFieldType,
                 差价: diff,
-                安差价加率: priceDiffRate,
+                差价率: priceDiffRate,
               };
             }
           }
@@ -5400,7 +5426,7 @@ export default function SupplierQuotationPage() {
       const rightColumns = getFilteredRightColumns();
 
       // 需要排除的字段（导出时不包含这些字段）
-      const excludedFields = ['最低采购价', '最近采购价', '成本单价', '差价', '总部零售价', '安差价加率'];
+      const excludedFields = ['最低采购价', '最近采购价', '成本单价', '差价', '总部零售价', '差价率'];
 
       // 构建表头：供应商报价字段 + 分隔列 + 库存汇总字段（排除指定字段）
       const headers: string[] = [];
@@ -6038,7 +6064,7 @@ export default function SupplierQuotationPage() {
           } else {
             // 供货价格 - 采购价，显示'默认供应'（供应商报价不高于采购价）
             const diff = supplierPrice - comparePrice;
-            // 计算安差价加率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
+            // 计算差价率：差价/最低采购价（最近采购价/成本单价），差价为负时该值也为负，需要换算成百分比
             const priceDiffRate = comparePrice !== undefined && comparePrice !== null && comparePrice !== 0
               ? diff / comparePrice
               : undefined;
@@ -6047,7 +6073,7 @@ export default function SupplierQuotationPage() {
               对比结果: diff <= 0 ? '默认供应' : '价格偏高',
               对比字段类型: compareFieldType,
               差价: diff,
-              安差价加率: priceDiffRate,
+              差价率: priceDiffRate,
             };
           }
         }
@@ -7305,7 +7331,7 @@ export default function SupplierQuotationPage() {
                     onClick={() => setBatchModalVisible(true)}
                     size="small"
                   >
-                    批量新增
+                    批量操作
                   </Button>
                 </Space>
               </div>
@@ -8291,7 +8317,7 @@ export default function SupplierQuotationPage() {
                   <div style={{ height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
                     <ResponsiveTable
                       tableId="supplier-quotation-product-info"
-                      columns={getFilteredProductInfoColumns()}
+                      columns={getFilteredProductInfoColumns}
                       dataSource={productInfoData}
                       rowKey={(record) => `${record.供应商编码}_${record.供货关系编码 || record.SKU编码 || Math.random()}`}
                       isMobile={false}
@@ -8423,8 +8449,8 @@ export default function SupplierQuotationPage() {
       <BatchAddModal<SupplierQuotation>
         open={batchModalVisible}
         title="批量新增供应商报价"
-        hint="您可以从 Excel 中复制数据（包含序号、供应商编码、商品名称、商品规格、最小销售单位、商品型号、供应商商品编码、最小销售规格UPC商品条码、中包或整件销售规格条码、供货价格、供应商商品备注列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。"
-        fields={useMemo<FieldConfig<SupplierQuotation>[]>(() => ([
+        hint="您可以从 Excel 中复制数据（包含序号、供应商编码、商品名称、商品规格、最小销售单位、商品型号、供应商商品编码、最小销售规格UPC商品条码、中包或整件销售规格条码、供货价格、供应商商品备注、操作列），然后粘贴到下方输入框中（Ctrl+V 或右键粘贴），或直接导入Excel文件。操作列的值：新增（插入新数据或更新现有数据）、删除（删除现有数据）。"
+        fields={useMemo<FieldConfig<SupplierQuotation & { 操作?: string }>[]>(() => ([
           { key: '序号', label: '序号', excelHeaderName: '序号', required: false, index: 0, transform: (v) => v ? Number(v) : null },
           { key: '供应商编码', label: '供应商编码', excelHeaderName: '供应商编码', required: true, index: 1 },
           { key: '商品名称', label: '商品名称', excelHeaderName: '商品名称', required: false, index: 2 },
@@ -8436,11 +8462,20 @@ export default function SupplierQuotationPage() {
           { key: '中包或整件销售规格条码', label: '中包或整件销售规格条码', excelHeaderName: '中包或整件销售规格条码', required: false, index: 8 },
           { key: '供货价格', label: '供货价格', excelHeaderName: '供货价格', required: false, index: 9, transform: (v) => v ? Number(v) : null },
           { key: '供应商商品备注', label: '供应商商品备注', excelHeaderName: '供应商商品备注', required: false, index: 10 },
+          {
+            key: '操作', label: '操作', excelHeaderName: '操作', required: false, index: 11, transform: (v) => v ? String(v).trim() : '新增', validator: (v) => {
+              const value = String(v || '').trim();
+              if (value && value !== '新增' && value !== '删除') {
+                return ['操作列的值只能是"新增"或"删除"'];
+              }
+              return [];
+            }
+          },
         ]), [])}
-        formatHint="格式：序号	供应商编码	商品名称	商品规格	最小销售单位	商品型号	供应商商品编码	最小销售规格UPC商品条码	中包或整件销售规格条码	供货价格	供应商商品备注"
-        example="1	SUP001	商品A	规格A	个	型号A	PROD001	UPC001	UPC002	10.5	备注信息"
+        formatHint="格式：序号	供应商编码	商品名称	商品规格	最小销售单位	商品型号	供应商商品编码	最小销售规格UPC商品条码	中包或整件销售规格条码	供货价格	供应商商品备注	操作"
+        example="1	SUP001	商品A	规格A	个	型号A	PROD001	UPC001	UPC002	10.5	备注信息	新增"
         onCancel={() => setBatchModalVisible(false)}
-        onSave={useCallback(async (validItems: SupplierQuotation[]) => {
+        onSave={useCallback(async (validItems: (SupplierQuotation & { 操作?: string })[]) => {
           try {
             // 转换数据格式，确保必填字段存在
             const itemsToCreate = validItems.map(item => ({
@@ -8455,10 +8490,13 @@ export default function SupplierQuotationPage() {
               中包或整件销售规格条码: item.中包或整件销售规格条码,
               供货价格: item.供货价格,
               供应商商品备注: item.供应商商品备注,
+              操作: item.操作 || '新增',
             }));
             const result = await supplierQuotationApi.batchCreate({ items: itemsToCreate });
+
+            // 直接显示结果（已使用 REPLACE INTO，不需要确认）
             if (result.success > 0) {
-              messageApi.success(`批量新增成功 ${result.success} 条${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
+              messageApi.success(`批量操作成功 ${result.success} 条${result.failed > 0 ? `，失败 ${result.failed} 条` : ''}`);
             }
             if (result.failed > 0 && result.errors.length > 0) {
               // 多条错误用回车分隔
@@ -8468,7 +8506,7 @@ export default function SupplierQuotationPage() {
             // 重新加载数据
             await loadLeftData(undefined, storeNameFilter, cityFilter, leftCurrentPage, leftPageSize);
           } catch (e: any) {
-            messageApi.error('批量新增失败: ' + (e?.message || '未知错误'));
+            messageApi.error('批量操作失败: ' + (e?.message || '未知错误'));
           }
         }, [storeNameFilter, cityFilter, leftCurrentPage, leftPageSize])}
         createItem={useCallback((parts: string[]) => {
@@ -8484,7 +8522,8 @@ export default function SupplierQuotationPage() {
             '中包或整件销售规格条码': parts[8] || null,
             '供货价格': parts[9] ? Number(parts[9]) : null,
             '供应商商品备注': parts[10] || null,
-          } as Partial<SupplierQuotation>;
+            '操作': parts[11] ? String(parts[11]).trim() : '新增',
+          } as Partial<SupplierQuotation & { 操作?: string }>;
         }, [])}
       />
     </React.Fragment>

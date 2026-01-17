@@ -444,11 +444,44 @@ export class SupplierQuotationController {
                 中包或整件销售规格条码?: string;
                 供货价格?: number;
                 供应商商品备注?: string;
+                操作?: string;
             }>;
         },
     ) {
         try {
             return await this.service.batchCreateSupplierQuotations(
+                body.items || [],
+            );
+        } catch (error) {
+            throw new HttpException(
+                error.message || '批量创建供应商报价失败',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
+    // 批量创建供应商报价（确认更新）
+    @Post('batch-confirm')
+    async batchCreateSupplierQuotationsConfirm(
+        @Body() body: {
+            items: Array<{
+                序号?: number;
+                供应商编码: string;
+                商品名称?: string;
+                商品规格?: string;
+                最小销售单位?: string;
+                商品型号?: string;
+                供应商商品编码: string;
+                最小销售规格UPC商品条码?: string;
+                中包或整件销售规格条码?: string;
+                供货价格?: number;
+                供应商商品备注?: string;
+                操作?: string;
+            }>;
+        },
+    ) {
+        try {
+            return await this.service.batchCreateSupplierQuotationsConfirm(
                 body.items || [],
             );
         } catch (error) {
