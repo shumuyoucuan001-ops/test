@@ -1623,7 +1623,6 @@ export default function SupplierQuotationPage() {
       width: 120,
       fixed: 'left' as const,
       render: (text: string, record: any, index?: number) => {
-        console.log('[SKU列render] 开始渲染', { text, record: record?.key, editingSkuQuotation, skuBindingInputKeys: Object.keys(skuBindingInput), emptySkuInputsKeys: Object.keys(emptySkuInputs) });
         // 关键修复：优先使用record.quotation的UPC，如果没有则使用record.inventory.UPC
         // 因为record是alignedData中的项，当有手动绑定的SKU时，inventory可能为空或不正确
         // 使用quotation的UPC可以确保uniqueKey的唯一性
@@ -1979,7 +1978,6 @@ export default function SupplierQuotationPage() {
 
             const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               const newValue = e.target.value;
-              console.log('[SKU输入框] handleChange', { emptySkuKey, newValue, originalSkuValue, currentEmptySkuInputs: emptySkuInputs });
               // 总是更新输入框的值（与供应商SKU备注的逻辑一致）
               setEmptySkuInputs({
                 ...emptySkuInputs,
@@ -1990,7 +1988,6 @@ export default function SupplierQuotationPage() {
                 const newEditingKeys = new Set(editingEmptySkuKeys);
                 newEditingKeys.add(emptySkuKey);
                 setEditingEmptySkuKeys(newEditingKeys);
-                console.log('[SKU输入框] 添加编辑状态', { emptySkuKey, newEditingKeys: Array.from(newEditingKeys) });
               } else {
                 // 如果值恢复为原始值，移除编辑状态并清除输入框状态
                 const newEditingKeys = new Set(editingEmptySkuKeys);
@@ -2000,7 +1997,6 @@ export default function SupplierQuotationPage() {
                 const updatedInputs = { ...emptySkuInputs };
                 delete updatedInputs[emptySkuKey];
                 setEmptySkuInputs(updatedInputs);
-                console.log('[SKU输入框] 移除编辑状态', { emptySkuKey, newEditingKeys: Array.from(newEditingKeys) });
               }
             };
 

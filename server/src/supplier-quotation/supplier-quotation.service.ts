@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
+import { OperationLogService } from '../operation-log/operation-log.service';
 import { Logger } from '../utils/logger.util';
 
 export interface SupplierQuotation {
@@ -46,6 +47,8 @@ export class SupplierQuotationService implements OnModuleInit {
   // 供应商名称缓存Map（供应商编码 -> 供应商名称）
   private supplierNameMap: Map<string, string> = new Map();
   private supplierNameMapLoaded: boolean = false;
+
+  constructor(private operationLogService: OperationLogService) { }
 
   // 模块初始化时预加载供应商名称映射（可选，首次查询时也会自动加载）
   async onModuleInit(): Promise<void> {
@@ -984,18 +987,21 @@ export class SupplierQuotationService implements OnModuleInit {
     supplierCode: string,
     upcCode: string,
     sku: string,
+    userId?: number,
+    userName?: string,
   ): Promise<boolean> {
     const connection = await this.getConnection();
 
     try {
-      // 先检查是否存在（使用供应商编码和最小销售规格UPC商品条码）
-      const checkQuery = `
-        SELECT COUNT(*) as count
-        FROM \`供应商编码手动绑定sku\`
+      // 先查询旧记录以便记录日志
+      const selectQuery = `
+        SELECT * FROM \`供应商编码手动绑定sku\`
         WHERE 供应商编码 = ? AND 供应商商品编码 = ?
       `;
-      const [checkResult]: any = await connection.execute(checkQuery, [supplierCode, upcCode]);
-      const exists = checkResult[0].count > 0;
+      const [selectResult]: any = await connection.execute(selectQuery, [supplierCode, upcCode]);
+      const exists = selectResult && selectResult.length > 0;
+      const oldRecord = exists ? selectResult[0] : null;
+      const oldSku = oldRecord ? oldRecord.SKU : null;
 
       // 如果SKU为空字符串，将SKU字段设置为NULL（不删除记录）
       if (sku === '' || sku === null || sku === undefined) {
@@ -1032,6 +1038,40 @@ export class SupplierQuotationService implements OnModuleInit {
           `;
           await connection.execute(insertQuery, [supplierCode, upcCode, sku]);
         }
+      }
+
+      // 记录操作日志
+      try {
+        const operationType = exists ? 'UPDATE' : 'CREATE';
+        const newSku = sku === '' || sku === null || sku === undefined ? null : sku;
+        const changes: Record<string, { old?: any; new?: any }> = {};
+
+        if (String(oldSku || '') !== String(newSku || '')) {
+          changes['SKU'] = { old: oldSku, new: newSku };
+        }
+
+        // 如果是创建操作，记录更多字段
+        if (!exists) {
+          changes['供应商编码'] = { old: null, new: supplierCode };
+          changes['供应商商品编码'] = { old: null, new: upcCode };
+        }
+
+        await this.operationLogService.logOperation({
+          userId,
+          displayName: userName,
+          operationType: operationType as 'CREATE' | 'UPDATE',
+          targetDatabase: 'sm_gongyingshang',
+          targetTable: '供应商编码手动绑定sku',
+          recordIdentifier: {
+            供应商编码: supplierCode,
+            供应商商品编码: upcCode,
+          },
+          changes: Object.keys(changes).length > 0 ? changes : undefined,
+          operationDetails: { action: exists ? '更新SKU绑定' : '创建SKU绑定' },
+        });
+      } catch (logError) {
+        Logger.error('[SupplierQuotationService] 记录SKU绑定操作日志失败:', logError);
+        // 日志记录失败不影响主业务流程
       }
 
       return true;
@@ -1101,6 +1141,8 @@ export class SupplierQuotationService implements OnModuleInit {
     upcCode: string,
     supplierRatio: number,
     qianniuhuaRatio: number,
+    userId?: number,
+    userName?: string,
   ): Promise<boolean> {
     const connection = await this.getConnection();
 
@@ -1136,14 +1178,14 @@ export class SupplierQuotationService implements OnModuleInit {
         calculatedPrice = (originalPrice / supplierRatio) * qianniuhuaRatio;
       }
 
-      // 检查是否存在
-      const checkQuery = `
-        SELECT COUNT(*) as count
-        FROM \`供应商编码手动绑定sku\`
+      // 查询旧记录以便记录日志
+      const selectQuery = `
+        SELECT * FROM \`供应商编码手动绑定sku\`
         WHERE 供应商编码 = ? AND 供应商商品编码 = ?
       `;
-      const [checkResult]: any = await connection.execute(checkQuery, [supplierCode, supplierProductCode]);
-      const exists = checkResult[0].count > 0;
+      const [selectResult]: any = await connection.execute(selectQuery, [supplierCode, supplierProductCode]);
+      const exists = selectResult && selectResult.length > 0;
+      const oldRecord = exists ? selectResult[0] : null;
 
       if (exists) {
         // 更新（不更新SKU字段），同时更新计算后供货价格
@@ -1162,6 +1204,52 @@ export class SupplierQuotationService implements OnModuleInit {
         await connection.execute(insertQuery, [supplierCode, supplierProductCode, supplierRatio, qianniuhuaRatio, calculatedPrice]);
       }
 
+      // 记录操作日志
+      try {
+        const operationType = exists ? 'UPDATE' : 'CREATE';
+        const changes: Record<string, { old?: any; new?: any }> = {};
+
+        if (exists && oldRecord) {
+          const oldSupplierRatio = oldRecord['报价比例_供应商商品'];
+          const oldQianniuhuaRatio = oldRecord['报价比例_牵牛花商品'];
+          const oldCalculatedPrice = oldRecord['计算后供货价格'];
+
+          if (String(oldSupplierRatio || '') !== String(supplierRatio || '')) {
+            changes['报价比例_供应商商品'] = { old: oldSupplierRatio, new: supplierRatio };
+          }
+          if (String(oldQianniuhuaRatio || '') !== String(qianniuhuaRatio || '')) {
+            changes['报价比例_牵牛花商品'] = { old: oldQianniuhuaRatio, new: qianniuhuaRatio };
+          }
+          if (String(oldCalculatedPrice || '') !== String(calculatedPrice || '')) {
+            changes['计算后供货价格'] = { old: oldCalculatedPrice, new: calculatedPrice };
+          }
+        } else {
+          // 创建操作
+          changes['报价比例_供应商商品'] = { old: null, new: supplierRatio };
+          changes['报价比例_牵牛花商品'] = { old: null, new: qianniuhuaRatio };
+          if (calculatedPrice !== null) {
+            changes['计算后供货价格'] = { old: null, new: calculatedPrice };
+          }
+        }
+
+        await this.operationLogService.logOperation({
+          userId,
+          displayName: userName,
+          operationType: operationType as 'CREATE' | 'UPDATE',
+          targetDatabase: 'sm_gongyingshang',
+          targetTable: '供应商编码手动绑定sku',
+          recordIdentifier: {
+            供应商编码: supplierCode,
+            供应商商品编码: supplierProductCode,
+          },
+          changes: Object.keys(changes).length > 0 ? changes : undefined,
+          operationDetails: { action: exists ? '更新报价比例' : '创建报价比例' },
+        });
+      } catch (logError) {
+        Logger.error('[SupplierQuotationService] 记录报价比例操作日志失败:', logError);
+        // 日志记录失败不影响主业务流程
+      }
+
       return true;
     } catch (error) {
       Logger.error('[SupplierQuotationService] 更新报价比例失败:', error);
@@ -1175,6 +1263,8 @@ export class SupplierQuotationService implements OnModuleInit {
   async clearPriceRatios(
     supplierCode: string,
     upcCode: string,
+    userId?: number,
+    userName?: string,
   ): Promise<boolean> {
     const connection = await this.getConnection();
 
@@ -1194,14 +1284,14 @@ export class SupplierQuotationService implements OnModuleInit {
 
       const supplierProductCode = quotationData[0]['供应商商品编码'];
 
-      // 检查是否存在
-      const checkQuery = `
-        SELECT COUNT(*) as count
-        FROM \`供应商编码手动绑定sku\`
+      // 查询旧记录以便记录日志
+      const selectQuery = `
+        SELECT * FROM \`供应商编码手动绑定sku\`
         WHERE 供应商编码 = ? AND 供应商商品编码 = ?
       `;
-      const [checkResult]: any = await connection.execute(checkQuery, [supplierCode, supplierProductCode]);
-      const exists = checkResult[0].count > 0;
+      const [selectResult]: any = await connection.execute(selectQuery, [supplierCode, supplierProductCode]);
+      const exists = selectResult && selectResult.length > 0;
+      const oldRecord = exists ? selectResult[0] : null;
 
       if (exists) {
         // 更新：将报价比例字段和计算后供货价格设置为NULL
@@ -1211,6 +1301,45 @@ export class SupplierQuotationService implements OnModuleInit {
           WHERE 供应商编码 = ? AND 供应商商品编码 = ?
         `;
         await connection.execute(updateQuery, [supplierCode, supplierProductCode]);
+      }
+
+      // 记录操作日志
+      if (exists && oldRecord) {
+        try {
+          const changes: Record<string, { old?: any; new?: any }> = {};
+          const oldSupplierRatio = oldRecord['报价比例_供应商商品'];
+          const oldQianniuhuaRatio = oldRecord['报价比例_牵牛花商品'];
+          const oldCalculatedPrice = oldRecord['计算后供货价格'];
+
+          if (oldSupplierRatio !== null && oldSupplierRatio !== undefined) {
+            changes['报价比例_供应商商品'] = { old: oldSupplierRatio, new: null };
+          }
+          if (oldQianniuhuaRatio !== null && oldQianniuhuaRatio !== undefined) {
+            changes['报价比例_牵牛花商品'] = { old: oldQianniuhuaRatio, new: null };
+          }
+          if (oldCalculatedPrice !== null && oldCalculatedPrice !== undefined) {
+            changes['计算后供货价格'] = { old: oldCalculatedPrice, new: null };
+          }
+
+          if (Object.keys(changes).length > 0) {
+            await this.operationLogService.logOperation({
+              userId,
+              displayName: userName,
+              operationType: 'UPDATE',
+              targetDatabase: 'sm_gongyingshang',
+              targetTable: '供应商编码手动绑定sku',
+              recordIdentifier: {
+                供应商编码: supplierCode,
+                供应商商品编码: supplierProductCode,
+              },
+              changes,
+              operationDetails: { action: '清空报价比例' },
+            });
+          }
+        } catch (logError) {
+          Logger.error('[SupplierQuotationService] 记录清空报价比例操作日志失败:', logError);
+          // 日志记录失败不影响主业务流程
+        }
       }
 
       return true;
@@ -1989,10 +2118,22 @@ export class SupplierQuotationService implements OnModuleInit {
     supplierCode: string,
     sku: string,
     remark: string,
+    userId?: number,
+    userName?: string,
   ): Promise<boolean> {
     const connection = await this.getConnection();
 
     try {
+      // 先查询旧记录以便记录日志
+      const selectQuery = `
+        SELECT * FROM \`供应商商品供应信息\`
+        WHERE \`供应商编码\` = ? AND \`SKU\` = ?
+      `;
+      const [selectResult]: any = await connection.execute(selectQuery, [supplierCode, sku]);
+      const exists = selectResult && selectResult.length > 0;
+      const oldRecord = exists ? selectResult[0] : null;
+      const oldRemark = oldRecord ? oldRecord['供应商SKU备注'] : null;
+
       // 使用REPLACE INTO，如果记录存在则更新，不存在则插入
       const query = `
         REPLACE INTO \`供应商商品供应信息\`
@@ -2001,6 +2142,40 @@ export class SupplierQuotationService implements OnModuleInit {
       `;
 
       await connection.execute(query, [supplierCode, sku, remark || '']);
+
+      // 记录操作日志
+      try {
+        const operationType = exists ? 'UPDATE' : 'CREATE';
+        const changes: Record<string, { old?: any; new?: any }> = {};
+        const newRemark = remark || '';
+
+        if (String(oldRemark || '') !== String(newRemark || '')) {
+          changes['供应商SKU备注'] = { old: oldRemark, new: newRemark };
+        }
+
+        // 如果是创建操作，记录更多字段
+        if (!exists) {
+          changes['供应商编码'] = { old: null, new: supplierCode };
+          changes['SKU'] = { old: null, new: sku };
+        }
+
+        await this.operationLogService.logOperation({
+          userId,
+          displayName: userName,
+          operationType: operationType as 'CREATE' | 'UPDATE',
+          targetDatabase: 'sm_gongyingshang',
+          targetTable: '供应商商品供应信息',
+          recordIdentifier: {
+            供应商编码: supplierCode,
+            SKU: sku,
+          },
+          changes: Object.keys(changes).length > 0 ? changes : undefined,
+          operationDetails: { action: exists ? '更新供应商商品备注' : '创建供应商商品备注' },
+        });
+      } catch (logError) {
+        Logger.error('[SupplierQuotationService] 记录供应商商品备注操作日志失败:', logError);
+        // 日志记录失败不影响主业务流程
+      }
 
       Logger.log(
         `[SupplierQuotationService] 保存供应商商品供应信息备注成功，供应商编码: ${supplierCode}, SKU: ${sku}`,
@@ -2069,10 +2244,22 @@ export class SupplierQuotationService implements OnModuleInit {
   async saveInternalSkuRemark(
     sku: string,
     remark: string,
+    userId?: number,
+    userName?: string,
   ): Promise<boolean> {
     const shangpingConnection = await this.getShangpingConnection();
 
     try {
+      // 先查询旧记录以便记录日志
+      const selectQuery = `
+        SELECT * FROM \`内部sku备注\`
+        WHERE \`SKU\` = ?
+      `;
+      const [selectResult]: any = await shangpingConnection.execute(selectQuery, [sku]);
+      const exists = selectResult && selectResult.length > 0;
+      const oldRecord = exists ? selectResult[0] : null;
+      const oldRemark = oldRecord ? oldRecord['备注'] : null;
+
       // 使用REPLACE INTO，如果记录存在则更新，不存在则插入
       const query = `
         REPLACE INTO \`内部sku备注\`
@@ -2081,6 +2268,38 @@ export class SupplierQuotationService implements OnModuleInit {
       `;
 
       await shangpingConnection.execute(query, [sku, remark || '']);
+
+      // 记录操作日志
+      try {
+        const operationType = exists ? 'UPDATE' : 'CREATE';
+        const changes: Record<string, { old?: any; new?: any }> = {};
+        const newRemark = remark || '';
+
+        if (String(oldRemark || '') !== String(newRemark || '')) {
+          changes['备注'] = { old: oldRemark, new: newRemark };
+        }
+
+        // 如果是创建操作，记录SKU字段
+        if (!exists) {
+          changes['SKU'] = { old: null, new: sku };
+        }
+
+        await this.operationLogService.logOperation({
+          userId,
+          displayName: userName,
+          operationType: operationType as 'CREATE' | 'UPDATE',
+          targetDatabase: 'sm_shangping',
+          targetTable: '内部sku备注',
+          recordIdentifier: {
+            SKU: sku,
+          },
+          changes: Object.keys(changes).length > 0 ? changes : undefined,
+          operationDetails: { action: exists ? '更新内部SKU备注' : '创建内部SKU备注' },
+        });
+      } catch (logError) {
+        Logger.error('[SupplierQuotationService] 记录内部SKU备注操作日志失败:', logError);
+        // 日志记录失败不影响主业务流程
+      }
 
       Logger.log(
         `[SupplierQuotationService] 保存内部sku备注成功，SKU: ${sku}`,
@@ -2114,6 +2333,8 @@ export class SupplierQuotationService implements OnModuleInit {
       供应商商品备注?: string;
       操作?: string;
     }>,
+    userId?: number,
+    userName?: string,
   ): Promise<{ success: number; failed: number; errors: string[] }> {
     const connection = await this.getConnection();
 
@@ -2121,6 +2342,7 @@ export class SupplierQuotationService implements OnModuleInit {
       let success = 0;
       let failed = 0;
       const errors: string[] = [];
+      const operationLogs: any[] = []; // 收集需要记录的操作日志
 
       for (const item of items) {
         try {
@@ -2135,6 +2357,16 @@ export class SupplierQuotationService implements OnModuleInit {
 
           // 删除操作
           if (operation === '删除') {
+            // 先查询是否存在，以便记录日志
+            const checkQuery = `
+              SELECT * FROM \`供应商报价\`
+              WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+            `;
+            const [checkResult]: any = await connection.execute(checkQuery, [
+              item.供应商编码,
+              item.供应商商品编码,
+            ]);
+
             const deleteQuery = `
               DELETE FROM \`供应商报价\`
               WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
@@ -2145,12 +2377,45 @@ export class SupplierQuotationService implements OnModuleInit {
             ]);
             if (deleteResult.affectedRows > 0) {
               success++;
+              // 记录删除操作日志
+              if (checkResult && checkResult.length > 0) {
+                const oldRecord = checkResult[0];
+                const changes: Record<string, { old?: any; new?: any }> = {};
+                Object.keys(oldRecord).forEach(key => {
+                  changes[key] = { old: oldRecord[key], new: null };
+                });
+                operationLogs.push({
+                  userId,
+                  displayName: userName,
+                  operationType: 'DELETE' as const,
+                  targetDatabase: 'sm_gongyingshang',
+                  targetTable: '供应商报价',
+                  recordIdentifier: {
+                    供应商编码: item.供应商编码,
+                    供应商商品编码: item.供应商商品编码,
+                  },
+                  changes,
+                  operationDetails: { action: '删除', batchOperation: true },
+                });
+              }
             } else {
               failed++;
               errors.push(`供应商编码: ${item.供应商编码}, 供应商商品编码: ${item.供应商商品编码} - 记录不存在，无法删除`);
             }
             continue;
           }
+
+          // 检查是否存在（用于判断是创建还是更新）
+          const checkQuery = `
+            SELECT * FROM \`供应商报价\`
+            WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+          `;
+          const [checkResult]: any = await connection.execute(checkQuery, [
+            item.供应商编码,
+            item.供应商商品编码,
+          ]);
+          const exists = checkResult && checkResult.length > 0;
+          const oldRecord = exists ? checkResult[0] : null;
 
           // 新增操作：直接使用 REPLACE INTO（如果存在则更新，不存在则插入）
           const replaceQuery = `
@@ -2184,6 +2449,60 @@ export class SupplierQuotationService implements OnModuleInit {
           ]);
 
           success++;
+
+          // 记录操作日志
+          const operationType = exists ? 'UPDATE' : 'CREATE';
+          const changes: Record<string, { old?: any; new?: any }> = {};
+
+          if (exists && oldRecord) {
+            // 更新操作：记录变更
+            const fieldMap: Record<string, string> = {
+              序号: '序号',
+              商品名称: '商品名称',
+              商品规格: '商品规格',
+              最小销售单位: '最小销售单位',
+              商品型号: '商品型号',
+              最小销售规格UPC商品条码: '最小销售规格UPC商品条码',
+              中包或整件销售规格条码: '中包或整件销售规格条码',
+              供货价格: '供货价格',
+              供应商商品备注: '供应商商品备注',
+            };
+
+            for (const [key, dbField] of Object.entries(fieldMap)) {
+              const oldValue = oldRecord[dbField];
+              const newValue = item[key as keyof typeof item] ?? null;
+              if (String(oldValue || '') !== String(newValue || '')) {
+                changes[key] = { old: oldValue, new: newValue };
+              }
+            }
+          } else {
+            // 创建操作：记录所有字段
+            changes['供应商编码'] = { old: null, new: item.供应商编码 };
+            changes['供应商商品编码'] = { old: null, new: item.供应商商品编码 };
+            if (item.序号) changes['序号'] = { old: null, new: item.序号 };
+            if (item.商品名称) changes['商品名称'] = { old: null, new: item.商品名称 };
+            if (item.商品规格) changes['商品规格'] = { old: null, new: item.商品规格 };
+            if (item.最小销售单位) changes['最小销售单位'] = { old: null, new: item.最小销售单位 };
+            if (item.商品型号) changes['商品型号'] = { old: null, new: item.商品型号 };
+            if (item.最小销售规格UPC商品条码) changes['最小销售规格UPC商品条码'] = { old: null, new: item.最小销售规格UPC商品条码 };
+            if (item.中包或整件销售规格条码) changes['中包或整件销售规格条码'] = { old: null, new: item.中包或整件销售规格条码 };
+            if (item.供货价格) changes['供货价格'] = { old: null, new: item.供货价格 };
+            if (item.供应商商品备注) changes['供应商商品备注'] = { old: null, new: item.供应商商品备注 };
+          }
+
+          operationLogs.push({
+            userId,
+            displayName: userName,
+            operationType: operationType as 'CREATE' | 'UPDATE',
+            targetDatabase: 'sm_gongyingshang',
+            targetTable: '供应商报价',
+            recordIdentifier: {
+              供应商编码: item.供应商编码,
+              供应商商品编码: item.供应商商品编码,
+            },
+            changes,
+            operationDetails: { action: operation, batchOperation: true },
+          });
         } catch (error: any) {
           failed++;
           let errorMessage = error?.message || '未知错误';
@@ -2200,6 +2519,16 @@ export class SupplierQuotationService implements OnModuleInit {
             `[SupplierQuotationService] 批量创建供应商报价失败:`,
             error,
           );
+        }
+      }
+
+      // 批量记录操作日志
+      if (operationLogs.length > 0) {
+        try {
+          await this.operationLogService.logOperations(operationLogs);
+        } catch (logError) {
+          Logger.error('[SupplierQuotationService] 记录操作日志失败:', logError);
+          // 日志记录失败不影响主业务流程
         }
       }
 
@@ -2231,6 +2560,8 @@ export class SupplierQuotationService implements OnModuleInit {
       供应商商品备注?: string;
       操作?: string;
     }>,
+    userId?: number,
+    userName?: string,
   ): Promise<{ success: number; failed: number; errors: string[] }> {
     const connection = await this.getConnection();
 
@@ -2238,6 +2569,7 @@ export class SupplierQuotationService implements OnModuleInit {
       let success = 0;
       let failed = 0;
       const errors: string[] = [];
+      const operationLogs: any[] = []; // 收集需要记录的操作日志
 
       for (const item of items) {
         try {
@@ -2252,6 +2584,16 @@ export class SupplierQuotationService implements OnModuleInit {
 
           // 删除操作
           if (operation === '删除') {
+            // 先查询是否存在，以便记录日志
+            const checkQuery = `
+              SELECT * FROM \`供应商报价\`
+              WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+            `;
+            const [checkResult]: any = await connection.execute(checkQuery, [
+              item.供应商编码,
+              item.供应商商品编码,
+            ]);
+
             const deleteQuery = `
               DELETE FROM \`供应商报价\`
               WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
@@ -2262,12 +2604,45 @@ export class SupplierQuotationService implements OnModuleInit {
             ]);
             if (deleteResult.affectedRows > 0) {
               success++;
+              // 记录删除操作日志
+              if (checkResult && checkResult.length > 0) {
+                const oldRecord = checkResult[0];
+                const changes: Record<string, { old?: any; new?: any }> = {};
+                Object.keys(oldRecord).forEach(key => {
+                  changes[key] = { old: oldRecord[key], new: null };
+                });
+                operationLogs.push({
+                  userId,
+                  displayName: userName,
+                  operationType: 'DELETE' as const,
+                  targetDatabase: 'sm_gongyingshang',
+                  targetTable: '供应商报价',
+                  recordIdentifier: {
+                    供应商编码: item.供应商编码,
+                    供应商商品编码: item.供应商商品编码,
+                  },
+                  changes,
+                  operationDetails: { action: '删除', batchOperation: true, confirm: true },
+                });
+              }
             } else {
               failed++;
               errors.push(`供应商编码: ${item.供应商编码}, 供应商商品编码: ${item.供应商商品编码} - 记录不存在，无法删除`);
             }
             continue;
           }
+
+          // 检查是否存在（用于判断是创建还是更新）
+          const checkQuery = `
+            SELECT * FROM \`供应商报价\`
+            WHERE \`供应商编码\` = ? AND \`供应商商品编码\` = ?
+          `;
+          const [checkResult]: any = await connection.execute(checkQuery, [
+            item.供应商编码,
+            item.供应商商品编码,
+          ]);
+          const exists = checkResult && checkResult.length > 0;
+          const oldRecord = exists ? checkResult[0] : null;
 
           // 新增操作：使用 REPLACE INTO（如果存在则更新，不存在则插入）
           const replaceQuery = `
@@ -2301,6 +2676,60 @@ export class SupplierQuotationService implements OnModuleInit {
           ]);
 
           success++;
+
+          // 记录操作日志
+          const operationType = exists ? 'UPDATE' : 'CREATE';
+          const changes: Record<string, { old?: any; new?: any }> = {};
+
+          if (exists && oldRecord) {
+            // 更新操作：记录变更
+            const fieldMap: Record<string, string> = {
+              序号: '序号',
+              商品名称: '商品名称',
+              商品规格: '商品规格',
+              最小销售单位: '最小销售单位',
+              商品型号: '商品型号',
+              最小销售规格UPC商品条码: '最小销售规格UPC商品条码',
+              中包或整件销售规格条码: '中包或整件销售规格条码',
+              供货价格: '供货价格',
+              供应商商品备注: '供应商商品备注',
+            };
+
+            for (const [key, dbField] of Object.entries(fieldMap)) {
+              const oldValue = oldRecord[dbField];
+              const newValue = item[key as keyof typeof item] ?? null;
+              if (String(oldValue || '') !== String(newValue || '')) {
+                changes[key] = { old: oldValue, new: newValue };
+              }
+            }
+          } else {
+            // 创建操作：记录所有字段
+            changes['供应商编码'] = { old: null, new: item.供应商编码 };
+            changes['供应商商品编码'] = { old: null, new: item.供应商商品编码 };
+            if (item.序号) changes['序号'] = { old: null, new: item.序号 };
+            if (item.商品名称) changes['商品名称'] = { old: null, new: item.商品名称 };
+            if (item.商品规格) changes['商品规格'] = { old: null, new: item.商品规格 };
+            if (item.最小销售单位) changes['最小销售单位'] = { old: null, new: item.最小销售单位 };
+            if (item.商品型号) changes['商品型号'] = { old: null, new: item.商品型号 };
+            if (item.最小销售规格UPC商品条码) changes['最小销售规格UPC商品条码'] = { old: null, new: item.最小销售规格UPC商品条码 };
+            if (item.中包或整件销售规格条码) changes['中包或整件销售规格条码'] = { old: null, new: item.中包或整件销售规格条码 };
+            if (item.供货价格) changes['供货价格'] = { old: null, new: item.供货价格 };
+            if (item.供应商商品备注) changes['供应商商品备注'] = { old: null, new: item.供应商商品备注 };
+          }
+
+          operationLogs.push({
+            userId,
+            displayName: userName,
+            operationType: operationType as 'CREATE' | 'UPDATE',
+            targetDatabase: 'sm_gongyingshang',
+            targetTable: '供应商报价',
+            recordIdentifier: {
+              供应商编码: item.供应商编码,
+              供应商商品编码: item.供应商商品编码,
+            },
+            changes,
+            operationDetails: { action: operation, batchOperation: true, confirm: true },
+          });
         } catch (error: any) {
           failed++;
           let errorMessage = error?.message || '未知错误';
@@ -2311,6 +2740,16 @@ export class SupplierQuotationService implements OnModuleInit {
             `[SupplierQuotationService] 批量创建供应商报价（确认）失败:`,
             error,
           );
+        }
+      }
+
+      // 批量记录操作日志
+      if (operationLogs.length > 0) {
+        try {
+          await this.operationLogService.logOperations(operationLogs);
+        } catch (logError) {
+          Logger.error('[SupplierQuotationService] 记录操作日志失败:', logError);
+          // 日志记录失败不影响主业务流程
         }
       }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { SupplierQuotationService } from './supplier-quotation.service';
 
 @Controller('supplier-quotation')
@@ -182,12 +182,15 @@ export class SupplierQuotationController {
             upcCode: string;
             sku: string;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.updateSkuBinding(
                 body.supplierCode,
                 body.upcCode,
                 body.sku,
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
@@ -264,13 +267,16 @@ export class SupplierQuotationController {
             supplierRatio: number;
             qianniuhuaRatio: number;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.updatePriceRatios(
                 body.supplierCode,
                 body.upcCode,
                 body.supplierRatio,
                 body.qianniuhuaRatio,
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
@@ -287,11 +293,14 @@ export class SupplierQuotationController {
             supplierCode: string;
             upcCode: string;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.clearPriceRatios(
                 body.supplierCode,
                 body.upcCode,
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
@@ -375,12 +384,15 @@ export class SupplierQuotationController {
             sku: string;
             remark: string;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.saveSupplierProductRemark(
                 body.supplierCode,
                 body.sku,
                 body.remark,
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
@@ -414,11 +426,14 @@ export class SupplierQuotationController {
             sku: string;
             remark: string;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.saveInternalSkuRemark(
                 body.sku,
                 body.remark,
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
@@ -447,10 +462,13 @@ export class SupplierQuotationController {
                 操作?: string;
             }>;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.batchCreateSupplierQuotations(
                 body.items || [],
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
@@ -479,10 +497,13 @@ export class SupplierQuotationController {
                 操作?: string;
             }>;
         },
+        @Headers('x-user-id') userId?: string,
     ) {
         try {
+            const userIdNum = userId ? parseInt(userId, 10) : undefined;
             return await this.service.batchCreateSupplierQuotationsConfirm(
                 body.items || [],
+                userIdNum,
             );
         } catch (error) {
             throw new HttpException(
