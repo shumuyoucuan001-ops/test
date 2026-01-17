@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import * as mysql from 'mysql2/promise';
 import { Logger } from '../utils/logger.util';
 
@@ -42,7 +42,20 @@ export interface SupplierSkuBinding {
 }
 
 @Injectable()
-export class SupplierQuotationService {
+export class SupplierQuotationService implements OnModuleInit {
+  // 供应商名称缓存Map（供应商编码 -> 供应商名称）
+  private supplierNameMap: Map<string, string> = new Map();
+  private supplierNameMapLoaded: boolean = false;
+
+  // 模块初始化时预加载供应商名称映射（可选，首次查询时也会自动加载）
+  async onModuleInit(): Promise<void> {
+    // 异步加载，不阻塞应用启动
+    this.loadSupplierNameMap().catch((error) => {
+      Logger.error('[SupplierQuotationService] 启动时加载供应商名称映射失败:', error);
+      // 不抛出错误，允许应用继续启动，首次查询时会重试
+    });
+  }
+
   private async getConnection() {
     if (!process.env.DB_PASSWORD) {
       throw new Error('DB_PASSWORD environment variable is required');
@@ -95,6 +108,34 @@ export class SupplierQuotationService {
     });
   }
 
+  // 加载供应商名称映射到内存缓存
+  async loadSupplierNameMap(): Promise<void> {
+    if (this.supplierNameMapLoaded) return;
+
+    const connection = await this.getConnection();
+    try {
+      const query = `SELECT 供应商编码, 供应商名称 FROM \`供应商属性信息\``;
+      const [data]: any = await connection.execute(query);
+      this.supplierNameMap.clear();
+      (data || []).forEach((row: any) => {
+        this.supplierNameMap.set(row.供应商编码, row.供应商名称 || '');
+      });
+      this.supplierNameMapLoaded = true;
+      Logger.log(`[SupplierQuotationService] 供应商名称映射已加载: ${this.supplierNameMap.size} 条`);
+    } catch (error) {
+      Logger.error('[SupplierQuotationService] 加载供应商名称映射失败:', error);
+      // 失败时不抛出错误，允许后续查询继续（只是没有供应商名称）
+    } finally {
+      await connection.end();
+    }
+  }
+
+  // 刷新供应商名称映射（用于数据更新后）
+  async refreshSupplierNameMap(): Promise<void> {
+    this.supplierNameMapLoaded = false;
+    await this.loadSupplierNameMap();
+  }
+
   // 获取所有供应商编码列表（去重）
   async getAllSupplierCodes(): Promise<string[]> {
     const connection = await this.getConnection();
@@ -128,64 +169,92 @@ export class SupplierQuotationService {
     productName?: string,
     upcCode?: string,
   ): Promise<{ data: SupplierQuotation[]; total: number }> {
+    const startTime = Date.now();
     const connection = await this.getConnection();
 
     try {
+      // 确保供应商名称映射已加载
+      await this.loadSupplierNameMap();
+
       const offset = (page - 1) * limit;
 
       // 构建搜索条件
       let whereClause = '1=1';
       const queryParams: any[] = [];
+      const countQueryParams: any[] = [];
 
       // 如果指定了供应商编码列表，使用IN查询
       if (supplierCodes && supplierCodes.length > 0) {
         const placeholders = supplierCodes.map(() => '?').join(',');
         whereClause += ` AND q.\`供应商编码\` IN (${placeholders})`;
         queryParams.push(...supplierCodes);
+        countQueryParams.push(...supplierCodes);
+      }
+
+      // 处理供应商名称搜索：需要从缓存的Map中查找匹配的供应商编码
+      let matchedSupplierCodes: string[] | undefined;
+      if (supplierName && supplierName.trim()) {
+        const searchPattern = supplierName.trim().toLowerCase();
+        matchedSupplierCodes = Array.from(this.supplierNameMap.entries())
+          .filter(([_, name]) => name.toLowerCase().includes(searchPattern))
+          .map(([code, _]) => code);
+
+        if (matchedSupplierCodes.length === 0) {
+          // 如果没有匹配的供应商，直接返回空结果
+          return { data: [], total: 0 };
+        }
+
+        const placeholders = matchedSupplierCodes.map(() => '?').join(',');
+        whereClause += ` AND q.\`供应商编码\` IN (${placeholders})`;
+        queryParams.push(...matchedSupplierCodes);
+        countQueryParams.push(...matchedSupplierCodes);
       }
 
       // 兼容旧的search参数（如果提供了新的单独参数，则忽略search）
       if (search && !supplierName && !supplierCode && !productName && !upcCode) {
         whereClause += ' AND (q.供应商编码 LIKE ? OR q.商品名称 LIKE ? OR q.商品规格 LIKE ? OR q.供应商商品编码 LIKE ?)';
-        queryParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+        const likePattern = `%${search}%`;
+        queryParams.push(likePattern, likePattern, likePattern, likePattern);
+        countQueryParams.push(likePattern, likePattern, likePattern, likePattern);
       } else {
         // 使用新的单独搜索参数
-        if (supplierName && supplierName.trim()) {
-          whereClause += ' AND s.供应商名称 LIKE ?';
-          queryParams.push(`%${supplierName.trim()}%`);
-        }
         if (supplierCode && supplierCode.trim()) {
           whereClause += ' AND q.供应商编码 LIKE ?';
-          queryParams.push(`%${supplierCode.trim()}%`);
+          const likePattern = `%${supplierCode.trim()}%`;
+          queryParams.push(likePattern);
+          countQueryParams.push(likePattern);
         }
         if (productName && productName.trim()) {
           whereClause += ' AND q.商品名称 LIKE ?';
-          queryParams.push(`%${productName.trim()}%`);
+          const likePattern = `%${productName.trim()}%`;
+          queryParams.push(likePattern);
+          countQueryParams.push(likePattern);
         }
         if (upcCode && upcCode.trim()) {
           whereClause += ' AND q.最小销售规格UPC商品条码 LIKE ?';
-          queryParams.push(`%${upcCode.trim()}%`);
+          const likePattern = `%${upcCode.trim()}%`;
+          queryParams.push(likePattern);
+          countQueryParams.push(likePattern);
         }
       }
 
-      // 获取总数（如果需要搜索供应商名称，必须JOIN供应商属性信息表）
-      const needJoinSupplierInfo = (supplierName && supplierName.trim()) || (supplierCodes && supplierCodes.length > 0);
+      // COUNT查询：不再需要JOIN供应商属性信息表，因为供应商名称搜索已在应用层处理
+      const countStartTime = Date.now();
       const totalQuery = `
         SELECT COUNT(*) as count 
         FROM \`供应商报价\` q
-        ${needJoinSupplierInfo ? 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`' : ''}
         WHERE ${whereClause}
       `;
-      const [totalResult]: any = await connection.execute(totalQuery, queryParams);
+      const [totalResult]: any = await connection.execute(totalQuery, countQueryParams);
       const total = totalResult[0].count;
+      const countDuration = Date.now() - countStartTime;
 
-      // 获取数据，JOIN供应商属性信息表获取供应商名称，JOIN供应商编码手动绑定sku表获取计算后供货价格
-      // 如果需要搜索供应商名称，必须JOIN供应商属性信息表
+      // 数据查询：移除供应商属性信息表的JOIN，改为从内存Map获取供应商名称
+      const dataStartTime = Date.now();
       const dataQuery = `
         SELECT 
           q.序号,
           q.供应商编码,
-          COALESCE(s.\`供应商名称\`, '') as \`供应商名称\`,
           q.商品名称,
           q.商品规格,
           q.最小销售单位,
@@ -198,7 +267,6 @@ export class SupplierQuotationService {
           q.供应商商品备注,
           q.数据更新时间
         FROM \`供应商报价\` q
-        ${needJoinSupplierInfo ? 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`' : 'LEFT JOIN `供应商属性信息` s ON q.`供应商编码` = s.`供应商编码`'}
         LEFT JOIN \`供应商编码手动绑定sku\` b ON q.\`供应商编码\` = b.\`供应商编码\` AND q.\`供应商商品编码\` = b.\`供应商商品编码\`
         WHERE ${whereClause}
         ORDER BY q.\`供应商编码\` ASC, q.序号 ASC
@@ -209,9 +277,25 @@ export class SupplierQuotationService {
         dataQuery,
         [...queryParams, limit, offset]
       );
+      const dataDuration = Date.now() - dataStartTime;
+
+      // 从内存Map填充供应商名称
+      const enrichStartTime = Date.now();
+      const enrichedData = (data || []).map((row: any) => ({
+        ...row,
+        供应商名称: this.supplierNameMap.get(row.供应商编码) || '',
+      }));
+      const enrichDuration = Date.now() - enrichStartTime;
+
+      const totalDuration = Date.now() - startTime;
+      Logger.log(
+        `[SupplierQuotationService] 查询供应商报价完成 - 总耗时: ${totalDuration}ms, ` +
+        `COUNT: ${countDuration}ms, 数据查询: ${dataDuration}ms, 数据填充: ${enrichDuration}ms, ` +
+        `结果数: ${enrichedData.length}, 总数: ${total}`
+      );
 
       return {
-        data: data || [],
+        data: enrichedData,
         total,
       };
     } catch (error) {

@@ -3552,42 +3552,22 @@ export default function SupplierQuotationPage() {
       // 翻页时会自动触发查询新页面的SKU
 
       // 从当前页数据中提取SKU信息，去重
-      // 如果有SKU绑定，使用绑定的SKU；否则使用原SKU
+      // 注意：传入的items中的SKU可能已经是绑定后的SKU（在useEffect中已处理）
+      // 但为了兼容性，这里仍然保留查找SKU绑定的逻辑（作为备用）
       const skuSet = new Set<string>();
-      const currentPageData: Array<{ SKU?: string | number; '门店/仓库名称'?: string; 城市?: string; originalSku?: string }> = [];
-      const skuMapping: Record<string, string> = {}; // 原SKU -> 绑定SKU的映射
+      const currentPageData: Array<{ SKU?: string | number; '门店/仓库名称'?: string; 城市?: string }> = [];
 
       items.forEach(item => {
         if (item.SKU) {
-          const originalSku = String(item.SKU).trim();
-          // 检查是否有SKU绑定
-          let skuToUse = originalSku;
-
-          // 找到匹配的供应商报价
-          if (upcToSkuMap) {
-            Object.keys(upcToSkuMap).forEach(upc => {
-              if (upcToSkuMap[upc].includes(originalSku)) {
-                const dataSource = allLeftData.length > 0 ? allLeftData : leftData;
-                const quotation = dataSource.find(q => q.最小销售规格UPC商品条码 === upc);
-                if (quotation && quotation.供应商编码 && quotation.供应商商品编码) {
-                  const bindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
-                  const boundSku = skuBindingMap[bindingKey];
-                  if (boundSku) {
-                    skuToUse = boundSku;
-                    skuMapping[originalSku] = boundSku;
-                  }
-                }
-              }
-            });
-          }
+          // 直接使用传入的SKU（因为可能在调用前已经使用了绑定SKU）
+          const skuToUse = String(item.SKU).trim();
 
           if (!skuSet.has(skuToUse)) {
             skuSet.add(skuToUse);
             currentPageData.push({
-              SKU: skuToUse, // 使用绑定的SKU
+              SKU: skuToUse, // 使用SKU（可能是绑定后的）
               '门店/仓库名称': item['门店/仓库名称'],
               城市: item.城市,
-              originalSku: originalSku, // 保存原SKU用于后续映射
             });
           }
         }
@@ -3611,38 +3591,17 @@ export default function SupplierQuotationPage() {
         city: cityParam,
       });
 
-
-      // 将绑定SKU的查询结果映射回原SKU
-      // 因为后端返回的是基于绑定SKU的结果（key为绑定SKU），需要映射回原SKU
-      const mappedResult: Record<string, string> = {};
+      // 直接使用后端返回的结果（key已经是绑定SKU）
+      // 因为我们在调用loadSupplierNames之前已经使用了绑定SKU，所以返回的key也是基于绑定SKU的
+      // 这样在getMergedColumns中查询supplierNameData时，也使用绑定SKU构建key，就能匹配上
       if (result) {
-        Object.keys(result).forEach(key => {
-          // key格式可能是：绑定SKU_最低价、绑定SKU_最近时间、绑定SKU_门店名称等
-          // 需要找到对应的原SKU
-          const parts = key.split('_');
-          const boundSku = parts[0];
-
-          // 找到对应的原SKU
-          const originalSku = Object.keys(skuMapping).find(origSku => skuMapping[origSku] === boundSku);
-
-          if (originalSku) {
-            // 使用原SKU构建新的key
-            const suffix = parts.slice(1).join('_'); // 保留后面的部分（如"最低价"、"最近时间"等）
-            const newKey = suffix ? `${originalSku}_${suffix}` : originalSku;
-            mappedResult[newKey] = result[key];
-          } else {
-            // 如果没有找到映射，可能是没有绑定的SKU，直接使用原key
-            mappedResult[key] = result[key];
-          }
-        });
+        // 合并新的查询结果到现有的supplierNameData中
+        // 这样即使SKU不在当前页，只要之前查询过，也能保留数据
+        setSupplierNameData(prev => ({
+          ...prev,
+          ...result
+        }));
       }
-
-      // 合并新的查询结果到现有的supplierNameData中
-      // 这样即使SKU不在当前页，只要之前查询过，也能保留数据
-      setSupplierNameData(prev => ({
-        ...prev,
-        ...mappedResult
-      }));
     } catch (error: any) {
       console.error('加载供应商名称失败:', error);
       const errorMsg = error?.response?.data?.message || error?.message || '加载供应商名称失败';
@@ -5235,7 +5194,72 @@ export default function SupplierQuotationPage() {
         console.error('导出时批量加载内部sku备注失败:', error);
       }
 
-      // 5.4 将这三列数据添加到 exportAlignedData 的 inventory 中
+      // 5.4 加载供应商名称数据
+      // 重要：如果有手动绑定的SKU，就使用绑定的SKU；否则使用inventory.SKU（自动匹配的SKU）
+      // 只有在用户选择了供应商名称字段时才查询
+      let supplierNameDataForExport: Record<string, string> = {};
+      try {
+        // 只有在用户选择了供应商名称字段时才查询
+        if (supplierNameFields.length > 0) {
+          // 收集所有需要查询的库存汇总数据（使用绑定的SKU）
+          const inventoryDataToQuery: InventorySummary[] = [];
+          const processedSkuSet = new Set<string>();
+
+          exportAlignedData.forEach(item => {
+            const quotation = item.quotation;
+            const inventory = item.inventory;
+
+            // 如果inventory为空，跳过
+            if (!inventory || !inventory.SKU) return;
+
+            // 检查是否有绑定的SKU
+            const bindingKey = quotation.供应商编码 && quotation.供应商商品编码
+              ? `${quotation.供应商编码}_${quotation.供应商商品编码}`
+              : null;
+            const boundSku = bindingKey ? skuBindingMapForExport[bindingKey] : null;
+
+            // 如果有绑定的SKU，就使用绑定的SKU（即使找不到匹配也要用绑定的SKU）
+            // 如果没有绑定的SKU，就使用inventory.SKU（自动匹配的SKU）
+            const skuToUse = boundSku && boundSku.trim() ? boundSku.trim() : (inventory.SKU && inventory.SKU.trim() ? inventory.SKU.trim() : null);
+
+            if (!skuToUse) return;
+
+            // 去重：同一个SKU可能出现在多个供应商报价的匹配中
+            const skuKey = skuToUse.trim();
+            if (!processedSkuSet.has(skuKey)) {
+              processedSkuSet.add(skuKey);
+
+              // 创建一个新的inventory对象，使用绑定的SKU
+              const inventoryData: InventorySummary = {
+                ...inventory,
+                SKU: skuToUse, // 使用绑定的SKU
+              };
+
+              inventoryDataToQuery.push(inventoryData);
+            }
+          });
+
+          if (inventoryDataToQuery.length > 0) {
+            // 城市维度时传递城市名称
+            const cityParam = inventoryType === '城市' && storeNamesParam && storeNamesParam.length > 0 ? storeNamesParam[0] : undefined;
+
+            const result = await supplierQuotationApi.getSupplierNames({
+              type: inventoryType,
+              items: inventoryDataToQuery,
+              fields: supplierNameFields,
+              city: cityParam,
+            });
+
+            if (result) {
+              supplierNameDataForExport = result;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('导出时批量加载供应商名称失败:', error);
+      }
+
+      // 5.5 将这三列数据添加到 exportAlignedData 的 inventory 中
       exportAlignedData.forEach(item => {
         const quotation = item.quotation;
         const inventory = item.inventory;
@@ -5436,24 +5460,40 @@ export default function SupplierQuotationPage() {
 
           let value = item.inventory ? ((item.inventory as any)[key]) : '';
 
-          // 对于供应商名称字段，从supplierNameData中获取数据
+          // 对于供应商名称字段，从supplierNameDataForExport中获取数据（导出时查询的数据）
+          // 关键修复：使用绑定的SKU构建key来查询供应商名称
           if (key === '供应商名称' || key === '供应商名称(最低价)' || key === '供应商名称(最近时间)') {
             const inventory = item.inventory as InventorySummary;
-            if (inventory?.SKU) {
+            const quotation = item.quotation as SupplierQuotation;
+
+            // 获取SKU：优先使用绑定的SKU
+            let skuToUse = inventory?.SKU;
+            if (quotation?.供应商编码 && quotation?.供应商商品编码) {
+              const bindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
+              const boundSku = skuBindingMapForExport[bindingKey];
+              if (boundSku && boundSku.trim()) {
+                skuToUse = boundSku.trim();
+              }
+            }
+
+            if (skuToUse) {
+              // 确保SKU是字符串格式
+              const skuStr = String(skuToUse).trim();
+
               if (key === '供应商名称') {
-                if (inventoryType === '仓店' && inventory['门店/仓库名称']) {
-                  const supplierKey = `${inventory.SKU}_${inventory['门店/仓库名称']}`;
-                  value = supplierNameData[supplierKey] || '';
+                if (inventoryType === '仓店' && inventory?.['门店/仓库名称']) {
+                  const supplierKey = `${skuStr}_${inventory['门店/仓库名称']}`;
+                  value = supplierNameDataForExport[supplierKey] || '';
                 } else if (inventoryType === '全部') {
-                  const supplierKey = `${inventory.SKU}`;
-                  value = supplierNameData[supplierKey] || '';
+                  const supplierKey = `${skuStr}`;
+                  value = supplierNameDataForExport[supplierKey] || '';
                 }
               } else if (key === '供应商名称(最低价)') {
-                const supplierKey = `${inventory.SKU}_最低价`;
-                value = supplierNameData[supplierKey] || '';
+                const supplierKey = `${skuStr}_最低价`;
+                value = supplierNameDataForExport[supplierKey] || '';
               } else if (key === '供应商名称(最近时间)') {
-                const supplierKey = `${inventory.SKU}_最近时间`;
-                value = supplierNameData[supplierKey] || '';
+                const supplierKey = `${skuStr}_最近时间`;
+                value = supplierNameDataForExport[supplierKey] || '';
               }
             }
           }
@@ -6287,28 +6327,60 @@ export default function SupplierQuotationPage() {
   useEffect(() => {
     // 只有在有数据且不在加载中，且选择了供应商名称字段时才查询
     if (mergedData.length > 0 && !rightLoading && supplierNameFields.length > 0) {
-      // 从 mergedData 中提取第一页显示的库存汇总数据的SKU
-      // mergedData 中的每一项都有 inventory 字段，如果存在且是库存汇总数据，则提取SKU
-      const currentPageInventoryData: InventorySummary[] = mergedData
-        .filter(item => item.inventory && item.inventory.SKU) // 只提取有SKU的库存汇总数据
-        .map(item => item.inventory!); // 提取 inventory 数据
+      // 从 mergedData 中提取第一页显示的库存汇总数据，同时考虑SKU绑定
+      // 关键修复：如果SKU是手动绑定的，使用绑定的SKU去查询供应商名称
+      const processedInventoryData: InventorySummary[] = [];
+      const processedSkuSet = new Set<string>();
 
-      // 去重：同一个SKU可能出现在多个供应商报价的匹配中
-      const uniqueInventoryData = currentPageInventoryData.reduce((acc, item) => {
-        const skuKey = String(item.SKU).trim();
-        if (!acc.find(existing => String(existing.SKU).trim() === skuKey)) {
-          acc.push(item);
+      mergedData.forEach(item => {
+        if (!item.inventory || !item.inventory.SKU) return;
+
+        const originalSku = String(item.inventory.SKU).trim();
+        let skuToUse = originalSku;
+
+        // 如果存在quotation，使用quotation来查找SKU绑定
+        if (item.quotation) {
+          const quotation = item.quotation as SupplierQuotation;
+
+          // 优先使用supplierBindingSkuMap（手动绑定的SKU），key格式为"供应商编码_UPC"
+          if (quotation.供应商编码 && quotation.最小销售规格UPC商品条码) {
+            const bindingKey = `${quotation.供应商编码}_${String(quotation.最小销售规格UPC商品条码).trim()}`;
+            const boundSku = supplierBindingSkuMap[bindingKey];
+            if (boundSku && boundSku.trim()) {
+              skuToUse = boundSku.trim();
+            } else if (quotation.供应商商品编码) {
+              // 如果没有手动绑定的SKU，尝试使用skuBindingMap，key格式为"供应商编码_供应商商品编码"
+              const skuBindingKey = `${quotation.供应商编码}_${quotation.供应商商品编码}`;
+              const boundSkuFromMap = skuBindingMap[skuBindingKey];
+              if (boundSkuFromMap) {
+                skuToUse = boundSkuFromMap;
+              }
+            }
+          }
         }
-        return acc;
-      }, [] as InventorySummary[]);
 
-      if (uniqueInventoryData.length > 0) {
-        // 查询所有当前页的SKU（包括已查询的，因为可能只查询了部分字段）
-        loadSupplierNames(uniqueInventoryData, supplierNameFields);
+        // 使用绑定SKU作为唯一标识，去重
+        const skuKey = skuToUse.trim();
+        if (!processedSkuSet.has(skuKey)) {
+          processedSkuSet.add(skuKey);
+
+          // 创建一个新的inventory对象，使用绑定的SKU
+          const inventoryData: InventorySummary = {
+            ...item.inventory,
+            SKU: skuToUse, // 使用绑定的SKU
+          };
+
+          processedInventoryData.push(inventoryData);
+        }
+      });
+
+      if (processedInventoryData.length > 0) {
+        // 查询所有当前页的SKU（使用绑定的SKU）
+        loadSupplierNames(processedInventoryData, supplierNameFields);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mergedData, rightLoading, supplierNameFields]);
+  }, [mergedData, rightLoading, supplierNameFields, supplierBindingSkuMap, skuBindingMap]);
 
   // 获取合并后的表格列定义
   const getMergedColumns = (): ColumnType<any>[] => {
@@ -6726,6 +6798,53 @@ export default function SupplierQuotationPage() {
                 );
               }
               return String(value);
+            }
+
+            // 特殊处理供应商名称列：从record.inventory中读取数据，并构建正确的key
+            if (col.key === '供应商名称' || col.key === '供应商名称(最低价)' || col.key === '供应商名称(最近时间)') {
+              const inventory = record.inventory as InventorySummary | undefined;
+              if (!inventory) return '-';
+
+              // 获取SKU：优先使用绑定的SKU
+              let skuToUse = inventory.SKU;
+              if (record.quotation?.供应商编码 && record.quotation?.最小销售规格UPC商品条码) {
+                const bindingKey = `${record.quotation.供应商编码}_${String(record.quotation.最小销售规格UPC商品条码).trim()}`;
+                const boundSku = supplierBindingSkuMap[bindingKey];
+                if (boundSku && boundSku.trim()) {
+                  skuToUse = boundSku.trim();
+                } else if (record.quotation.供应商商品编码) {
+                  const skuBindingKey = `${record.quotation.供应商编码}_${record.quotation.供应商商品编码}`;
+                  const boundSkuFromMap = skuBindingMap[skuBindingKey];
+                  if (boundSkuFromMap) {
+                    skuToUse = boundSkuFromMap;
+                  }
+                }
+              }
+
+              if (!skuToUse) return '-';
+
+              // 确保SKU是字符串格式
+              const skuStr = String(skuToUse).trim();
+
+              if (col.key === '供应商名称') {
+                if (inventoryType === '仓店' && inventory['门店/仓库名称']) {
+                  const supplierKey = `${skuStr}_${inventory['门店/仓库名称']}`;
+                  const supplierName = supplierNameData[supplierKey] || '';
+                  return supplierName || '-';
+                } else if (inventoryType === '全部') {
+                  const supplierKey = `${skuStr}`;
+                  const supplierName = supplierNameData[supplierKey] || '';
+                  return supplierName || '-';
+                }
+              } else if (col.key === '供应商名称(最低价)') {
+                const supplierKey = `${skuStr}_最低价`;
+                const supplierName = supplierNameData[supplierKey] || '';
+                return supplierName || '-';
+              } else if (col.key === '供应商名称(最近时间)') {
+                const supplierKey = `${skuStr}_最近时间`;
+                const supplierName = supplierNameData[supplierKey] || '';
+                return supplierName || '-';
+              }
             }
 
             // 对于SKU列，确保即使value为空也能正确传递给render函数
